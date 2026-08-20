@@ -21,6 +21,7 @@ import Login from "./auth/login.js";
 import Setup from "./setup/index.js";
 import Contoh from "./contoh/index.js";
 import Function from "./components/index.js";
+import MasterAntrianAwal from "./master/antrian_awal/index.js";
 
 import {
   contextMiddleware,
@@ -38,6 +39,13 @@ router.use(
   "/setup",
   [validateAccessToken, contextMiddleware],
   Setup
+);
+
+// Master
+router.use(
+  "/master",
+  [validateAccessToken, contextMiddleware],
+  MasterAntrianAwal
 );
 // Setup
 router.use(

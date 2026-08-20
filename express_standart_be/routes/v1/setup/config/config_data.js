@@ -35,32 +35,21 @@ router.post("/", async (req, res) => {
             .whereIn("kode", oPayload.kode)
             .select("kode", "keterangan");
 
-        if (!vaData || vaData.length < 1) {
-            const oResult = {
-                status: status.GAGAL,
-                message: "DATA TIDAK DITEMUKAN",
-                datetime: formatDateSystem(),
-                data: [],
-            };
-            Logging(null, {
-                file: "config_data.js",
-                func: "data",
-                request: oPayload,
-                response: oResult,
-                user: username,
-            });
-
-            return res.status(400).json(oResult);
-        }
-
         const oFormatted = {};
-        vaData.forEach((row) => {
-            oFormatted[row.kode] = row.keterangan;
-
-            if (row.kode == "msLogoPerusahaan" && row.keterangan) {
-                oFormatted['msLogoPerusahaan'] = `${process.env.ASSETS_PATH}/uploads/config/logo_perusahaan/${row.keterangan}`
-            }
+        // Initialize all requested keys with fallback ""
+        oPayload.kode.forEach((k) => {
+            oFormatted[k] = "";
         });
+
+        if (vaData && vaData.length > 0) {
+            vaData.forEach((row) => {
+                oFormatted[row.kode] = row.keterangan || "";
+
+                if (row.kode == "msLogoPerusahaan" && row.keterangan) {
+                    oFormatted['msLogoPerusahaan'] = `${process.env.ASSETS_PATH}/uploads/config/logo_perusahaan/${row.keterangan}`
+                }
+            });
+        }
 
         const oResult = {
             status: status.SUKSES,

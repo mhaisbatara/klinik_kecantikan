@@ -250,19 +250,23 @@ export const validatePayload = async (
 };
 
 export const getDBConfig = async (kode = [], trx = DB) => {
-  const vaData = await trx.table('config').whereIn('kode', kode)
+  try {
+    const vaData = await trx.table('config').whereIn('kode', kode);
 
-  const configObject = vaData.reduce((acc, curr) => {
-    acc[curr.kode] = curr.keterangan;
-    return acc;
-  }, {});
+    const configObject = vaData.reduce((acc, curr) => {
+      acc[curr.kode] = curr.keterangan;
+      return acc;
+    }, {});
 
-  if (kode.length > 1) {
-    return configObject;
-  } else {
-    return vaData.length > 0 ? { [kode[0]]: vaData[0].keterangan } : {};
+    if (kode.length > 1) {
+      return configObject;
+    } else {
+      return vaData.length > 0 ? { [kode[0]]: vaData[0].keterangan } : {};
+    }
+  } catch (err) {
+    return {};
   }
-}
+};
 
 export const ChangesLog = async (
   {
