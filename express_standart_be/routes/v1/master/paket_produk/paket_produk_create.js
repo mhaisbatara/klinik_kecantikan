@@ -53,7 +53,7 @@ router.post("/", async (req, res) => {
 
       let detailSeq = 1;
       const detailInserts = oPayload.details.map((d) => ({
-        kode_detail_paket_produk: `DPKTPRD-${kode}-${String(detailSeq++).padStart(2, "0")}`,
+        kode_detail_paket_produk: `DPPRD-${kode}-${String(detailSeq++).padStart(2, "0")}`,
         kode_paket_produk: kode,
         kode_produk: d.kode_produk,
         jumlah: d.jumlah,
