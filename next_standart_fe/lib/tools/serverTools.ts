@@ -122,7 +122,7 @@ const refreshToken = async (userCode: string, refreshToken: string, rememberMe: 
     const encryptedBody = credentialPayload;
 
     const refreshResponse = await axios.post(
-        `${process.env.API_URL}/api/v1/auth/refresh-token`,
+        `${process.env.API_URL}/auth/refresh-token`,
         encryptedBody,
         {
             headers: {

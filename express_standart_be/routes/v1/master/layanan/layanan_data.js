@@ -1,0 +1,90 @@
+/**
+ * @project Sistem Klinik Kecantikan
+ * @file layanan_data.js
+ * @description Endpoint data layanan
+ */
+import express from "express";
+import DB from "../../../../core/config/knex.js";
+import { formatDateSystem } from "../../components/tools/date_tools.js";
+import { Logging } from "../../components/tools/servertool.js";
+import { status } from "../../components/tools/general.js";
+
+const router = express.Router();
+
+router.post("/", async (req, res) => {
+  const { body } = req;
+  const oPayload = body;
+  const username = req?.auth?.username || "";
+
+  const keyword = oPayload.keyword || "";
+  const filterStatus = oPayload.status || null;
+  const filterKategori = oPayload.kode_kategori_layanan || null;
+  const page = parseInt(oPayload.page) || 1;
+  const perPage = parseInt(oPayload.perPage) || 10;
+  const hasPagination = oPayload.page !== undefined || oPayload.perPage !== undefined;
+
+  try {
+    const baseQuery = DB("mst_layanan as l")
+      .leftJoin("mst_kategori_layanan as k", "l.kode_kategori_layanan", "k.kode_kategori_layanan")
+      .modify((qb) => {
+        if (keyword) {
+          const lower = keyword.toLowerCase();
+          qb.where(function () {
+            this.whereRaw("LOWER(l.kode_layanan) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(l.nama) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(k.nama) LIKE ?", [`%${lower}%`]);
+          });
+        }
+        if (filterStatus) {
+          qb.where("l.status", filterStatus);
+        }
+        if (filterKategori) {
+          qb.where("l.kode_kategori_layanan", filterKategori);
+        }
+      });
+
+    const selectFields = [
+      "l.kode_layanan",
+      "l.kode_kategori_layanan",
+      "k.nama as nama_kategori",
+      "l.nama",
+      "l.harga",
+      "l.durasi_menit",
+      "l.status",
+      "l.created_by",
+      "l.created_at",
+      "l.updated_at",
+    ];
+
+    let totalRecords = 0;
+    let vaData = [];
+
+    if (hasPagination) {
+      const offset = (page - 1) * perPage;
+      const countResult = await baseQuery.clone().count("* as total").first();
+      totalRecords = parseInt(countResult.total || 0);
+      vaData = await baseQuery.clone().select(selectFields).orderBy("l.created_at", "desc").limit(perPage).offset(offset);
+    } else {
+      vaData = await baseQuery.clone().select(selectFields).orderBy("l.created_at", "desc");
+      totalRecords = vaData.length;
+    }
+
+    return res.status(200).json({
+      status: status.SUKSES,
+      message: "Data ditemukan",
+      datetime: formatDateSystem(),
+      data: vaData,
+      total_data: totalRecords,
+    });
+  } catch (error) {
+    const oResult = {
+      status: status.BAD_REQUEST,
+      message: "Sistem sedang maintenance harap tunggu sebentar",
+      datetime: formatDateSystem(),
+    };
+    Logging(error, { file: "/master/layanan/layanan_data.js", func: "data", request: oPayload, response: oResult, user: username });
+    return res.status(500).json(oResult);
+  }
+});
+
+export default router;
