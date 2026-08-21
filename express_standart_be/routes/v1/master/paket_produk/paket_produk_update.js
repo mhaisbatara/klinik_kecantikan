@@ -48,7 +48,7 @@ router.post("/", async (req, res) => {
       await trx("mst_detail_paket_produk").where("kode_paket_produk", oPayload.kode_paket_produk).del();
       let detailSeq = 1;
       const detailInserts = oPayload.details.map((d) => ({
-        kode_detail_paket_produk: `DPKTPRD-${oPayload.kode_paket_produk}-${String(detailSeq++).padStart(2, "0")}`,
+        kode_detail_paket_produk: `DPPRD-${oPayload.kode_paket_produk}-${String(detailSeq++).padStart(2, "0")}`,
         kode_paket_produk: oPayload.kode_paket_produk,
         kode_produk: d.kode_produk,
         jumlah: d.jumlah,
