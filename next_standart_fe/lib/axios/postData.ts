@@ -26,7 +26,6 @@ const Axios = axios.create({
     withCredentials: true,
 });
 
-
 Axios.interceptors.response.use(
     r => r,
     async (error) => {
@@ -37,10 +36,8 @@ Axios.interceptors.response.use(
     }
 );
 
-
 async function postData(endpoint: string, data = {}, customHeader = {}) {
     try {
-        // console.log(process.env.NEXT_PUBLIC_API_DIR_PATH)
         const header = {
             'X-ENDPOINT': endpoint,
             'X-Custom-Header': JSON.stringify({
@@ -54,7 +51,7 @@ async function postData(endpoint: string, data = {}, customHeader = {}) {
         });
         return response;
     } catch (error: any) {
-        console.log(error)
+        console.log(error);
         if (error?.response?.status == 401) {
             logout(null, true);
         }

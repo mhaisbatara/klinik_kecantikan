@@ -2,6 +2,7 @@ import express from "express";
 const router = express.Router();
 
 import antrianAwalIndex from "./antrian_awal/index.js";
+import pendaftaranPasienIndex from "./pendaftaran_pasien/index.js";
 
 import kategoriLayananData from "./kategori_layanan/kategori_layanan_data.js";
 import kategoriLayananCreate from "./kategori_layanan/kategori_layanan_create.js";
@@ -50,11 +51,19 @@ import alatDelete from "./alat/alat_delete.js";
 
 import dokterDropdown from "./dokter_dropdown.js";
 import penjaminDropdown from "./penjamin_dropdown.js";
+import antrianLayananIndex from "./antrian_layanan/index.js";
 import poliDropdown from "./poli_dropdown.js";
 import wilayah from "./wilayah.js";
 
-// Antrian Awal
+// Wilayah (must be before pendaftaranPasienIndex catch-all)
+router.use("/wilayah", wilayah);
+
+// Antrian Awal & Layanan
 router.use("/", antrianAwalIndex);
+router.use("/", antrianLayananIndex);
+
+// Pendaftaran Pasien
+router.use("/", pendaftaranPasienIndex);
 
 // Kategori Layanan
 router.use("/kategori-layanan-data", kategoriLayananData);
