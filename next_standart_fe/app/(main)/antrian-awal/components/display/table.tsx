@@ -27,7 +27,7 @@ const Table = ({ state, setState, formik, toast, getData, getGridData, onLazyLoa
             <Button
                 icon="pi pi-pencil"
                 outlined
-                className="p-button-sm"
+                className="p-button-sm border-round-md"
                 tooltip="Edit"
                 onClick={() => {
                     formik.setValues({
@@ -43,7 +43,7 @@ const Table = ({ state, setState, formik, toast, getData, getGridData, onLazyLoa
                 icon="pi pi-trash"
                 outlined
                 severity="danger"
-                className="p-button-sm"
+                className="p-button-sm border-round-md"
                 tooltip="Hapus"
                 onClick={() => setState((p) => ({ ...p, delete: true, selectedDatas: [rowData] }))}
             />
@@ -59,7 +59,7 @@ const Table = ({ state, setState, formik, toast, getData, getGridData, onLazyLoa
                         <InputIcon className="pi pi-search" />
                         <InputText
                             value={state.searchVal}
-                            className="w-full"
+                            className="w-full text-sm"
                             placeholder="Cari Data..."
                             onChange={(e) => {
                                 const value = e.target.value;
@@ -87,17 +87,15 @@ const Table = ({ state, setState, formik, toast, getData, getGridData, onLazyLoa
 
     return (
         <>
-            <div className="card">
-                <div className="flex justify-content-between align-items-start mb-5">
-                    <div>
-                        <h3 className="text-2xl font-semibold flex align-items-center gap-2 mb-1">
-                            <i className="pi pi-list text-purple-600 text-2xl" />
-                            Kelola Master Nomor Antrian
-                        </h3>
-                        <p className="text-color-secondary text-sm">
-                            Tambah, edit, atau nonaktifkan nomor kartu antrian fisik klinik.
-                        </p>
-                    </div>
+            <div className="card border-round-xl p-4 shadow-1 surface-card mb-4">
+                <div className="mb-4">
+                    <h3 className="text-2xl font-bold text-900 flex align-items-center gap-2 mb-1">
+                        <i className="pi pi-list text-purple-600 text-2xl" />
+                        Kelola Master Nomor Antrian
+                    </h3>
+                    <p className="text-500 text-sm m-0">
+                        Tambah, edit, atau nonaktifkan nomor kartu antrian fisik klinik.
+                    </p>
                 </div>
 
                 <div className="flex flex-row flex-wrap align-items-center gap-2 mb-4">
@@ -107,6 +105,7 @@ const Table = ({ state, setState, formik, toast, getData, getGridData, onLazyLoa
                         icon="pi pi-plus"
                         outlined
                         severity="success"
+                        className="border-round-md font-medium px-3"
                         onClick={() => {
                             formik.resetForm();
                             setState((p) => ({ ...p, add: true, bulkAdd: false, edit: false, selectedDatas: [] }));
@@ -118,12 +117,13 @@ const Table = ({ state, setState, formik, toast, getData, getGridData, onLazyLoa
                         icon="pi pi-bolt"
                         outlined
                         severity="info"
+                        className="border-round-md font-medium px-3"
                         tooltip="Buat banyak nomor antrian sekaligus (contoh: 01 sampai 50)"
                         onClick={() => {
                             setState((p) => ({ ...p, bulkAdd: true, add: false, edit: false, selectedDatas: [] }));
                         }}
                     />
-                    <Divider layout="vertical" />
+                    <Divider layout="vertical" className="m-0 h-2rem" />
                     <Button
                         size="small"
                         label={`Hapus${state.selectedDatas.length > 0 ? ` (${state.selectedDatas.length})` : ''}`}
@@ -131,17 +131,20 @@ const Table = ({ state, setState, formik, toast, getData, getGridData, onLazyLoa
                         severity="danger"
                         outlined
                         disabled={state.selectedDatas.length === 0}
+                        className="border-round-md font-medium px-3"
                         onClick={() => {
                             if (state.selectedDatas.length < 1) return;
                             setState((p) => ({ ...p, delete: true }));
                         }}
                     />
-                    <Divider layout="vertical" />
+                    <Divider layout="vertical" className="m-0 h-2rem" />
                     <Button
                         size="small"
                         label="Refresh"
                         icon="pi pi-refresh"
                         outlined
+                        severity="success"
+                        className="border-round-md font-medium px-3"
                         loading={state.load}
                         onClick={() => getData(apiEndpointData)}
                     />
