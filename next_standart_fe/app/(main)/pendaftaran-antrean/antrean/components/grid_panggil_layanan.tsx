@@ -333,6 +333,20 @@ export const GridPanggilLayanan = ({
                                     {isPaket ? '📦 ' : '💆 '} {item.nama_layanan || '-'}
                                 </div>
 
+                                <div
+                                    className="text-xs font-bold text-truncate w-full mb-1"
+                                    style={{
+                                        fontSize: '0.68rem',
+                                        color: '#0f766e',
+                                        background: 'rgba(204, 251, 241, 0.9)',
+                                        padding: '2px 6px',
+                                        borderRadius: '6px',
+                                    }}
+                                    title={`Ruangan: ${item.nama_ruangan || item.kode_ruangan || '-'}`}
+                                >
+                                    🏠 {item.nama_ruangan ? `${item.kode_ruangan ? item.kode_ruangan + ' - ' : ''}${item.nama_ruangan}` : (item.kode_ruangan || 'Ruang Treatment')}
+                                </div>
+
                                 {/* Informasi Tambahan Sesi untuk Paket */}
                                 {isPaket && (
                                     <div className="mb-1">

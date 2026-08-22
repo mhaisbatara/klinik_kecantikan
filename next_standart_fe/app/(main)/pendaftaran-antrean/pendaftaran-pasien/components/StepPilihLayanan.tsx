@@ -21,6 +21,8 @@ interface ServiceItem {
   harga: number;
   durasi_menit: number;
   masa_berlaku_hari?: number;
+  kode_ruangan?: string;
+  nama_ruangan?: string;
 }
 
 interface CategoryGroup {
@@ -106,6 +108,8 @@ export const StepPilihLayanan: React.FC<Props> = ({
       const itemsPayload = itemsToSubmit.map((item) => ({
         jenis_layanan: item.jenis,
         kode_layanan: item.kode_layanan,
+        kode_ruangan: item.kode_ruangan,
+        nama_ruangan: item.nama_ruangan,
       }));
 
       const res = await postData(apiPasienAmbilAntrianLayanan, {
@@ -143,36 +147,18 @@ export const StepPilihLayanan: React.FC<Props> = ({
                 />
                 <h3 className="text-xl font-bold text-900 m-0">Langkah 2: Pilih Layanan & Paket Treatment</h3>
               </div>
-              <p className="text-sm text-color-secondary m-0 pl-5">
-                Pilih satu atau beberapa layanan/paket untuk menerbitkan nomor antrean terapi pasien.
+              <p className="text-500 text-sm m-0 ml-6">
+                Pilih satu atau beberapa layanan/paket untuk menerbitkan nomor antrean tindakan pasien.
               </p>
             </div>
 
-            <Button
-              label="Selesai Tanpa Layanan"
-              icon="pi pi-check-circle"
-              className="p-button-outlined p-button-secondary border-round-lg text-xs font-semibold"
-              onClick={() => handleProcessSubmit([])}
-              loading={submitting}
-            />
-          </div>
-
-          <div className="grid surface-50 p-3 border-round-lg border-1 surface-border text-xs">
-            <div className="col-6 md:col-3">
-              <span className="text-500 block">Nama Pasien:</span>
-              <span className="font-bold text-900 text-sm">{pasienData.nama}</span>
-            </div>
-            <div className="col-6 md:col-3">
-              <span className="text-500 block">No. RM:</span>
-              <span className="font-bold text-blue-700 text-sm">{pasienData.no_rm}</span>
-            </div>
-            <div className="col-6 md:col-3">
-              <span className="text-500 block">No. HP:</span>
-              <span className="font-semibold text-800 text-sm">{pasienData.no_hp || '-'}</span>
-            </div>
-            <div className="col-6 md:col-3">
-              <span className="text-500 block">NIK:</span>
-              <span className="font-semibold text-800 text-sm">{pasienData.nik || '-'}</span>
+            <div className="flex align-items-center gap-2 bg-blue-50 p-3 border-round-xl border-1 border-blue-100 w-full md:w-auto">
+              <i className="pi pi-user text-blue-600 text-2xl" />
+              <div>
+                <span className="text-xs text-500 block">Pasien Terdaftar</span>
+                <span className="font-extrabold text-blue-900 text-base">{pasienData.nama}</span>
+                <span className="text-xs text-blue-700 block font-semibold">No. RM: {pasienData.no_rm}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -216,7 +202,11 @@ export const StepPilihLayanan: React.FC<Props> = ({
                                   <i className="pi pi-clock" /> {item.durasi_menit} mnt
                                 </span>
                               </div>
-                              <h4 className="font-bold text-900 text-base m-0 mb-2">{item.nama}</h4>
+                              <h4 className="font-bold text-900 text-base m-0 mb-1">{item.nama}</h4>
+                              <div className="flex align-items-center gap-1 text-xs text-teal-700 font-semibold mb-2">
+                                <i className="pi pi-building text-teal-500" />
+                                <span>{item.nama_ruangan ? `${item.kode_ruangan ? item.kode_ruangan + ' - ' : ''}${item.nama_ruangan}` : (item.kode_ruangan || 'Ruang Treatment')}</span>
+                              </div>
                               <div className="text-base font-extrabold text-blue-600">
                                 {formatRupiah(item.harga)}
                               </div>
@@ -258,7 +248,11 @@ export const StepPilihLayanan: React.FC<Props> = ({
                                 <span className="text-xs text-500">Masa berlaku {item.masa_berlaku_hari} hr</span>
                               )}
                             </div>
-                            <h4 className="font-bold text-900 text-base m-0 mb-2">{item.nama}</h4>
+                            <h4 className="font-bold text-900 text-base m-0 mb-1">{item.nama}</h4>
+                            <div className="flex align-items-center gap-1 text-xs text-teal-700 font-semibold mb-2">
+                              <i className="pi pi-building text-teal-500" />
+                              <span>{item.nama_ruangan ? `${item.kode_ruangan ? item.kode_ruangan + ' - ' : ''}${item.nama_ruangan}` : (item.kode_ruangan || 'Ruang Treatment')}</span>
+                            </div>
                             <div className="text-base font-extrabold text-amber-700">
                               {formatRupiah(item.harga)}
                             </div>

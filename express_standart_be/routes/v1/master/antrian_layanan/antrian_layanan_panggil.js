@@ -28,7 +28,7 @@ router.post("/", async (req, res) => {
     }).validateAsync(
       {
         kode_antrian_layanan: oPayload.kode_antrian_layanan || oPayload.kode_antrian,
-        aksi: oPayload.aksi,
+        aksi: oPayload.aksi || oPayload.status,
       },
       { allowUnknown: true }
     );

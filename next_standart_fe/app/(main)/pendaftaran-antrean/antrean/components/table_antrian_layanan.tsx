@@ -215,6 +215,7 @@ export const TableAntrianLayanan = ({
                 <Column field="no_rm" header="No. RM" sortable style={{ width: '130px' }} />
                 <Column field="nama_pasien" header="Nama Pasien" sortable body={(r) => <strong>{r.nama_pasien || '-'}</strong>} />
                 <Column field="nama_layanan" header="Layanan / Treatment" sortable body={(r) => <span className="text-blue-800 font-semibold">{r.nama_layanan || '-'}</span>} />
+                <Column field="nama_ruangan" header="Ruangan" body={(r) => <Tag value={r.nama_ruangan ? `${r.kode_ruangan ? r.kode_ruangan + ' - ' : ''}${r.nama_ruangan}` : (r.kode_ruangan || '-')} severity="success" className="text-xs font-semibold" />} />
                 <Column field="jam_datang" header="Jam Datang" sortable style={{ width: '120px' }} />
                 <Column field="status" header="Status" sortable style={{ width: '130px' }} body={statusBodyTemplate} />
                 <Column header="Aksi" style={{ width: '180px' }} body={actionBodyTemplate} />

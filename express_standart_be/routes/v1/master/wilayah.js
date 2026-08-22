@@ -35,7 +35,11 @@ async function fetchFallback(key, url) {
 export const handleProvinsi = async (req, res) => {
   const username = req?.auth?.username || "";
   try {
-    let data = await DB("mst_provinsi").select("kode", "nama").orderBy("nama", "asc");
+    let data = [];
+    const hasTable = await DB.schema.hasTable("mst_provinsi");
+    if (hasTable) {
+      data = await DB("mst_provinsi").select("kode", "nama").orderBy("nama", "asc");
+    }
 
     if (!data || data.length === 0) {
       const raw = await fetchFallback("prov", `${BASE_URL}/provinces.json`);
@@ -73,13 +77,16 @@ export const handleKabupaten = async (req, res) => {
 
   try {
     let data = [];
-    if (kode_provinsi) {
-      data = await DB("mst_kabupaten")
-        .select("kode", "kode_provinsi", "nama")
-        .where("kode_provinsi", kode_provinsi)
-        .orderBy("nama", "asc");
-    } else {
-      data = await DB("mst_kabupaten").select("kode", "kode_provinsi", "nama").orderBy("nama", "asc").limit(100);
+    const hasTable = await DB.schema.hasTable("mst_kabupaten");
+    if (hasTable) {
+      if (kode_provinsi) {
+        data = await DB("mst_kabupaten")
+          .select("kode", "kode_provinsi", "nama")
+          .where("kode_provinsi", kode_provinsi)
+          .orderBy("nama", "asc");
+      } else {
+        data = await DB("mst_kabupaten").select("kode", "kode_provinsi", "nama").orderBy("nama", "asc").limit(100);
+      }
     }
 
     if ((!data || data.length === 0) && kode_provinsi) {
@@ -120,13 +127,16 @@ export const handleKecamatan = async (req, res) => {
 
   try {
     let data = [];
-    if (kode_kota) {
-      data = await DB("mst_kecamatan")
-        .select("kode", "kode_kabupaten", "nama")
-        .where("kode_kabupaten", kode_kota)
-        .orderBy("nama", "asc");
-    } else {
-      data = await DB("mst_kecamatan").select("kode", "kode_kabupaten", "nama").orderBy("nama", "asc").limit(100);
+    const hasTable = await DB.schema.hasTable("mst_kecamatan");
+    if (hasTable) {
+      if (kode_kota) {
+        data = await DB("mst_kecamatan")
+          .select("kode", "kode_kabupaten", "nama")
+          .where("kode_kabupaten", kode_kota)
+          .orderBy("nama", "asc");
+      } else {
+        data = await DB("mst_kecamatan").select("kode", "kode_kabupaten", "nama").orderBy("nama", "asc").limit(100);
+      }
     }
 
     if ((!data || data.length === 0) && kode_kota) {
@@ -167,13 +177,16 @@ export const handleKelurahan = async (req, res) => {
 
   try {
     let data = [];
-    if (kode_kecamatan) {
-      data = await DB("mst_kelurahan")
-        .select("kode", "kode_kecamatan", "nama")
-        .where("kode_kecamatan", kode_kecamatan)
-        .orderBy("nama", "asc");
-    } else {
-      data = await DB("mst_kelurahan").select("kode", "kode_kecamatan", "nama").orderBy("nama", "asc").limit(100);
+    const hasTable = await DB.schema.hasTable("mst_kelurahan");
+    if (hasTable) {
+      if (kode_kecamatan) {
+        data = await DB("mst_kelurahan")
+          .select("kode", "kode_kecamatan", "nama")
+          .where("kode_kecamatan", kode_kecamatan)
+          .orderBy("nama", "asc");
+      } else {
+        data = await DB("mst_kelurahan").select("kode", "kode_kecamatan", "nama").orderBy("nama", "asc").limit(100);
+      }
     }
 
     if ((!data || data.length === 0) && kode_kecamatan) {

@@ -20,6 +20,7 @@ const Page = () => {
 
     const [data, setData] = useState<any[]>([]);
     const [layananOptions, setLayananOptions] = useState<any[]>([]);
+    const [ruanganList, setRuanganList] = useState<any[]>([]);
     const [loading, setLoading] = useState<boolean>(false);
     const [totalRecords, setTotalRecords] = useState<number>(0);
     const [page, setPage] = useState<number>(1);
@@ -31,6 +32,7 @@ const Page = () => {
     const [isEdit, setIsEdit] = useState<boolean>(false);
     const [formData, setFormData] = useState<any>({
         kode_paket_layanan: '',
+        kode_ruangan: '',
         nama: '',
         harga_paket: 0,
         masa_berlaku_hari: 365,
@@ -62,18 +64,30 @@ const Page = () => {
         }
     };
 
+    const loadRuangan = async () => {
+        try {
+            const res = await postData('/master/ruangan-dropdown', {});
+            const list = (res.data.data || []).map((r: any) => ({ label: `${r.kode_ruangan} - ${r.nama_ruangan}`, value: r.kode_ruangan }));
+            setRuanganList(list);
+        } catch (error) {
+            console.error('Failed to fetch ruangan list');
+        }
+    };
+
     useEffect(() => {
         loadData();
     }, [page, rows, keyword]);
 
     useEffect(() => {
         loadLayanan();
+        loadRuangan();
     }, []);
 
     const handleOpenCreate = () => {
         setIsEdit(false);
         setFormData({
             kode_paket_layanan: '',
+            kode_ruangan: ruanganList[0]?.value || '',
             nama: '',
             harga_paket: 0,
             masa_berlaku_hari: 365,
@@ -87,6 +101,7 @@ const Page = () => {
         setIsEdit(true);
         setFormData({
             ...rowData,
+            kode_ruangan: rowData.kode_ruangan || '',
             details: (rowData.details || []).map((d: any) => ({
                 kode_layanan: d.kode_layanan,
                 jumlah_sesi: d.jumlah_sesi
@@ -242,6 +257,7 @@ const Page = () => {
                     <Column selectionMode="multiple" headerStyle={{ width: '3rem' }}></Column>
                     <Column field="kode_paket_layanan" header="Kode Paket" sortable headerStyle={{ fontWeight: 'bold' }}></Column>
                     <Column field="nama" header="Nama Paket" sortable headerStyle={{ fontWeight: 'bold' }}></Column>
+                    <Column field="nama_ruangan" header="Ruangan" body={(r) => r.nama_ruangan ? `${r.kode_ruangan ? r.kode_ruangan + ' - ' : ''}${r.nama_ruangan}` : (r.kode_ruangan || '-')}></Column>
                     <Column
                         header="Detail Layanan"
                         body={(r) => (
@@ -284,6 +300,17 @@ const Page = () => {
                     <div>
                         <label className="block text-sm font-semibold mb-1">Nama Paket *</label>
                         <InputText value={formData.nama} onChange={(e) => setFormData({ ...formData, nama: e.target.value })} placeholder="Masukkan nama paket layanan" className="w-full text-sm" />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-semibold mb-1">Ruangan</label>
+                        <Dropdown
+                            value={formData.kode_ruangan}
+                            options={ruanganList}
+                            onChange={(e) => setFormData({ ...formData, kode_ruangan: e.value })}
+                            placeholder="Pilih Ruangan"
+                            showClear
+                            className="w-full text-sm"
+                        />
                     </div>
                     <div className="grid">
                         <div className="col-4">

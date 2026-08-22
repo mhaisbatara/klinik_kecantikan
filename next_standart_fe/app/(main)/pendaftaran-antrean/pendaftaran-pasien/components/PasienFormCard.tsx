@@ -515,17 +515,38 @@ export const PasienFormCard: React.FC<Props> = ({
               />
             </div>
 
-            <div className="col-12 field">
+            <div className={formData.pekerjaan && !pekerjaanOptions.some((o) => o.value !== 'Lainnya' && o.value === formData.pekerjaan) ? "col-12 md:col-6 field" : "col-12 field"}>
               <label className="font-semibold text-900">Pekerjaan</label>
               <Dropdown
-                value={formData.pekerjaan}
+                value={
+                  pekerjaanOptions.some((o) => o.value !== 'Lainnya' && o.value === formData.pekerjaan)
+                    ? formData.pekerjaan
+                    : (formData.pekerjaan ? 'Lainnya' : '')
+                }
                 options={pekerjaanOptions}
-                onChange={(e) => handleChange('pekerjaan', e.value)}
+                onChange={(e) => {
+                  if (e.value === 'Lainnya') {
+                    handleChange('pekerjaan', 'Lainnya');
+                  } else {
+                    handleChange('pekerjaan', e.value || '');
+                  }
+                }}
                 placeholder="Pilih Pekerjaan"
                 filter
                 showClear
               />
             </div>
+
+            {(!formData.pekerjaan || !pekerjaanOptions.some((o) => o.value !== 'Lainnya' && o.value === formData.pekerjaan)) && formData.pekerjaan !== '' && (
+              <div className="col-12 md:col-6 field">
+                <label className="font-semibold text-900">Ketik Pekerjaan Lainnya</label>
+                <InputText
+                  value={formData.pekerjaan === 'Lainnya' ? '' : formData.pekerjaan}
+                  onChange={(e) => handleChange('pekerjaan', e.target.value || 'Lainnya')}
+                  placeholder="Ketik detail pekerjaan..."
+                />
+              </div>
+            )}
           </div>
         </TabPanel>
 
@@ -671,26 +692,65 @@ export const PasienFormCard: React.FC<Props> = ({
       </TabView>
 
       {/* FOOTER ACTIONS */}
-      <div className="flex justify-content-end gap-3 mt-4 pt-3 border-top-1 surface-border">
-        {onCancel && (
-          <Button
-            label="Batal Edit"
-            icon="pi pi-times"
-            outlined
-            severity="secondary"
-            className="border-round-lg font-bold"
-            onClick={onCancel}
-            disabled={loading}
-          />
-        )}
+      <div className="flex justify-content-between align-items-center gap-3 mt-4 pt-3 border-top-1 surface-border">
+        <div>
+          {activeFormTab > 0 && (
+            <Button
+              label="Kembali"
+              icon="pi pi-arrow-left"
+              outlined
+              severity="secondary"
+              className="border-round-lg font-bold"
+              onClick={() => setActiveFormTab((prev) => Math.max(0, prev - 1))}
+              type="button"
+            />
+          )}
+        </div>
 
-        <Button
-          label={formData.no_rm ? 'Simpan Perubahan' : 'Daftarkan Pasien & Lanjut Pilih Layanan'}
-          icon="pi pi-check"
-          className="p-button-primary border-round-lg font-bold"
-          onClick={handleSubmit}
-          loading={loading}
-        />
+        <div className="flex gap-3">
+          {onCancel && (
+            <Button
+              label="Batal Edit"
+              icon="pi pi-times"
+              outlined
+              severity="secondary"
+              className="border-round-lg font-bold"
+              onClick={onCancel}
+              disabled={loading}
+              type="button"
+            />
+          )}
+
+          {activeFormTab < 3 ? (
+            <Button
+              label="Selanjutnya"
+              icon="pi pi-arrow-right"
+              iconPos="right"
+              className="p-button-primary border-round-lg font-bold"
+              onClick={() => {
+                if (activeFormTab === 0 && !formData.nama.trim()) {
+                  showError(toast, 'Nama Pasien wajib diisi');
+                  return;
+                }
+                if (activeFormTab === 2 && !formData.no_hp.trim()) {
+                  showError(toast, 'Nomor HP (WhatsApp) wajib diisi');
+                  return;
+                }
+                setActiveFormTab((prev) => Math.min(3, prev + 1));
+              }}
+              type="button"
+            />
+          ) : (
+            <Button
+              label={formData.no_rm ? 'Simpan Perubahan' : 'Daftarkan Pasien & Lanjut Pilih Layanan'}
+              icon="pi pi-check"
+              className="p-button-success border-round-lg font-bold"
+              onClick={handleSubmit}
+              loading={loading}
+              type="button"
+            />
+          )}
+        </div>
       </div>
     </div>
   );

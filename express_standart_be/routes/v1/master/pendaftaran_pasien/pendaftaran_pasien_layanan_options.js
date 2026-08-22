@@ -30,6 +30,7 @@ const handleGetOptions = async (req, res) => {
     // 2. Fetch layanan aktif
     const vaLayanan = await DB("mst_layanan as l")
       .leftJoin("mst_kategori_layanan as k", "l.kode_kategori_layanan", "k.kode_kategori_layanan")
+      .leftJoin("mst_ruangan as r", "l.kode_ruangan", "r.kode_ruangan")
       .where("l.status", "aktif")
       .select(
         "l.kode_layanan",
@@ -37,15 +38,18 @@ const handleGetOptions = async (req, res) => {
         "k.nama as nama_kategori",
         "l.nama",
         "l.harga",
-        "l.durasi_menit"
+        "l.durasi_menit",
+        "l.kode_ruangan",
+        "r.nama_ruangan as nama_ruangan"
       )
       .orderBy("l.id", "asc");
 
     // 3. Fetch paket layanan aktif
-    const vaPaket = await DB("mst_paket_layanan")
-      .where("status", "aktif")
-      .select("kode_paket_layanan", "nama", "harga_paket", "masa_berlaku_hari")
-      .orderBy("id", "asc");
+    const vaPaket = await DB("mst_paket_layanan as p")
+      .leftJoin("mst_ruangan as r", "p.kode_ruangan", "r.kode_ruangan")
+      .where("p.status", "aktif")
+      .select("p.kode_paket_layanan", "p.nama", "p.harga_paket", "p.masa_berlaku_hari", "p.kode_ruangan", "r.nama_ruangan as nama_ruangan")
+      .orderBy("p.id", "asc");
 
     // Map layanan grouped by kategori
     const kategoriMap = new Map();
@@ -68,6 +72,8 @@ const handleGetOptions = async (req, res) => {
         nama: lay.nama,
         harga: parseFloat(lay.harga || 0),
         durasi_menit: parseInt(lay.durasi_menit || 30, 10),
+        kode_ruangan: lay.kode_ruangan || "",
+        nama_ruangan: lay.nama_ruangan || lay.kode_ruangan || "Ruang Treatment",
       };
 
       if (katObj) {
@@ -93,6 +99,8 @@ const handleGetOptions = async (req, res) => {
       harga: parseFloat(pkt.harga_paket || 0),
       durasi_menit: 60, // default estimasi durasi paket
       masa_berlaku_hari: pkt.masa_berlaku_hari,
+      kode_ruangan: pkt.kode_ruangan || "",
+      nama_ruangan: pkt.nama_ruangan || pkt.kode_ruangan || "Ruang Treatment",
     }));
 
     // Filter out categories with empty items

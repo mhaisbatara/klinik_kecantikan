@@ -21,6 +21,7 @@ router.post("/", async (req, res) => {
       {
         nama: Joi.string().max(100).required().label("Nama Layanan"),
         kode_kategori_layanan: Joi.string().required().label("Kategori Layanan"),
+        kode_ruangan: Joi.string().optional().allow("", null).label("Ruangan"),
         harga: Joi.number().min(0).required().label("Harga"),
         durasi_menit: Joi.number().integer().min(1).required().label("Durasi (Menit)"),
         status: Joi.string().valid("aktif", "nonaktif").required().label("Status"),
@@ -44,6 +45,7 @@ router.post("/", async (req, res) => {
       const oData = {
         kode_layanan: kodeLayanan,
         kode_kategori_layanan: oPayload.kode_kategori_layanan,
+        kode_ruangan: oPayload.kode_ruangan || null,
         nama: oPayload.nama,
         harga: oPayload.harga,
         durasi_menit: oPayload.durasi_menit,

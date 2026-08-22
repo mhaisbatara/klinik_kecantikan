@@ -17,6 +17,8 @@ export interface AntrianLayananData {
     nama_pasien: string;
     no_hp: string;
     nama_layanan: string;
+    kode_ruangan?: string;
+    nama_ruangan?: string;
     jumlah_sesi_paket?: number | null;
 }
 

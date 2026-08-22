@@ -9,7 +9,7 @@ import { useSession } from 'next-auth/react';
 import { DataTableStateEvent } from 'primereact/datatable';
 import { State } from './components/interfaces';
 import { apiEndpointData } from './components/endpoints';
-import { GridPanggilLayanan } from './components/grid_panggil_layanan';
+import { PanelAntrianRuangan } from './components/PanelAntrianRuangan';
 import { TableAntrianLayanan } from './components/table_antrian_layanan';
 import { TabPanel, TabView } from 'primereact/tabview';
 
@@ -116,13 +116,13 @@ const AntreanLayananPage = () => {
 
             {/* Title Card Header */}
             <div className="card p-0 mb-3 border-round-xl surface-border shadow-1 overflow-hidden">
-                <div className="p-4 bg-blue-50 border-bottom-1 surface-border">
-                    <h2 className="text-3xl font-bold flex align-items-center gap-2 mb-1 text-blue-900">
-                        <i className="pi pi-ticket text-blue-600 text-3xl" />
-                        Panel Antrean Layanan & Paket Pasien
+                <div className="p-4 bg-teal-50 border-bottom-1 surface-border">
+                    <h2 className="text-3xl font-bold flex align-items-center gap-2 mb-1 text-teal-900">
+                        <i className="pi pi-ticket text-teal-600 text-3xl" />
+                        Panel Antrean Tindakan Pasien per Ruangan
                     </h2>
                     <p className="text-color-secondary m-0 text-sm">
-                        Kelola dan panggil nomor antrean layanan tunggal dan paket treatment pasien secara real-time langsung ke ruang tindakan.
+                        Kelola dan panggil nomor antrean tindakan pasien berdasar lokasi ruangan tindakan secara real-time.
                     </p>
                 </div>
             </div>
@@ -133,24 +133,10 @@ const AntreanLayananPage = () => {
                 onTabChange={(e) => setState((p) => ({ ...p, activeTab: e.index }))}
             >
                 <TabPanel
-                    header="Panel Antrean Layanan"
-                    leftIcon="pi pi-heart-fill mr-2 text-blue-600"
+                    header="Antrean per Ruangan"
+                    leftIcon="pi pi-building mr-2 text-teal-600 font-bold"
                 >
-                    <GridPanggilLayanan
-                        mode="layanan"
-                        state={state}
-                        setState={setState}
-                        toast={toast}
-                        getGridData={getGridData}
-                    />
-                </TabPanel>
-
-                <TabPanel
-                    header="Panel Antrean Paket Treatment"
-                    leftIcon="pi pi-box mr-2 text-purple-600"
-                >
-                    <GridPanggilLayanan
-                        mode="paket"
+                    <PanelAntrianRuangan
                         state={state}
                         setState={setState}
                         toast={toast}

@@ -20,6 +20,7 @@ const Page = () => {
 
     const [data, setData] = useState<any[]>([]);
     const [kategoriList, setKategoriList] = useState<any[]>([]);
+    const [ruanganList, setRuanganList] = useState<any[]>([]);
     const [loading, setLoading] = useState<boolean>(false);
     const [totalRecords, setTotalRecords] = useState<number>(0);
     const [page, setPage] = useState<number>(1);
@@ -32,6 +33,7 @@ const Page = () => {
     const [formData, setFormData] = useState<any>({
         kode_layanan: '',
         kode_kategori_layanan: '',
+        kode_ruangan: '',
         nama: '',
         harga: 0,
         durasi_menit: 30,
@@ -62,23 +64,37 @@ const Page = () => {
         }
     };
 
+    const loadRuangan = async () => {
+        try {
+            const res = await postData('/master/ruangan-dropdown', {});
+            const list = (res.data.data || []).map((r: any) => ({ label: `${r.kode_ruangan} - ${r.nama_ruangan}`, value: r.kode_ruangan }));
+            setRuanganList(list);
+        } catch (error) {
+            console.error('Failed to fetch ruangan list');
+        }
+    };
+
     useEffect(() => {
         loadData();
     }, [page, rows, keyword]);
 
     useEffect(() => {
         loadKategori();
+        loadRuangan();
     }, []);
 
     const handleOpenCreate = () => {
         setIsEdit(false);
-        setFormData({ kode_layanan: '', kode_kategori_layanan: kategoriList[0]?.value || '', nama: '', harga: 0, durasi_menit: 30, status: 'aktif' });
+        setFormData({ kode_layanan: '', kode_kategori_layanan: kategoriList[0]?.value || '', kode_ruangan: ruanganList[0]?.value || '', nama: '', harga: 0, durasi_menit: 30, status: 'aktif' });
         setDialogVisible(true);
     };
 
     const handleOpenEdit = (rowData: any) => {
         setIsEdit(true);
-        setFormData({ ...rowData });
+        setFormData({
+            ...rowData,
+            kode_ruangan: rowData.kode_ruangan || '',
+        });
         setDialogVisible(true);
     };
 
@@ -203,6 +219,7 @@ const Page = () => {
                     <Column field="kode_layanan" header="Kode" sortable headerStyle={{ fontWeight: 'bold' }}></Column>
                     <Column field="nama" header="Nama Layanan" sortable headerStyle={{ fontWeight: 'bold' }}></Column>
                     <Column field="nama_kategori" header="Kategori" body={(r) => r.nama_kategori || r.kode_kategori_layanan || '-'}></Column>
+                    <Column field="nama_ruangan" header="Ruangan" body={(r) => r.nama_ruangan ? `${r.kode_ruangan ? r.kode_ruangan + ' - ' : ''}${r.nama_ruangan}` : (r.kode_ruangan || '-')}></Column>
                     <Column field="harga" header="Harga" body={(r) => <span className="font-semibold text-green-600">{formatRupiah(r.harga)}</span>}></Column>
                     <Column field="durasi_menit" header="Durasi" body={(r) => `${r.durasi_menit} Menit`}></Column>
                     <Column
@@ -241,6 +258,17 @@ const Page = () => {
                             options={kategoriList}
                             onChange={(e) => setFormData({ ...formData, kode_kategori_layanan: e.value })}
                             placeholder="Pilih Kategori"
+                            className="w-full text-sm"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-semibold mb-1">Ruangan</label>
+                        <Dropdown
+                            value={formData.kode_ruangan}
+                            options={ruanganList}
+                            onChange={(e) => setFormData({ ...formData, kode_ruangan: e.value })}
+                            placeholder="Pilih Ruangan"
+                            showClear
                             className="w-full text-sm"
                         />
                     </div>

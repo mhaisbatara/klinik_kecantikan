@@ -4,6 +4,7 @@ import React, { useRef, useState } from 'react';
 import { Toast } from 'primereact/toast';
 import { TabView, TabPanel } from 'primereact/tabview';
 import { TabPendaftaran } from './components/tab_pendaftaran';
+import { TabPendaftaranLama } from './components/tab_pendaftaran_lama';
 import { TabPasienLama } from './components/tab_pasien_lama';
 
 const PendaftaranPasienPage = () => {
@@ -33,7 +34,7 @@ const PendaftaranPasienPage = () => {
             Pendaftaran Pasien
           </h2>
           <p className="text-color-secondary m-0 text-sm">
-            Registrasi profil pasien baru/rekam medis, cari & kelola master data pasien terdaftar.
+            Registrasi pasien baru & pasien lama, alur pilih layanan treatment & antrean, kelola master data pasien.
           </p>
         </div>
       </div>
@@ -45,7 +46,7 @@ const PendaftaranPasienPage = () => {
         className="p-tabview-custom"
       >
         <TabPanel
-          header="Pendaftaran Pasien"
+          header="Pendaftaran Pasien Baru"
           leftIcon="pi pi-user-plus mr-2"
         >
           <TabPendaftaran
@@ -56,7 +57,16 @@ const PendaftaranPasienPage = () => {
         </TabPanel>
 
         <TabPanel
-          header="Kelola Master"
+          header="Pendaftaran Pasien Lama"
+          leftIcon="pi pi-search mr-2"
+        >
+          <TabPendaftaranLama
+            toast={toast}
+          />
+        </TabPanel>
+
+        <TabPanel
+          header="Kelola Master Data"
           leftIcon="pi pi-list mr-2"
         >
           <TabPasienLama

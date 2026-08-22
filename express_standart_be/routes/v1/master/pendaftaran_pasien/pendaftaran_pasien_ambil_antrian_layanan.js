@@ -154,11 +154,15 @@ router.post("/", async (req, res) => {
 
           let namaLayanan = "";
           let hargaLayanan = 0;
+          let kodeRuangan = "";
+          let namaRuangan = "";
 
           if (jenis === "layanan") {
-            const lay = await trx("mst_layanan")
-              .where("kode_layanan", kodeLayanan)
-              .where("status", "aktif")
+            const lay = await trx("mst_layanan as l")
+              .leftJoin("mst_ruangan as r", "l.kode_ruangan", "r.kode_ruangan")
+              .where("l.kode_layanan", kodeLayanan)
+              .where("l.status", "aktif")
+              .select("l.nama", "l.harga", "l.kode_ruangan", "r.nama_ruangan as nama_ruangan")
               .first();
 
             if (!lay) {
@@ -168,10 +172,14 @@ router.post("/", async (req, res) => {
             }
             namaLayanan = lay.nama;
             hargaLayanan = parseFloat(lay.harga || 0);
+            kodeRuangan = lay.kode_ruangan || "";
+            namaRuangan = lay.nama_ruangan || lay.kode_ruangan || "Ruang Treatment";
           } else {
-            const pkt = await trx("mst_paket_layanan")
-              .where("kode_paket_layanan", kodeLayanan)
-              .where("status", "aktif")
+            const pkt = await trx("mst_paket_layanan as p")
+              .leftJoin("mst_ruangan as r", "p.kode_ruangan", "r.kode_ruangan")
+              .where("p.kode_paket_layanan", kodeLayanan)
+              .where("p.status", "aktif")
+              .select("p.nama", "p.harga_paket", "p.kode_ruangan", "r.nama_ruangan as nama_ruangan")
               .first();
 
             if (!pkt) {
@@ -181,6 +189,8 @@ router.post("/", async (req, res) => {
             }
             namaLayanan = pkt.nama;
             hargaLayanan = parseFloat(pkt.harga_paket || 0);
+            kodeRuangan = pkt.kode_ruangan || "";
+            namaRuangan = pkt.nama_ruangan || pkt.kode_ruangan || "Ruang Treatment";
           }
 
           const seqPadded = String(nextSeq).padStart(3, "0");
@@ -196,6 +206,8 @@ router.post("/", async (req, res) => {
             jenis_layanan: jenis,
             kode_layanan: kodeLayanan,
             nomor_antrian: cNomorAntrian,
+            kode_ruangan: kodeRuangan,
+            nama_ruangan: namaRuangan,
             status: "menunggu",
             tz: oPayload.tz || "Asia/Jakarta",
             created_by: username,
@@ -210,6 +222,8 @@ router.post("/", async (req, res) => {
             ...oInsertLayanan,
             nama_layanan: namaLayanan,
             harga: hargaLayanan,
+            kode_ruangan: kodeRuangan,
+            nama_ruangan: namaRuangan,
           });
         }
       }

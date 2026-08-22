@@ -26,13 +26,15 @@ router.post("/", async (req, res) => {
   try {
     const baseQuery = DB("mst_layanan as l")
       .leftJoin("mst_kategori_layanan as k", "l.kode_kategori_layanan", "k.kode_kategori_layanan")
+      .leftJoin("mst_ruangan as r", "l.kode_ruangan", "r.kode_ruangan")
       .modify((qb) => {
         if (keyword) {
           const lower = keyword.toLowerCase();
           qb.where(function () {
             this.whereRaw("LOWER(l.kode_layanan) LIKE ?", [`%${lower}%`])
               .orWhereRaw("LOWER(l.nama) LIKE ?", [`%${lower}%`])
-              .orWhereRaw("LOWER(k.nama) LIKE ?", [`%${lower}%`]);
+              .orWhereRaw("LOWER(k.nama) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(r.nama_ruangan) LIKE ?", [`%${lower}%`]);
           });
         }
         if (filterStatus) {
@@ -47,6 +49,8 @@ router.post("/", async (req, res) => {
       "l.kode_layanan",
       "l.kode_kategori_layanan",
       "k.nama as nama_kategori",
+      "l.kode_ruangan",
+      "r.nama_ruangan as nama_ruangan",
       "l.nama",
       "l.harga",
       "l.durasi_menit",

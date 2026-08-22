@@ -432,21 +432,53 @@ export const PasienFormDialog: React.FC<Props> = ({
       modal
       className="p-fluid"
       footer={
-        <div className="flex justify-content-end gap-2">
-          <Button
-            label="Batal"
-            icon="pi pi-times"
-            className="p-button-outlined p-button-secondary"
-            onClick={onHide}
-            disabled={loading}
-          />
-          <Button
-            label={formData.no_rm ? 'Simpan Perubahan' : 'Daftarkan Pasien & Lanjut Pilih Layanan'}
-            icon="pi pi-check"
-            className="p-button-primary"
-            onClick={handleSubmit}
-            loading={loading}
-          />
+        <div className="flex justify-content-between align-items-center gap-2">
+          <div>
+            {activeTab > 0 && (
+              <Button
+                label="Kembali"
+                icon="pi pi-arrow-left"
+                className="p-button-outlined p-button-secondary font-bold"
+                onClick={() => setActiveTab((prev) => Math.max(0, prev - 1))}
+              />
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button
+              label="Batal"
+              icon="pi pi-times"
+              className="p-button-outlined p-button-secondary font-bold"
+              onClick={onHide}
+              disabled={loading}
+            />
+            {activeTab < 3 ? (
+              <Button
+                label="Selanjutnya"
+                icon="pi pi-arrow-right"
+                iconPos="right"
+                className="p-button-primary font-bold"
+                onClick={() => {
+                  if (activeTab === 0 && !formData.nama.trim()) {
+                    showError(toast, 'Nama Pasien wajib diisi');
+                    return;
+                  }
+                  if (activeTab === 2 && !formData.no_hp.trim()) {
+                    showError(toast, 'Nomor HP (WhatsApp) wajib diisi');
+                    return;
+                  }
+                  setActiveTab((prev) => Math.min(3, prev + 1));
+                }}
+              />
+            ) : (
+              <Button
+                label={formData.no_rm ? 'Simpan Perubahan' : 'Daftarkan Pasien & Lanjut Pilih Layanan'}
+                icon="pi pi-check"
+                className="p-button-success font-bold"
+                onClick={handleSubmit}
+                loading={loading}
+              />
+            )}
+          </div>
         </div>
       }
     >
@@ -535,17 +567,38 @@ export const PasienFormDialog: React.FC<Props> = ({
               />
             </div>
 
-            <div className="col-12 field">
+            <div className={formData.pekerjaan && !pekerjaanOptions.some((o) => o.value !== 'Lainnya' && o.value === formData.pekerjaan) ? "col-12 md:col-6 field" : "col-12 field"}>
               <label className="font-semibold text-900">Pekerjaan</label>
               <Dropdown
-                value={formData.pekerjaan}
+                value={
+                  pekerjaanOptions.some((o) => o.value !== 'Lainnya' && o.value === formData.pekerjaan)
+                    ? formData.pekerjaan
+                    : (formData.pekerjaan ? 'Lainnya' : '')
+                }
                 options={pekerjaanOptions}
-                onChange={(e) => handleChange('pekerjaan', e.value)}
+                onChange={(e) => {
+                  if (e.value === 'Lainnya') {
+                    handleChange('pekerjaan', 'Lainnya');
+                  } else {
+                    handleChange('pekerjaan', e.value || '');
+                  }
+                }}
                 placeholder="Pilih Pekerjaan"
                 filter
                 showClear
               />
             </div>
+
+            {(!formData.pekerjaan || !pekerjaanOptions.some((o) => o.value !== 'Lainnya' && o.value === formData.pekerjaan)) && formData.pekerjaan !== '' && (
+              <div className="col-12 md:col-6 field">
+                <label className="font-semibold text-900">Ketik Pekerjaan Lainnya</label>
+                <InputText
+                  value={formData.pekerjaan === 'Lainnya' ? '' : formData.pekerjaan}
+                  onChange={(e) => handleChange('pekerjaan', e.target.value || 'Lainnya')}
+                  placeholder="Ketik detail pekerjaan..."
+                />
+              </div>
+            )}
           </div>
         </TabPanel>
 

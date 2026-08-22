@@ -16,22 +16,27 @@ router.post("/", async (req, res) => {
   const hasPagination = oPayload.page !== undefined || oPayload.perPage !== undefined;
 
   try {
-    const baseQuery = DB("mst_paket_layanan as p").modify((qb) => {
-      if (keyword) {
-        const lower = keyword.toLowerCase();
-        qb.where(function () {
-          this.whereRaw("LOWER(p.kode_paket_layanan) LIKE ?", [`%${lower}%`])
-            .orWhereRaw("LOWER(p.nama) LIKE ?", [`%${lower}%`]);
-        });
-      }
-      if (filterStatus) qb.where("p.status", filterStatus);
-    });
+    const baseQuery = DB("mst_paket_layanan as p")
+      .leftJoin("mst_ruangan as r", "p.kode_ruangan", "r.kode_ruangan")
+      .modify((qb) => {
+        if (keyword) {
+          const lower = keyword.toLowerCase();
+          qb.where(function () {
+            this.whereRaw("LOWER(p.kode_paket_layanan) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(p.nama) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(r.nama_ruangan) LIKE ?", [`%${lower}%`]);
+          });
+        }
+        if (filterStatus) qb.where("p.status", filterStatus);
+      });
 
     const selectFields = [
       "p.kode_paket_layanan",
       "p.nama",
       "p.harga_paket",
       "p.masa_berlaku_hari",
+      "p.kode_ruangan",
+      "r.nama_ruangan as nama_ruangan",
       "p.status",
       "p.created_by",
       "p.created_at",

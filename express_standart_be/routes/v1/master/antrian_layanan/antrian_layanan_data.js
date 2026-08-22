@@ -24,6 +24,7 @@ const handleGetData = async (req, res) => {
   const keyword = (oPayload.keyword || "").trim();
   const filterStatus = oPayload.status || null; // menunggu, dipanggil, selesai, batal
   const filterJenis = oPayload.jenis_layanan || oPayload.jenis || null; // layanan, paket
+  const filterKodeRuangan = oPayload.kode_ruangan || null;
   const filterTanggal = oPayload.tanggal || new Date().toISOString().slice(0, 10);
   const sortField = oPayload.sortField || "al.nomor_antrian";
   const sortOrder = oPayload.sortOrder || "asc";
@@ -38,10 +39,9 @@ const handleGetData = async (req, res) => {
       .leftJoin("mst_paket_layanan as mp", function () {
         this.on("al.kode_layanan", "=", "mp.kode_paket_layanan").andOnVal("al.jenis_layanan", "=", "paket");
       })
-      .leftJoin("mst_detail_paket_layanan as dpl", function () {
-        this.on("al.kode_layanan", "=", "dpl.kode_paket_layanan").andOnVal("al.jenis_layanan", "=", "paket");
-      })
-      .groupBy("al.id")
+      .leftJoin("mst_ruangan as rml", "ml.kode_ruangan", "rml.kode_ruangan")
+      .leftJoin("mst_ruangan as rmp", "mp.kode_ruangan", "rmp.kode_ruangan")
+      .leftJoin("mst_ruangan as ral", "al.kode_ruangan", "ral.kode_ruangan")
       .modify((qb) => {
         if (filterTanggal) {
           qb.whereRaw("DATE(al.created_at) = ?", [filterTanggal]);
@@ -51,6 +51,13 @@ const handleGetData = async (req, res) => {
         }
         if (filterJenis) {
           qb.where("al.jenis_layanan", filterJenis);
+        }
+        if (filterKodeRuangan) {
+          qb.where(function () {
+            this.where("al.kode_ruangan", filterKodeRuangan)
+              .orWhere("ml.kode_ruangan", filterKodeRuangan)
+              .orWhere("mp.kode_ruangan", filterKodeRuangan);
+          });
         }
         if (keyword) {
           const lower = keyword.toLowerCase();
@@ -84,8 +91,10 @@ const handleGetData = async (req, res) => {
       "k.jam_datang",
       "p.nama as nama_pasien",
       "p.no_hp",
+      DB.raw("COALESCE(al.kode_ruangan, ml.kode_ruangan, mp.kode_ruangan, 'RG-01') as kode_ruangan"),
+      DB.raw("COALESCE(ral.nama_ruangan, rml.nama_ruangan, rmp.nama_ruangan, 'Ruang Treatment') as nama_ruangan"),
       DB.raw("COALESCE(ml.nama, mp.nama, '-') as nama_layanan"),
-      DB.raw("MAX(dpl.jumlah_sesi) as jumlah_sesi_paket")
+      DB.raw("(SELECT COALESCE(SUM(jumlah_sesi), 1) FROM mst_detail_paket_layanan WHERE kode_paket_layanan = al.kode_layanan) as jumlah_sesi_paket")
     ];
 
     if (hasPagination) {

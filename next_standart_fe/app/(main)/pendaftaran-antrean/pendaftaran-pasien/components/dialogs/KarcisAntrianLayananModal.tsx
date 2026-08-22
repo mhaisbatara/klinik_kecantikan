@@ -14,6 +14,8 @@ interface AntrianLayananItem {
   status: string;
   nama_layanan?: string;
   harga?: number;
+  kode_ruangan?: string;
+  nama_ruangan?: string;
 }
 
 interface TicketLayananData {
@@ -211,11 +213,16 @@ export const KarcisAntrianLayananModal: React.FC<Props> = ({ visible, onHide, da
                 className="surface-50 p-3 border-round-lg border-1 surface-border flex align-items-center justify-content-between"
               >
                 <div>
-                  <div className="flex align-items-center gap-2 mb-1">
+                  <div className="flex align-items-center gap-2 mb-1 flex-wrap">
                     <Tag
                       value={item.jenis_layanan.toUpperCase()}
                       severity={item.jenis_layanan === 'paket' ? 'warning' : 'info'}
                       className="text-xs font-bold"
+                    />
+                    <Tag
+                      value={item.nama_ruangan ? `${item.kode_ruangan ? item.kode_ruangan + ' - ' : ''}${item.nama_ruangan}` : (item.kode_ruangan || 'Ruang Treatment')}
+                      severity="success"
+                      className="text-xs font-semibold"
                     />
                     <span className="text-xs text-500">{item.kode_antrian_layanan}</span>
                   </div>
