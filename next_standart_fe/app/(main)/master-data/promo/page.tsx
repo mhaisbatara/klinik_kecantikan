@@ -13,7 +13,10 @@ import { Tag } from 'primereact/tag';
 import { Dropdown } from 'primereact/dropdown';
 import { Calendar } from 'primereact/calendar';
 import { Divider } from 'primereact/divider';
+import { InputSwitch } from 'primereact/inputswitch';
 import { confirmDialog, ConfirmDialog } from 'primereact/confirmdialog';
+import { IconField } from 'primereact/iconfield';
+import { InputIcon } from 'primereact/inputicon';
 import { showError, showSuccess } from '@/lib/tools/generalTools';
 
 const Page = () => {
@@ -29,6 +32,7 @@ const Page = () => {
 
     const [dialogVisible, setDialogVisible] = useState<boolean>(false);
     const [isEdit, setIsEdit] = useState<boolean>(false);
+    const [submitted, setSubmitted] = useState<boolean>(false);
     const [formData, setFormData] = useState<any>({
         kode_promo: '',
         nama: '',
@@ -59,6 +63,7 @@ const Page = () => {
 
     const handleOpenCreate = () => {
         setIsEdit(false);
+        setSubmitted(false);
         setFormData({
             kode_promo: '',
             nama: '',
@@ -73,6 +78,7 @@ const Page = () => {
 
     const handleOpenEdit = (rowData: any) => {
         setIsEdit(true);
+        setSubmitted(false);
         setFormData({
             ...rowData,
             nilai_diskon: parseFloat(rowData.nilai_diskon) || 0,
@@ -83,8 +89,9 @@ const Page = () => {
     };
 
     const handleSave = async () => {
-        if (!formData.nama || !formData.tanggal_mulai || !formData.tanggal_selesai) {
-            showError(toast, 'Nama Promo, Tanggal Mulai, dan Tanggal Selesai wajib diisi!');
+        setSubmitted(true);
+        if (!formData.nama || !formData.nama.trim() || !formData.tanggal_mulai || !formData.tanggal_selesai) {
+            showError(toast, 'Harap lengkapi semua bidang wajib!');
             return;
         }
         setSaving(true);
@@ -137,17 +144,18 @@ const Page = () => {
             <ConfirmDialog />
 
             <div className="card border-round-xl p-4 shadow-1 surface-card mb-4">
-                <div className="mb-4">
+                {/* Page Header */}
+                <div className="mb-4 pb-3 border-bottom-1 surface-border">
                     <h3 className="text-2xl font-bold text-900 flex align-items-center gap-2 mb-1">
                         <i className="pi pi-percentage text-purple-600 text-2xl" />
-                        Kelola Master Data Promo & Diskon
+                        Kelola Data Promo & Diskon
                     </h3>
                     <p className="text-500 text-sm m-0">
-                        Kelola program promo, besaran diskon persen/nominal, dan periode berlakunya.
+                        Tambah, edit, atau nonaktifkan promo dan diskon klinik kecantikan.
                     </p>
                 </div>
 
-                <div className="flex flex-row flex-wrap align-items-center justify-content-between gap-2 mb-4">
+                <div className="flex flex-row flex-wrap align-items-center justify-content-between gap-3 mb-3">
                     <div className="flex flex-row flex-wrap align-items-center gap-2">
                         <Button
                             size="small"
@@ -155,19 +163,17 @@ const Page = () => {
                             icon="pi pi-plus"
                             outlined
                             severity="success"
-                            className="border-round-md font-medium px-3"
+                            className="border-round-md font-semibold px-3"
                             onClick={handleOpenCreate}
                         />
                         <Divider layout="vertical" className="m-0 h-2rem" />
                         <Button
                             size="small"
-                            label={`Hapus${selectedRows.length > 0 ? ` (${selectedRows.length})` : ''}`}
-                            icon="pi pi-trash"
-                            severity="danger"
+                            label="Cetak"
+                            icon="pi pi-print"
                             outlined
-                            disabled={selectedRows.length === 0}
-                            className="border-round-md font-medium px-3"
-                            onClick={() => handleDelete(selectedRows.map((r) => r.kode_promo))}
+                            className="border-round-md font-semibold px-3 border-purple-600 text-purple-600"
+                            onClick={() => window.print()}
                         />
                         <Divider layout="vertical" className="m-0 h-2rem" />
                         <Button
@@ -175,17 +181,68 @@ const Page = () => {
                             label="Refresh"
                             icon="pi pi-refresh"
                             outlined
-                            severity="success"
-                            className="border-round-md font-medium px-3"
+                            className="border-round-md font-semibold px-3 border-purple-600 text-purple-600"
                             loading={loading}
                             onClick={loadData}
                         />
+                        {selectedRows.length > 0 && (
+                            <>
+                                <Divider layout="vertical" className="m-0 h-2rem" />
+                                <Button
+                                    size="small"
+                                    label={`Hapus (${selectedRows.length})`}
+                                    icon="pi pi-trash"
+                                    severity="danger"
+                                    outlined
+                                    className="border-round-md font-semibold px-3"
+                                    onClick={() => handleDelete(selectedRows.map((r) => r.kode_promo))}
+                                />
+                            </>
+                        )}
                     </div>
 
-                    <span className="p-input-icon-left w-full md:w-20rem">
-                        <i className="pi pi-search" />
-                        <InputText value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="Cari promo..." className="w-full text-sm" />
+                    
+                </div>
+
+                {/* Box Keterangan Status Legend */}
+                <div className="surface-100 p-2 px-3 border-round-md flex align-items-center gap-4 text-xs font-semibold text-700 mb-4 border-1 surface-border">
+                    <span className="flex align-items-center gap-1">
+                        <i className="pi pi-info-circle text-primary text-sm"></i>
+                        KETERANGAN STATUS:
                     </span>
+                    <span className="flex align-items-center gap-2">
+                        <span className="w-1rem h-1rem border-round bg-green-500 inline-flex align-items-center justify-content-center text-white text-xs">
+                            <i className="pi pi-check" style={{ fontSize: '0.6rem' }}></i>
+                        </span>
+                        Aktif
+                    </span>
+                    <span className="flex align-items-center gap-2">
+                        <span className="w-1rem h-1rem border-round bg-red-500 inline-flex align-items-center justify-content-center text-white text-xs">
+                            <i className="pi pi-times" style={{ fontSize: '0.6rem' }}></i>
+                        </span>
+                        Tidak Aktif
+                    </span>
+                </div>
+
+                {/* Section Title */}
+                
+
+                <div className="flex flex-row flex-wrap align-items-center justify-content-between gap-3 mb-3">
+                    <h4 className="text-xl font-bold text-900 m-0">Tabel Data</h4>
+                    <div className="flex align-items-center gap-2 w-full md:w-22rem">
+                    <IconField iconPosition="left" className="w-full">
+                        <InputIcon className="pi pi-search" />
+                        <InputText value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="Cari Data..." className="w-full text-sm border-round-md" />
+                    </IconField>
+                    <Button
+                        icon="pi pi-filter-slash"
+                        outlined
+                        severity="danger"
+                        className="border-round-md p-button-sm flex-shrink-0"
+                        tooltip="Reset Filter"
+                        onClick={() => setKeyword('')}
+                    />
+                </div>
                 </div>
 
                 <DataTable
@@ -205,6 +262,18 @@ const Page = () => {
                     responsiveLayout="scroll"
                 >
                     <Column selectionMode="multiple" headerStyle={{ width: '3rem' }}></Column>
+                    <Column
+                        header="Status"
+                        headerStyle={{ width: '4rem' }}
+                        body={(r) => (
+                            <span
+                                className={`w-2rem h-2rem border-round inline-flex align-items-center justify-content-center text-white shadow-1 ${r.status === 'aktif' ? 'bg-green-500' : 'bg-red-500'}`}
+                                tooltip={r.status === 'aktif' ? 'Status: Aktif' : 'Status: Tidak Aktif'}
+                            >
+                                <i className={`pi ${r.status === 'aktif' ? 'pi-check' : 'pi-times'}`} style={{ fontSize: '0.8rem' }}></i>
+                            </span>
+                        )}
+                    ></Column>
                     <Column field="kode_promo" header="Kode" sortable headerStyle={{ fontWeight: 'bold' }}></Column>
                     <Column field="nama" header="Nama Promo" sortable headerStyle={{ fontWeight: 'bold' }}></Column>
                     <Column
@@ -220,15 +289,10 @@ const Page = () => {
                     <Column field="tanggal_mulai" header="Tgl Mulai" body={(r) => r.tanggal_mulai ? new Date(r.tanggal_mulai).toLocaleDateString('id-ID') : '-'}></Column>
                     <Column field="tanggal_selesai" header="Tgl Selesai" body={(r) => r.tanggal_selesai ? new Date(r.tanggal_selesai).toLocaleDateString('id-ID') : '-'}></Column>
                     <Column
-                        field="status"
-                        header="Status"
-                        body={(r) => <Tag value={r.status.toUpperCase()} severity={r.status === 'aktif' ? 'success' : 'danger'} />}
-                    ></Column>
-                    <Column
                         header="Aksi"
                         body={(r) => (
                             <div className="flex gap-2 justify-content-center">
-                                <Button icon="pi pi-pencil" outlined className="p-button-sm border-round-md" onClick={() => handleOpenEdit(r)} tooltip="Edit" />
+                                <Button icon="pi pi-pencil" outlined severity="success" className="p-button-sm border-round-md" onClick={() => handleOpenEdit(r)} tooltip="Edit" />
                                 <Button icon="pi pi-trash" outlined severity="danger" className="p-button-sm border-round-md" onClick={() => handleDelete([r.kode_promo])} tooltip="Hapus" />
                             </div>
                         )}
@@ -241,12 +305,20 @@ const Page = () => {
                     {isEdit && (
                         <div>
                             <label className="block text-sm font-semibold mb-1">Kode Promo</label>
-                            <InputText value={formData.kode_promo} disabled className="w-full text-sm" />
+                            <InputText value={formData.kode_promo} disabled className="w-full text-sm border-round-md" />
                         </div>
                     )}
                     <div>
                         <label className="block text-sm font-semibold mb-1">Nama Promo *</label>
-                        <InputText value={formData.nama} onChange={(e) => setFormData({ ...formData, nama: e.target.value })} placeholder="Masukkan nama promo" className="w-full text-sm" />
+                        <InputText
+                            value={formData.nama}
+                            onChange={(e) => setFormData({ ...formData, nama: e.target.value })}
+                            placeholder="contoh : Promo Diskon Merdeka 50%"
+                            className={`w-full text-sm border-round-md ${submitted && !formData.nama?.trim() ? 'p-invalid' : ''}`}
+                        />
+                        {submitted && !formData.nama?.trim() && (
+                            <small className="p-error text-red-500 text-xs block mt-1">Nama promo wajib diisi.</small>
+                        )}
                     </div>
                     <div className="grid">
                         <div className="col-6">
@@ -255,7 +327,7 @@ const Page = () => {
                                 value={formData.jenis_diskon}
                                 options={[{ label: 'Persen (%)', value: 'persen' }, { label: 'Nominal (Rp)', value: 'nominal' }]}
                                 onChange={(e) => setFormData({ ...formData, jenis_diskon: e.value })}
-                                className="w-full text-sm"
+                                className="w-full text-sm border-round-md"
                             />
                         </div>
                         <div className="col-6">
@@ -265,28 +337,51 @@ const Page = () => {
                                 onValueChange={(e) => setFormData({ ...formData, nilai_diskon: e.value || 0 })}
                                 prefix={formData.jenis_diskon === 'nominal' ? 'Rp ' : ''}
                                 suffix={formData.jenis_diskon === 'persen' ? ' %' : ''}
-                                className="w-full text-sm"
+                                className="w-full text-sm border-round-md"
                             />
                         </div>
                     </div>
                     <div className="grid">
                         <div className="col-6">
                             <label className="block text-sm font-semibold mb-1">Tanggal Mulai *</label>
-                            <Calendar value={formData.tanggal_mulai} onChange={(e) => setFormData({ ...formData, tanggal_mulai: e.value })} dateFormat="dd/mm/yy" placeholder="Pilih tanggal" className="w-full text-sm" showIcon />
+                            <Calendar
+                                value={formData.tanggal_mulai}
+                                onChange={(e) => setFormData({ ...formData, tanggal_mulai: e.value })}
+                                dateFormat="dd/mm/yy"
+                                placeholder="Pilih tanggal..."
+                                className={`w-full text-sm border-round-md ${submitted && !formData.tanggal_mulai ? 'p-invalid' : ''}`}
+                                showIcon
+                            />
+                            {submitted && !formData.tanggal_mulai && (
+                                <small className="p-error text-red-500 text-xs block mt-1">Tanggal mulai wajib diisi.</small>
+                            )}
                         </div>
                         <div className="col-6">
                             <label className="block text-sm font-semibold mb-1">Tanggal Selesai *</label>
-                            <Calendar value={formData.tanggal_selesai} onChange={(e) => setFormData({ ...formData, tanggal_selesai: e.value })} dateFormat="dd/mm/yy" placeholder="Pilih tanggal" className="w-full text-sm" showIcon />
+                            <Calendar
+                                value={formData.tanggal_selesai}
+                                onChange={(e) => setFormData({ ...formData, tanggal_selesai: e.value })}
+                                dateFormat="dd/mm/yy"
+                                placeholder="Pilih tanggal..."
+                                className={`w-full text-sm border-round-md ${submitted && !formData.tanggal_selesai ? 'p-invalid' : ''}`}
+                                showIcon
+                            />
+                            {submitted && !formData.tanggal_selesai && (
+                                <small className="p-error text-red-500 text-xs block mt-1">Tanggal selesai wajib diisi.</small>
+                            )}
                         </div>
                     </div>
-                    <div>
-                        <label className="block text-sm font-semibold mb-1">Status *</label>
-                        <Dropdown
-                            value={formData.status}
-                            options={[{ label: 'Aktif', value: 'aktif' }, { label: 'Nonaktif', value: 'nonaktif' }]}
-                            onChange={(e) => setFormData({ ...formData, status: e.value })}
-                            className="w-full text-sm"
-                        />
+                    <div className="surface-50 p-3 border-round-md border-1 surface-border">
+                        <div className="flex align-items-center justify-content-between mb-2">
+                            <span className="font-bold text-sm text-900">Status Promo</span>
+                            <InputSwitch
+                                checked={formData.status === 'aktif'}
+                                onChange={(e) => setFormData({ ...formData, status: e.value ? 'aktif' : 'nonaktif' })}
+                            />
+                        </div>
+                        <span className="text-xs text-600 block">
+                            <strong>Status: {formData.status === 'aktif' ? 'Aktif' : 'Non-aktif'}</strong>. {formData.status === 'aktif' ? 'Promo aktif dan dapat digunakan dalam seluruh transaksi.' : 'Promo dinonaktifkan dari transaksi.'}
+                        </span>
                     </div>
                 </div>
                 <div className="flex justify-content-end gap-2 mt-4">

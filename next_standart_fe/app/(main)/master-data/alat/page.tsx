@@ -12,7 +12,10 @@ import { Tag } from 'primereact/tag';
 import { Dropdown } from 'primereact/dropdown';
 import { Calendar } from 'primereact/calendar';
 import { Divider } from 'primereact/divider';
+import { InputSwitch } from 'primereact/inputswitch';
 import { confirmDialog, ConfirmDialog } from 'primereact/confirmdialog';
+import { IconField } from 'primereact/iconfield';
+import { InputIcon } from 'primereact/inputicon';
 import { showError, showSuccess } from '@/lib/tools/generalTools';
 
 const Page = () => {
@@ -37,6 +40,7 @@ const Page = () => {
         status: 'aktif',
     });
     const [saving, setSaving] = useState<boolean>(false);
+    const [submitted, setSubmitted] = useState<boolean>(false);
 
     const kondisiOptions = [
         { label: 'Baik', value: 'baik' },
@@ -74,12 +78,14 @@ const Page = () => {
 
     const handleOpenCreate = () => {
         setIsEdit(false);
+        setSubmitted(false);
         setFormData({ kode_alat: '', nama: '', merk: '', tanggal_beli: null, kondisi: 'baik', status: 'aktif' });
         setDialogVisible(true);
     };
 
     const handleOpenEdit = (rowData: any) => {
         setIsEdit(true);
+        setSubmitted(false);
         setFormData({
             ...rowData,
             tanggal_beli: rowData.tanggal_beli ? new Date(rowData.tanggal_beli) : null
@@ -137,7 +143,8 @@ const Page = () => {
             <ConfirmDialog />
 
             <div className="card border-round-xl p-4 shadow-1 surface-card mb-4">
-                <div className="mb-4">
+                {/* Page Header */}
+                <div className="mb-4 pb-3 border-bottom-1 surface-border">
                     <h3 className="text-2xl font-bold text-900 flex align-items-center gap-2 mb-1">
                         <i className="pi pi-wrench text-purple-600 text-2xl" />
                         Kelola Alat & Peralatan Medis
@@ -147,7 +154,8 @@ const Page = () => {
                     </p>
                 </div>
 
-                <div className="flex flex-row flex-wrap align-items-center justify-content-between gap-2 mb-4">
+
+                <div className="flex flex-row flex-wrap align-items-center justify-content-between gap-3 mb-3">
                     <div className="flex flex-row flex-wrap align-items-center gap-2">
                         <Button
                             size="small"
@@ -155,37 +163,83 @@ const Page = () => {
                             icon="pi pi-plus"
                             outlined
                             severity="success"
-                            className="border-round-md font-medium px-3"
+                            className="border-round-md font-semibold px-3"
                             onClick={handleOpenCreate}
                         />
                         <Divider layout="vertical" className="m-0 h-2rem" />
                         <Button
                             size="small"
-                            label={`Hapus${selectedRows.length > 0 ? ` (${selectedRows.length})` : ''}`}
-                            icon="pi pi-trash"
-                            severity="danger"
+                            label="Cetak"
+                            icon="pi pi-print"
                             outlined
-                            disabled={selectedRows.length === 0}
-                            className="border-round-md font-medium px-3"
-                            onClick={() => handleDelete(selectedRows.map((r) => r.kode_alat))}
+                            className="border-round-md font-semibold px-3 border-purple-600 text-purple-600"
+                            onClick={() => window.print()}
                         />
+                        
                         <Divider layout="vertical" className="m-0 h-2rem" />
                         <Button
                             size="small"
                             label="Refresh"
                             icon="pi pi-refresh"
                             outlined
-                            severity="success"
-                            className="border-round-md font-medium px-3"
+                            className="border-round-md font-semibold px-3 border-purple-600 text-purple-600"
                             loading={loading}
                             onClick={loadData}
                         />
+                        {selectedRows.length > 0 && (
+                            <>
+                                <Divider layout="vertical" className="m-0 h-2rem" />
+                                <Button
+                                    size="small"
+                                    label={`Hapus (${selectedRows.length})`}
+                                    icon="pi pi-trash"
+                                    severity="danger"
+                                    outlined
+                                    className="border-round-md font-semibold px-3"
+                                    onClick={() => handleDelete(selectedRows.map((r) => r.kode_alat))}
+                                />
+                            </>
+                        )}
                     </div>
 
-                    <span className="p-input-icon-left w-full md:w-20rem">
-                        <i className="pi pi-search" />
-                        <InputText value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="Cari..." className="w-full text-sm" />
+                    
+                </div>
+
+                <div className="surface-100 p-2 px-3 border-round-md flex align-items-center gap-4 text-xs font-semibold text-700 mb-4 border-1 surface-border">
+                    <span className="flex align-items-center gap-1">
+                        <i className="pi pi-info-circle text-primary text-sm"></i>
+                        KETERANGAN STATUS:
                     </span>
+                    <span className="flex align-items-center gap-2">
+                        <span className="w-1rem h-1rem border-round bg-green-500 inline-flex align-items-center justify-content-center text-white text-xs">
+                            <i className="pi pi-check" style={{ fontSize: '0.6rem' }}></i>
+                        </span>
+                        Aktif
+                    </span>
+                    <span className="flex align-items-center gap-2">
+                        <span className="w-1rem h-1rem border-round bg-red-500 inline-flex align-items-center justify-content-center text-white text-xs">
+                            <i className="pi pi-times" style={{ fontSize: '0.6rem' }}></i>
+                        </span>
+                        Tidak Aktif
+                    </span>
+                </div>
+
+                <div className="flex flex-row flex-wrap align-items-center justify-content-between gap-3 mb-3">
+                    <h4 className="text-xl font-bold text-900 m-0">Tabel Data</h4>
+                    <div className="flex align-items-center gap-2 w-full md:w-22rem">
+                    <IconField iconPosition="left" className="w-full">
+                        <InputIcon className="pi pi-search" />
+                        <InputText value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="Cari Data..." className="w-full text-sm border-round-md" />
+                    </IconField>
+                    <Button
+                        icon="pi pi-filter-slash"
+                        outlined
+                        severity="danger"
+                        className="border-round-md p-button-sm flex-shrink-0"
+                        tooltip="Reset Filter"
+                        onClick={() => setKeyword('')}
+                    />
+                </div>
                 </div>
 
                 <DataTable
@@ -205,21 +259,28 @@ const Page = () => {
                     responsiveLayout="scroll"
                 >
                     <Column selectionMode="multiple" headerStyle={{ width: '3rem' }}></Column>
+                    <Column
+                        header="Status"
+                        headerStyle={{ width: '4rem' }}
+                        body={(r) => (
+                            <span
+                                className={`w-2rem h-2rem border-round inline-flex align-items-center justify-content-center text-white shadow-1 ${r.status === 'aktif' ? 'bg-green-500' : 'bg-red-500'}`}
+                                tooltip={r.status === 'aktif' ? 'Status: Aktif' : 'Status: Tidak Aktif'}
+                            >
+                                <i className={`pi ${r.status === 'aktif' ? 'pi-check' : 'pi-times'}`} style={{ fontSize: '0.8rem' }}></i>
+                            </span>
+                        )}
+                    ></Column>
                     <Column field="kode_alat" header="Kode" sortable headerStyle={{ fontWeight: 'bold' }}></Column>
                     <Column field="nama" header="Nama Alat" sortable headerStyle={{ fontWeight: 'bold' }}></Column>
                     <Column field="merk" header="Merk / Brand" body={(r) => r.merk || '-'}></Column>
                     <Column field="tanggal_beli" header="Tgl Beli" body={(r) => r.tanggal_beli ? new Date(r.tanggal_beli).toLocaleDateString('id-ID') : '-'}></Column>
                     <Column field="kondisi" header="Kondisi" body={(r) => <Tag value={r.kondisi?.replace('_', ' ')?.toUpperCase()} severity={getKondisiSeverity(r.kondisi)} />}></Column>
                     <Column
-                        field="status"
-                        header="Status"
-                        body={(r) => <Tag value={r.status.toUpperCase()} severity={r.status === 'aktif' ? 'success' : 'danger'} />}
-                    ></Column>
-                    <Column
                         header="Aksi"
                         body={(r) => (
                             <div className="flex gap-2 justify-content-center">
-                                <Button icon="pi pi-pencil" outlined className="p-button-sm border-round-md" onClick={() => handleOpenEdit(r)} tooltip="Edit" />
+                                <Button icon="pi pi-pencil" outlined severity="success" className="p-button-sm border-round-md" onClick={() => handleOpenEdit(r)} tooltip="Edit" />
                                 <Button icon="pi pi-trash" outlined severity="danger" className="p-button-sm border-round-md" onClick={() => handleDelete([r.kode_alat])} tooltip="Hapus" />
                             </div>
                         )}
