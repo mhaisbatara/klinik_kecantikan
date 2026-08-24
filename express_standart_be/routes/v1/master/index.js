@@ -49,6 +49,21 @@ import alatCreate from "./alat/alat_create.js";
 import alatUpdate from "./alat/alat_update.js";
 import alatDelete from "./alat/alat_delete.js";
 
+import ruanganData from "./ruangan/ruangan_data.js";
+import ruanganCreate from "./ruangan/ruangan_create.js";
+import ruanganUpdate from "./ruangan/ruangan_update.js";
+import ruanganDelete from "./ruangan/ruangan_delete.js";
+
+import promoData from "./promo/promo_data.js";
+import promoCreate from "./promo/promo_create.js";
+import promoUpdate from "./promo/promo_update.js";
+import promoDelete from "./promo/promo_delete.js";
+
+import jadwalKaryawanData from "./jadwal_karyawan/jadwal_karyawan_data.js";
+import jadwalKaryawanCreate from "./jadwal_karyawan/jadwal_karyawan_create.js";
+import jadwalKaryawanUpdate from "./jadwal_karyawan/jadwal_karyawan_update.js";
+import jadwalKaryawanDelete from "./jadwal_karyawan/jadwal_karyawan_delete.js";
+
 import dokterDropdown from "./dokter_dropdown.js";
 import penjaminDropdown from "./penjamin_dropdown.js";
 import antrianLayananIndex from "./antrian_layanan/index.js";
@@ -123,5 +138,23 @@ router.use("/alat-data", alatData);
 router.use("/alat-create", alatCreate);
 router.use("/alat-update", alatUpdate);
 router.use("/alat-delete", alatDelete);
+
+// Ruangan
+router.use("/ruangan-data", ruanganData);
+router.use("/ruangan-create", ruanganCreate);
+router.use("/ruangan-update", ruanganUpdate);
+router.use("/ruangan-delete", ruanganDelete);
+
+// Promo
+router.use("/promo-data", promoData);
+router.use("/promo-create", promoCreate);
+router.use("/promo-update", promoUpdate);
+router.use("/promo-delete", promoDelete);
+
+// Jadwal Karyawan
+router.use("/jadwal-karyawan-data", jadwalKaryawanData);
+router.use("/jadwal-karyawan-create", jadwalKaryawanCreate);
+router.use("/jadwal-karyawan-update", jadwalKaryawanUpdate);
+router.use("/jadwal-karyawan-delete", jadwalKaryawanDelete);
 
 export default router;

@@ -2,24 +2,19 @@ import { headers } from "next/headers";
 import Layout from "../../layout/layout";
 import { routeMiddleware } from "../../lib/tools/serverTools";
 import { redirect } from "next/navigation";
-import { Metadata } from "next";
+import { Metadata, Viewport } from "next";
 import { RootLayoutProps } from "@/types/layout";
 import { ConfigProvider } from "@/layout/context/configcontext";
 
+export const viewport: Viewport = {
+  initialScale: 1,
+  width: 'device-width'
+};
 
 export const metadata: Metadata = {
   title: 'Standart',
   description: 'Dashboard Standart',
   robots: { index: false, follow: false },
-  viewport: { initialScale: 1, width: 'device-width' },
-  // openGraph: {
-  //     type: 'website',
-  //     title: 'PrimeReact SAKAI-REACT',
-  //     url: 'https://sakai.primereact.org/',
-  //     description: 'The ultimate collection of design-agnostic, flexible and accessible React UI Components.',
-  //     images: ['https://www.primefaces.org/static/social/sakai-react.png'],
-  //     ttl: 604800
-  // },
   icons: {
     icon: '/favicon.ico'
   },
