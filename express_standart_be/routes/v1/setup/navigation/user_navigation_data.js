@@ -47,18 +47,31 @@ router.post("/", async (req, res) => {
         console.log("oPayload", oPayload)
 
 
-        const oNavigation = await DB('user_navigation')
+        let oNavigation = await DB('user_navigation')
             .select('menu')
             .where('user_code', oPayload.user_code)
             .first();
 
+        if (!oNavigation || !oNavigation?.menu) {
+            oNavigation = await DB('user_navigation')
+                .select('menu')
+                .where('user_code', 'USR000000')
+                .first();
+        }
+
+        if (!oNavigation || !oNavigation?.menu) {
+            oNavigation = await DB('user_navigation')
+                .select('menu')
+                .whereNotNull('menu')
+                .first();
+        }
 
         if (!oNavigation || !oNavigation?.menu) {
             return res.status(400).json({
                 status: status.GAGAL,
                 message: "Data navigasi tidak ditemukan",
                 datetime: formatDateSystem(),
-            })
+            });
         }
 
         const vaData = JSON.parse(oNavigation.menu)

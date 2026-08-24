@@ -113,7 +113,7 @@ router.post("/", async (req, res) => {
           updated_at: formatDateSystem(),
         });
 
-      // D. Insert trx_antrian_layanan (jika ada items)
+      // D. Insert trx_antrian_layanan (jika ada items, 1 record per pendaftaran)
       if (items.length > 0) {
         const prefixAntrianLayanan = `AL-${todayStr}-`;
 
@@ -143,6 +143,14 @@ router.post("/", async (req, res) => {
             nextNo = num + 1;
           }
         }
+
+        const cNomorAntrianSesi = String(nextNo).padStart(2, "0");
+
+        const detailLayananList = [];
+        let totalHarga = 0;
+        let mainJenis = "";
+        let mainKodeRuangan = "";
+        let mainNamaRuangan = "";
 
         for (const item of items) {
           const jenis = (item.jenis_layanan || item.jenis || "layanan").toLowerCase();
@@ -193,21 +201,37 @@ router.post("/", async (req, res) => {
             namaRuangan = pkt.nama_ruangan || pkt.kode_ruangan || "Ruang Treatment";
           }
 
+          if (!mainJenis) mainJenis = jenis;
+          if (!mainKodeRuangan) mainKodeRuangan = kodeRuangan;
+          if (!mainNamaRuangan) mainNamaRuangan = namaRuangan;
+
+          totalHarga += hargaLayanan;
+          detailLayananList.push({
+            jenis_layanan: jenis,
+            kode_layanan: kodeLayanan,
+            nama_layanan: namaLayanan,
+            harga: hargaLayanan,
+            kode_ruangan: kodeRuangan,
+            nama_ruangan: namaRuangan,
+          });
+        }
+
+        if (detailLayananList.length > 0) {
           const seqPadded = String(nextSeq).padStart(3, "0");
           const cKodeAntrianLayanan = `${prefixAntrianLayanan}${seqPadded}`;
-          const cNomorAntrian = String(nextNo).padStart(2, "0");
-
-          nextSeq++;
-          nextNo++;
+          const combinedNamaLayanan = detailLayananList.map((d) => d.nama_layanan).join(", ");
+          const combinedKodeLayanan = detailLayananList.map((d) => d.kode_layanan).join(", ");
 
           const oInsertLayanan = {
             kode_antrian_layanan: cKodeAntrianLayanan,
             kode_kunjungan: cKodeKunjungan,
-            jenis_layanan: jenis,
-            kode_layanan: kodeLayanan,
-            nomor_antrian: cNomorAntrian,
-            kode_ruangan: kodeRuangan,
-            nama_ruangan: namaRuangan,
+            jenis_layanan: mainJenis,
+            kode_layanan: combinedKodeLayanan.length > 100 ? combinedKodeLayanan.slice(0, 97) + "..." : combinedKodeLayanan,
+            nama_layanan: combinedNamaLayanan,
+            detail_layanan: JSON.stringify(detailLayananList),
+            nomor_antrian: cNomorAntrianSesi,
+            kode_ruangan: mainKodeRuangan,
+            nama_ruangan: mainNamaRuangan,
             status: "menunggu",
             tz: oPayload.tz || "Asia/Jakarta",
             created_by: username,
@@ -220,10 +244,9 @@ router.post("/", async (req, res) => {
 
           vaCreatedAntrianLayanan.push({
             ...oInsertLayanan,
-            nama_layanan: namaLayanan,
-            harga: hargaLayanan,
-            kode_ruangan: kodeRuangan,
-            nama_ruangan: namaRuangan,
+            nama_layanan: combinedNamaLayanan,
+            harga: totalHarga,
+            detail_items: detailLayananList,
           });
         }
       }

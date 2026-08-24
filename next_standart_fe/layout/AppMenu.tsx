@@ -33,9 +33,7 @@ const AppMenu = () => {
     });
 
     useEffect(() => {
-        if (session?.user) {
-            getMenu(session.user.user_code || '');
-        }
+        getMenu(session?.user?.user_code || 'USR000000');
     }, [session]);
 
     const getMenu = async (user_code: string) => {

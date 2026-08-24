@@ -85,7 +85,7 @@ const handleGetData = async (req, res) => {
       "a.status as status_antrian_awal",
       "a.dipanggil_at as dipanggil_at_awal",
       DB.raw("GROUP_CONCAT(DISTINCT al.jenis_layanan ORDER BY al.id ASC SEPARATOR ', ') as jenis_layanan"),
-      DB.raw("GROUP_CONCAT(DISTINCT COALESCE(ml.nama, mp.nama) ORDER BY al.id ASC SEPARATOR ', ') as nama_layanan_detail"),
+      DB.raw("GROUP_CONCAT(DISTINCT COALESCE(al.nama_layanan, ml.nama, mp.nama) ORDER BY al.id ASC SEPARATOR ', ') as nama_layanan_detail"),
       DB.raw("GROUP_CONCAT(DISTINCT al.nomor_antrian ORDER BY al.id ASC SEPARATOR ', ') as nomor_antrian_layanan"),
       DB.raw("GROUP_CONCAT(DISTINCT al.kode_antrian_layanan ORDER BY al.id ASC SEPARATOR ', ') as list_kode_antrian_layanan"),
     ];

@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { Button } from 'primereact/button';
-import { Card } from 'primereact/card';
 import { Checkbox } from 'primereact/checkbox';
 import { TabView, TabPanel } from 'primereact/tabview';
 import { Tag } from 'primereact/tag';
@@ -10,6 +9,7 @@ import { ProgressSpinner } from 'primereact/progressspinner';
 import { Toast } from 'primereact/toast';
 import postData from '@/lib/axios/postData';
 import { showError, showSuccess } from '@/lib/tools/generalTools';
+import { confirmDialog, ConfirmDialog } from 'primereact/confirmdialog';
 import { apiPasienLayananOptions, apiPasienAmbilAntrianLayanan } from './endpoints';
 
 interface ServiceItem {
@@ -25,9 +25,9 @@ interface ServiceItem {
   nama_ruangan?: string;
 }
 
-interface CategoryGroup {
-  kode_kategori: string;
-  nama_kategori: string;
+interface RuanganGroup {
+  kode_ruangan: string;
+  nama_ruangan: string;
   deskripsi: string;
   items: ServiceItem[];
 }
@@ -54,9 +54,11 @@ export const StepPilihLayanan: React.FC<Props> = ({
 }) => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [categories, setCategories] = useState<CategoryGroup[]>([]);
-  const [paketItems, setPaketItems] = useState<ServiceItem[]>([]);
+  const [ruangans, setRuangans] = useState<RuanganGroup[]>([]);
+  // Map item yang dipilih: key = `${jenis}_${kode_layanan}`
   const [selectedMap, setSelectedMap] = useState<{ [key: string]: ServiceItem }>({});
+  // Kode ruangan yang sedang aktif dipilih (null = belum ada yang dipilih)
+  const [activeRuangan, setActiveRuangan] = useState<string | null>(null);
 
   useEffect(() => {
     fetchOptions();
@@ -67,8 +69,7 @@ export const StepPilihLayanan: React.FC<Props> = ({
     try {
       const res = await postData(apiPasienLayananOptions);
       if (['00', '0000'].includes(res.data.status)) {
-        setCategories(res.data.data.kategori_layanan || []);
-        setPaketItems(res.data.data.paket_layanan || []);
+        setRuangans(res.data.data.ruangan_layanan || res.data.data.kategori_layanan || []);
       } else {
         showError(toast, res.data.message || 'Gagal memuat pilihan layanan');
       }
@@ -79,17 +80,49 @@ export const StepPilihLayanan: React.FC<Props> = ({
     }
   };
 
+  /**
+   * Toggle pilih/batal item layanan atau paket.
+   * Aturan:
+   * - Dalam 1 ruangan yang sama → boleh multi-select (centang banyak layanan / paket)
+   * - Beda ruangan → tidak bisa dipilih selama ruangan lain masih aktif
+   */
   const handleToggleItem = (item: ServiceItem) => {
     const key = `${item.jenis}_${item.kode_layanan}`;
+    const targetRoomCode = item.kode_ruangan || 'LAINNYA';
+
     setSelectedMap((prev) => {
       const next = { ...prev };
+
       if (next[key]) {
+        // Jika item sudah dipilih → deselect
         delete next[key];
-      } else {
-        next[key] = item;
+        // Jika tidak ada yang tersisa → reset activeRuangan
+        if (Object.keys(next).length === 0) {
+          setActiveRuangan(null);
+        }
+        return next;
       }
+
+      // Jika belum dipilih → cek apakah ruangan cocok
+      if (activeRuangan !== null && activeRuangan !== targetRoomCode) {
+        const activeRoomName = Object.values(prev)[0]?.nama_ruangan || activeRuangan;
+        showError(
+          toast,
+          `Tidak bisa pilih layanan/paket dari ruangan berbeda. Saat ini aktif: ruangan "${activeRoomName}". Batalkan pilihan terlebih dahulu jika ingin berpindah ruangan.`
+        );
+        return prev;
+      }
+
+      // Ruangan sama atau belum ada yang dipilih → tambahkan
+      next[key] = item;
+      setActiveRuangan(targetRoomCode);
       return next;
     });
+  };
+
+  const handleClearSelection = () => {
+    setSelectedMap({});
+    setActiveRuangan(null);
   };
 
   const selectedList = Object.values(selectedMap);
@@ -131,8 +164,157 @@ export const StepPilihLayanan: React.FC<Props> = ({
     }
   };
 
+  const confirmTakeQueue = (customItems?: ServiceItem[]) => {
+    const itemsToSubmit = customItems !== undefined ? customItems : selectedList;
+
+    if (itemsToSubmit.length === 0) {
+      confirmDialog({
+        message: (
+          <div className="flex flex-column align-items-center text-center gap-2 py-2">
+            <i className="pi pi-question-circle text-orange-500 text-5xl mb-2" />
+            <h3 className="font-bold text-xl m-0 text-900">Pendaftaran Tanpa Layanan</h3>
+            <p className="text-color-secondary text-sm m-0">
+              Apakah Anda yakin ingin mendaftarkan kunjungan pasien <strong>{pasienData.nama}</strong> ({pasienData.no_rm}) tanpa mengambil layanan medis/paket?
+            </p>
+          </div>
+        ) as any,
+        header: 'Konfirmasi Pendaftaran Kunjungan',
+        icon: 'pi pi-exclamation-triangle',
+        acceptLabel: 'Ya, Selesaikan',
+        rejectLabel: 'Batal',
+        acceptClassName: 'p-button-secondary font-bold',
+        rejectClassName: 'p-button-outlined p-button-secondary',
+        accept: () => handleProcessSubmit(itemsToSubmit),
+      });
+      return;
+    }
+
+    const combinedNama = itemsToSubmit.map((i) => i.nama).join(', ');
+
+    confirmDialog({
+      message: (
+        <div className="flex flex-column text-left gap-3 py-1">
+          <div className="flex align-items-center gap-3 bg-blue-50 p-3 border-round-xl border-1 border-blue-100">
+            <i className="pi pi-user text-blue-600 text-3xl" />
+            <div>
+              <span className="text-xs text-500 block">Pasien</span>
+              <span className="font-bold text-blue-900 text-base">{pasienData.nama}</span>
+              <span className="text-xs text-blue-700 block">No. RM: {pasienData.no_rm}</span>
+            </div>
+          </div>
+
+          <div>
+            <span className="text-xs font-semibold text-color-secondary block mb-1">
+              LAYANAN / PAKET TERPILIH ({itemsToSubmit.length}):
+            </span>
+            <div className="surface-100 p-3 border-round-lg border-1 surface-border">
+              <div className="font-bold text-900 text-sm mb-1">{combinedNama}</div>
+              <div className="text-xs text-500 flex justify-content-between align-items-center pt-2 border-top-1 surface-border mt-2">
+                <span>Estimasi Biaya:</span>
+                <span className="font-extrabold text-blue-600 text-base">{formatRupiah(totalHarga)}</span>
+              </div>
+            </div>
+          </div>
+
+          <p className="text-sm text-700 m-0">
+            Apakah Anda yakin ingin menerbitkan nomor antrean tindakan untuk pasien ini?
+          </p>
+        </div>
+      ) as any,
+      header: 'Konfirmasi Ambil Nomor Antrean',
+      icon: 'pi pi-ticket',
+      acceptLabel: 'Ya, Terbitkan Antrean',
+      rejectLabel: 'Batal',
+      acceptClassName: 'p-button-primary font-bold',
+      rejectClassName: 'p-button-outlined p-button-secondary',
+      accept: () => handleProcessSubmit(itemsToSubmit),
+    });
+  };
+
+  /**
+   * Render card item layanan / paket.
+   */
+  const renderItemCard = (item: ServiceItem) => {
+    const key = `${item.jenis}_${item.kode_layanan}`;
+    const isSelected = !!selectedMap[key];
+    const isPaket = item.jenis === 'paket';
+    const itemRoomCode = item.kode_ruangan || 'LAINNYA';
+    const isDisabled = activeRuangan !== null && !isSelected && activeRuangan !== itemRoomCode;
+
+    const colorScheme = isPaket ? 'amber' : 'blue';
+    const selectedBorder = isPaket ? 'border-amber-500 bg-amber-50 shadow-2' : 'border-blue-500 bg-blue-50 shadow-2';
+    const disabledStyle = isDisabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:border-300';
+
+    return (
+      <div key={`${item.jenis}_${item.kode_layanan}`} className="col-12 md:col-6 lg:col-4">
+        <div
+          className={`surface-card p-3 border-round-xl border-1 shadow-1 transition-all transition-duration-200 ${
+            isSelected ? selectedBorder : `surface-border ${disabledStyle}`
+          }`}
+          onClick={() => {
+            if (!isDisabled) handleToggleItem(item);
+          }}
+          title={isDisabled ? `Tidak bisa dipilih — ruangan aktif: ${Object.values(selectedMap)[0]?.nama_ruangan || activeRuangan}` : ''}
+        >
+          <div className="flex align-items-start gap-3">
+            <Checkbox
+              checked={isSelected}
+              disabled={isDisabled}
+              onChange={() => {
+                if (!isDisabled) handleToggleItem(item);
+              }}
+              className="mt-1"
+            />
+            <div className="w-full">
+              <div className="flex align-items-center justify-content-between gap-1 mb-1">
+                {isPaket ? (
+                  <Tag value="PAKET LAYANAN" severity="warning" className="text-xs font-bold" />
+                ) : (
+                  <Tag value={item.nama_kategori || item.kode_layanan} severity="info" className="text-xs font-bold" />
+                )}
+                {!isPaket ? (
+                  <span className="text-xs text-500 flex align-items-center gap-1">
+                    <i className="pi pi-clock" /> {item.durasi_menit} mnt
+                  </span>
+                ) : (
+                  item.masa_berlaku_hari ? (
+                    <span className="text-xs text-500">Masa berlaku {item.masa_berlaku_hari} hr</span>
+                  ) : (
+                    <span className="text-xs text-500 flex align-items-center gap-1">
+                      <i className="pi pi-clock" /> {item.durasi_menit} mnt
+                    </span>
+                  )
+                )}
+              </div>
+              
+              <h4 className="font-bold text-900 text-base m-0 mb-1">{item.nama}</h4>
+
+              {/* NAMA RUANGAN EXPLICITLY SHOWN WITH ICON & TEXT */}
+              <div className="flex align-items-center gap-1 text-xs text-teal-700 font-semibold mb-2">
+                <i className="pi pi-building text-teal-500" />
+                <span>{item.nama_ruangan ? `${item.kode_ruangan ? item.kode_ruangan + ' - ' : ''}${item.nama_ruangan}` : 'Ruang Treatment'}</span>
+              </div>
+
+              <div className={`text-base font-extrabold ${isPaket ? 'text-amber-700' : 'text-blue-600'}`}>
+                {formatRupiah(item.harga)}
+              </div>
+
+              {isDisabled && (
+                <div className="text-xs text-red-400 mt-1 flex align-items-center gap-1">
+                  <i className="pi pi-lock" />
+                  <span>Ganti ruangan untuk memilih ini</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="grid">
+      <ConfirmDialog />
       {/* PASIEN INFO HEADER */}
       <div className="col-12">
         <div className="surface-card p-4 border-round-xl border-1 surface-border shadow-1 mb-4">
@@ -145,10 +327,10 @@ export const StepPilihLayanan: React.FC<Props> = ({
                   onClick={onBack}
                   tooltip="Kembali ke Pencarian Pasien"
                 />
-                <h3 className="text-xl font-bold text-900 m-0">Langkah 2: Pilih Layanan & Paket Treatment</h3>
+                <h3 className="text-xl font-bold text-900 m-0">Langkah 2: Pilih Layanan &amp; Paket Treatment</h3>
               </div>
               <p className="text-500 text-sm m-0 ml-6">
-                Pilih satu atau beberapa layanan/paket untuk menerbitkan nomor antrean tindakan pasien.
+                Pilih satu atau beberapa layanan/paket <strong>dalam ruangan yang sama</strong> untuk menerbitkan nomor antrean.
               </p>
             </div>
 
@@ -161,6 +343,33 @@ export const StepPilihLayanan: React.FC<Props> = ({
               </div>
             </div>
           </div>
+
+          {/* INFO RUANGAN AKTIF */}
+          {activeRuangan && selectedList.length > 0 && (
+            <div className="flex align-items-center justify-content-between flex-wrap gap-2 p-3 bg-blue-50 border-round-lg border-1 border-blue-200">
+              <div className="flex align-items-center gap-2">
+                <i className="pi pi-check-circle text-blue-600 text-lg" />
+                <div>
+                  <span className="text-xs text-500 block">Ruangan Aktif</span>
+                  <span className="font-bold text-blue-800 text-sm">
+                    {selectedList[0]?.nama_ruangan || activeRuangan}
+                  </span>
+                  <span className="text-xs text-blue-600 ml-2">
+                    ({selectedList.length} layanan/paket dipilih)
+                  </span>
+                </div>
+              </div>
+              <Button
+                label="Batalkan Semua Pilihan"
+                icon="pi pi-times"
+                size="small"
+                severity="danger"
+                outlined
+                className="border-round-lg text-xs"
+                onClick={handleClearSelection}
+              />
+            </div>
+          )}
         </div>
       </div>
 
@@ -169,101 +378,52 @@ export const StepPilihLayanan: React.FC<Props> = ({
         {loading ? (
           <div className="flex flex-column align-items-center justify-content-center p-5 surface-card border-round-xl">
             <ProgressSpinner style={{ width: '50px', height: '50px' }} />
-            <span className="mt-3 text-500 font-medium">Memuat pilihan layanan & paket...</span>
+            <span className="mt-3 text-500 font-medium">Memuat pilihan layanan &amp; paket per ruangan...</span>
           </div>
         ) : (
           <TabView className="p-tabview-custom">
-            {/* TABS KATEGORI LAYANAN */}
-            {categories.map((kat) => (
-              <TabPanel key={kat.kode_kategori} header={kat.nama_kategori} leftIcon="pi pi-sparkles mr-2">
-                <div className="grid">
-                  {kat.items.map((item) => {
-                    const key = `${item.jenis}_${item.kode_layanan}`;
-                    const isSelected = !!selectedMap[key];
+            {/* TABS RUANGAN LAYANAN & PAKET */}
+            {ruangans.map((ruang) => {
+              const isRuangActive = activeRuangan === ruang.kode_ruangan;
+              const isRuangDisabled = activeRuangan !== null && activeRuangan !== ruang.kode_ruangan;
+              const ruangSelectedCount = ruang.items.filter(
+                (item) => !!selectedMap[`${item.jenis}_${item.kode_layanan}`]
+              ).length;
+              const roomTitle = ruang.nama_ruangan
+                ? `${ruang.nama_ruangan} (${ruang.kode_ruangan})`
+                : `Ruangan ${ruang.kode_ruangan}`;
+              const countSuffix = ruangSelectedCount > 0 ? ` (${ruangSelectedCount})` : '';
+              const tabHeaderString = `${roomTitle}${countSuffix}`;
 
-                    return (
-                      <div key={item.kode_layanan} className="col-12 md:col-6 lg:col-4">
-                        <div
-                          className={`surface-card p-3 border-round-xl border-1 shadow-1 cursor-pointer transition-all transition-duration-200 ${
-                            isSelected ? 'border-blue-500 bg-blue-50 shadow-2' : 'surface-border hover:border-300'
-                          }`}
-                          onClick={() => handleToggleItem(item)}
-                        >
-                          <div className="flex align-items-start gap-3">
-                            <Checkbox
-                              checked={isSelected}
-                              onChange={() => handleToggleItem(item)}
-                              className="mt-1"
-                            />
-                            <div className="w-full">
-                              <div className="flex align-items-center justify-content-between gap-1 mb-1">
-                                <Tag value={item.kode_layanan} severity="info" className="text-xs" />
-                                <span className="text-xs text-500 flex align-items-center gap-1">
-                                  <i className="pi pi-clock" /> {item.durasi_menit} mnt
-                                </span>
-                              </div>
-                              <h4 className="font-bold text-900 text-base m-0 mb-1">{item.nama}</h4>
-                              <div className="flex align-items-center gap-1 text-xs text-teal-700 font-semibold mb-2">
-                                <i className="pi pi-building text-teal-500" />
-                                <span>{item.nama_ruangan ? `${item.kode_ruangan ? item.kode_ruangan + ' - ' : ''}${item.nama_ruangan}` : (item.kode_ruangan || 'Ruang Treatment')}</span>
-                              </div>
-                              <div className="text-base font-extrabold text-blue-600">
-                                {formatRupiah(item.harga)}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </TabPanel>
-            ))}
-
-            {/* TAB PAKET LAYANAN */}
-            <TabPanel header={`Paket Layanan (${paketItems.length})`} leftIcon="pi pi-box mr-2">
-              <div className="grid">
-                {paketItems.map((item) => {
-                  const key = `${item.jenis}_${item.kode_layanan}`;
-                  const isSelected = !!selectedMap[key];
-
-                  return (
-                    <div key={item.kode_layanan} className="col-12 md:col-6 lg:col-4">
-                      <div
-                        className={`surface-card p-3 border-round-xl border-1 shadow-1 cursor-pointer transition-all transition-duration-200 ${
-                          isSelected ? 'border-amber-500 bg-amber-50 shadow-2' : 'surface-border hover:border-300'
-                        }`}
-                        onClick={() => handleToggleItem(item)}
-                      >
-                        <div className="flex align-items-start gap-3">
-                          <Checkbox
-                            checked={isSelected}
-                            onChange={() => handleToggleItem(item)}
-                            className="mt-1"
-                          />
-                          <div className="w-full">
-                            <div className="flex align-items-center justify-content-between gap-1 mb-1">
-                              <Tag value="PAKET" severity="warning" className="text-xs font-bold" />
-                              {item.masa_berlaku_hari && (
-                                <span className="text-xs text-500">Masa berlaku {item.masa_berlaku_hari} hr</span>
-                              )}
-                            </div>
-                            <h4 className="font-bold text-900 text-base m-0 mb-1">{item.nama}</h4>
-                            <div className="flex align-items-center gap-1 text-xs text-teal-700 font-semibold mb-2">
-                              <i className="pi pi-building text-teal-500" />
-                              <span>{item.nama_ruangan ? `${item.kode_ruangan ? item.kode_ruangan + ' - ' : ''}${item.nama_ruangan}` : (item.kode_ruangan || 'Ruang Treatment')}</span>
-                            </div>
-                            <div className="text-base font-extrabold text-amber-700">
-                              {formatRupiah(item.harga)}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+              return (
+                <TabPanel
+                  key={ruang.kode_ruangan}
+                  header={tabHeaderString}
+                  leftIcon={`pi ${isRuangActive ? 'pi-check-circle' : 'pi-building'} mr-2`}
+                >
+                  {isRuangDisabled && (
+                    <div className="flex align-items-center gap-2 p-3 mb-3 bg-orange-50 border-round-lg border-1 border-orange-200">
+                      <i className="pi pi-info-circle text-orange-500" />
+                      <span className="text-sm text-orange-700">
+                        Ruangan ini tidak bisa dipilih karena Anda sudah memilih layanan/paket dari ruangan <strong>{selectedList[0]?.nama_ruangan || activeRuangan}</strong>.
+                        Batalkan semua pilihan terlebih dahulu untuk berpindah ruangan.
+                      </span>
                     </div>
-                  );
-                })}
-              </div>
-            </TabPanel>
+                  )}
+                  {ruang.items.length === 0 ? (
+                    <div className="flex flex-column align-items-center justify-content-center p-5 surface-card border-round-xl border-1 surface-border my-3 text-center">
+                      <i className="pi pi-inbox text-400 text-4xl mb-2" />
+                      <span className="text-700 font-bold block text-base">{roomTitle}</span>
+                      <span className="text-500 text-sm mt-1">Belum ada layanan atau paket yang tersedia di ruangan ini.</span>
+                    </div>
+                  ) : (
+                    <div className="grid">
+                      {ruang.items.map((item) => renderItemCard(item))}
+                    </div>
+                  )}
+                </TabPanel>
+              );
+            })}
           </TabView>
         )}
       </div>
@@ -275,7 +435,7 @@ export const StepPilihLayanan: React.FC<Props> = ({
       >
         <div className="flex align-items-center gap-4 pl-3">
           <div>
-            <span className="text-xs text-500 block">Layanan Dipilih:</span>
+            <span className="text-xs text-500 block">Dipilih:</span>
             <span className="font-extrabold text-900 text-lg">{selectedList.length} Item</span>
           </div>
           <div className="hidden sm:block border-left-1 surface-border pl-4">
@@ -288,6 +448,15 @@ export const StepPilihLayanan: React.FC<Props> = ({
             <span className="text-xs text-500 block">Total Estimasi Biaya:</span>
             <span className="font-extrabold text-blue-600 text-xl">{formatRupiah(totalHarga)}</span>
           </div>
+          {selectedList.length > 0 && (
+            <div className="hidden md:block border-left-1 surface-border pl-4">
+              <span className="text-xs text-500 block">Ruangan Aktif:</span>
+              <span className="font-bold text-green-700 text-sm flex align-items-center gap-1">
+                <i className="pi pi-check-circle text-green-500" />
+                {selectedList[0]?.nama_ruangan || activeRuangan}
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="flex align-items-center gap-2 pr-3">
@@ -295,14 +464,14 @@ export const StepPilihLayanan: React.FC<Props> = ({
             label="Selesai Tanpa Layanan"
             icon="pi pi-times"
             className="p-button-outlined p-button-secondary border-round-lg text-sm"
-            onClick={() => handleProcessSubmit([])}
+            onClick={() => confirmTakeQueue([])}
             disabled={submitting}
           />
           <Button
-            label={`Ambil Nomor Antrean Layanan (${selectedList.length})`}
+            label={`Ambil Nomor Antrean (${selectedList.length})`}
             icon="pi pi-ticket"
             className="p-button-primary border-round-lg font-bold p-button-lg"
-            onClick={() => handleProcessSubmit()}
+            onClick={() => confirmTakeQueue()}
             loading={submitting}
             disabled={selectedList.length === 0}
           />

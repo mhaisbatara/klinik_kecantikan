@@ -21,10 +21,10 @@ const handleGetOptions = async (req, res) => {
   const username = req?.auth?.username || "";
 
   try {
-    // 1. Fetch kategori layanan aktif
-    const vaKategori = await DB("mst_kategori_layanan")
+    // 1. Fetch ALL ruangan aktif from DB
+    const vaRuangan = await DB("mst_ruangan")
       .where("status", "aktif")
-      .select("kode_kategori_layanan", "nama", "deskripsi")
+      .select("kode_ruangan", "nama_ruangan")
       .orderBy("id", "asc");
 
     // 2. Fetch layanan aktif
@@ -51,19 +51,21 @@ const handleGetOptions = async (req, res) => {
       .select("p.kode_paket_layanan", "p.nama", "p.harga_paket", "p.masa_berlaku_hari", "p.kode_ruangan", "r.nama_ruangan as nama_ruangan")
       .orderBy("p.id", "asc");
 
-    // Map layanan grouped by kategori
-    const kategoriMap = new Map();
-    vaKategori.forEach((kat) => {
-      kategoriMap.set(kat.kode_kategori_layanan, {
-        kode_kategori: kat.kode_kategori_layanan,
-        nama_kategori: kat.nama,
-        deskripsi: kat.deskripsi || "",
+    // Map layanan & paket grouped by ruangan (initialized with ALL DB rooms)
+    const ruanganMap = new Map();
+    vaRuangan.forEach((rng) => {
+      ruanganMap.set(rng.kode_ruangan, {
+        kode_ruangan: rng.kode_ruangan,
+        nama_ruangan: rng.nama_ruangan || rng.kode_ruangan,
+        deskripsi: "",
         items: [],
       });
     });
 
     vaLayanan.forEach((lay) => {
-      const katObj = kategoriMap.get(lay.kode_kategori_layanan);
+      const kodeRuang = lay.kode_ruangan || "LAINNYA";
+      let rngObj = ruanganMap.get(kodeRuang);
+
       const itemData = {
         jenis: "layanan",
         kode_layanan: lay.kode_layanan,
@@ -76,44 +78,59 @@ const handleGetOptions = async (req, res) => {
         nama_ruangan: lay.nama_ruangan || lay.kode_ruangan || "Ruang Treatment",
       };
 
-      if (katObj) {
-        katObj.items.push(itemData);
-      } else {
-        // Fallback for categories not in active list
-        kategoriMap.set(lay.kode_kategori_layanan, {
-          kode_kategori: lay.kode_kategori_layanan,
-          nama_kategori: lay.nama_kategori || "Lainnya",
+      if (!rngObj) {
+        rngObj = {
+          kode_ruangan: kodeRuang,
+          nama_ruangan: lay.nama_ruangan || "Ruangan Lainnya",
           deskripsi: "",
-          items: [itemData],
-        });
+          items: [],
+        };
+        ruanganMap.set(kodeRuang, rngObj);
       }
+      rngObj.items.push(itemData);
     });
 
-    // Format paket items
-    const paketItems = vaPaket.map((pkt) => ({
-      jenis: "paket",
-      kode_layanan: pkt.kode_paket_layanan,
-      kode_kategori: "PAKET",
-      nama_kategori: "Paket Layanan",
-      nama: pkt.nama,
-      harga: parseFloat(pkt.harga_paket || 0),
-      durasi_menit: 60, // default estimasi durasi paket
-      masa_berlaku_hari: pkt.masa_berlaku_hari,
-      kode_ruangan: pkt.kode_ruangan || "",
-      nama_ruangan: pkt.nama_ruangan || pkt.kode_ruangan || "Ruang Treatment",
-    }));
+    // Format paket items & merge into ruanganMap
+    const paketItems = vaPaket.map((pkt) => {
+      const itemData = {
+        jenis: "paket",
+        kode_layanan: pkt.kode_paket_layanan,
+        kode_kategori: "PAKET",
+        nama_kategori: "Paket Layanan",
+        nama: pkt.nama,
+        harga: parseFloat(pkt.harga_paket || 0),
+        durasi_menit: 60, // default estimasi durasi paket
+        masa_berlaku_hari: pkt.masa_berlaku_hari,
+        kode_ruangan: pkt.kode_ruangan || "",
+        nama_ruangan: pkt.nama_ruangan || pkt.kode_ruangan || "Ruang Treatment",
+      };
 
-    // Filter out categories with empty items
-    const resultKategori = Array.from(kategoriMap.values()).filter(
-      (k) => k.items.length > 0
-    );
+      const kodeRuang = pkt.kode_ruangan || "LAINNYA";
+      let rngObj = ruanganMap.get(kodeRuang);
+      if (!rngObj) {
+        rngObj = {
+          kode_ruangan: kodeRuang,
+          nama_ruangan: pkt.nama_ruangan || "Ruangan Lainnya",
+          deskripsi: "",
+          items: [],
+        };
+        ruanganMap.set(kodeRuang, rngObj);
+      }
+      rngObj.items.push(itemData);
+
+      return itemData;
+    });
+
+    // Output all ruangan data from database (all 5 rooms)
+    const resultRuangan = Array.from(ruanganMap.values());
 
     return res.status(200).json({
       status: status.SUKSES,
       message: "Data pilihan layanan dan paket ditemukan",
       datetime: formatDateSystem(),
       data: {
-        kategori_layanan: resultKategori,
+        ruangan_layanan: resultRuangan,
+        kategori_layanan: resultRuangan,
         paket_layanan: paketItems,
       },
     });
