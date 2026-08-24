@@ -7,9 +7,16 @@ import { InputText } from 'primereact/inputtext';
 import { IconField } from 'primereact/iconfield';
 import { InputIcon } from 'primereact/inputicon';
 import { Divider } from 'primereact/divider';
-import { Tag } from 'primereact/tag';
-import { TableData, TableProps, STATUS_LABELS } from '../interfaces';
+import { TableData, TableProps } from '../interfaces';
 import { apiEndpointData } from '../endpoints';
+
+const STATUS_DOT: Record<string, { color: string; label: string }> = {
+    tersedia:  { color: '#22c55e', label: 'Tersedia'  },
+    diambil:   { color: '#3b82f6', label: 'Diambil'   },
+    dipanggil: { color: '#f59e0b', label: 'Dipanggil' },
+    selesai:   { color: '#94a3b8', label: 'Selesai'   },
+    nonaktif:  { color: '#ef4444', label: 'Nonaktif'  },
+};
 import Form from './form';
 import { useRef } from 'react';
 import { formatDateSystem } from '@/lib/tools/dateTools';
@@ -17,9 +24,28 @@ import { formatDateSystem } from '@/lib/tools/dateTools';
 const Table = ({ state, setState, formik, toast, getData, getGridData, onLazyLoad }: TableProps) => {
     const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    const statusBodyTemplate = (rowData: TableData) => {
-        const cfg = STATUS_LABELS[rowData.status] || { label: rowData.status, severity: 'info' };
-        return <Tag value={cfg.label} severity={cfg.severity as any} />;
+    const kodeWithDotTemplate = (rowData: TableData) => {
+        const sq = STATUS_DOT[rowData.status] || { color: '#94a3b8', label: rowData.status };
+        return (
+            <div className="flex align-items-center gap-2">
+                <span
+                    title={sq.label}
+                    style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '22px',
+                        height: '22px',
+                        borderRadius: '6px',
+                        backgroundColor: sq.color,
+                        flexShrink: 0,
+                        border: `2px solid ${sq.color}aa`,
+                        boxShadow: `0 1px 4px ${sq.color}55`,
+                    }}
+                />
+                <span className="font-mono text-sm font-semibold">{rowData.kode_antrian}</span>
+            </div>
+        );
     };
 
     const actionBodyTemplate = (rowData: TableData) => (
@@ -51,36 +77,52 @@ const Table = ({ state, setState, formik, toast, getData, getGridData, onLazyLoa
     );
 
     const headerTemplate = (
-        <div className="flex flex-wrap align-items-center justify-content-between gap-2">
-            <span className="text-xl font-bold">Data Master Nomor Antrian</span>
-            <div className="flex align-items-center gap-2 ml-auto w-full md:w-auto">
-                <span className="p-input-icon-left w-full md:w-20rem">
-                    <IconField iconPosition="left">
-                        <InputIcon className="pi pi-search" />
-                        <InputText
-                            value={state.searchVal}
-                            className="w-full text-sm"
-                            placeholder="Cari Data..."
-                            onChange={(e) => {
-                                const value = e.target.value;
-                                setState((p) => ({ ...p, searchVal: value }));
-                                if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
-                                searchTimeoutRef.current = setTimeout(() => {
-                                    setState((p) => ({ ...p, keyword: value, page: 1, first: 0 }));
-                                }, 500);
-                            }}
-                        />
-                    </IconField>
+        <div className="flex flex-column gap-3">
+            {/* Baris atas: judul + pencarian */}
+            <div className="flex flex-wrap align-items-center justify-content-between gap-2">
+                <span className="text-xl font-bold">Data Master Nomor Antrian</span>
+                <div className="flex align-items-center gap-2 ml-auto w-full md:w-auto">
+                    <span className="p-input-icon-left w-full md:w-20rem">
+                        <IconField iconPosition="left">
+                            <InputIcon className="pi pi-search" />
+                            <InputText
+                                value={state.searchVal}
+                                className="w-full text-sm"
+                                placeholder="Cari Data..."
+                                onChange={(e) => {
+                                    const value = e.target.value;
+                                    setState((p) => ({ ...p, searchVal: value }));
+                                    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+                                    searchTimeoutRef.current = setTimeout(() => {
+                                        setState((p) => ({ ...p, keyword: value, page: 1, first: 0 }));
+                                    }, 500);
+                                }}
+                            />
+                        </IconField>
+                    </span>
+                    <Button
+                        type="button"
+                        icon="pi pi-filter-slash"
+                        outlined
+                        severity="danger"
+                        tooltip="Reset Filter"
+                        tooltipOptions={{ position: 'bottom' }}
+                        onClick={() => setState((p) => ({ ...p, searchVal: '', keyword: '', page: 1, first: 0 }))}
+                    />
+                </div>
+            </div>
+            {/* Legenda warna status */}
+            <div className="flex flex-wrap align-items-center gap-3 px-1 py-2 border-round-md surface-100 text-xs font-medium text-color-secondary">
+                <span className="flex align-items-center gap-1">
+                    <i className="pi pi-info-circle" />
+                    <span className="font-semibold">KETERANGAN STATUS:</span>
                 </span>
-                <Button
-                    type="button"
-                    icon="pi pi-filter-slash"
-                    outlined
-                    severity="danger"
-                    tooltip="Reset Filter"
-                    tooltipOptions={{ position: 'bottom' }}
-                    onClick={() => setState((p) => ({ ...p, searchVal: '', keyword: '', page: 1, first: 0 }))}
-                />
+                {Object.entries(STATUS_DOT).map(([key, val]) => (
+                    <span key={key} className="flex align-items-center gap-1">
+                        <span style={{ display:'inline-block', width:'12px', height:'12px', borderRadius:'3px', backgroundColor: val.color, boxShadow:`0 1px 3px ${val.color}55` }} />
+                        {val.label}
+                    </span>
+                ))}
             </div>
         </div>
     );
@@ -113,7 +155,7 @@ const Table = ({ state, setState, formik, toast, getData, getGridData, onLazyLoa
                     />
                     <Button
                         size="small"
-                        label="Tambah Cepat (01-50)"
+                        label="Tambah Cepat"
                         icon="pi pi-bolt"
                         outlined
                         severity="info"
@@ -174,9 +216,8 @@ const Table = ({ state, setState, formik, toast, getData, getGridData, onLazyLoa
                     currentPageReportTemplate="Menampilkan {first} - {last} dari {totalRecords} data"
                 >
                     <Column selectionMode="multiple" headerStyle={{ width: '3rem' }} />
+                    <Column field="kode_antrian" header="Kode" body={kodeWithDotTemplate} align="left" style={{ minWidth: '11rem' }} headerStyle={{ paddingLeft: 'calc(1rem + 30px)' }} />
                     <Column field="no_antrian" header="No. Antrian" align="center" sortable style={{ minWidth: '8rem' }} />
-                    <Column field="kode_antrian" header="Kode" align="center" style={{ minWidth: '8rem' }} />
-                    <Column field="status" header="Status" body={statusBodyTemplate} align="center" sortable style={{ minWidth: '10rem' }} />
                     <Column field="created_at" header="Dibuat" body={(r) => formatDateSystem(r.created_at)} align="center" sortable style={{ minWidth: '14rem' }} />
                     <Column field="updated_at" header="Diperbarui" body={(r) => formatDateSystem(r.updated_at)} align="center" sortable style={{ minWidth: '14rem' }} />
                     <Column header="Aksi" body={actionBodyTemplate} align="center" frozen alignFrozen="right" style={{ minWidth: '8rem' }} />

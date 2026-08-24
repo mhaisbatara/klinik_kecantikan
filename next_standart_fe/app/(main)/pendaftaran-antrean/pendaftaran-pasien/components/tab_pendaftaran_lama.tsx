@@ -7,6 +7,7 @@ import { InputText } from 'primereact/inputtext';
 import { Button } from 'primereact/button';
 import { Tag } from 'primereact/tag';
 import { Toast } from 'primereact/toast';
+import { Dialog } from 'primereact/dialog';
 import { IconField } from 'primereact/iconfield';
 import { InputIcon } from 'primereact/inputicon';
 import postData from '@/lib/axios/postData';
@@ -44,12 +45,14 @@ export interface Pasien {
 interface Props {
   toast: React.RefObject<Toast>;
   onRefreshVisits?: () => void;
+  onEditPasien?: (pasien: Pasien) => void;
 }
 
-export const TabPendaftaranLama: React.FC<Props> = ({ toast, onRefreshVisits }) => {
+export const TabPendaftaranLama: React.FC<Props> = ({ toast, onRefreshVisits, onEditPasien }) => {
   // Step state: 1 = Cari & Pilih Pasien, 2 = Pilih Layanan & Paket Treatment
   const [step, setStep] = useState<number>(1);
   const [selectedPasien, setSelectedPasien] = useState<Pasien | null>(null);
+  const [detailPasien, setDetailPasien] = useState<Pasien | null>(null);
 
   // Data & Table state
   const [data, setData] = useState<Pasien[]>([]);
@@ -150,12 +153,13 @@ export const TabPendaftaranLama: React.FC<Props> = ({ toast, onRefreshVisits }) 
   const actionBodyTemplate = (rowData: Pasien) => {
     return (
       <Button
-        label="Pilih & Layanan"
-        icon="pi pi-check-circle"
+        label="Lihat"
+        icon="pi pi-eye"
         size="small"
-        severity="success"
+        severity="info"
+        outlined
         className="border-round-md font-medium text-xs px-3"
-        onClick={() => handleSelectPasien(rowData)}
+        onClick={() => setDetailPasien(rowData)}
       />
     );
   };
@@ -240,7 +244,7 @@ export const TabPendaftaranLama: React.FC<Props> = ({ toast, onRefreshVisits }) 
             Pendaftaran Pasien Lama
           </h3>
           <p className="text-500 text-sm m-0">
-            Cari nama atau No. RM pasien terdaftar di klinik, pilih pasien, lalu tentukan layanan/paket treatment.
+            Cari nama atau No. RM pasien terdaftar di klinik, klik <strong>Lihat</strong> untuk cek detail, lalu pilih layanan/paket treatment.
           </p>
         </div>
 
@@ -270,9 +274,130 @@ export const TabPendaftaranLama: React.FC<Props> = ({ toast, onRefreshVisits }) 
           <Column field="tanggal_lahir" header="Tgl Lahir" align="center" style={{ minWidth: '8rem' }} body={(r: Pasien) => r.tanggal_lahir || '-'} />
           <Column header="L/P" body={jenisKelaminBodyTemplate} align="center" style={{ minWidth: '7rem' }} />
           <Column field="kota_kabupaten" header="Kota / Alamat" style={{ minWidth: '12rem' }} body={(r: Pasien) => r.kota_kabupaten || r.provinsi || '-'} />
-          <Column header="Aksi Pendaftaran" body={actionBodyTemplate} align="center" frozen alignFrozen="right" style={{ minWidth: '11rem' }} />
+          <Column header="Aksi" body={actionBodyTemplate} align="center" frozen alignFrozen="right" style={{ minWidth: '8rem' }} />
         </DataTable>
       </div>
+
+      {/* DIALOG DETAIL PASIEN */}
+      <Dialog
+        visible={Boolean(detailPasien)}
+        onHide={() => setDetailPasien(null)}
+        header={`Detail Pasien — ${detailPasien?.nama || ''}`}
+        modal
+        style={{ width: '100%', maxWidth: '600px' }}
+        breakpoints={{ '641px': '90vw' }}
+        footer={
+          <div className="flex flex-wrap justify-content-end gap-2 pt-2">
+            <Button
+              label="Batal"
+              icon="pi pi-times"
+              severity="secondary"
+              outlined
+              onClick={() => setDetailPasien(null)}
+            />
+            {onEditPasien && (
+              <Button
+                label="Lengkapi / Edit Data Pasien"
+                icon="pi pi-user-edit"
+                severity="warning"
+                outlined
+                className="font-medium"
+                onClick={() => {
+                  const target = detailPasien;
+                  setDetailPasien(null);
+                  if (target) onEditPasien(target);
+                }}
+              />
+            )}
+            <Button
+              label="Pilih Layanan & Treatment"
+              icon="pi pi-arrow-right"
+              iconPos="right"
+              severity="success"
+              className="font-bold"
+              onClick={() => {
+                const target = detailPasien;
+                setDetailPasien(null);
+                if (target) handleSelectPasien(target);
+              }}
+            />
+          </div>
+        }
+      >
+        {detailPasien && (
+          <div className="grid text-sm p-2 gap-y-3">
+            <div className="col-12 md:col-6">
+              <span className="text-color-secondary block text-xs">No. Rekam Medis (RM)</span>
+              <strong className="text-base text-blue-700">{detailPasien.no_rm}</strong>
+            </div>
+            <div className="col-12 md:col-6">
+              <span className="text-color-secondary block text-xs">Nama Lengkap</span>
+              <strong className="text-base">{detailPasien.nama}</strong>
+            </div>
+
+            <div className="col-12 md:col-6">
+              <span className="text-color-secondary block text-xs">NIK</span>
+              <span>{detailPasien.nik || '-'}</span>
+            </div>
+            <div className="col-12 md:col-6">
+              <span className="text-color-secondary block text-xs">No. Handphone (WhatsApp)</span>
+              <span>{detailPasien.no_hp || '-'}</span>
+            </div>
+
+            <div className="col-12 md:col-6">
+              <span className="text-color-secondary block text-xs">Tanggal Lahir</span>
+              <span>{detailPasien.tanggal_lahir || '-'}</span>
+            </div>
+            <div className="col-12 md:col-6">
+              <span className="text-color-secondary block text-xs">Jenis Kelamin</span>
+              <span>{detailPasien.jenis_kelamin === 'L' ? 'Laki-Laki' : detailPasien.jenis_kelamin === 'P' ? 'Perempuan' : '-'}</span>
+            </div>
+
+            <div className="col-12 md:col-6">
+              <span className="text-color-secondary block text-xs">Golongan Darah</span>
+              <span>{detailPasien.golongan_darah || '-'}</span>
+            </div>
+            <div className="col-12 md:col-6">
+              <span className="text-color-secondary block text-xs">Agama</span>
+              <span>{detailPasien.agama || '-'}</span>
+            </div>
+
+            <div className="col-12 md:col-6">
+              <span className="text-color-secondary block text-xs">Status Perkawinan</span>
+              <span>{detailPasien.status_perkawinan || '-'}</span>
+            </div>
+            <div className="col-12 md:col-6">
+              <span className="text-color-secondary block text-xs">Kewarganegaraan</span>
+              <span>{detailPasien.kewarganegaraan || '-'}</span>
+            </div>
+
+            <div className="col-12 md:col-6">
+              <span className="text-color-secondary block text-xs">Pekerjaan</span>
+              <span>{detailPasien.pekerjaan || '-'}</span>
+            </div>
+            <div className="col-12 md:col-6">
+              <span className="text-color-secondary block text-xs">Kota / Alamat</span>
+              <span>{detailPasien.kota_kabupaten || detailPasien.provinsi || '-'}</span>
+            </div>
+
+            <div className="col-12">
+              <span className="text-color-secondary block text-xs">Alamat Lengkap & Patokan</span>
+              <span>
+                {[detailPasien.kelurahan_desa, detailPasien.kecamatan, detailPasien.kota_kabupaten, detailPasien.provinsi]
+                  .filter(Boolean)
+                  .join(', ') || '-'}
+                {detailPasien.patokan ? ` (${detailPasien.patokan})` : ''}
+              </span>
+            </div>
+
+            {detailPasien.alergi && (
+              <div className="col-12 p-3 surface-100 border-round border-left-4 border-red-500 text-red-700">
+                <strong>Riwayat Alergi:</strong> {detailPasien.alergi}
+              </div>
+            )}
+          </div>
+        )}
+      </Dialog>
 
       <KarcisAntrianModal
         visible={karcisVisible}

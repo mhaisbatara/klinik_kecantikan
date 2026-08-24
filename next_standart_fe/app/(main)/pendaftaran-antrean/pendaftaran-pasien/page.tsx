@@ -5,17 +5,11 @@ import { Toast } from 'primereact/toast';
 import { TabView, TabPanel } from 'primereact/tabview';
 import { TabPendaftaran } from './components/tab_pendaftaran';
 import { TabPendaftaranLama } from './components/tab_pendaftaran_lama';
-import { TabPasienLama } from './components/tab_pasien_lama';
 
 const PendaftaranPasienPage = () => {
   const toast = useRef<Toast>(null);
   const [activeTab, setActiveTab] = useState(0);
   const [editingPasien, setEditingPasien] = useState<any>(null);
-
-  const handleAddNewPasien = () => {
-    setEditingPasien(null);
-    setActiveTab(0);
-  };
 
   const handleEditPasien = (pasien: any) => {
     setEditingPasien(pasien);
@@ -34,7 +28,7 @@ const PendaftaranPasienPage = () => {
             Pendaftaran Pasien
           </h2>
           <p className="text-color-secondary m-0 text-sm">
-            Registrasi pasien baru & pasien lama, alur pilih layanan treatment & antrean, kelola master data pasien.
+            Registrasi pasien baru & pasien lama, alur pilih layanan treatment & antrean.
           </p>
         </div>
       </div>
@@ -46,8 +40,8 @@ const PendaftaranPasienPage = () => {
         className="p-tabview-custom"
       >
         <TabPanel
-          header="Pendaftaran Pasien Baru"
-          leftIcon="pi pi-user-plus mr-2"
+          header={editingPasien ? `Edit Data Pasien (${editingPasien.no_rm})` : 'Pendaftaran Pasien Baru'}
+          leftIcon={editingPasien ? 'pi pi-user-edit mr-2' : 'pi pi-user-plus mr-2'}
         >
           <TabPendaftaran
             toast={toast}
@@ -62,16 +56,6 @@ const PendaftaranPasienPage = () => {
         >
           <TabPendaftaranLama
             toast={toast}
-          />
-        </TabPanel>
-
-        <TabPanel
-          header="Kelola Master Data"
-          leftIcon="pi pi-list mr-2"
-        >
-          <TabPasienLama
-            toast={toast}
-            onAddNewPasien={handleAddNewPasien}
             onEditPasien={handleEditPasien}
           />
         </TabPanel>

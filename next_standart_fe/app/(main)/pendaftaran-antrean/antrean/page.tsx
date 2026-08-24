@@ -6,12 +6,9 @@ import { useEffect, useRef, useState } from 'react';
 import { showError } from '@/lib/tools/generalTools';
 import { FilterMatchMode } from 'primereact/api';
 import { useSession } from 'next-auth/react';
-import { DataTableStateEvent } from 'primereact/datatable';
 import { State } from './components/interfaces';
 import { apiEndpointData } from './components/endpoints';
 import { PanelAntrianRuangan } from './components/PanelAntrianRuangan';
-import { TableAntrianLayanan } from './components/table_antrian_layanan';
-import { TabPanel, TabView } from 'primereact/tabview';
 
 const AntreanLayananPage = () => {
     const toast = useRef<Toast>(null);
@@ -37,31 +34,6 @@ const AntreanLayananPage = () => {
         filterJenis: '',
     });
 
-    const getData = async (apiEndpoint: string) => {
-        setState((p) => ({ ...p, load: true }));
-        try {
-            const oPayload = {
-                page: state.page,
-                perPage: state.rows,
-                keyword: state.keyword,
-                jenis_layanan: state.filterJenis || undefined,
-                sortField: state.sortField,
-                sortOrder: state.sortOrder,
-            };
-            const res = await postData(apiEndpoint, oPayload);
-            setState((p) => ({
-                ...p,
-                data: res.data.data || [],
-                totalData: res.data.total_data || 0,
-            }));
-        } catch (error: any) {
-            const e = error?.response?.data || error;
-            showError(toast, e?.message || 'Terjadi kesalahan saat memuat data antrean');
-        } finally {
-            setState((p) => ({ ...p, load: false }));
-        }
-    };
-
     const getGridData = async () => {
         setState((p) => ({ ...p, loadGrid: true }));
         try {
@@ -77,29 +49,6 @@ const AntreanLayananPage = () => {
             setState((p) => ({ ...p, loadGrid: false }));
         }
     };
-
-    const onLazyLoad = (event: DataTableStateEvent) => {
-        setState((prev) => {
-            const newPage = typeof event.page === 'number' ? event.page + 1 : prev.page;
-            return {
-                ...prev,
-                first: event.first,
-                rows: event.rows,
-                page: newPage,
-                sortField: event.sortField || prev.sortField,
-                sortOrder: event.sortOrder
-                    ? event.sortOrder === 1
-                        ? 'asc'
-                        : 'desc'
-                    : prev.sortOrder,
-            };
-        });
-    };
-
-    useEffect(() => {
-        getData(apiEndpointData);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [state.page, state.rows, state.sortField, state.sortOrder, state.keyword, state.filterJenis]);
 
     useEffect(() => {
         getGridData();
@@ -127,37 +76,13 @@ const AntreanLayananPage = () => {
                 </div>
             </div>
 
-            {/* TabView Main Container */}
-            <TabView
-                activeIndex={state.activeTab}
-                onTabChange={(e) => setState((p) => ({ ...p, activeTab: e.index }))}
-            >
-                <TabPanel
-                    header="Antrean per Ruangan"
-                    leftIcon="pi pi-building mr-2 text-teal-600 font-bold"
-                >
-                    <PanelAntrianRuangan
-                        state={state}
-                        setState={setState}
-                        toast={toast}
-                        getGridData={getGridData}
-                    />
-                </TabPanel>
-
-                <TabPanel
-                    header="Riwayat & Tabel Data"
-                    leftIcon="pi pi-list mr-2"
-                >
-                    <TableAntrianLayanan
-                        state={state}
-                        setState={setState}
-                        toast={toast}
-                        getData={getData}
-                        getGridData={getGridData}
-                        onLazyLoad={onLazyLoad}
-                    />
-                </TabPanel>
-            </TabView>
+            {/* Panel Antrian Ruangan */}
+            <PanelAntrianRuangan
+                state={state}
+                setState={setState}
+                toast={toast}
+                getGridData={getGridData}
+            />
         </>
     );
 };

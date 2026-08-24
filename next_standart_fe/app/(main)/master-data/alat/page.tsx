@@ -265,7 +265,7 @@ const Page = () => {
                         body={(r) => (
                             <span
                                 className={`w-2rem h-2rem border-round inline-flex align-items-center justify-content-center text-white shadow-1 ${r.status === 'aktif' ? 'bg-green-500' : 'bg-red-500'}`}
-                                tooltip={r.status === 'aktif' ? 'Status: Aktif' : 'Status: Tidak Aktif'}
+                                title={r.status === 'aktif' ? 'Status: Aktif' : 'Status: Tidak Aktif'}
                             >
                                 <i className={`pi ${r.status === 'aktif' ? 'pi-check' : 'pi-times'}`} style={{ fontSize: '0.8rem' }}></i>
                             </span>

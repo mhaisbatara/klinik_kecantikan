@@ -314,11 +314,33 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
                         </div>
 
                         <div className="flex gap-2 flex-wrap align-items-center">
-                            <Tag value={`🟡 Menunggu: ${mCount}`} severity="warning" className="text-xs px-2 py-1 font-bold" />
-                            <Tag value={`📢 Dipanggil: ${pCount}`} severity="info" className="text-xs px-2 py-1 font-bold" />
-                            <Tag value={`✅ Selesai: ${sCount}`} severity="success" className="text-xs px-2 py-1 font-bold" />
-                            <Tag value={`❌ Batal: ${bCount}`} severity="danger" className="text-xs px-2 py-1 font-bold" />
-                            <Tag value={`Total: ${roomFilteredItems.length}`} severity="secondary" className="text-xs px-2 py-1 font-bold" />
+                            {[
+                                { color: '#f59e0b', label: 'Menunggu',  count: mCount   },
+                                { color: '#3b82f6', label: 'Dipanggil', count: pCount   },
+                                { color: '#22c55e', label: 'Selesai',   count: sCount   },
+                                { color: '#ef4444', label: 'Batal',     count: bCount   },
+                                { color: '#6b7280', label: 'Total',     count: roomFilteredItems.length },
+                            ].map((item) => (
+                                <span
+                                    key={item.label}
+                                    className="flex align-items-center gap-2 px-3 py-2 border-round-lg text-xs font-semibold"
+                                    style={{
+                                        background: `${item.color}18`,
+                                        border: `1.5px solid ${item.color}55`,
+                                        color: item.color,
+                                    }}
+                                >
+                                    <span style={{
+                                        display: 'inline-block',
+                                        width: '12px', height: '12px',
+                                        borderRadius: '3px',
+                                        backgroundColor: item.color,
+                                        boxShadow: `0 1px 3px ${item.color}55`,
+                                        flexShrink: 0,
+                                    }} />
+                                    {item.label}: <strong>{item.count}</strong>
+                                </span>
+                            ))}
                         </div>
                     </div>
 

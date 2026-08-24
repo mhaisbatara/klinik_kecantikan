@@ -157,6 +157,14 @@ const handleUpdate = async (req, res) => {
       status: status.SUKSES,
       message: "Data pasien berhasil diperbarui",
       datetime: formatDateSystem(),
+      data: {
+        id: dataBefore.id,
+        no_rm: dataBefore.no_rm,
+        nama: nama,
+        nik: oPayload.nik !== undefined ? oPayload.nik : dataBefore.nik,
+        no_hp: oPayload.no_hp !== undefined ? oPayload.no_hp : dataBefore.no_hp,
+        ...oDataUpdate,
+      },
     });
   } catch (error) {
     const oResult = {

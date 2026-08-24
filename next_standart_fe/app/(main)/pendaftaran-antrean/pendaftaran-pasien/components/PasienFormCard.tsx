@@ -81,6 +81,7 @@ export const PasienFormCard: React.FC<Props> = ({
   const [formData, setFormData] = useState<PasienFormData>(defaultFormData);
   const [loading, setLoading] = useState(false);
   const [activeFormTab, setActiveFormTab] = useState(0);
+  const [submitted, setSubmitted] = useState(false);
 
   // Region cascading codes
   const [kodeProvinsi, setKodeProvinsi] = useState<string>('');
@@ -106,6 +107,9 @@ export const PasienFormCard: React.FC<Props> = ({
         ...initialData,
         tanggal_lahir: initialData.tanggal_lahir ? new Date(initialData.tanggal_lahir) : null,
       });
+      setKodeProvinsi('');
+      setKodeKota('');
+      setKodeKecamatan('');
     } else {
       setFormData(defaultFormData);
       setKodeProvinsi('');
@@ -114,7 +118,7 @@ export const PasienFormCard: React.FC<Props> = ({
     }
   }, [initialData]);
 
-  // Fetch Provinsi
+  // 1. Fetch Provinsi List
   useEffect(() => {
     const fetchProv = async () => {
       setLoadingProv(true);
@@ -126,13 +130,6 @@ export const PasienFormCard: React.FC<Props> = ({
             nama: String(item.nama || item.name),
           }));
           setProvList(list);
-
-          if (formData.provinsi) {
-            const match = list.find(
-              (p: any) => p.nama.toLowerCase() === formData.provinsi.toLowerCase()
-            );
-            if (match) setKodeProvinsi(match.kode);
-          }
         }
       } catch (err) {
         showError(toast, 'Gagal memuat data provinsi');
@@ -144,7 +141,19 @@ export const PasienFormCard: React.FC<Props> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Fetch Kota
+  // Auto-match Kode Provinsi saat provList atau formData.provinsi tersedia
+  useEffect(() => {
+    if (provList.length > 0 && formData.provinsi) {
+      const match = provList.find(
+        (p) => p.nama.trim().toLowerCase() === formData.provinsi.trim().toLowerCase()
+      );
+      if (match && match.kode !== kodeProvinsi) {
+        setKodeProvinsi(match.kode);
+      }
+    }
+  }, [provList, formData.provinsi]);
+
+  // 2. Fetch Kota List
   useEffect(() => {
     if (!kodeProvinsi) {
       setKotaList([]);
@@ -167,13 +176,6 @@ export const PasienFormCard: React.FC<Props> = ({
             nama: String(item.nama || item.name),
           }));
           setKotaList(list);
-
-          if (formData.kota_kabupaten) {
-            const match = list.find(
-              (k: any) => k.nama.toLowerCase() === formData.kota_kabupaten.toLowerCase()
-            );
-            if (match) setKodeKota(match.kode);
-          }
         }
       } catch (err) {
         showError(toast, 'Gagal memuat kota/kabupaten');
@@ -185,7 +187,19 @@ export const PasienFormCard: React.FC<Props> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kodeProvinsi]);
 
-  // Fetch Kecamatan
+  // Auto-match Kode Kota saat kotaList atau formData.kota_kabupaten tersedia
+  useEffect(() => {
+    if (kotaList.length > 0 && formData.kota_kabupaten) {
+      const match = kotaList.find(
+        (k) => k.nama.trim().toLowerCase() === formData.kota_kabupaten.trim().toLowerCase()
+      );
+      if (match && match.kode !== kodeKota) {
+        setKodeKota(match.kode);
+      }
+    }
+  }, [kotaList, formData.kota_kabupaten]);
+
+  // 3. Fetch Kecamatan List
   useEffect(() => {
     if (!kodeKota) {
       setKecList([]);
@@ -207,13 +221,6 @@ export const PasienFormCard: React.FC<Props> = ({
             nama: String(item.nama || item.name),
           }));
           setKecList(list);
-
-          if (formData.kecamatan) {
-            const match = list.find(
-              (c: any) => c.nama.toLowerCase() === formData.kecamatan.toLowerCase()
-            );
-            if (match) setKodeKecamatan(match.kode);
-          }
         }
       } catch (err) {
         showError(toast, 'Gagal memuat kecamatan');
@@ -225,7 +232,19 @@ export const PasienFormCard: React.FC<Props> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kodeKota]);
 
-  // Fetch Kelurahan
+  // Auto-match Kode Kecamatan saat kecList atau formData.kecamatan tersedia
+  useEffect(() => {
+    if (kecList.length > 0 && formData.kecamatan) {
+      const match = kecList.find(
+        (c) => c.nama.trim().toLowerCase() === formData.kecamatan.trim().toLowerCase()
+      );
+      if (match && match.kode !== kodeKecamatan) {
+        setKodeKecamatan(match.kode);
+      }
+    }
+  }, [kecList, formData.kecamatan]);
+
+  // 4. Fetch Kelurahan List
   useEffect(() => {
     if (!kodeKecamatan) {
       setKelList([]);
@@ -310,7 +329,8 @@ export const PasienFormCard: React.FC<Props> = ({
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (proceedToLayanan: boolean = true) => {
+    setSubmitted(true);
     if (!formData.nama.trim()) {
       showError(toast, 'Nama pasien wajib diisi');
       setActiveFormTab(0);
@@ -344,14 +364,23 @@ export const PasienFormCard: React.FC<Props> = ({
         tanggal_lahir: formattedDate,
       };
 
-      const endpoint = formData.id || formData.no_rm ? apiPasienUpdate : apiPasienCreate;
+      const isEdit = Boolean(formData.id || formData.no_rm);
+      const endpoint = isEdit ? apiPasienUpdate : apiPasienCreate;
       const res = await postData(endpoint, payload);
 
       if (['00', '0000'].includes(res.data.status)) {
-        showSuccess(toast, res.data.message || 'Pendaftaran berhasil');
-        onSuccess(res.data.data);
+        showSuccess(toast, res.data.message || 'Data pasien berhasil disimpan');
+        if (proceedToLayanan) {
+          const resultData = res.data?.data || {
+            ...formData,
+            no_rm: formData.no_rm || payload.no_rm,
+          };
+          onSuccess(resultData);
+        } else {
+          if (onCancel) onCancel();
+        }
       } else {
-        showError(toast, res.data.message || 'Gagal mendaftarkan pasien');
+        showError(toast, res.data.message || 'Gagal menyimpan data pasien');
       }
     } catch (error: any) {
       const msg = error?.response?.data?.message || 'Terjadi kesalahan sistem';
@@ -440,7 +469,12 @@ export const PasienFormCard: React.FC<Props> = ({
                 value={formData.nama}
                 onChange={(e) => handleChange('nama', e.target.value)}
                 placeholder="Masukkan nama lengkap pasien"
+                invalid={submitted && !formData.nama.trim()}
+                className={submitted && !formData.nama.trim() ? 'p-invalid border-1 border-red-500 w-full' : 'w-full'}
               />
+              {submitted && !formData.nama.trim() && (
+                <small className="p-error text-red-500 font-semibold block mt-1">Nama lengkap wajib diisi.</small>
+              )}
             </div>
             <div className="col-12 md:col-6 field">
               <label className="font-semibold text-900">NIK (16 Digit)</label>
@@ -449,7 +483,12 @@ export const PasienFormCard: React.FC<Props> = ({
                 onChange={(e) => handleChange('nik', e.target.value)}
                 placeholder="3515xxxxxxxxxxxx"
                 maxLength={16}
+                invalid={submitted && Boolean(formData.nik && formData.nik.trim().length !== 16)}
+                className={submitted && formData.nik && formData.nik.trim().length !== 16 ? 'p-invalid border-1 border-red-500 w-full' : 'w-full'}
               />
+              {submitted && formData.nik && formData.nik.trim().length !== 16 && (
+                <small className="p-error text-red-500 font-semibold block mt-1">NIK harus 16 digit angka.</small>
+              )}
             </div>
 
             <div className="col-12 md:col-6 field">
@@ -469,7 +508,12 @@ export const PasienFormCard: React.FC<Props> = ({
                 maxDate={new Date()}
                 showIcon
                 placeholder="YYYY-MM-DD"
+                invalid={submitted && !formData.tanggal_lahir}
+                className={submitted && !formData.tanggal_lahir ? 'p-invalid border-1 border-red-500 border-round w-full' : 'w-full'}
               />
+              {submitted && !formData.tanggal_lahir && (
+                <small className="p-error text-red-500 font-semibold block mt-1">Tanggal lahir wajib diisi.</small>
+              )}
             </div>
 
             <div className="col-12 md:col-6 field">
@@ -597,7 +641,7 @@ export const PasienFormCard: React.FC<Props> = ({
             <div className="col-12 md:col-6 field">
               <label className="font-semibold text-900">Kelurahan / Desa</label>
               <Dropdown
-                value={kelList.find((l) => l.nama === formData.kelurahan_desa)?.kode || ''}
+                value={kelList.find((l) => l.nama.trim().toLowerCase() === (formData.kelurahan_desa || '').trim().toLowerCase())?.kode || ''}
                 options={kelList.map((l) => ({ label: l.nama, value: l.kode }))}
                 onChange={(e) => handleKelChange(e.value)}
                 placeholder={!kodeKecamatan ? 'Pilih Kecamatan terlebih dahulu' : 'Pilih Kelurahan / Desa'}
@@ -637,7 +681,12 @@ export const PasienFormCard: React.FC<Props> = ({
                 value={formData.no_hp}
                 onChange={(e) => handleChange('no_hp', e.target.value)}
                 placeholder="081234567890"
+                invalid={submitted && !formData.no_hp.trim()}
+                className={submitted && !formData.no_hp.trim() ? 'p-invalid border-1 border-red-500 w-full' : 'w-full'}
               />
+              {submitted && !formData.no_hp.trim() && (
+                <small className="p-error text-red-500 font-semibold block mt-1">Nomor HP wajib diisi.</small>
+              )}
             </div>
             <div className="col-12 md:col-6 field">
               <label className="font-semibold text-900">Email</label>
@@ -692,22 +741,8 @@ export const PasienFormCard: React.FC<Props> = ({
       </TabView>
 
       {/* FOOTER ACTIONS */}
-      <div className="flex justify-content-between align-items-center gap-3 mt-4 pt-3 border-top-1 surface-border">
-        <div>
-          {activeFormTab > 0 && (
-            <Button
-              label="Kembali"
-              icon="pi pi-arrow-left"
-              outlined
-              severity="secondary"
-              className="border-round-lg font-bold"
-              onClick={() => setActiveFormTab((prev) => Math.max(0, prev - 1))}
-              type="button"
-            />
-          )}
-        </div>
-
-        <div className="flex gap-3">
+      <div className="flex justify-content-between align-items-center gap-3 mt-4 pt-3 border-top-1 surface-border flex-wrap">
+        <div className="flex gap-2">
           {onCancel && (
             <Button
               label="Batal Edit"
@@ -721,6 +756,20 @@ export const PasienFormCard: React.FC<Props> = ({
             />
           )}
 
+          {activeFormTab > 0 && (
+            <Button
+              label="Kembali"
+              icon="pi pi-arrow-left"
+              outlined
+              severity="secondary"
+              className="border-round-lg font-bold"
+              onClick={() => setActiveFormTab((prev) => Math.max(0, prev - 1))}
+              type="button"
+            />
+          )}
+        </div>
+
+        <div className="flex gap-2 flex-wrap align-items-center">
           {activeFormTab < 3 ? (
             <Button
               label="Selanjutnya"
@@ -728,8 +777,10 @@ export const PasienFormCard: React.FC<Props> = ({
               iconPos="right"
               className="p-button-primary border-round-lg font-bold"
               onClick={() => {
-                if (activeFormTab === 0 && !formData.nama.trim()) {
-                  showError(toast, 'Nama Pasien wajib diisi');
+                setSubmitted(true);
+                if (activeFormTab === 0 && (!formData.nama.trim() || !formData.tanggal_lahir)) {
+                  if (!formData.nama.trim()) showError(toast, 'Nama Pasien wajib diisi');
+                  else if (!formData.tanggal_lahir) showError(toast, 'Tanggal Lahir wajib diisi');
                   return;
                 }
                 if (activeFormTab === 2 && !formData.no_hp.trim()) {
@@ -740,12 +791,43 @@ export const PasienFormCard: React.FC<Props> = ({
               }}
               type="button"
             />
+          ) : formData.no_rm ? (
+            <>
+              <Button
+                label="Simpan Perubahan"
+                icon="pi pi-save"
+                outlined
+                severity="info"
+                className="border-round-lg font-bold"
+                onClick={() => {
+                  setSubmitted(true);
+                  handleSubmit(false);
+                }}
+                loading={loading}
+                type="button"
+              />
+              <Button
+                label="Simpan Perubahan & Pilih Layanan"
+                icon="pi pi-check-circle"
+                severity="success"
+                className="border-round-lg font-bold"
+                onClick={() => {
+                  setSubmitted(true);
+                  handleSubmit(true);
+                }}
+                loading={loading}
+                type="button"
+              />
+            </>
           ) : (
             <Button
-              label={formData.no_rm ? 'Simpan Perubahan' : 'Daftarkan Pasien & Lanjut Pilih Layanan'}
+              label="Daftarkan Pasien Baru & Lanjut Pilih Layanan"
               icon="pi pi-check"
               className="p-button-success border-round-lg font-bold"
-              onClick={handleSubmit}
+              onClick={() => {
+                setSubmitted(true);
+                handleSubmit(true);
+              }}
               loading={loading}
               type="button"
             />

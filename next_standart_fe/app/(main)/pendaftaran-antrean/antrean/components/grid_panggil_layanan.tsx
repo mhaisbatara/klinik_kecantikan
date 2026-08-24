@@ -444,11 +444,33 @@ export const GridPanggilLayanan = ({
                     />
                 </div>
                 <div className="flex gap-2 flex-wrap align-items-center">
-                    <Tag value={`🟡 Menunggu: ${mLayanan}`} severity="warning" className="text-xs px-2 py-1 font-bold" />
-                    <Tag value={`📢 Dipanggil: ${pLayanan}`} severity="info" className="text-xs px-2 py-1 font-bold" />
-                    <Tag value={`✅ Selesai: ${sLayanan}`} severity="success" className="text-xs px-2 py-1 font-bold" />
-                    <Tag value={`❌ Batal: ${bLayanan}`} severity="danger" className="text-xs px-2 py-1 font-bold" />
-                    <Tag value={`Total: ${layananItems.length}`} severity="secondary" className="text-xs px-2 py-1 font-bold" />
+                    {[
+                        { color: '#f59e0b', label: 'Menunggu',  count: mLayanan   },
+                        { color: '#3b82f6', label: 'Dipanggil', count: pLayanan   },
+                        { color: '#22c55e', label: 'Selesai',   count: sLayanan   },
+                        { color: '#ef4444', label: 'Batal',     count: bLayanan   },
+                        { color: '#6b7280', label: 'Total',     count: layananItems.length },
+                    ].map((item) => (
+                        <span
+                            key={item.label}
+                            className="flex align-items-center gap-2 px-3 py-2 border-round-lg text-xs font-semibold"
+                            style={{
+                                background: `${item.color}18`,
+                                border: `1.5px solid ${item.color}55`,
+                                color: item.color,
+                            }}
+                        >
+                            <span style={{
+                                display: 'inline-block',
+                                width: '12px', height: '12px',
+                                borderRadius: '3px',
+                                backgroundColor: item.color,
+                                boxShadow: `0 1px 3px ${item.color}55`,
+                                flexShrink: 0,
+                            }} />
+                            {item.label}: <strong>{item.count}</strong>
+                        </span>
+                    ))}
                 </div>
             </div>
 
@@ -480,11 +502,33 @@ export const GridPanggilLayanan = ({
                     />
                 </div>
                 <div className="flex gap-2 flex-wrap align-items-center">
-                    <Tag value={`🟡 Menunggu: ${mPaket}`} severity="warning" className="text-xs px-2 py-1 font-bold" />
-                    <Tag value={`📢 Dipanggil: ${pPaket}`} severity="info" className="text-xs px-2 py-1 font-bold" />
-                    <Tag value={`✅ Selesai: ${sPaket}`} severity="success" className="text-xs px-2 py-1 font-bold" />
-                    <Tag value={`❌ Batal: ${bPaket}`} severity="danger" className="text-xs px-2 py-1 font-bold" />
-                    <Tag value={`Total: ${paketItems.length}`} severity="secondary" className="text-xs px-2 py-1 font-bold" />
+                    {[
+                        { color: '#f59e0b', label: 'Menunggu',  count: mPaket   },
+                        { color: '#3b82f6', label: 'Dipanggil', count: pPaket   },
+                        { color: '#22c55e', label: 'Selesai',   count: sPaket   },
+                        { color: '#ef4444', label: 'Batal',     count: bPaket   },
+                        { color: '#6b7280', label: 'Total',     count: paketItems.length },
+                    ].map((item) => (
+                        <span
+                            key={item.label}
+                            className="flex align-items-center gap-2 px-3 py-2 border-round-lg text-xs font-semibold"
+                            style={{
+                                background: `${item.color}18`,
+                                border: `1.5px solid ${item.color}55`,
+                                color: item.color,
+                            }}
+                        >
+                            <span style={{
+                                display: 'inline-block',
+                                width: '12px', height: '12px',
+                                borderRadius: '3px',
+                                backgroundColor: item.color,
+                                boxShadow: `0 1px 3px ${item.color}55`,
+                                flexShrink: 0,
+                            }} />
+                            {item.label}: <strong>{item.count}</strong>
+                        </span>
+                    ))}
                 </div>
             </div>
 

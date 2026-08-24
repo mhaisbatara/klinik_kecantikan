@@ -18,6 +18,7 @@ const FormLama = ({ state, setState, toast }: FormLamaProps) => {
     const [selectedPasien, setSelectedPasien] = useState<PasienOption | null>(null);
     const [filteredPasiens, setFilteredPasiens] = useState<PasienOption[]>([]);
     const [kodeLayanan, setKodeLayanan] = useState('');
+    const [submitted, setSubmitted] = useState(false);
 
     const searchPasien = async (event: AutoCompleteCompleteEvent) => {
         try {
@@ -43,6 +44,7 @@ const FormLama = ({ state, setState, toast }: FormLamaProps) => {
             showSuccess(toast, res.data?.message || 'Pendaftaran Pasien Lama berhasil disimpan');
             setSelectedPasien(null);
             setKodeLayanan('');
+            setSubmitted(false);
         } catch (error: any) {
             const errObj = error?.response?.data || error;
             showError(toast, errObj?.message || 'Gagal menyimpan pendaftaran');
@@ -53,6 +55,7 @@ const FormLama = ({ state, setState, toast }: FormLamaProps) => {
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
+        setSubmitted(true);
         if (!selectedPasien || !selectedPasien.no_rm) {
             showError(toast, 'Harap cari & pilih pasien terdaftar terlebih dahulu.');
             return;
@@ -137,9 +140,13 @@ const FormLama = ({ state, setState, toast }: FormLamaProps) => {
                             selectedItemTemplate={(item) => (item ? `${item.nama} - (${item.no_rm})` : '')}
                             onChange={(e) => setSelectedPasien(e.value)}
                             placeholder="Mulai mengetik untuk mencari data pasien..."
-                            className="p-inputtext-sm"
+                            invalid={submitted && (!selectedPasien || !selectedPasien.no_rm)}
+                            className={submitted && (!selectedPasien || !selectedPasien.no_rm) ? 'p-invalid border-1 border-red-500 border-round p-inputtext-sm' : 'p-inputtext-sm'}
                             dropdown
                         />
+                        {submitted && (!selectedPasien || !selectedPasien.no_rm) && (
+                            <small className="p-error text-red-500 font-semibold block mt-1">Pasien terdaftar wajib dicari & dipilih.</small>
+                        )}
                     </div>
 
                     {selectedPasien && selectedPasien.no_rm && (
@@ -187,10 +194,14 @@ const FormLama = ({ state, setState, toast }: FormLamaProps) => {
                                 options={layananOptions}
                                 onChange={(e) => setKodeLayanan(e.value)}
                                 placeholder="Pilih Layanan Biasa"
-                                className="p-inputtext-sm"
+                                invalid={submitted && !kodeLayanan}
+                                className={submitted && !kodeLayanan ? 'p-invalid border-1 border-red-500 border-round p-inputtext-sm' : 'p-inputtext-sm'}
                                 filter
                                 filterBy="label"
                             />
+                            {submitted && !kodeLayanan && (
+                                <small className="p-error text-red-500 font-semibold block mt-1">Layanan medis wajib dipilih.</small>
+                            )}
                         </div>
                     ) : (
                         <div className="field">
@@ -202,10 +213,14 @@ const FormLama = ({ state, setState, toast }: FormLamaProps) => {
                                 options={paketOptions}
                                 onChange={(e) => setKodeLayanan(e.value)}
                                 placeholder="Pilih Paket Layanan"
-                                className="p-inputtext-sm"
+                                invalid={submitted && !kodeLayanan}
+                                className={submitted && !kodeLayanan ? 'p-invalid border-1 border-red-500 border-round p-inputtext-sm' : 'p-inputtext-sm'}
                                 filter
                                 filterBy="label"
                             />
+                            {submitted && !kodeLayanan && (
+                                <small className="p-error text-red-500 font-semibold block mt-1">Paket layanan kecantikan wajib dipilih.</small>
+                            )}
                         </div>
                     )}
 

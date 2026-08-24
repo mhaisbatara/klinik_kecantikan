@@ -118,8 +118,12 @@ router.post("/", async (req, res) => {
         dbStatus = "tersedia";
         diambilAt = null;
         dipanggilAt = null;
+      } else if (oPayload.status === "nonaktif") {
+        dbStatus = "nonaktif";
+        diambilAt = null;
+        dipanggilAt = null;
       } else {
-        dbStatus = previousRecord.status;
+        dbStatus = oPayload.status || previousRecord.status;
       }
 
       const oData = {

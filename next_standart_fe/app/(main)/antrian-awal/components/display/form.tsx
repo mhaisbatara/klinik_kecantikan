@@ -26,7 +26,10 @@ const statusAllOptions = [
 
 const Form = ({ state, setState, formik, toast, getData, getGridData }: FormProps) => {
     const isEdit = Boolean(state.edit);
-    const [bulkForm, setBulkForm] = useState({ dari: '01', sampai: '50', status: 'tersedia' });
+    const [bulkForm, setBulkForm] = useState({ dari: '', sampai: '', status: 'tersedia' });
+    const [bulkSubmitted, setBulkSubmitted] = useState(false);
+
+    const bulkInvalid = (field: 'dari' | 'sampai') => bulkSubmitted && !bulkForm[field];
 
     const isInvalid = (name: keyof initValue) => !!(formik.touched[name] && formik.errors[name]);
     const errorMsg = (name: keyof initValue) =>
@@ -63,8 +66,8 @@ const Form = ({ state, setState, formik, toast, getData, getGridData }: FormProp
 
     const handleBulkSave = async (e: React.FormEvent) => {
         e.preventDefault();
+        setBulkSubmitted(true);
         if (!bulkForm.dari || !bulkForm.sampai) {
-            showError(toast, 'Harap isi nomor antrian dari dan sampai.');
             return;
         }
         setState((p) => ({ ...p, load: true }));
@@ -79,6 +82,8 @@ const Form = ({ state, setState, formik, toast, getData, getGridData }: FormProp
             const res = await postData(apiEndpointCreate, body, { 'X-Level': '1' });
             showSuccess(toast, res.data?.message || 'Berhasil menambahkan antrian cepat.');
             setState((p) => ({ ...p, bulkAdd: false }));
+            setBulkForm({ dari: '', sampai: '', status: 'tersedia' });
+            setBulkSubmitted(false);
             await getData(apiEndpointData);
             await getGridData();
         } catch (error: any) {
@@ -211,22 +216,40 @@ const Form = ({ state, setState, formik, toast, getData, getGridData }: FormProp
                 </form>
             </Dialog>
 
-            {/* Dialog Tambah Cepat (Bulk Create 01-50) */}
+            {/* Dialog Tambah Cepat (Bulk Create) */}
             <Dialog
                 visible={state.bulkAdd}
-                header="Tambah Cepat Nomor Antrian (Generate Massal)"
+                header="Tambah Cepat Nomor Antrian"
                 modal
                 style={{ width: '100%', maxWidth: '450px' }}
                 breakpoints={{ '641px': '90vw' }}
-                onHide={() => setState((p) => ({ ...p, bulkAdd: false }))}
+                onHide={() => {
+                    setState((p) => ({ ...p, bulkAdd: false }));
+                    setBulkForm({ dari: '', sampai: '', status: 'tersedia' });
+                    setBulkSubmitted(false);
+                }}
             >
                 <form onSubmit={handleBulkSave} className="flex flex-column gap-3 pt-2">
                     <p className="text-color-secondary text-sm mb-2">
-                        Buat banyak nomor antrian fisik secara otomatis sekaligus (misalnya nomor <strong>01 sampai 50</strong>).
+                        Isi rentang nomor antrian yang ingin dibuat. Sistem akan membuat semua nomor secara otomatis sesuai rentang yang ditentukan.
                     </p>
 
                     <div className="grid formgrid p-fluid">
-                        <div className="field col-6">
+                        <div className="field col-4">
+                            <label htmlFor="bulk_status" className="font-semibold text-sm">
+                                Status Awal <span className="text-red-500">*</span>
+                            </label>
+                            <Dropdown
+                                id="bulk_status"
+                                value={bulkForm.status}
+                                options={statusOptions}
+                                onChange={(e) => setBulkForm((p) => ({ ...p, status: e.value }))}
+                                placeholder="Pilih Status"
+                                className="w-full"
+                            />
+                        </div>
+
+                        <div className="field col-4">
                             <label htmlFor="dari" className="font-semibold text-sm">
                                 Dari Nomor <span className="text-red-500">*</span>
                             </label>
@@ -235,10 +258,12 @@ const Form = ({ state, setState, formik, toast, getData, getGridData }: FormProp
                                 value={bulkForm.dari}
                                 placeholder="Contoh: 01"
                                 onChange={(e) => setBulkForm((p) => ({ ...p, dari: e.target.value }))}
+                                className={bulkInvalid('dari') ? 'p-invalid w-full' : 'w-full'}
                             />
+                            {bulkInvalid('dari') && <small className="p-error">Nomor awal wajib diisi.</small>}
                         </div>
 
-                        <div className="field col-6">
+                        <div className="field col-4">
                             <label htmlFor="sampai" className="font-semibold text-sm">
                                 Sampai Nomor <span className="text-red-500">*</span>
                             </label>
@@ -247,21 +272,10 @@ const Form = ({ state, setState, formik, toast, getData, getGridData }: FormProp
                                 value={bulkForm.sampai}
                                 placeholder="Contoh: 50"
                                 onChange={(e) => setBulkForm((p) => ({ ...p, sampai: e.target.value }))}
+                                className={bulkInvalid('sampai') ? 'p-invalid w-full' : 'w-full'}
                             />
+                            {bulkInvalid('sampai') && <small className="p-error">Nomor akhir wajib diisi.</small>}
                         </div>
-                    </div>
-
-                    <div className="flex flex-column gap-1">
-                        <label htmlFor="bulk_status" className="font-semibold text-sm">
-                            Status Awal <span className="text-red-500">*</span>
-                        </label>
-                        <Dropdown
-                            id="bulk_status"
-                            value={bulkForm.status}
-                            options={statusOptions}
-                            onChange={(e) => setBulkForm((p) => ({ ...p, status: e.value }))}
-                            placeholder="Pilih Status"
-                        />
                     </div>
 
                     <div className="flex justify-content-end border-t-1 border-300 pt-3 gap-2 mt-2">
