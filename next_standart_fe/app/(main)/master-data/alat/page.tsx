@@ -28,11 +28,13 @@ const Page = () => {
     const [rows, setRows] = useState<number>(10);
     const [keyword, setKeyword] = useState<string>('');
     const [selectedRows, setSelectedRows] = useState<any[]>([]);
+    const [ruanganList, setRuanganList] = useState<any[]>([]);
 
     const [dialogVisible, setDialogVisible] = useState<boolean>(false);
     const [isEdit, setIsEdit] = useState<boolean>(false);
     const [formData, setFormData] = useState<any>({
         kode_alat: '',
+        kode_ruangan: '',
         nama: '',
         merk: '',
         tanggal_beli: null,
@@ -59,6 +61,17 @@ const Page = () => {
         }
     };
 
+    const loadRuangan = async () => {
+        try {
+            const res = await postData('/master/ruangan-data', {});
+            const options = (res.data.data || []).map((r: any) => ({
+                label: `${r.kode_ruangan} - ${r.nama_ruangan}`,
+                value: r.kode_ruangan
+            }));
+            setRuanganList(options);
+        } catch (error) {}
+    };
+
     const loadData = async () => {
         setLoading(true);
         try {
@@ -73,13 +86,17 @@ const Page = () => {
     };
 
     useEffect(() => {
+        loadRuangan();
+    }, []);
+
+    useEffect(() => {
         loadData();
     }, [page, rows, keyword]);
 
     const handleOpenCreate = () => {
         setIsEdit(false);
         setSubmitted(false);
-        setFormData({ kode_alat: '', nama: '', merk: '', tanggal_beli: null, kondisi: 'baik', status: 'aktif' });
+        setFormData({ kode_alat: '', kode_ruangan: '', nama: '', merk: '', tanggal_beli: null, kondisi: 'baik', status: 'aktif' });
         setDialogVisible(true);
     };
 
@@ -88,6 +105,7 @@ const Page = () => {
         setSubmitted(false);
         setFormData({
             ...rowData,
+            kode_ruangan: rowData.kode_ruangan || '',
             tanggal_beli: rowData.tanggal_beli ? new Date(rowData.tanggal_beli) : null
         });
         setDialogVisible(true);
@@ -144,7 +162,7 @@ const Page = () => {
 
             <div className="card border-round-xl p-4 shadow-1 surface-card mb-4">
                 {/* Page Header */}
-                <div className="mb-4 pb-3 border-bottom-1 surface-border">
+                <div className="mb-4">
                     <h3 className="text-2xl font-bold text-900 flex align-items-center gap-2 mb-1">
                         <i className="pi pi-wrench text-purple-600 text-2xl" />
                         Kelola Alat & Peralatan Medis
@@ -155,92 +173,50 @@ const Page = () => {
                 </div>
 
 
-                <div className="flex flex-row flex-wrap align-items-center justify-content-between gap-3 mb-3">
-                    <div className="flex flex-row flex-wrap align-items-center gap-2">
-                        <Button
-                            size="small"
-                            label="Baru"
-                            icon="pi pi-plus"
-                            outlined
-                            severity="success"
-                            className="border-round-md font-semibold px-3"
-                            onClick={handleOpenCreate}
-                        />
-                        <Divider layout="vertical" className="m-0 h-2rem" />
-                        <Button
-                            size="small"
-                            label="Cetak"
-                            icon="pi pi-print"
-                            outlined
-                            className="border-round-md font-semibold px-3 border-purple-600 text-purple-600"
-                            onClick={() => window.print()}
-                        />
-                        
-                        <Divider layout="vertical" className="m-0 h-2rem" />
-                        <Button
-                            size="small"
-                            label="Refresh"
-                            icon="pi pi-refresh"
-                            outlined
-                            className="border-round-md font-semibold px-3 border-purple-600 text-purple-600"
-                            loading={loading}
-                            onClick={loadData}
-                        />
-                        {selectedRows.length > 0 && (
-                            <>
-                                <Divider layout="vertical" className="m-0 h-2rem" />
-                                <Button
-                                    size="small"
-                                    label={`Hapus (${selectedRows.length})`}
-                                    icon="pi pi-trash"
-                                    severity="danger"
-                                    outlined
-                                    className="border-round-md font-semibold px-3"
-                                    onClick={() => handleDelete(selectedRows.map((r) => r.kode_alat))}
-                                />
-                            </>
-                        )}
-                    </div>
-
-                    
-                </div>
-
-                <div className="surface-100 p-2 px-3 border-round-md flex align-items-center gap-4 text-xs font-semibold text-700 mb-4 border-1 surface-border">
-                    <span className="flex align-items-center gap-1">
-                        <i className="pi pi-info-circle text-primary text-sm"></i>
-                        KETERANGAN STATUS:
-                    </span>
-                    <span className="flex align-items-center gap-2">
-                        <span className="w-1rem h-1rem border-round bg-green-500 inline-flex align-items-center justify-content-center text-white text-xs">
-                            <i className="pi pi-check" style={{ fontSize: '0.6rem' }}></i>
-                        </span>
-                        Aktif
-                    </span>
-                    <span className="flex align-items-center gap-2">
-                        <span className="w-1rem h-1rem border-round bg-red-500 inline-flex align-items-center justify-content-center text-white text-xs">
-                            <i className="pi pi-times" style={{ fontSize: '0.6rem' }}></i>
-                        </span>
-                        Tidak Aktif
-                    </span>
-                </div>
-
-                <div className="flex flex-row flex-wrap align-items-center justify-content-between gap-3 mb-3">
-                    <h4 className="text-xl font-bold text-900 m-0">Tabel Data</h4>
-                    <div className="flex align-items-center gap-2 w-full md:w-22rem">
-                    <IconField iconPosition="left" className="w-full">
-                        <InputIcon className="pi pi-search" />
-                        <InputText value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="Cari Data..." className="w-full text-sm border-round-md" />
-                    </IconField>
+                <div className="flex flex-row flex-wrap align-items-center gap-2 mb-4">
                     <Button
-                        icon="pi pi-filter-slash"
+                        size="small"
+                        label="Baru"
+                        icon="pi pi-plus"
                         outlined
+                        severity="success"
+                        className="border-round-md font-medium px-3"
+                        onClick={handleOpenCreate}
+                    />
+                    <Divider layout="vertical" className="m-0 h-2rem" />
+                    <Button
+                        size="small"
+                        label="Cetak"
+                        icon="pi pi-print"
+                        outlined
+                        className="border-round-md font-medium px-3 border-purple-600 text-purple-600"
+                        onClick={() => window.print()}
+                    />
+                    <Divider layout="vertical" className="m-0 h-2rem" />
+                    <Button
+                        size="small"
+                        label={`Hapus${selectedRows.length > 0 ? ` (${selectedRows.length})` : ''}`}
+                        icon="pi pi-trash"
                         severity="danger"
-                        className="border-round-md p-button-sm flex-shrink-0"
-                        tooltip="Reset Filter"
-                        onClick={() => setKeyword('')}
+                        outlined
+                        disabled={selectedRows.length === 0}
+                        className="border-round-md font-medium px-3"
+                        onClick={() => { if (selectedRows.length < 1) return; handleDelete(selectedRows.map((r) => r.kode_alat)); }}
+                    />
+                    <Divider layout="vertical" className="m-0 h-2rem" />
+                    <Button
+                        size="small"
+                        label="Refresh"
+                        icon="pi pi-refresh"
+                        outlined
+                        severity="success"
+                        className="border-round-md font-medium px-3"
+                        loading={loading}
+                        onClick={loadData}
                     />
                 </div>
-                </div>
+
+
 
                 <DataTable
                     value={data}
@@ -257,29 +233,77 @@ const Page = () => {
                     className="p-datatable-sm"
                     emptyMessage="Data alat tidak ditemukan."
                     responsiveLayout="scroll"
+                    rowsPerPageOptions={[10, 25, 50]}
+                    paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
+                    currentPageReportTemplate="Menampilkan {first} - {last} dari {totalRecords} data"
+                    header={
+                        <div className="flex flex-column gap-3">
+                            <div className="flex flex-wrap align-items-center justify-content-between gap-2">
+                                <span className="text-xl font-bold">Data Alat & Peralatan</span>
+                                <div className="flex align-items-center gap-2 ml-auto w-full md:w-auto">
+                                    <IconField iconPosition="left" className="w-full md:w-20rem">
+                                        <InputIcon className="pi pi-search" />
+                                        <InputText value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="Cari Data..." className="w-full text-sm" />
+                                    </IconField>
+                                    <Button
+                                        type="button"
+                                        icon="pi pi-filter-slash"
+                                        outlined
+                                        severity="danger"
+                                        tooltip="Reset Filter"
+                                        tooltipOptions={{ position: 'bottom' }}
+                                        onClick={() => setKeyword('')}
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex flex-wrap align-items-center gap-3 px-1 py-2 border-round-md surface-100 text-xs font-medium text-color-secondary">
+                                <span className="flex align-items-center gap-1">
+                                    <i className="pi pi-info-circle" />
+                                    <span className="font-semibold">KETERANGAN STATUS:</span>
+                                </span>
+                                <span className="flex align-items-center gap-1">
+                                    <span style={{ display:'inline-block', width:'12px', height:'12px', borderRadius:'3px', backgroundColor:'#22c55e', boxShadow:'0 1px 3px #22c55e55' }} />
+                                    Aktif
+                                </span>
+                                <span className="flex align-items-center gap-1">
+                                    <span style={{ display:'inline-block', width:'12px', height:'12px', borderRadius:'3px', backgroundColor:'#ef4444', boxShadow:'0 1px 3px #ef444455' }} />
+                                    Tidak Aktif
+                                </span>
+                            </div>
+                        </div>
+                    }
                 >
                     <Column selectionMode="multiple" headerStyle={{ width: '3rem' }}></Column>
                     <Column
-                        header="Status"
-                        headerStyle={{ width: '4rem' }}
+                        header=""
+                        headerStyle={{ width: '3rem' }}
+                        align="center"
                         body={(r) => (
                             <span
-                                className={`w-2rem h-2rem border-round inline-flex align-items-center justify-content-center text-white shadow-1 ${r.status === 'aktif' ? 'bg-green-500' : 'bg-red-500'}`}
+                                style={{
+                                    display: 'inline-block',
+                                    width: '14px',
+                                    height: '14px',
+                                    borderRadius: '3px',
+                                    backgroundColor: r.status === 'aktif' ? '#22c55e' : '#ef4444',
+                                    boxShadow: r.status === 'aktif' ? '0 1px 3px #22c55e55' : '0 1px 3px #ef444455'
+                                }}
                                 title={r.status === 'aktif' ? 'Status: Aktif' : 'Status: Tidak Aktif'}
-                            >
-                                <i className={`pi ${r.status === 'aktif' ? 'pi-check' : 'pi-times'}`} style={{ fontSize: '0.8rem' }}></i>
-                            </span>
+                            />
                         )}
                     ></Column>
                     <Column field="kode_alat" header="Kode" sortable headerStyle={{ fontWeight: 'bold' }}></Column>
                     <Column field="nama" header="Nama Alat" sortable headerStyle={{ fontWeight: 'bold' }}></Column>
+                    <Column field="nama_ruangan" header="Ruangan" body={(r) => r.nama_ruangan || r.kode_ruangan || '-'}></Column>
                     <Column field="merk" header="Merk / Brand" body={(r) => r.merk || '-'}></Column>
                     <Column field="tanggal_beli" header="Tgl Beli" body={(r) => r.tanggal_beli ? new Date(r.tanggal_beli).toLocaleDateString('id-ID') : '-'}></Column>
                     <Column field="kondisi" header="Kondisi" body={(r) => <Tag value={r.kondisi?.replace('_', ' ')?.toUpperCase()} severity={getKondisiSeverity(r.kondisi)} />}></Column>
                     <Column
                         header="Aksi"
+                        align="center"
+                        headerStyle={{ width: '8rem', textAlign: 'center' }}
                         body={(r) => (
-                            <div className="flex gap-2 justify-content-center">
+                            <div className="flex align-items-center justify-content-center gap-2">
                                 <Button icon="pi pi-pencil" outlined severity="success" className="p-button-sm border-round-md" onClick={() => handleOpenEdit(r)} tooltip="Edit" />
                                 <Button icon="pi pi-trash" outlined severity="danger" className="p-button-sm border-round-md" onClick={() => handleDelete([r.kode_alat])} tooltip="Hapus" />
                             </div>
@@ -299,6 +323,18 @@ const Page = () => {
                     <div>
                         <label className="block text-sm font-semibold mb-1">Nama Alat *</label>
                         <InputText value={formData.nama} onChange={(e) => setFormData({ ...formData, nama: e.target.value })} placeholder="Masukkan nama alat" className="w-full text-sm" />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-semibold mb-1">Ruangan (Lokasi Alat)</label>
+                        <Dropdown
+                            value={formData.kode_ruangan}
+                            options={ruanganList}
+                            onChange={(e) => setFormData({ ...formData, kode_ruangan: e.value })}
+                            placeholder="Pilih Ruangan (Opsional)"
+                            className="w-full text-sm"
+                            filter
+                            showClear
+                        />
                     </div>
                     <div className="grid">
                         <div className="col-6">

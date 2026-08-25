@@ -14,12 +14,22 @@ router.post("/", async (req, res) => {
   const perPage = parseInt(oPayload.perPage) || 10;
   const hasPagination = oPayload.page !== undefined || oPayload.perPage !== undefined;
   try {
-    const baseQuery = DB("mst_alat as a").modify((qb) => {
-      if (keyword) { const lower = keyword.toLowerCase(); qb.where(function () { this.whereRaw("LOWER(a.kode_alat) LIKE ?", [`%${lower}%`]).orWhereRaw("LOWER(a.nama) LIKE ?", [`%${lower}%`]).orWhereRaw("LOWER(a.merk) LIKE ?", [`%${lower}%`]); }); }
-      if (filterStatus) qb.where("a.status", filterStatus);
-      if (filterKondisi) qb.where("a.kondisi", filterKondisi);
-    });
-    const selectFields = ["a.kode_alat", "a.nama", "a.merk", "a.tanggal_beli", "a.kondisi", "a.status", "a.created_by", "a.created_at", "a.updated_at"];
+    const baseQuery = DB("mst_alat as a")
+      .leftJoin("mst_ruangan as r", "r.kode_ruangan", "a.kode_ruangan")
+      .modify((qb) => {
+        if (keyword) {
+          const lower = keyword.toLowerCase();
+          qb.where(function () {
+            this.whereRaw("LOWER(a.kode_alat) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(a.nama) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(a.merk) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(r.nama_ruangan) LIKE ?", [`%${lower}%`]);
+          });
+        }
+        if (filterStatus) qb.where("a.status", filterStatus);
+        if (filterKondisi) qb.where("a.kondisi", filterKondisi);
+      });
+    const selectFields = ["a.kode_alat", "a.kode_ruangan", "r.nama_ruangan", "a.nama", "a.merk", "a.tanggal_beli", "a.kondisi", "a.status", "a.created_by", "a.created_at", "a.updated_at"];
     let totalRecords = 0, vaData = [];
     if (hasPagination) {
       const offset = (page - 1) * perPage;

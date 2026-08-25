@@ -17,7 +17,7 @@ router.post("/", async (req, res) => {
     await DB.transaction(async (trx) => {
       const prev = await trx("mst_alat").where("kode_alat", oPayload.kode_alat).forUpdate().first();
       if (!prev) { const e = new Error("Data tidak ditemukan"); e.statusCode = 404; throw e; }
-      const oData = { nama: oPayload.nama, merk: oPayload.merk || null, tanggal_beli: oPayload.tanggal_beli || null, kondisi: oPayload.kondisi, status: oPayload.status, updated_by: username, updated_at: formatDateSystem() };
+      const oData = { kode_ruangan: oPayload.kode_ruangan || null, nama: oPayload.nama, merk: oPayload.merk || null, tanggal_beli: oPayload.tanggal_beli || null, kondisi: oPayload.kondisi, status: oPayload.status, updated_by: username, updated_at: formatDateSystem() };
       await trx("mst_alat").where("kode_alat", oPayload.kode_alat).update(oData);
       await ChangesLog({ description: `Edit Alat ${oPayload.kode_alat}`, tableName: "mst_alat", referenceCode: oPayload.kode_alat, action: "UPDATE", dataBefore: prev, dataAfter: { ...prev, ...oData }, user: username, tz: oPayload.tz || "UTC" }, trx);
     });

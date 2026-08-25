@@ -21,7 +21,7 @@ router.post("/", async (req, res) => {
       let n = 1;
       if (last?.kode_alat) { n = (parseInt(last.kode_alat.replace("ALT-", "")) || 0) + 1; }
       kode = `ALT-${String(n).padStart(3, "0")}`;
-      const oData = { kode_alat: kode, nama: oPayload.nama, merk: oPayload.merk || null, tanggal_beli: oPayload.tanggal_beli || null, kondisi: oPayload.kondisi, status: oPayload.status, tz: oPayload.tz || "UTC", created_by: username, created_at: formatDateSystem(), updated_by: username, updated_at: formatDateSystem() };
+      const oData = { kode_alat: kode, kode_ruangan: oPayload.kode_ruangan || null, nama: oPayload.nama, merk: oPayload.merk || null, tanggal_beli: oPayload.tanggal_beli || null, kondisi: oPayload.kondisi, status: oPayload.status, tz: oPayload.tz || "UTC", created_by: username, created_at: formatDateSystem(), updated_by: username, updated_at: formatDateSystem() };
       await trx("mst_alat").insert(oData);
       await ChangesLog({ description: `Tambah Alat ${kode}`, tableName: "mst_alat", referenceCode: kode, action: "CREATE", dataBefore: null, dataAfter: oData, user: username, tz: oPayload.tz || "UTC" }, trx);
     });
