@@ -312,16 +312,44 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
                 <div className="flex flex-column gap-4">
                     {/* 1. DAFTAR KARTU NOMOR ANTREAN PASIEN RUANGAN */}
                     <div className="card shadow-1 border-round-xl p-4 surface-card border-top-3 border-teal-500 mb-0">
-                        <div className="flex flex-column md:flex-row align-items-start md:align-items-center justify-content-between gap-3 mb-4 border-bottom-1 surface-border pb-3">
-                            <div className="flex align-items-center gap-3 flex-wrap">
+                        <div className="flex flex-column gap-3 mb-4 border-bottom-1 surface-border pb-3">
+                            {/* ROW 1: TITLE & ACTION BUTTONS */}
+                            <div className="flex flex-column sm:flex-row align-items-start sm:align-items-center justify-content-between gap-3">
                                 <div>
-                                    <span className="text-xs text-500 block">{initialRuangan ? 'Layanan Ruangan' : 'Ruangan Terpilih'}</span>
+                                    <span className="text-xs text-500 font-medium block uppercase tracking-wider mb-1">
+                                        {initialRuangan ? 'Layanan Ruangan' : 'Ruangan Terpilih'}
+                                    </span>
                                     <h3 className="text-2xl font-extrabold text-teal-900 m-0 flex align-items-center gap-2">
                                         <i className="pi pi-building text-teal-600 text-2xl" />
                                         {activeRoomObj ? activeRoomObj.nama_ruangan : selectedRuangan}
                                     </h3>
                                 </div>
 
+                                <div className="flex align-items-center gap-2">
+                                    <Button
+                                        label="Pengaturan Form Ruangan"
+                                        icon="pi pi-cog"
+                                        outlined
+                                        size="small"
+                                        severity="help"
+                                        className="font-bold text-xs border-round-lg"
+                                        onClick={() => setManageFormVisible(true)}
+                                    />
+                                    <Button
+                                        label="Refresh Data"
+                                        icon="pi pi-refresh"
+                                        outlined
+                                        size="small"
+                                        severity="secondary"
+                                        className="font-bold text-xs border-round-lg"
+                                        onClick={getGridData}
+                                        loading={state.loadGrid}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* ROW 2: FILTER DROPDOWN & STATUS BADGES */}
+                            <div className="flex flex-column lg:flex-row align-items-start lg:align-items-center justify-content-between gap-3 pt-1">
                                 <Dropdown
                                     value={statusFilter}
                                     options={[
@@ -333,61 +361,68 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
                                     ]}
                                     onChange={(e) => setStatusFilter(e.value)}
                                     placeholder="Filter Status"
-                                    className="p-inputtext-sm w-12rem"
+                                    className="p-inputtext-sm w-full sm:w-14rem border-round-lg"
                                 />
-                            </div>
-
-                            <div className="flex flex-column align-items-end gap-3">
-                                <div className="flex gap-2">
-                                    <Button
-                                        label="Pengaturan Form Ruangan"
-                                        icon="pi pi-cog"
-                                        outlined
-                                        size="small"
-                                        severity="help"
-                                        onClick={() => setManageFormVisible(true)}
-                                    />
-
-                                    <Button
-                                        label="Refresh Data"
-                                        icon="pi pi-refresh"
-                                        outlined
-                                        size="small"
-                                        severity="secondary"
-                                        onClick={getGridData}
-                                        loading={state.loadGrid}
-                                    />
-                                </div>
 
                                 <div className="flex gap-2 flex-wrap align-items-center">
                                     {[
-                                        { color: '#f59e0b', label: 'Menunggu',  count: mCount   },
-                                        { color: '#3b82f6', label: 'Dipanggil', count: pCount   },
-                                        { color: '#22c55e', label: 'Selesai',   count: sCount   },
-                                        { color: '#ef4444', label: 'Batal',     count: bCount   },
-                                        { color: '#6b7280', label: 'Total',     count: roomFilteredItems.length },
+                                        { color: '#d97706', bg: '#fef3c7', border: '#fde68a', iconBg: '#f59e0b', label: 'Menunggu',  count: mCount },
+                                        { color: '#2563eb', bg: '#dbeafe', border: '#bfdbfe', iconBg: '#3b82f6', label: 'Dipanggil', count: pCount },
+                                        { color: '#16a34a', bg: '#dcfce7', border: '#86efac', iconBg: '#22c55e', label: 'Selesai',   count: sCount },
+                                        { color: '#dc2626', bg: '#fee2e2', border: '#fca5a5', iconBg: '#ef4444', label: 'Batal',     count: bCount },
+                                        { color: '#4b5563', bg: '#f3f4f6', border: '#d1d5db', iconBg: '#6b7280', label: 'Total',     count: roomFilteredItems.length },
                                     ].map((item) => (
-                                        <span
+                                        <div
                                             key={item.label}
-                                            className="flex align-items-center gap-2 px-3 py-2 border-round-lg text-xs font-semibold"
+                                            className="flex align-items-center gap-2 px-3.5 border-round-md text-xs font-bold shadow-1 cursor-default"
                                             style={{
-                                                background: `${item.color}18`,
-                                                border: `1.5px solid ${item.color}55`,
+                                                backgroundColor: item.bg,
+                                                border: `1px solid ${item.border}`,
                                                 color: item.color,
+                                                height: '28px',
                                             }}
                                         >
-                                            <span style={{
-                                                display: 'inline-block',
-                                                width: '12px', height: '12px',
-                                                borderRadius: '3px',
-                                                backgroundColor: item.color,
-                                                boxShadow: `0 1px 3px ${item.color}55`,
-                                                flexShrink: 0,
-                                            }} />
-                                            {item.label}: <strong>{item.count}</strong>
-                                        </span>
+                                            <span
+                                                style={{
+                                                    display: 'inline-block',
+                                                    width: '13px',
+                                                    height: '13px',
+                                                    borderRadius: '3.5px',
+                                                    backgroundColor: item.iconBg,
+                                                    flexShrink: 0,
+                                                    boxShadow: `0 1px 2px ${item.iconBg}44`,
+                                                }}
+                                            />
+                                            <span style={{ fontSize: '0.75rem', lineHeight: '1' }}>
+                                                {item.label}: <strong className="text-xs font-black">{item.count}</strong>
+                                            </span>
+                                        </div>
                                     ))}
                                 </div>
+                            </div>
+
+                            {/* BARIS KETERANGAN STATUS LEGEND */}
+                            <div className="flex align-items-center gap-3 px-3 py-2 border-round-lg surface-100 text-600 text-xs font-semibold flex-wrap border-1 surface-border mt-3">
+                                <span className="flex align-items-center gap-1 text-700 font-extrabold uppercase tracking-wider" style={{ fontSize: '0.7rem' }}>
+                                    <i className="pi pi-info-circle text-teal-600 text-xs" />
+                                    KETERANGAN STATUS:
+                                </span>
+                                <span className="flex align-items-center gap-1.5" style={{ fontSize: '0.7rem' }}>
+                                    <span style={{ width: '10px', height: '10px', borderRadius: '3px', backgroundColor: '#f59e0b', display: 'inline-block' }} />
+                                    <span className="text-600 font-medium">Menunggu = klik kartu untuk panggil</span>
+                                </span>
+                                <span className="flex align-items-center gap-1.5" style={{ fontSize: '0.7rem' }}>
+                                    <span style={{ width: '10px', height: '10px', borderRadius: '3px', backgroundColor: '#3b82f6', display: 'inline-block' }} />
+                                    <span className="text-600 font-medium">Dipanggil = pasien sedang ditangani</span>
+                                </span>
+                                <span className="flex align-items-center gap-1.5" style={{ fontSize: '0.7rem' }}>
+                                    <span style={{ width: '10px', height: '10px', borderRadius: '3px', backgroundColor: '#22c55e', display: 'inline-block' }} />
+                                    <span className="text-600 font-medium">Selesai = tindakan selesai</span>
+                                </span>
+                                <span className="flex align-items-center gap-1.5" style={{ fontSize: '0.7rem' }}>
+                                    <span style={{ width: '10px', height: '10px', borderRadius: '3px', backgroundColor: '#ef4444', display: 'inline-block' }} />
+                                    <span className="text-600 font-medium">Batal = antrean dibatalkan</span>
+                                </span>
                             </div>
                         </div>
 
@@ -517,19 +552,21 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
                         )}
                     </div>
 
-                    {/* 2. PANEL PENANGANAN PASIEN AKTIF & FORM ISIAN (DI BAWAH KARTU NOMOR ANTREAN) */}
-                    <ActiveTreatmentPanel
-                        activePatient={activeDipanggilPatient}
-                        nextWaitingPatient={nextWaitingPatient}
-                        kodeRuangan={selectedRuangan}
-                        namaRuangan={activeRoomObj?.nama_ruangan || selectedRuangan}
-                        toast={toast}
-                        getGridData={getGridData}
-                        handleAksi={handleAksi}
-                        playChime={playChime}
-                        speakNomorLayanan={speakNomorLayanan}
-                        onManageFormClick={() => setManageFormVisible(true)}
-                    />
+                    {/* 2. PANEL PENANGANAN PASIEN AKTIF & FORM ISIAN (HANYA DITAMPILKAN DI MENU PANEL LAYANAN RUANGAN) */}
+                    {Boolean(initialRuangan) && (
+                        <ActiveTreatmentPanel
+                            activePatient={activeDipanggilPatient}
+                            nextWaitingPatient={nextWaitingPatient}
+                            kodeRuangan={selectedRuangan}
+                            namaRuangan={activeRoomObj?.nama_ruangan || selectedRuangan}
+                            toast={toast}
+                            getGridData={getGridData}
+                            handleAksi={handleAksi}
+                            playChime={playChime}
+                            speakNomorLayanan={speakNomorLayanan}
+                            onManageFormClick={() => setManageFormVisible(true)}
+                        />
+                    )}
                 </div>
             )}
 

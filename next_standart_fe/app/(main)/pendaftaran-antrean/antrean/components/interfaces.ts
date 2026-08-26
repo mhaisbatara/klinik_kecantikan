@@ -28,7 +28,7 @@ export interface RuanganFormField {
     id?: number;
     kode_ruangan: string;
     label_field: string;
-    tipe_field: 'text' | 'textarea' | 'number' | 'select' | 'checkbox' | string;
+    tipe_field: 'text' | 'textarea' | 'number' | 'select' | 'checkbox' | 'upload_foto' | string;
     options?: string | null;
     is_required?: boolean | number;
     urutan?: number;

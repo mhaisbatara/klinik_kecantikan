@@ -14,6 +14,7 @@ import { Tag } from 'primereact/tag';
 import postData from '@/lib/axios/postData';
 import { showError, showSuccess } from '@/lib/tools/generalTools';
 import { AntrianLayananData, RuanganFormField } from './interfaces';
+import { FormRuanganFotoUploader } from './FormRuanganFotoUploader';
 
 interface DialogIsiFormPenangananProps {
     visible: boolean;
@@ -41,20 +42,9 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
             loadFormFields();
         }
         if (visible && antrianData) {
-            // Load existing saved form data if available
-            setCatatanPetugas(antrianData.catatan_petugas || '');
-            if (antrianData.hasil_form) {
-                try {
-                    const parsed = typeof antrianData.hasil_form === 'string'
-                        ? JSON.parse(antrianData.hasil_form)
-                        : antrianData.hasil_form;
-                    setFormData(parsed || {});
-                } catch (_) {
-                    setFormData({});
-                }
-            } else {
-                setFormData({});
-            }
+            // Form data dipindahkan ke trx_rekam_medis; form dimulai kosong setiap sesi baru
+            setCatatanPetugas('');
+            setFormData({});
         }
     }, [visible, antrianData]);
 
@@ -80,9 +70,19 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
 
         // Check required fields
         for (const f of fields) {
-            if (f.is_required && !formData[f.label_field]) {
-                showError(toast, `Field '${f.label_field}' wajib diisi!`);
-                return;
+            if (f.is_required) {
+                const val = formData[f.label_field];
+                if (f.tipe_field === 'upload_foto') {
+                    const hasBefore = val && typeof val === 'object' && val.before;
+                    const hasAfter = val && typeof val === 'object' && val.after;
+                    if (!hasBefore && !hasAfter) {
+                        showError(toast, `Field '${f.label_field}' wajib mengunggah foto!`);
+                        return;
+                    }
+                } else if (!val) {
+                    showError(toast, `Field '${f.label_field}' wajib diisi!`);
+                    return;
+                }
             }
         }
 
@@ -179,49 +179,61 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
 
                                     return (
                                         <div key={f.id || i}>
-                                            <label className="block text-xs font-bold mb-1 text-800">
-                                                {f.label_field} {isReq && <span className="text-red-500">*</span>}
-                                            </label>
-
-                                            {f.tipe_field === 'textarea' ? (
-                                                <InputTextarea
+                                            {f.tipe_field === 'upload_foto' ? (
+                                                <FormRuanganFotoUploader
                                                     value={val}
-                                                    onChange={(e) => handleFieldChange(f.label_field, e.target.value)}
-                                                    rows={3}
-                                                    placeholder={`Masukkan ${f.label_field}...`}
-                                                    className="w-full text-sm shadow-1 border-round-md"
+                                                    onChange={(newVal) => handleFieldChange(f.label_field, newVal)}
+                                                    labelField={f.label_field}
+                                                    isRequired={isReq}
+                                                    toast={toast}
                                                 />
-                                            ) : f.tipe_field === 'number' ? (
-                                                <InputNumber
-                                                    value={typeof val === 'number' ? val : null}
-                                                    onValueChange={(e) => handleFieldChange(f.label_field, e.value)}
-                                                    placeholder={`Masukkan ${f.label_field}`}
-                                                    className="w-full text-sm shadow-1 border-round-md"
-                                                    inputClassName="w-full text-sm"
-                                                />
-                                            ) : f.tipe_field === 'select' ? (
-                                                <Dropdown
-                                                    value={val}
-                                                    options={optionsList.map((o) => ({ label: o, value: o }))}
-                                                    onChange={(e) => handleFieldChange(f.label_field, e.value)}
-                                                    placeholder={`Pilih ${f.label_field}...`}
-                                                    className="w-full text-sm shadow-1 border-round-md"
-                                                />
-                                            ) : f.tipe_field === 'checkbox' ? (
-                                                <div className="flex align-items-center gap-2 p-2 surface-card border-1 surface-border border-round-md">
-                                                    <Checkbox
-                                                        checked={Boolean(val)}
-                                                        onChange={(e) => handleFieldChange(f.label_field, e.checked)}
-                                                    />
-                                                    <span className="text-xs text-700 font-semibold">{f.label_field}</span>
-                                                </div>
                                             ) : (
-                                                <InputText
-                                                    value={val}
-                                                    onChange={(e) => handleFieldChange(f.label_field, e.target.value)}
-                                                    placeholder={`Masukkan ${f.label_field}...`}
-                                                    className="w-full text-sm shadow-1 border-round-md"
-                                                />
+                                                <>
+                                                    <label className="block text-xs font-bold mb-1 text-800">
+                                                        {f.label_field} {isReq && <span className="text-red-500">*</span>}
+                                                    </label>
+
+                                                    {f.tipe_field === 'textarea' ? (
+                                                        <InputTextarea
+                                                            value={val}
+                                                            onChange={(e) => handleFieldChange(f.label_field, e.target.value)}
+                                                            rows={3}
+                                                            placeholder={`Masukkan ${f.label_field}...`}
+                                                            className="w-full text-sm shadow-1 border-round-md"
+                                                        />
+                                                    ) : f.tipe_field === 'number' ? (
+                                                        <InputNumber
+                                                            value={typeof val === 'number' ? val : null}
+                                                            onValueChange={(e) => handleFieldChange(f.label_field, e.value)}
+                                                            placeholder={`Masukkan ${f.label_field}`}
+                                                            className="w-full text-sm shadow-1 border-round-md"
+                                                            inputClassName="w-full text-sm"
+                                                        />
+                                                    ) : f.tipe_field === 'select' ? (
+                                                        <Dropdown
+                                                            value={val}
+                                                            options={optionsList.map((o) => ({ label: o, value: o }))}
+                                                            onChange={(e) => handleFieldChange(f.label_field, e.value)}
+                                                            placeholder={`Pilih ${f.label_field}...`}
+                                                            className="w-full text-sm shadow-1 border-round-md"
+                                                        />
+                                                    ) : f.tipe_field === 'checkbox' ? (
+                                                        <div className="flex align-items-center gap-2 p-2 surface-card border-1 surface-border border-round-md">
+                                                            <Checkbox
+                                                                checked={Boolean(val)}
+                                                                onChange={(e) => handleFieldChange(f.label_field, e.checked)}
+                                                            />
+                                                            <span className="text-xs text-700 font-semibold">{f.label_field}</span>
+                                                        </div>
+                                                    ) : (
+                                                        <InputText
+                                                            value={val}
+                                                            onChange={(e) => handleFieldChange(f.label_field, e.target.value)}
+                                                            placeholder={`Masukkan ${f.label_field}...`}
+                                                            className="w-full text-sm shadow-1 border-round-md"
+                                                        />
+                                                    )}
+                                                </>
                                             )}
                                         </div>
                                     );

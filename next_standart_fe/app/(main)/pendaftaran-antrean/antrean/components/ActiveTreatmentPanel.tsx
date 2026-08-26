@@ -13,6 +13,7 @@ import { ProgressSpinner } from 'primereact/progressspinner';
 import postData from '@/lib/axios/postData';
 import { showError, showSuccess } from '@/lib/tools/generalTools';
 import { AntrianLayananData, RuanganFormField } from './interfaces';
+import { FormRuanganFotoUploader } from './FormRuanganFotoUploader';
 
 interface ActiveTreatmentPanelProps {
     activePatient: AntrianLayananData | null;
@@ -53,19 +54,9 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
 
     useEffect(() => {
         if (activePatient) {
-            setCatatanPetugas(activePatient.catatan_petugas || '');
-            if (activePatient.hasil_form) {
-                try {
-                    const parsed = typeof activePatient.hasil_form === 'string'
-                        ? JSON.parse(activePatient.hasil_form)
-                        : activePatient.hasil_form;
-                    setFormData(parsed || {});
-                } catch (_) {
-                    setFormData({});
-                }
-            } else {
-                setFormData({});
-            }
+            // Form data dipindahkan ke trx_rekam_medis; form dimulai kosong setiap sesi baru
+            setCatatanPetugas('');
+            setFormData({});
         } else {
             setFormData({});
             setCatatanPetugas('');
@@ -94,9 +85,19 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
 
         // Check mandatory fields
         for (const f of fields) {
-            if (f.is_required && !formData[f.label_field]) {
-                showError(toast, `Field '${f.label_field}' wajib diisi!`);
-                return;
+            if (f.is_required) {
+                const val = formData[f.label_field];
+                if (f.tipe_field === 'upload_foto') {
+                    const hasBefore = val && typeof val === 'object' && val.before;
+                    const hasAfter = val && typeof val === 'object' && val.after;
+                    if (!hasBefore && !hasAfter) {
+                        showError(toast, `Field '${f.label_field}' wajib mengunggah foto!`);
+                        return;
+                    }
+                } else if (!val) {
+                    showError(toast, `Field '${f.label_field}' wajib diisi!`);
+                    return;
+                }
             }
         }
 
@@ -172,59 +173,53 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
     return (
         <div className="card shadow-3 border-round-xl p-0 mb-4 surface-card overflow-hidden border-2 border-teal-500">
             {/* ACTIVE PATIENT HEADER HERO */}
-            <div className="p-4 bg-teal-700 text-white flex flex-column md:flex-row align-items-start md:align-items-center justify-content-between gap-3">
-                <div className="flex align-items-center gap-3">
-                    <div className="bg-white text-teal-900 border-round-xl px-4 py-2 text-center shadow-2">
-                        <span className="text-xs font-bold block text-teal-600">NO. ANTREAN</span>
+            <div className="p-4 bg-teal-700 text-white">
+                {/* Row 1: Patient Info */}
+                <div className="flex flex-column md:flex-row align-items-start md:align-items-center gap-3 mb-3">
+                    <div className="bg-white text-teal-900 border-round-xl px-4 py-2 text-center shadow-2" style={{ minWidth: '80px' }}>
+                        <span className="text-xs font-bold block text-teal-600 white-space-nowrap">NO. ANTREAN</span>
                         <span className="text-4xl font-black">{activePatient.nomor_antrian}</span>
                     </div>
 
-                    <div>
-                        <div className="flex align-items-center gap-2">
+                    <div className="flex-1">
+                        <div className="flex align-items-center gap-2 mb-1">
                             <Tag value="PASIEN SEDANG DITANGANI" severity="success" className="text-xs font-bold px-2" />
-                            <span className="text-xs text-teal-100">Jam Datang: {activePatient.jam_datang || '-'}</span>
+                            <span className="text-xs text-teal-200">Jam Datang: {activePatient.jam_datang || '-'}</span>
                         </div>
-                        <h2 className="text-2xl font-black text-white m-0 mt-1 flex align-items-center gap-2">
+                        <h2 className="text-xl font-black text-white m-0 mt-1">
                             {activePatient.nama_pasien || 'Pasien'}
-                            <span className="text-sm font-normal text-teal-200">(RM: {activePatient.no_rm})</span>
+                            <span className="text-sm font-normal text-teal-200 ml-2">(RM: {activePatient.no_rm})</span>
                         </h2>
-                        <p className="text-xs text-teal-100 m-0 mt-1 flex align-items-center gap-2">
-                            <i className="pi pi-briefcase" />
-                            <strong>Layanan:</strong> {activePatient.nama_layanan} | <strong>Ruangan:</strong> {namaRuangan}
-                        </p>
+                        <div className="flex align-items-center gap-2 mt-2 flex-wrap">
+                            <span className="inline-flex align-items-center gap-1 bg-teal-800 text-teal-100 text-xs font-semibold px-2 py-1 border-round-md">
+                                <i className="pi pi-briefcase text-xs" />
+                                {activePatient.nama_layanan}
+                            </span>
+                            <span className="inline-flex align-items-center gap-1 bg-teal-800 text-teal-100 text-xs font-semibold px-2 py-1 border-round-md">
+                                <i className="pi pi-building text-xs" />
+                                {namaRuangan}
+                            </span>
+                        </div>
                     </div>
                 </div>
 
-                {/* QUICK ACTION BUTTONS */}
-                <div className="flex align-items-center gap-2 flex-wrap">
+                {/* Row 2: Action Buttons */}
+                <div className="flex align-items-center justify-content-end gap-2 flex-wrap pt-2 border-top-1 border-teal-600">
                     <Button
-                        label="Panggil Ulang Suara"
+                        label="Panggil Ulang"
                         icon="pi pi-volume-up"
-                        outlined
                         size="small"
-                        className="bg-white-alpha-20 text-white border-white-alpha-40 hover:bg-white-alpha-30"
+                        className="text-xs font-semibold bg-white-alpha-20 text-white border-1 border-white-alpha-40 border-round-lg hover:bg-white-alpha-30"
                         onClick={() => {
                             playChime();
                             speakNomorLayanan(activePatient.nomor_antrian, activePatient.nama_pasien, namaRuangan);
                         }}
                     />
-
-                    <Button
-                        label="Pengaturan Form"
-                        icon="pi pi-cog"
-                        outlined
-                        size="small"
-                        className="bg-white-alpha-20 text-white border-white-alpha-40 hover:bg-white-alpha-30"
-                        onClick={onManageFormClick}
-                    />
-
                     <Button
                         label="Batalkan"
-                        icon="pi pi-times-circle"
-                        outlined
+                        icon="pi pi-times"
                         size="small"
-                        severity="danger"
-                        className="bg-red-500 text-white border-none hover:bg-red-600"
+                        className="text-xs font-semibold bg-red-500 text-white border-none border-round-lg hover:bg-red-600"
                         onClick={() => handleAksi(activePatient, 'batal')}
                     />
                 </div>
@@ -277,56 +272,68 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                                             optionsList = f.options.split(',').map((s) => s.trim());
                                         }
 
-                                        const colSize = f.tipe_field === 'textarea' ? 'col-12' : 'col-12 md:col-6';
+                                        const colSize = 'col-12';
 
                                         return (
                                             <div key={f.id || i} className={`${colSize} mb-3`}>
-                                                <label className="block text-xs font-bold text-700 mb-2 flex align-items-center justify-content-between">
-                                                    <span>
-                                                        {f.label_field} {isReq && <span className="text-red-500 font-bold">*</span>}
-                                                    </span>
-                                                    <span className="text-[10px] text-400 font-normal uppercase">({f.tipe_field})</span>
-                                                </label>
-
-                                                {f.tipe_field === 'textarea' ? (
-                                                    <InputTextarea
+                                                {f.tipe_field === 'upload_foto' ? (
+                                                    <FormRuanganFotoUploader
                                                         value={val}
-                                                        onChange={(e) => handleFieldChange(f.label_field, e.target.value)}
-                                                        rows={3}
-                                                        placeholder={`Masukkan ${f.label_field}...`}
-                                                        className="w-full text-sm border-round-md shadow-1 bg-white"
+                                                        onChange={(newVal) => handleFieldChange(f.label_field, newVal)}
+                                                        labelField={f.label_field}
+                                                        isRequired={isReq}
+                                                        toast={toast}
                                                     />
-                                                ) : f.tipe_field === 'number' ? (
-                                                    <InputNumber
-                                                        value={typeof val === 'number' ? val : null}
-                                                        onValueChange={(e) => handleFieldChange(f.label_field, e.value)}
-                                                        placeholder={`Masukkan ${f.label_field}`}
-                                                        className="w-full text-sm border-round-md shadow-1 bg-white"
-                                                        inputClassName="w-full text-sm border-round-md bg-white"
-                                                    />
-                                                ) : f.tipe_field === 'select' ? (
-                                                    <Dropdown
-                                                        value={val}
-                                                        options={optionsList.map((o) => ({ label: o, value: o }))}
-                                                        onChange={(e) => handleFieldChange(f.label_field, e.value)}
-                                                        placeholder={`Pilih ${f.label_field}...`}
-                                                        className="w-full text-sm border-round-md shadow-1 bg-white"
-                                                    />
-                                                ) : f.tipe_field === 'checkbox' ? (
-                                                    <div className="flex align-items-center gap-2 p-2 surface-card border-1 surface-border border-round-md">
-                                                        <Checkbox
-                                                            checked={Boolean(val)}
-                                                            onChange={(e) => handleFieldChange(f.label_field, e.checked)}
-                                                        />
-                                                        <span className="text-xs text-800 font-semibold">{f.label_field}</span>
-                                                    </div>
                                                 ) : (
-                                                    <InputText
-                                                        value={val}
-                                                        onChange={(e) => handleFieldChange(f.label_field, e.target.value)}
-                                                        placeholder={`Masukkan ${f.label_field}...`}
-                                                        className="w-full text-sm border-round-md shadow-1 bg-white"
-                                                    />
+                                                    <>
+                                                        <label className="block text-xs font-bold text-700 mb-2 flex align-items-center justify-content-between">
+                                                            <span>
+                                                                {f.label_field} {isReq && <span className="text-red-500 font-bold">*</span>}
+                                                            </span>
+                                                            <span className="text-[10px] text-400 font-normal uppercase">({f.tipe_field})</span>
+                                                        </label>
+
+                                                        {f.tipe_field === 'textarea' ? (
+                                                            <InputTextarea
+                                                                value={val}
+                                                                onChange={(e) => handleFieldChange(f.label_field, e.target.value)}
+                                                                rows={3}
+                                                                placeholder={`Masukkan ${f.label_field}...`}
+                                                                className="w-full text-sm border-round-md shadow-1 bg-white"
+                                                            />
+                                                        ) : f.tipe_field === 'number' ? (
+                                                            <InputNumber
+                                                                value={typeof val === 'number' ? val : null}
+                                                                onValueChange={(e) => handleFieldChange(f.label_field, e.value)}
+                                                                placeholder={`Masukkan ${f.label_field}`}
+                                                                className="w-full text-sm border-round-md shadow-1 bg-white"
+                                                                inputClassName="w-full text-sm border-round-md bg-white"
+                                                            />
+                                                        ) : f.tipe_field === 'select' ? (
+                                                            <Dropdown
+                                                                value={val}
+                                                                options={optionsList.map((o) => ({ label: o, value: o }))}
+                                                                onChange={(e) => handleFieldChange(f.label_field, e.value)}
+                                                                placeholder={`Pilih ${f.label_field}...`}
+                                                                className="w-full text-sm border-round-md shadow-1 bg-white"
+                                                            />
+                                                        ) : f.tipe_field === 'checkbox' ? (
+                                                            <div className="flex align-items-center gap-2 p-2 surface-card border-1 surface-border border-round-md">
+                                                                <Checkbox
+                                                                    checked={Boolean(val)}
+                                                                    onChange={(e) => handleFieldChange(f.label_field, e.checked)}
+                                                                />
+                                                                <span className="text-xs text-800 font-semibold">{f.label_field}</span>
+                                                            </div>
+                                                        ) : (
+                                                            <InputText
+                                                                value={val}
+                                                                onChange={(e) => handleFieldChange(f.label_field, e.target.value)}
+                                                                placeholder={`Masukkan ${f.label_field}...`}
+                                                                className="w-full text-sm border-round-md shadow-1 bg-white"
+                                                            />
+                                                        )}
+                                                    </>
                                                 )}
                                             </div>
                                         );
@@ -355,22 +362,24 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                 {/* SAVE ACTION FOOTER BAR */}
                 <div className="flex align-items-center justify-content-end gap-3 mt-4 pt-3 border-top-1 surface-border">
                     <Button
-                        label="Simpan Draf Form"
+                        label="Simpan Draf"
                         icon="pi pi-save"
                         outlined
                         severity="info"
+                        size="small"
                         loading={saving}
                         onClick={() => handleSaveForm()}
-                        className="font-bold text-xs border-round-md px-3"
+                        className="font-bold text-xs border-round-lg px-3"
                     />
 
                     <Button
-                        label="✅ Simpan & Selesaikan Tindakan Pasien"
+                        label="Simpan & Selesaikan Tindakan"
                         icon="pi pi-check-circle"
                         severity="success"
+                        size="small"
                         loading={saving}
                         onClick={() => handleSaveForm('selesai')}
-                        className="font-bold text-xs bg-teal-600 border-none border-round-md px-4 py-2 text-white"
+                        className="font-bold text-xs bg-teal-600 border-none border-round-lg px-4 text-white"
                     />
                 </div>
             </div>

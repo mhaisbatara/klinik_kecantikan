@@ -1,8 +1,11 @@
 import express from "express";
+import fs from "fs";
+import path from "path";
 import DB from "../../../../core/config/knex.js";
 import { formatDateSystem } from "../../components/tools/date_tools.js";
 import { Logging } from "../../components/tools/servertool.js";
 import { status } from "../../components/tools/general.js";
+import { syncRekamMedisPerKunjungan } from "./rekam_medis_service.js";
 
 const router = express.Router();
 
@@ -177,9 +180,19 @@ router.post("/antrian-layanan-simpan-form", async (req, res) => {
       });
     }
 
+    const currentAntrian = await DB("trx_antrian_layanan")
+      .where("kode_antrian_layanan", kode_antrian_layanan)
+      .first();
+
+    if (!currentAntrian) {
+      return res.status(404).json({
+        status: status.BAD_REQUEST,
+        message: "Data antrian layanan tidak ditemukan",
+        datetime: formatDateSystem(),
+      });
+    }
+
     const updateObj = {
-      hasil_form: hasil_form ? (typeof hasil_form === "string" ? hasil_form : JSON.stringify(hasil_form)) : null,
-      catatan_petugas: catatan_petugas ? catatan_petugas.trim() : null,
       updated_by: username,
       updated_at: formatDateSystem(),
     };
@@ -195,6 +208,18 @@ router.post("/antrian-layanan-simpan-form", async (req, res) => {
       .where("kode_antrian_layanan", kode_antrian_layanan)
       .update(updateObj);
 
+    // Simpan/Gabungkan seluruh detail form & catatan penanganan langsung ke trx_rekam_medis
+    if (currentAntrian.kode_kunjungan) {
+      await syncRekamMedisPerKunjungan({
+        kode_kunjungan: currentAntrian.kode_kunjungan,
+        kode_ruangan: currentAntrian.kode_ruangan,
+        nama_ruangan: currentAntrian.nama_ruangan,
+        hasil_form: hasil_form,
+        catatan_petugas: catatan_petugas,
+        username: username,
+      });
+    }
+
     return res.status(200).json({
       status: status.SUKSES,
       message: "Hasil penanganan & catatan ruangan berhasil disimpan",
@@ -205,6 +230,112 @@ router.post("/antrian-layanan-simpan-form", async (req, res) => {
     return res.status(500).json({
       status: status.BAD_REQUEST,
       message: "Gagal menyimpan hasil form penanganan pasien",
+      datetime: formatDateSystem(),
+    });
+  }
+});
+
+// ─── 6. UPLOAD FOTO FORM RUANGAN (BEFORE / AFTER) ───────────────────────────
+router.post("/ruangan-form-upload-foto", async (req, res) => {
+  const oPayload = req.body || {};
+  const { image_base64, file_name, prefix } = oPayload;
+  const username = req?.auth?.username || "system";
+
+  try {
+    if (!image_base64) {
+      return res.status(422).json({
+        status: status.BAD_REQUEST,
+        message: "Data gambar (image_base64) wajib disertakan",
+        datetime: formatDateSystem(),
+      });
+    }
+
+    const matches = image_base64.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+    let extension = ".jpg";
+    let base64Data = image_base64;
+
+    if (matches && matches.length === 3) {
+      const mime = matches[1];
+      base64Data = matches[2];
+      if (mime.includes("png")) extension = ".png";
+      else if (mime.includes("gif")) extension = ".gif";
+      else if (mime.includes("webp")) extension = ".webp";
+      else extension = ".jpg";
+    }
+
+    const buffer = Buffer.from(base64Data, "base64");
+    const uploadDir = path.join(process.cwd(), "public", "uploads", "ruangan_form");
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    const cleanPrefix = prefix ? `${prefix}_` : "";
+    const uniqueFilename = `foto_${cleanPrefix}${Date.now()}_${Math.floor(Math.random() * 1000)}${extension}`;
+    const fullPath = path.join(uploadDir, uniqueFilename);
+
+    fs.writeFileSync(fullPath, buffer);
+
+    const relativePath = `/uploads/ruangan_form/${uniqueFilename}`;
+
+    return res.status(200).json({
+      status: status.SUKSES,
+      message: "Foto berhasil diunggah",
+      datetime: formatDateSystem(),
+      data: {
+        file_path: relativePath,
+        file_name: uniqueFilename,
+      },
+    });
+  } catch (error) {
+    Logging(error, { file: "/master/ruangan/ruangan_form_crud.js", func: "ruangan-form-upload-foto", request: oPayload, response: {}, user: username });
+    return res.status(500).json({
+      status: status.BAD_REQUEST,
+      message: "Gagal mengunggah foto form ruangan",
+      datetime: formatDateSystem(),
+    });
+  }
+});
+
+// ─── 7. FETCH REKAM MEDIS PER KUNJUNGAN / PASIEN ──────────────────────────────
+router.post("/rekam-medis-data", async (req, res) => {
+  const oPayload = req.body || {};
+  const { kode_kunjungan, no_rm } = oPayload;
+  const username = req?.auth?.username || "system";
+
+  try {
+    const query = DB("trx_rekam_medis as rm")
+      .leftJoin("trx_kunjungan as k", "rm.kode_kunjungan", "k.kode_kunjungan")
+      .leftJoin("mst_pasien as p", "rm.no_rm", "p.no_rm")
+      .select(
+        "rm.*",
+        "k.tanggal_kunjungan",
+        "k.jam_datang",
+        "k.status as status_kunjungan",
+        "p.nama_pasien",
+        "p.no_hp",
+        "p.tanggal_lahir",
+        "p.jenis_kelamin"
+      );
+
+    if (kode_kunjungan) {
+      query.where("rm.kode_kunjungan", kode_kunjungan);
+    } else if (no_rm) {
+      query.where("rm.no_rm", no_rm);
+    }
+
+    const data = await query.orderBy("rm.id", "desc");
+
+    return res.status(200).json({
+      status: status.SUKSES,
+      message: "Data rekam medis ditemukan",
+      datetime: formatDateSystem(),
+      data: data,
+    });
+  } catch (error) {
+    Logging(error, { file: "/master/ruangan/ruangan_form_crud.js", func: "rekam-medis-data", request: oPayload, response: {}, user: username });
+    return res.status(500).json({
+      status: status.BAD_REQUEST,
+      message: "Gagal mengambil data rekam medis",
       datetime: formatDateSystem(),
     });
   }
