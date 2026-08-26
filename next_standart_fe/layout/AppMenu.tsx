@@ -11,6 +11,8 @@ import { AppMenuItem } from '@/types';
 import { Skeleton } from 'primereact/skeleton';
 import { InputIcon } from 'primereact/inputicon';
 import { IconField } from 'primereact/iconfield';
+import Link from 'next/link';
+import { usePathname, useSearchParams } from 'next/navigation';
 
 interface MenuState {
     searchVal: string;
@@ -19,11 +21,19 @@ interface MenuState {
     menu: AppMenuItem[];
 }
 
+interface RuanganItem {
+    kode_ruangan: string;
+    nama_ruangan: string;
+}
+
 const AppMenu = () => {
     const { data: session } = useSession();
     const { layoutConfig } = useContext(LayoutContext);
     const searchRef = useRef<HTMLInputElement>(null);
     const lastPressTime = useRef<number>(0);
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+    const activeRuangan = searchParams.get('ruangan') || '';
 
     const [state, setState] = useState<MenuState>({
         searchVal: "",
@@ -32,9 +42,28 @@ const AppMenu = () => {
         menu: []
     });
 
+    const [ruanganList, setRuanganList] = useState<RuanganItem[]>([]);
+    const [loadRuangan, setLoadRuangan] = useState<boolean>(true);
+
     useEffect(() => {
         getMenu(session?.user?.user_code || 'USR000000');
     }, [session]);
+
+    useEffect(() => {
+        fetchRuangan();
+    }, []);
+
+    const fetchRuangan = async () => {
+        setLoadRuangan(true);
+        try {
+            const res = await postData('/master/ruangan-dropdown', {});
+            setRuanganList(res.data.data || []);
+        } catch (_) {
+            // silent fail - sidebar tetap tampil tanpa ruangan
+        } finally {
+            setLoadRuangan(false);
+        }
+    };
 
     const getMenu = async (user_code: string) => {
         setState(prev => ({ ...prev, load: true }));
@@ -188,21 +217,93 @@ const AppMenu = () => {
                             <Skeleton className="py-4" />
                         </li>
                     ))
-                    : state.filteredMenu?.map((item, i) => (
-                        !item.separator ? (
-                            <AppMenuitem
-                                load={state.load}
-                                item={item}
-                                root={true}
-                                index={i}
-                                key={item.label || i}
-                            />
-                        ) : (
-                            <li className="menu-separator" key={`separator-${i}`}></li>
-                        )
-                    ))
+                    : (() => {
+                        // Split tepat setelah "Pendaftaran & Antrean" dan sebelum "Master Data & User"
+                        // Label dari DB: "Master Data & User"
+                        const splitIdx = state.filteredMenu.findIndex((item) =>
+                            item.label && item.label.toLowerCase().includes('master data & user')
+                        );
+
+                        const topItems = splitIdx === -1 ? state.filteredMenu : state.filteredMenu.slice(0, splitIdx);
+                        const bottomItems = splitIdx === -1 ? [] : state.filteredMenu.slice(splitIdx);
+
+                        const renderItem = (item: AppMenuItem, i: number) =>
+                            !item.separator ? (
+                                <AppMenuitem
+                                    load={state.load}
+                                    item={item}
+                                    root={true}
+                                    index={i}
+                                    key={item.label || i}
+                                />
+                            ) : (
+                                <li className="menu-separator" key={`separator-${i}`}></li>
+                            );
+
+                        return (
+                            <>
+                                {topItems.map((item, i) => renderItem(item, i))}
+
+                                {/* ── LAYANAN PER RUANGAN (sisipan) ── */}
+                                <li className="layout-root-menuitem" key="layanan-ruangan-section">
+                                    <div className="layout-menuitem-root-text">LAYANAN</div>
+                                    <ul>
+                                        {loadRuangan ? (
+                                            [1, 2, 3].map((_, i) => (
+                                                <li key={i} className="my-2">
+                                                    <Skeleton className="py-3" />
+                                                </li>
+                                            ))
+                                        ) : ruanganList.length === 0 ? (
+                                            <li className="px-3 py-2">
+                                                <span className="text-xs text-color-secondary">Belum ada ruangan</span>
+                                            </li>
+                                        ) : (
+                                            ruanganList.map((ruang) => {
+                                                const href = `/pendaftaran-antrean/antrean?ruangan=${ruang.kode_ruangan}`;
+                                                const isActive =
+                                                    pathname === '/pendaftaran-antrean/antrean' &&
+                                                    activeRuangan === ruang.kode_ruangan;
+
+                                                return (
+                                                    <li key={ruang.kode_ruangan} className={isActive ? 'active-menuitem' : ''}>
+                                                        <Link
+                                                            href={href}
+                                                            className={`p-ripple flex align-items-center gap-2${isActive ? ' active-route' : ''}`}
+                                                            style={{ padding: '0.75rem 1.25rem', borderRadius: '6px', transition: 'background 0.2s' }}
+                                                        >
+                                                            <i
+                                                                className="layout-menuitem-icon pi pi-home"
+                                                                style={{ color: isActive ? 'var(--primary-color)' : undefined }}
+                                                            />
+                                                            <span
+                                                                className="layout-menuitem-text"
+                                                                style={{
+                                                                    overflow: 'hidden',
+                                                                    whiteSpace: 'nowrap',
+                                                                    textOverflow: 'ellipsis',
+                                                                    fontWeight: isActive ? 700 : undefined,
+                                                                    color: isActive ? 'var(--primary-color)' : undefined,
+                                                                }}
+                                                                title={ruang.nama_ruangan}
+                                                            >
+                                                                {ruang.nama_ruangan}
+                                                            </span>
+                                                        </Link>
+                                                    </li>
+                                                );
+                                            })
+                                        )}
+                                    </ul>
+                                </li>
+
+                                {bottomItems.map((item, i) => renderItem(item, topItems.length + i))}
+                            </>
+                        );
+                    })()
                 }
             </ul>
+
         </MenuProvider>
     );
 };

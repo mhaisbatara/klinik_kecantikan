@@ -16,6 +16,7 @@ import { confirmDialog, ConfirmDialog } from 'primereact/confirmdialog';
 import { IconField } from 'primereact/iconfield';
 import { InputIcon } from 'primereact/inputicon';
 import { showError, showSuccess } from '@/lib/tools/generalTools';
+import { DialogManageFormRuangan } from '../../pendaftaran-antrean/antrean/components/DialogManageFormRuangan';
 
 const Page = () => {
     const toast = useRef<Toast>(null);
@@ -37,6 +38,10 @@ const Page = () => {
         status: 'aktif',
     });
     const [saving, setSaving] = useState<boolean>(false);
+
+    // Form Custom Ruangan state
+    const [manageFormVisible, setManageFormVisible] = useState<boolean>(false);
+    const [selectedRuanganForForm, setSelectedRuanganForForm] = useState<any>(null);
 
     const loadData = async () => {
         setLoading(true);
@@ -251,11 +256,22 @@ const Page = () => {
                     <Column
                         header="Aksi"
                         align="center"
-                        headerStyle={{ width: '8rem', textAlign: 'center' }}
+                        headerStyle={{ width: '10rem', textAlign: 'center' }}
                         body={(r) => (
                             <div className="flex align-items-center justify-content-center gap-2">
-                                <Button icon="pi pi-pencil" outlined severity="success" className="p-button-sm border-round-md" onClick={() => handleOpenEdit(r)} tooltip="Edit" />
-                                <Button icon="pi pi-trash" outlined severity="danger" className="p-button-sm border-round-md" onClick={() => handleDelete([r.kode_ruangan])} tooltip="Hapus" />
+                                <Button
+                                    icon="pi pi-cog"
+                                    outlined
+                                    severity="help"
+                                    className="p-button-sm border-round-md"
+                                    onClick={() => {
+                                        setSelectedRuanganForForm(r);
+                                        setManageFormVisible(true);
+                                    }}
+                                    tooltip="Pengaturan Form Ruangan"
+                                />
+                                <Button icon="pi pi-pencil" outlined severity="success" className="p-button-sm border-round-md" onClick={() => handleOpenEdit(r)} tooltip="Edit Ruangan" />
+                                <Button icon="pi pi-trash" outlined severity="danger" className="p-button-sm border-round-md" onClick={() => handleDelete([r.kode_ruangan])} tooltip="Hapus Ruangan" />
                             </div>
                         )}
                     ></Column>
@@ -300,6 +316,15 @@ const Page = () => {
                     <Button label="Simpan" icon="pi pi-check" loading={saving} onClick={handleSave} className="bg-primary border-none" />
                 </div>
             </Dialog>
+
+            {/* DIALOG PENGATURAN FORM RUANGAN */}
+            <DialogManageFormRuangan
+                visible={manageFormVisible}
+                onHide={() => setManageFormVisible(false)}
+                kodeRuangan={selectedRuanganForForm?.kode_ruangan || ''}
+                namaRuangan={selectedRuanganForForm?.nama_ruangan || ''}
+                toast={toast}
+            />
         </div>
     );
 };

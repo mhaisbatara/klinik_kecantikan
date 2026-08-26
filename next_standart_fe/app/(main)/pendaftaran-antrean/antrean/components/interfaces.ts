@@ -20,6 +20,18 @@ export interface AntrianLayananData {
     kode_ruangan?: string;
     nama_ruangan?: string;
     jumlah_sesi_paket?: number | null;
+    hasil_form?: string | null;
+    catatan_petugas?: string | null;
+}
+
+export interface RuanganFormField {
+    id?: number;
+    kode_ruangan: string;
+    label_field: string;
+    tipe_field: 'text' | 'textarea' | 'number' | 'select' | 'checkbox' | string;
+    options?: string | null;
+    is_required?: boolean | number;
+    urutan?: number;
 }
 
 export interface State {

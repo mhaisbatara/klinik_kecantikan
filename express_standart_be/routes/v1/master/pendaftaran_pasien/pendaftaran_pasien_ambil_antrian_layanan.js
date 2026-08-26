@@ -113,45 +113,12 @@ router.post("/", async (req, res) => {
           updated_at: formatDateSystem(),
         });
 
-      // D. Insert trx_antrian_layanan (jika ada items, 1 record per pendaftaran)
+      // D. Insert trx_antrian_layanan (jika ada items, diproses & dikelompokkan per ruangan)
       if (items.length > 0) {
         const prefixAntrianLayanan = `AL-${todayStr}-`;
 
-        const lastAntrianLayanan = await trx("trx_antrian_layanan")
-          .where("kode_antrian_layanan", "like", `${prefixAntrianLayanan}%`)
-          .orderBy("id", "desc")
-          .first();
-
-        let nextSeq = 1;
-        if (lastAntrianLayanan && lastAntrianLayanan.kode_antrian_layanan) {
-          const parts = lastAntrianLayanan.kode_antrian_layanan.split("-");
-          const num = parseInt(parts[parts.length - 1], 10);
-          if (!isNaN(num)) {
-            nextSeq = num + 1;
-          }
-        }
-
-        const lastNoAntrian = await trx("trx_antrian_layanan")
-          .where("created_at", ">=", todayYmd + " 00:00:00")
-          .orderBy("id", "desc")
-          .first();
-
-        let nextNo = 1;
-        if (lastNoAntrian && lastNoAntrian.nomor_antrian) {
-          const num = parseInt(lastNoAntrian.nomor_antrian, 10);
-          if (!isNaN(num)) {
-            nextNo = num + 1;
-          }
-        }
-
-        const cNomorAntrianSesi = String(nextNo).padStart(2, "0");
-
-        const detailLayananList = [];
-        let totalHarga = 0;
-        let mainJenis = "";
-        let mainKodeRuangan = "";
-        let mainNamaRuangan = "";
-
+        // 1. Validasi & Ambil Detail Semua Item
+        const processedItems = [];
         for (const item of items) {
           const jenis = (item.jenis_layanan || item.jenis || "layanan").toLowerCase();
           const kodeLayanan = (item.kode_layanan || item.kode || "").trim();
@@ -201,12 +168,7 @@ router.post("/", async (req, res) => {
             namaRuangan = pkt.nama_ruangan || pkt.kode_ruangan || "Ruang Treatment";
           }
 
-          if (!mainJenis) mainJenis = jenis;
-          if (!mainKodeRuangan) mainKodeRuangan = kodeRuangan;
-          if (!mainNamaRuangan) mainNamaRuangan = namaRuangan;
-
-          totalHarga += hargaLayanan;
-          detailLayananList.push({
+          processedItems.push({
             jenis_layanan: jenis,
             kode_layanan: kodeLayanan,
             nama_layanan: namaLayanan,
@@ -216,22 +178,79 @@ router.post("/", async (req, res) => {
           });
         }
 
-        if (detailLayananList.length > 0) {
+        // 2. Kelompokkan item berdasarkan kode_ruangan agar tiap ruangan mendapat nomor antrean tersendiri
+        const groupsByRuangan = {};
+        for (const pi of processedItems) {
+          const key = pi.kode_ruangan || "UNASSIGNED";
+          if (!groupsByRuangan[key]) {
+            groupsByRuangan[key] = {
+              kode_ruangan: pi.kode_ruangan,
+              nama_ruangan: pi.nama_ruangan,
+              items: [],
+            };
+          }
+          groupsByRuangan[key].items.push(pi);
+        }
+
+        // 3. Insert trx_antrian_layanan per kelompok ruangan
+        for (const key of Object.keys(groupsByRuangan)) {
+          const group = groupsByRuangan[key];
+          const groupItems = group.items;
+
+          // Dapatkan urutan kode_antrian_layanan (global)
+          const lastAntrianLayanan = await trx("trx_antrian_layanan")
+            .where("kode_antrian_layanan", "like", `${prefixAntrianLayanan}%`)
+            .orderBy("id", "desc")
+            .first();
+
+          let nextSeq = 1;
+          if (lastAntrianLayanan && lastAntrianLayanan.kode_antrian_layanan) {
+            const parts = lastAntrianLayanan.kode_antrian_layanan.split("-");
+            const num = parseInt(parts[parts.length - 1], 10);
+            if (!isNaN(num)) {
+              nextSeq = num + 1;
+            }
+          }
           const seqPadded = String(nextSeq).padStart(3, "0");
           const cKodeAntrianLayanan = `${prefixAntrianLayanan}${seqPadded}`;
-          const combinedNamaLayanan = detailLayananList.map((d) => d.nama_layanan).join(", ");
-          const combinedKodeLayanan = detailLayananList.map((d) => d.kode_layanan).join(", ");
+
+          // Hitung nomor_antrian KHUSUS PER RUANGAN HARI INI
+          let lastNoQuery = trx("trx_antrian_layanan")
+            .where("created_at", ">=", todayYmd + " 00:00:00");
+
+          if (group.kode_ruangan) {
+            lastNoQuery = lastNoQuery.where("kode_ruangan", group.kode_ruangan);
+          } else {
+            lastNoQuery = lastNoQuery.where(function () {
+              this.whereNull("kode_ruangan").orWhere("kode_ruangan", "");
+            });
+          }
+
+          const lastNoAntrian = await lastNoQuery.orderBy("id", "desc").first();
+
+          let nextNo = 1;
+          if (lastNoAntrian && lastNoAntrian.nomor_antrian) {
+            const num = parseInt(lastNoAntrian.nomor_antrian, 10);
+            if (!isNaN(num)) {
+              nextNo = num + 1;
+            }
+          }
+          const cNomorAntrianSesi = String(nextNo).padStart(2, "0");
+
+          const combinedNamaLayanan = groupItems.map((d) => d.nama_layanan).join(", ");
+          const combinedKodeLayanan = groupItems.map((d) => d.kode_layanan).join(", ");
+          const totalHargaGroup = groupItems.reduce((sum, d) => sum + d.harga, 0);
 
           const oInsertLayanan = {
             kode_antrian_layanan: cKodeAntrianLayanan,
             kode_kunjungan: cKodeKunjungan,
-            jenis_layanan: mainJenis,
+            jenis_layanan: groupItems[0].jenis_layanan,
             kode_layanan: combinedKodeLayanan.length > 100 ? combinedKodeLayanan.slice(0, 97) + "..." : combinedKodeLayanan,
             nama_layanan: combinedNamaLayanan,
-            detail_layanan: JSON.stringify(detailLayananList),
+            detail_layanan: JSON.stringify(groupItems),
             nomor_antrian: cNomorAntrianSesi,
-            kode_ruangan: mainKodeRuangan,
-            nama_ruangan: mainNamaRuangan,
+            kode_ruangan: group.kode_ruangan,
+            nama_ruangan: group.nama_ruangan,
             status: "menunggu",
             tz: oPayload.tz || "Asia/Jakarta",
             created_by: username,
@@ -245,8 +264,8 @@ router.post("/", async (req, res) => {
           vaCreatedAntrianLayanan.push({
             ...oInsertLayanan,
             nama_layanan: combinedNamaLayanan,
-            harga: totalHarga,
-            detail_items: detailLayananList,
+            harga: totalHargaGroup,
+            detail_items: groupItems,
           });
         }
       }

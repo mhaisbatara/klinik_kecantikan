@@ -9,10 +9,13 @@ import { useSession } from 'next-auth/react';
 import { State } from './components/interfaces';
 import { apiEndpointData } from './components/endpoints';
 import { PanelAntrianRuangan } from './components/PanelAntrianRuangan';
+import { useSearchParams } from 'next/navigation';
 
 const AntreanLayananPage = () => {
     const toast = useRef<Toast>(null);
     const { data: session } = useSession();
+    const searchParams = useSearchParams();
+    const ruanganParam = searchParams.get('ruangan') || '';
 
     const [state, setState] = useState<State>({
         load: false,
@@ -82,6 +85,7 @@ const AntreanLayananPage = () => {
                 setState={setState}
                 toast={toast}
                 getGridData={getGridData}
+                initialRuangan={ruanganParam}
             />
         </>
     );
