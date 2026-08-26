@@ -92,8 +92,6 @@ const handleGetData = async (req, res) => {
       "p.nama as nama_pasien",
       "p.no_hp",
       "al.detail_layanan",
-      "al.hasil_form",
-      "al.catatan_petugas",
       DB.raw("COALESCE(al.kode_ruangan, ml.kode_ruangan, mp.kode_ruangan, 'RG-01') as kode_ruangan"),
       DB.raw("COALESCE(ral.nama_ruangan, rml.nama_ruangan, rmp.nama_ruangan, 'Ruang Treatment') as nama_ruangan"),
       DB.raw("COALESCE(al.nama_layanan, ml.nama, mp.nama, '-') as nama_layanan"),

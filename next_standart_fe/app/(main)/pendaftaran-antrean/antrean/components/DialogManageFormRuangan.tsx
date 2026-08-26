@@ -140,6 +140,7 @@ export const DialogManageFormRuangan: React.FC<DialogManageFormRuanganProps> = (
         { label: '🔢 Angka (Number)', value: 'number' },
         { label: '📋 Pilihan (Dropdown)', value: 'select' },
         { label: '☑️ Centang (Checkbox)', value: 'checkbox' },
+        { label: '📷 Upload Foto (After / Before)', value: 'upload_foto' },
     ];
 
     return (
