@@ -7,6 +7,8 @@ import { InputText } from 'primereact/inputtext';
 import { Button } from 'primereact/button';
 import { ProgressSpinner } from 'primereact/progressspinner';
 import { Tag } from 'primereact/tag';
+import { IconField } from 'primereact/iconfield';
+import { InputIcon } from 'primereact/inputicon';
 import postData from '@/lib/axios/postData';
 import { showError, showSuccess } from '@/lib/tools/generalTools';
 import type { CartItem } from '../page';
@@ -361,24 +363,21 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
                   }`}
                 >
                   <i className={`pi ${tab === 'layanan' ? 'pi-briefcase' : 'pi-box'}`} style={{ fontSize: '12px' }} />
-                  {tab === 'layanan' ? 'Layanan & Paket' : 'Produk'}
-                  <span className={`text-[10px] px-1.5 py-0.5 border-round-md font-black ${isActive ? 'bg-teal-800 text-white' : 'bg-slate-200 text-slate-700'}`}>
-                    {count}
-                  </span>
+                  <span>{tab === 'layanan' ? 'Layanan & Paket' : 'Produk'} ({count})</span>
                 </button>
               );
             })}
           </div>
 
-          <div className="p-input-icon-left w-full">
-            <i className="pi pi-search text-xs" />
+          <IconField iconPosition="left" className="w-full">
+            <InputIcon className="pi pi-search text-xs text-400" />
             <InputText
               value={searchItem}
               onChange={(e) => setSearchItem(e.target.value)}
               placeholder={`Cari ${activeItemTab === 'layanan' ? 'layanan / paket' : 'produk'}...`}
               className="p-inputtext-sm w-full border-round-lg text-xs"
             />
-          </div>
+          </IconField>
         </div>
 
         {/* Item Grid */}
@@ -393,7 +392,7 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
               <span className="text-xs text-500 font-medium">Tidak ada item ditemukan</span>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '8px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: '12px' }}>
               {filteredItems.map((item) => {
                 const inCartItem = cart.find((c) => c.jenis === item.jenis && c.kode === item.kode);
                 const inCart = Boolean(inCartItem);
@@ -401,30 +400,33 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
                   <div
                     key={item.kode}
                     onClick={() => !isReadOnly && addToCart(item)}
-                    className={`surface-card border-1 border-round-xl p-2.5 transition-all user-select-none relative flex flex-column justify-content-between ${
-                      isReadOnly ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:shadow-2'
-                    } ${inCart ? 'bg-teal-50/70 border-2 border-teal-500 shadow-1' : 'surface-border shadow-1'}`}
+                    className={`surface-card p-3 border-round-xl border-1 transition-all user-select-none relative flex flex-column justify-content-between shadow-1 hover:shadow-2 ${
+                      isReadOnly ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+                    } ${inCart ? 'border-2 border-teal-500 bg-teal-50/50' : 'surface-border'}`}
                   >
-                    {inCart && (
-                      <span className="absolute top-2 right-2 bg-teal-600 text-white text-[9px] font-black px-1.5 py-0.5 border-round-md flex align-items-center gap-1 shadow-1">
-                        <i className="pi pi-check text-[8px]" />
-                        Terpilih
-                      </span>
-                    )}
-
-                    <div>
-                      <div className="font-bold text-xs text-slate-900 mb-1 line-height-2 pr-4">
-                        {item.nama}
+                    <div className="mb-2">
+                      <div className="flex align-items-start justify-content-between gap-1 mb-1">
+                        <div className="font-bold text-xs text-slate-900 line-height-2 flex-1">
+                          {item.nama}
+                        </div>
+                        {inCart && (
+                          <span
+                            className="bg-teal-600 text-white font-bold px-2 py-1 border-round-md flex align-items-center gap-1 flex-shrink-0 shadow-1"
+                          >
+                            <i className="pi pi-check" style={{ fontSize: '6px' }} />
+                            <span style={{ fontSize: '7px', lineHeight: 1 }}>Terpilih</span>
+                          </span>
+                        )}
                       </div>
-                      <div className="text-[10px] text-500 mb-1 font-medium">
+                      <div className="text-[11px] text-slate-500 font-medium">
                         {item.nama_kategori || (item.jenis === 'layanan' ? 'Layanan' : 'Produk')}
                       </div>
                     </div>
 
-                    <div className="flex align-items-center justify-content-between pt-1.5 border-top-1 surface-border mt-1">
-                      <span className="font-black text-xs text-teal-700">{formatRupiah(item.harga)}</span>
+                    <div className="flex align-items-center justify-content-between pt-2 border-top-1 surface-border">
+                      <span className="font-black text-sm text-teal-700">{formatRupiah(item.harga)}</span>
                       {inCart && inCartItem && (
-                        <span className="text-[10px] font-bold text-teal-800 bg-teal-100 px-1.5 py-0.5 border-round-md">
+                        <span className="text-[10px] font-bold text-teal-800 bg-teal-100 px-2 py-0.5 border-round-md">
                           x{inCartItem.qty}
                         </span>
                       )}
@@ -460,7 +462,7 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
 
           {/* Pasien Selector / Display */}
           {isReadOnly ? (
-            <div className="bg-slate-50 border-round-xl p-2.5 border-1 surface-border flex align-items-center justify-content-between">
+            <div className="bg-slate-50 border-round-xl p-3 border-1 surface-border flex align-items-center justify-content-between">
               <div>
                 <div className="font-extrabold text-xs text-slate-900">{selectedKunjungan?.nama_pasien || '-'}</div>
                 <div className="text-[11px] text-slate-500 mt-0.5">No. RM: {selectedKunjungan?.no_rm}</div>
@@ -520,14 +522,14 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
             cart.map((item, idx) => (
               <div
                 key={`${item.jenis}_${item.kode}_${idx}`}
-                className="surface-card p-2.5 border-round-xl border-1 surface-border shadow-1 flex align-items-center justify-content-between gap-3"
+                className="surface-card p-3 border-round-xl border-1 surface-border shadow-1 hover:shadow-2 transition-all flex align-items-center justify-content-between gap-3"
               >
                 {/* Item Info (Nama & Harga Satuan) */}
                 <div className="flex-1 min-w-0">
-                  <div className="font-extrabold text-xs text-slate-900 line-height-2 overflow-hidden text-ellipsis white-space-nowrap">
+                  <div className="font-bold text-xs text-slate-900 mb-1 overflow-hidden text-ellipsis white-space-nowrap">
                     {item.nama}
                   </div>
-                  <div className="text-[11px] text-slate-500 font-medium mt-0.5">
+                  <div className="text-[11px] text-slate-500 font-medium">
                     {formatRupiah(item.harga_satuan)} / {item.satuan || 'pcs'}
                   </div>
                 </div>
@@ -539,13 +541,13 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
                       <button
                         onClick={() => updateQty(idx, item.qty - 1)}
                         className="border-none bg-white hover:bg-slate-200 border-round-md font-bold cursor-pointer text-slate-700 shadow-1"
-                        style={{ width: '22px', height: '22px', fontSize: '12px' }}
+                        style={{ width: '24px', height: '24px', fontSize: '12px' }}
                       >−</button>
                       <span className="font-extrabold text-xs px-1 text-slate-900">{item.qty}</span>
                       <button
                         onClick={() => updateQty(idx, item.qty + 1)}
                         className="border-none bg-teal-600 hover:bg-teal-700 text-white border-round-md font-bold cursor-pointer shadow-1"
-                        style={{ width: '22px', height: '22px', fontSize: '12px' }}
+                        style={{ width: '24px', height: '24px', fontSize: '12px' }}
                       >+</button>
                     </div>
                   ) : (
@@ -553,8 +555,8 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
                   )}
 
                   {/* Subtotal */}
-                  <div className="text-right" style={{ minWidth: '75px' }}>
-                    <div className="font-black text-xs text-teal-700">{formatRupiah(item.subtotal)}</div>
+                  <div className="text-right" style={{ minWidth: '80px' }}>
+                    <div className="font-black text-sm text-teal-700">{formatRupiah(item.subtotal)}</div>
                   </div>
 
                   {/* Hapus button */}
@@ -575,19 +577,19 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
 
         {/* Footer Summary & Actions */}
         <div className="p-3 border-top-1 surface-border bg-white flex-shrink-0">
-          {/* Promo Selector Dropdown */}
+          {/* Promo Selector */}
           <div className="mb-2">
-            <label className="block text-[11px] font-extrabold text-slate-600 uppercase tracking-wider mb-1">
+            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
               Voucher / Promo Diskon
             </label>
             {isReadOnly ? (
               appliedPromo ? (
-                <div className="text-xs font-bold text-rose-700 bg-rose-50 border-round-md p-2 border-1 border-rose-200">
-                  <i className="pi pi-percentage mr-1" />
+                <div className="text-xs font-semibold text-teal-800 bg-teal-50 border-round-lg p-2 border-1 border-teal-200 flex align-items-center gap-1">
+                  <i className="pi pi-percentage text-teal-600" style={{ fontSize: '11px' }} />
                   {appliedPromo.nama_promo} ({appliedPromo.jenis_diskon === 'persen' ? `${appliedPromo.nilai_diskon}%` : formatRupiah(appliedPromo.nilai_diskon)})
                 </div>
               ) : (
-                <div className="text-xs text-slate-400">Tanpa Promo</div>
+                <div className="text-xs text-slate-400 italic">Tanpa Promo</div>
               )
             ) : (
               <Dropdown
@@ -595,53 +597,50 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
                 options={promoList}
                 onChange={(e) => setAppliedPromo(e.value || null)}
                 optionLabel="nama_promo"
-                placeholder="Pilih Promo Diskon (Opsional)..."
+                placeholder="Pilih promo diskon..."
                 showClear
                 filter
                 filterBy="nama_promo"
                 className="w-full p-inputtext-sm border-round-lg text-xs"
                 itemTemplate={(opt: PromoOption) => (
-                  <div className="flex align-items-center justify-content-between w-full">
-                    <span className="font-bold text-xs text-slate-900">{opt.nama_promo}</span>
-                    <span className="text-[11px] font-extrabold text-rose-700 bg-rose-100 px-1.5 py-0.5 border-round-md">
+                  <div className="flex align-items-center justify-content-between w-full gap-2">
+                    <span className="font-semibold text-xs text-slate-800">{opt.nama_promo}</span>
+                    <span className="text-xs font-bold text-teal-700 bg-teal-50 px-2 py-0.5 border-round-md border-1 border-teal-200 flex-shrink-0">
                       {opt.jenis_diskon === 'persen' ? `-${opt.nilai_diskon}%` : `-${formatRupiah(opt.nilai_diskon)}`}
                     </span>
                   </div>
                 )}
-                valueTemplate={(opt: PromoOption) => (
+                valueTemplate={(opt: PromoOption) =>
                   opt ? (
-                    <div className="flex align-items-center justify-content-between w-full">
-                      <span className="font-bold text-xs text-rose-700">
-                        <i className="pi pi-ticket mr-1" />
-                        {opt.nama_promo}
-                      </span>
-                      <span className="text-[11px] font-black text-rose-700">
-                        {opt.jenis_diskon === 'persen' ? `-${opt.nilai_diskon}%` : `-${formatRupiah(opt.nilai_diskon)}`}
+                    <div className="flex align-items-center gap-1">
+                      <i className="pi pi-ticket text-teal-600" style={{ fontSize: '11px' }} />
+                      <span className="font-semibold text-xs text-teal-800">
+                        {opt.nama_promo} ({opt.jenis_diskon === 'persen' ? `-${opt.nilai_diskon}%` : `-${formatRupiah(opt.nilai_diskon)}`})
                       </span>
                     </div>
                   ) : null
-                )}
+                }
               />
             )}
           </div>
 
-          {/* Totals Summary Box */}
-          <div className="bg-teal-50 p-2.5 border-round-xl border-1 border-teal-200 mb-2">
-            <div className="flex justify-content-between text-xs text-slate-700 mb-1">
+          {/* Totals Summary */}
+          <div className="surface-card border-round-xl border-1 surface-border shadow-1 p-3 mb-2">
+            <div className="flex justify-content-between align-items-center text-xs text-slate-600 mb-1">
               <span>Subtotal</span>
-              <span className="font-bold">{formatRupiah(totalHarga)}</span>
+              <span className="font-semibold text-slate-800">{formatRupiah(totalHarga)}</span>
             </div>
 
             {appliedPromo && (
-              <div className="flex justify-content-between text-xs text-rose-700 mb-1">
-                <span>Diskon ({appliedPromo.nama_promo})</span>
-                <span className="font-extrabold">- {formatRupiah(totalDiskon)}</span>
+              <div className="flex justify-content-between align-items-center text-xs mb-2">
+                <span className="text-slate-500">Diskon ({appliedPromo.nama_promo})</span>
+                <span className="font-bold text-teal-700">- {formatRupiah(totalDiskon)}</span>
               </div>
             )}
 
-            <div className="flex justify-content-between align-items-center pt-2 border-top-1 border-teal-200 mt-1">
-              <span className="font-extrabold text-xs text-teal-950">Total Bayar</span>
-              <span className="font-black text-lg text-teal-700">{formatRupiah(totalBayar)}</span>
+            <div className="flex justify-content-between align-items-center pt-2 border-top-1 surface-border">
+              <span className="font-bold text-sm text-slate-800">Total Bayar</span>
+              <span className="font-black text-base text-teal-700">{formatRupiah(totalBayar)}</span>
             </div>
           </div>
 
@@ -649,7 +648,7 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
           {!isReadOnly && (
             <div className="flex gap-2">
               <Button
-                label="Simpan Draft"
+                label="Draft"
                 icon="pi pi-save"
                 outlined
                 severity="secondary"
@@ -657,6 +656,7 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
                 loading={savingDraft}
                 disabled={cart.length === 0 || !selectedKunjungan}
                 className="font-bold text-xs border-round-lg flex-1"
+                style={{ fontSize: '12px' }}
               />
               <Button
                 label="Bayar"
@@ -665,13 +665,17 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
                 onClick={handleBayar}
                 loading={savingDraft}
                 disabled={cart.length === 0 || !selectedKunjungan}
-                className="font-bold text-xs bg-teal-600 border-none border-round-lg px-4 text-white shadow-2 flex-1"
+                className="font-bold text-xs bg-teal-600 border-none border-round-lg text-white shadow-2 flex-1"
+                style={{ fontSize: '12px' }}
               />
             </div>
           )}
 
           {isReadOnly && trxStatus === 'lunas' && (
-            <Tag value="✅ Transaksi Lunas" severity="success" className="w-full py-2 text-xs font-bold text-center border-round-lg" />
+            <div className="bg-teal-600 border-round-lg py-2 px-3 flex align-items-center justify-content-center gap-2 shadow-1">
+              <i className="pi pi-check-circle text-white" style={{ fontSize: '13px' }} />
+              <span className="text-white font-bold text-xs">Transaksi Lunas</span>
+            </div>
           )}
         </div>
       </div>

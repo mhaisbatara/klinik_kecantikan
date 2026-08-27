@@ -8,6 +8,8 @@ import { ProgressSpinner } from 'primereact/progressspinner';
 import { Toast } from 'primereact/toast';
 import { Dialog } from 'primereact/dialog';
 import { Tag } from 'primereact/tag';
+import { IconField } from 'primereact/iconfield';
+import { InputIcon } from 'primereact/inputicon';
 import postData from '@/lib/axios/postData';
 import { showError, showSuccess } from '@/lib/tools/generalTools';
 import { AntrianLayananData } from './interfaces';
@@ -355,8 +357,8 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
 
                             {/* Search Box */}
                             <div className="flex gap-2 mb-3">
-                                <span className="p-input-icon-left w-full">
-                                    <i className="pi pi-search text-xs" />
+                                <IconField iconPosition="left" className="w-full">
+                                    <InputIcon className="pi pi-search text-xs text-400" />
                                     <InputText
                                         value={searchProduk}
                                         onChange={(e) => setSearchProduk(e.target.value)}
@@ -364,7 +366,7 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                         disabled={isSubmitted}
                                         className="p-inputtext-sm w-full border-round-lg text-xs"
                                     />
-                                </span>
+                                </IconField>
                                 <Button
                                     icon="pi pi-refresh"
                                     outlined
