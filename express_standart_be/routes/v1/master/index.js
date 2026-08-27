@@ -78,6 +78,11 @@ import wilayah from "./wilayah.js";
 import ruanganFormCrud from "./ruangan/ruangan_form_crud.js";
 import ruanganRekomendasi from "./ruangan/ruangan_rekomendasi.js";
 
+import kasirOptions from "./kasir/kasir_options.js";
+import kasirData from "./kasir/kasir_data.js";
+import kasirSave from "./kasir/kasir_save.js";
+import kasirBayar from "./kasir/kasir_bayar.js";
+
 // Dropdown & Utility (must be before "/" catch-all routers)
 router.use("/", ruanganFormCrud);
 router.use("/", ruanganRekomendasi);
@@ -171,5 +176,12 @@ router.use("/jadwal-karyawan-data", jadwalKaryawanData);
 router.use("/jadwal-karyawan-create", jadwalKaryawanCreate);
 router.use("/jadwal-karyawan-update", jadwalKaryawanUpdate);
 router.use("/jadwal-karyawan-delete", jadwalKaryawanDelete);
+
+// Kasir
+router.use("/kasir-options", kasirOptions);
+router.use("/kasir-list", kasirData);
+router.use("/kasir-detail", kasirData);
+router.use("/kasir-save", kasirSave);
+router.use("/kasir-bayar", kasirBayar);
 
 export default router;

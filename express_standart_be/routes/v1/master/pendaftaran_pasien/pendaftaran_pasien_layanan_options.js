@@ -73,11 +73,86 @@ const handleGetOptions = async (req, res) => {
       });
     });
 
+    // Fetch active promos for today
+    const activePromos = await DB("mst_promo as p")
+      .join("mst_detail_promo as dp", "p.kode_promo", "dp.kode_promo")
+      .where("p.status", "aktif")
+      .where("dp.status", "aktif")
+      .whereRaw("DATE(p.tanggal_mulai) <= ?", [todayStr])
+      .whereRaw("DATE(p.tanggal_selesai) >= ?", [todayStr])
+      .select(
+        "p.kode_promo",
+        "p.nama as nama_promo",
+        "p.jenis_diskon",
+        "p.nilai_diskon",
+        "dp.jenis_item",
+        "dp.kode_item"
+      );
+
+    const promoMap = {};
+    activePromos.forEach((pr) => {
+      const jenisClean = (pr.jenis_item || "").toLowerCase();
+      const normJenis = jenisClean.includes("layanan")
+        ? jenisClean.includes("paket") ? "paket" : "layanan"
+        : jenisClean.includes("produk") ? jenisClean.includes("paket") ? "paket" : "produk" : jenisClean;
+
+      const keys = [`${normJenis}_${pr.kode_item}`, `${jenisClean}_${pr.kode_item}`];
+      keys.forEach((key) => {
+        if (!promoMap[key]) {
+          promoMap[key] = pr;
+        } else {
+          const curVal = parseFloat(promoMap[key].nilai_diskon || 0);
+          const newVal = parseFloat(pr.nilai_diskon || 0);
+          if (newVal > curVal) {
+            promoMap[key] = pr;
+          }
+        }
+      });
+    });
+
+    const applyPromo = (item) => {
+      const jenisClean = (item.jenis || "").toLowerCase();
+      const normJenis = jenisClean.includes("layanan")
+        ? jenisClean.includes("paket") ? "paket" : "layanan"
+        : jenisClean.includes("produk") ? jenisClean.includes("paket") ? "paket" : "produk" : jenisClean;
+
+      const key1 = `${normJenis}_${item.kode_layanan}`;
+      const key2 = `${jenisClean}_${item.kode_layanan}`;
+      const promo = promoMap[key1] || promoMap[key2];
+
+      if (promo) {
+        const diskonNilai = parseFloat(promo.nilai_diskon || 0);
+        let hargaDiskon = item.harga;
+        if (promo.jenis_diskon === "persen") {
+          hargaDiskon = Math.max(0, item.harga - (item.harga * diskonNilai) / 100);
+        } else {
+          hargaDiskon = Math.max(0, item.harga - diskonNilai);
+        }
+
+        return {
+          ...item,
+          is_promo: true,
+          kode_promo: promo.kode_promo,
+          nama_promo: promo.nama_promo,
+          jenis_diskon: promo.jenis_diskon,
+          nilai_diskon: diskonNilai,
+          harga_asal: item.harga,
+          harga: hargaDiskon,
+        };
+      }
+
+      return {
+        ...item,
+        is_promo: false,
+        harga_asal: item.harga,
+      };
+    };
+
     vaLayanan.forEach((lay) => {
       const kodeRuang = lay.kode_ruangan || "LAINNYA";
       let rngObj = ruanganMap.get(kodeRuang);
 
-      const itemData = {
+      const rawItem = {
         jenis: "layanan",
         kode_layanan: lay.kode_layanan,
         kode_kategori: lay.kode_kategori_layanan,
@@ -88,6 +163,8 @@ const handleGetOptions = async (req, res) => {
         kode_ruangan: lay.kode_ruangan || "",
         nama_ruangan: lay.nama_ruangan || lay.kode_ruangan || "Ruang Treatment",
       };
+
+      const itemData = applyPromo(rawItem);
 
       if (!rngObj) {
         rngObj = {
@@ -103,7 +180,7 @@ const handleGetOptions = async (req, res) => {
 
     // Format paket items & merge into ruanganMap
     const paketItems = vaPaket.map((pkt) => {
-      const itemData = {
+      const rawItem = {
         jenis: "paket",
         kode_layanan: pkt.kode_paket_layanan,
         kode_kategori: "PAKET",
@@ -115,6 +192,8 @@ const handleGetOptions = async (req, res) => {
         kode_ruangan: pkt.kode_ruangan || "",
         nama_ruangan: pkt.nama_ruangan || pkt.kode_ruangan || "Ruang Treatment",
       };
+
+      const itemData = applyPromo(rawItem);
 
       const kodeRuang = pkt.kode_ruangan || "LAINNYA";
       let rngObj = ruanganMap.get(kodeRuang);

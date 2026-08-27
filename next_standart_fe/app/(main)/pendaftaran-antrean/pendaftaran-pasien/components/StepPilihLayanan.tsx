@@ -19,6 +19,12 @@ interface ServiceItem {
   nama_kategori: string;
   nama: string;
   harga: number;
+  harga_asal?: number;
+  is_promo?: boolean;
+  kode_promo?: string;
+  nama_promo?: string;
+  jenis_diskon?: 'persen' | 'nominal';
+  nilai_diskon?: number;
   durasi_menit: number;
   masa_berlaku_hari?: number;
   kode_ruangan?: string;
@@ -248,9 +254,10 @@ export const StepPilihLayanan: React.FC<Props> = ({
     return (
       <div key={`${item.jenis}_${item.kode_layanan}`} className="col-12 md:col-6 lg:col-4">
         <div
-          className={`surface-card p-3 border-round-xl border-1 shadow-1 transition-all transition-duration-200 ${
+          className={`surface-card p-3 border-round-xl border-1 shadow-1 transition-all transition-duration-200 select-none ${
             isSelected ? selectedBorder : `surface-border ${disabledStyle}`
           }`}
+          style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
           onClick={() => {
             if (!isDisabled) handleToggleItem(item);
           }}
@@ -267,11 +274,16 @@ export const StepPilihLayanan: React.FC<Props> = ({
             />
             <div className="w-full">
               <div className="flex align-items-center justify-content-between gap-1 mb-1">
-                {isPaket ? (
-                  <Tag value="PAKET LAYANAN" severity="warning" className="text-xs font-bold" />
-                ) : (
-                  <Tag value={item.nama_kategori || item.kode_layanan} severity="info" className="text-xs font-bold" />
-                )}
+                <div className="flex align-items-center gap-1 flex-wrap">
+                  {item.is_promo && (
+                    <Tag value={`🔥 PROMO ${item.jenis_diskon === 'persen' ? `-${item.nilai_diskon}%` : ''}`} severity="danger" className="text-xs font-bold" />
+                  )}
+                  {isPaket ? (
+                    <Tag value="PAKET LAYANAN" severity="warning" className="text-xs font-bold" />
+                  ) : (
+                    <Tag value={item.nama_kategori || item.kode_layanan} severity="info" className="text-xs font-bold" />
+                  )}
+                </div>
                 {!isPaket ? (
                   <span className="text-xs text-500 flex align-items-center gap-1">
                     <i className="pi pi-clock" /> {item.durasi_menit} mnt
@@ -293,10 +305,18 @@ export const StepPilihLayanan: React.FC<Props> = ({
               <div className="flex align-items-center gap-1 text-xs text-teal-700 font-semibold mb-2">
                 <i className="pi pi-building text-teal-500" />
                 <span>{item.nama_ruangan ? `${item.kode_ruangan ? item.kode_ruangan + ' - ' : ''}${item.nama_ruangan}` : 'Ruang Treatment'}</span>
+                {item.nama_promo && <span className="text-rose-500 font-bold ml-1">• {item.nama_promo}</span>}
               </div>
 
-              <div className={`text-base font-extrabold ${isPaket ? 'text-amber-700' : 'text-blue-600'}`}>
-                {formatRupiah(item.harga)}
+              <div>
+                {item.is_promo && item.harga_asal && item.harga_asal > item.harga && (
+                  <span className="text-xs text-gray-400 line-through mr-2 font-semibold">
+                    {formatRupiah(item.harga_asal)}
+                  </span>
+                )}
+                <span className={`text-base font-extrabold ${item.is_promo ? 'text-rose-600' : isPaket ? 'text-amber-700' : 'text-blue-600'}`}>
+                  {formatRupiah(item.harga)}
+                </span>
               </div>
 
               {isDisabled && (

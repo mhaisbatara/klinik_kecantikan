@@ -82,59 +82,142 @@ const handleGetRekomendasiOptions = async (req, res) => {
       )
       .orderBy("pp.nama", "asc");
 
-    // Format output items
-    const listLayanan = vaLayanan.map((item) => ({
-      jenis: "layanan",
-      tipe: "layanan_biasa",
-      kode: item.kode_layanan,
-      kode_layanan: item.kode_layanan,
-      nama: item.nama,
-      harga: parseFloat(item.harga || 0),
-      kode_kategori: item.kode_kategori_layanan,
-      nama_kategori: item.nama_kategori || "Layanan",
-      durasi_menit: parseInt(item.durasi_menit || 30, 10),
-      kode_ruangan: item.kode_ruangan || "",
-      nama_ruangan: item.nama_ruangan || item.kode_ruangan || "Ruang Treatment",
-    }));
+    // Fetch active promos for today
+    const todayYmd = new Date().toISOString().slice(0, 10);
+    const activePromos = await DB("mst_promo as p")
+      .join("mst_detail_promo as dp", "p.kode_promo", "dp.kode_promo")
+      .where("p.status", "aktif")
+      .where("dp.status", "aktif")
+      .whereRaw("DATE(p.tanggal_mulai) <= ?", [todayYmd])
+      .whereRaw("DATE(p.tanggal_selesai) >= ?", [todayYmd])
+      .select(
+        "p.kode_promo",
+        "p.nama as nama_promo",
+        "p.jenis_diskon",
+        "p.nilai_diskon",
+        "dp.jenis_item",
+        "dp.kode_item"
+      );
 
-    const listPaketLayanan = vaPaketLayanan.map((item) => ({
-      jenis: "paket_layanan",
-      tipe: "paket_layanan",
-      kode: item.kode_paket_layanan,
-      kode_layanan: item.kode_paket_layanan,
-      nama: item.nama,
-      harga: parseFloat(item.harga || 0),
-      kode_kategori: "PAKET_LAYANAN",
-      nama_kategori: "Paket Layanan",
-      masa_berlaku_hari: item.masa_berlaku_hari,
-      kode_ruangan: item.kode_ruangan || "",
-      nama_ruangan: item.nama_ruangan || item.kode_ruangan || "Ruang Treatment",
-    }));
+    const promoMap = {};
+    activePromos.forEach((pr) => {
+      const jenisClean = (pr.jenis_item || "").toLowerCase();
+      const normJenis = jenisClean.includes("layanan")
+        ? jenisClean.includes("paket") ? "paket" : "layanan"
+        : jenisClean.includes("produk") ? jenisClean.includes("paket") ? "paket" : "produk" : jenisClean;
 
-    const listProduk = vaProduk.map((item) => ({
-      jenis: "produk",
-      tipe: "produk_biasa",
-      kode: item.kode_produk,
-      kode_produk: item.kode_produk,
-      nama: item.nama,
-      satuan: item.satuan || "pcs",
-      harga: parseFloat(item.harga || 0),
-      kode_kategori: item.kode_kategori_produk,
-      nama_kategori: item.nama_kategori || "Produk",
-    }));
+      const keys = [`${normJenis}_${pr.kode_item}`, `${jenisClean}_${pr.kode_item}`];
+      keys.forEach((key) => {
+        if (!promoMap[key]) {
+          promoMap[key] = pr;
+        } else {
+          const curVal = parseFloat(promoMap[key].nilai_diskon || 0);
+          const newVal = parseFloat(pr.nilai_diskon || 0);
+          if (newVal > curVal) {
+            promoMap[key] = pr;
+          }
+        }
+      });
+    });
 
-    const listPaketProduk = vaPaketProduk.map((item) => ({
-      jenis: "paket_produk",
-      tipe: "paket_produk",
-      kode: item.kode_paket_produk,
-      kode_produk: item.kode_paket_produk,
-      nama: item.nama,
-      satuan: "paket",
-      harga: parseFloat(item.harga || 0),
-      kode_kategori: "PAKET_PRODUK",
-      nama_kategori: "Paket Produk",
-      masa_berlaku_hari: item.masa_berlaku_hari,
-    }));
+    const applyPromo = (item) => {
+      const normJenis = item.jenis.includes("layanan")
+        ? item.jenis.includes("paket") ? "paket" : "layanan"
+        : item.jenis.includes("produk") ? item.jenis.includes("paket") ? "paket" : "produk" : item.jenis;
+
+      const key = `${normJenis}_${item.kode}`;
+      const keyFull = `${item.jenis}_${item.kode}`;
+      const promo = promoMap[key] || promoMap[keyFull];
+
+      if (promo) {
+        const diskonNilai = parseFloat(promo.nilai_diskon || 0);
+        let hargaDiskon = item.harga;
+        if (promo.jenis_diskon === "persen") {
+          hargaDiskon = Math.max(0, item.harga - (item.harga * diskonNilai) / 100);
+        } else {
+          hargaDiskon = Math.max(0, item.harga - diskonNilai);
+        }
+
+        return {
+          ...item,
+          is_promo: true,
+          kode_promo: promo.kode_promo,
+          nama_promo: promo.nama_promo,
+          jenis_diskon: promo.jenis_diskon,
+          nilai_diskon: diskonNilai,
+          harga_asal: item.harga,
+          harga: hargaDiskon,
+        };
+      }
+
+      return {
+        ...item,
+        is_promo: false,
+        harga_asal: item.harga,
+      };
+    };
+
+    // Format output items with promo info applied
+    const listLayanan = vaLayanan.map((item) =>
+      applyPromo({
+        jenis: "layanan",
+        tipe: "layanan_biasa",
+        kode: item.kode_layanan,
+        kode_layanan: item.kode_layanan,
+        nama: item.nama,
+        harga: parseFloat(item.harga || 0),
+        kode_kategori: item.kode_kategori_layanan,
+        nama_kategori: item.nama_kategori || "Layanan",
+        durasi_menit: parseInt(item.durasi_menit || 30, 10),
+        kode_ruangan: item.kode_ruangan || "",
+        nama_ruangan: item.nama_ruangan || item.kode_ruangan || "Ruang Treatment",
+      })
+    );
+
+    const listPaketLayanan = vaPaketLayanan.map((item) =>
+      applyPromo({
+        jenis: "paket_layanan",
+        tipe: "paket_layanan",
+        kode: item.kode_paket_layanan,
+        kode_layanan: item.kode_paket_layanan,
+        nama: item.nama,
+        harga: parseFloat(item.harga || 0),
+        kode_kategori: "PAKET_LAYANAN",
+        nama_kategori: "Paket Layanan",
+        masa_berlaku_hari: item.masa_berlaku_hari,
+        kode_ruangan: item.kode_ruangan || "",
+        nama_ruangan: item.nama_ruangan || item.kode_ruangan || "Ruang Treatment",
+      })
+    );
+
+    const listProduk = vaProduk.map((item) =>
+      applyPromo({
+        jenis: "produk",
+        tipe: "produk_biasa",
+        kode: item.kode_produk,
+        kode_produk: item.kode_produk,
+        nama: item.nama,
+        satuan: item.satuan || "pcs",
+        harga: parseFloat(item.harga || 0),
+        kode_kategori: item.kode_kategori_produk,
+        nama_kategori: item.nama_kategori || "Produk",
+      })
+    );
+
+    const listPaketProduk = vaPaketProduk.map((item) =>
+      applyPromo({
+        jenis: "paket_produk",
+        tipe: "paket_produk",
+        kode: item.kode_paket_produk,
+        kode_produk: item.kode_paket_produk,
+        nama: item.nama,
+        satuan: "paket",
+        harga: parseFloat(item.harga || 0),
+        kode_kategori: "PAKET_PRODUK",
+        nama_kategori: "Paket Produk",
+        masa_berlaku_hari: item.masa_berlaku_hari,
+      })
+    );
 
     return res.status(200).json({
       status: status.SUKSES,

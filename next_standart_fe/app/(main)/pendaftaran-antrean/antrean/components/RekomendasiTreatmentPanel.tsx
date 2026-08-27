@@ -3,8 +3,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from 'primereact/button';
 import { InputText } from 'primereact/inputtext';
-import { InputNumber } from 'primereact/inputnumber';
-import { Tag } from 'primereact/tag';
 import { ProgressSpinner } from 'primereact/progressspinner';
 import { Toast } from 'primereact/toast';
 import postData from '@/lib/axios/postData';
@@ -16,6 +14,12 @@ export interface RekomendasiItem {
   kode: string;
   nama: string;
   harga: number;
+  harga_asal?: number;
+  is_promo?: boolean;
+  kode_promo?: string;
+  nama_promo?: string;
+  jenis_diskon?: 'persen' | 'nominal';
+  nilai_diskon?: number;
   qty?: number;
   satuan?: string;
   kode_ruangan?: string;
@@ -33,11 +37,11 @@ interface RekomendasiTreatmentPanelProps {
 
 type TabKey = 'layanan' | 'paket_layanan' | 'produk' | 'paket_produk';
 
-const TABS: { key: TabKey; label: string; icon: string; color: string; accent: string; textColor: string; bg: string; border: string }[] = [
-  { key: 'layanan', label: 'Layanan', icon: 'pi-briefcase', color: 'teal', accent: '#0d9488', textColor: 'text-teal-700', bg: 'bg-teal-50', border: 'border-teal-500' },
-  { key: 'paket_layanan', label: 'Paket Layanan', icon: 'pi-box', color: 'purple', accent: '#7c3aed', textColor: 'text-purple-700', bg: 'bg-purple-50', border: 'border-purple-500' },
-  { key: 'produk', label: 'Produk', icon: 'pi-shopping-bag', color: 'amber', accent: '#d97706', textColor: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-500' },
-  { key: 'paket_produk', label: 'Paket Produk', icon: 'pi-tags', color: 'indigo', accent: '#4338ca', textColor: 'text-indigo-700', bg: 'bg-indigo-50', border: 'border-indigo-500' },
+const TABS: { key: TabKey; label: string; icon: string; accent: string; bgActive: string }[] = [
+  { key: 'layanan', label: 'Layanan', icon: 'pi-briefcase', accent: '#0d9488', bgActive: '#f0fdfa' },
+  { key: 'paket_layanan', label: 'Paket Layanan', icon: 'pi-box', accent: '#7c3aed', bgActive: '#faf5ff' },
+  { key: 'produk', label: 'Produk', icon: 'pi-shopping-bag', accent: '#d97706', bgActive: '#fffbeb' },
+  { key: 'paket_produk', label: 'Paket Produk', icon: 'pi-tags', accent: '#4338ca', bgActive: '#eef2ff' },
 ];
 
 export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps> = ({
@@ -49,6 +53,7 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeTab, setActiveTab] = useState<TabKey>('layanan');
   const [selectedRoomFilter, setSelectedRoomFilter] = useState<string>('ALL');
+  const [showOnlyPromo, setShowOnlyPromo] = useState<boolean>(false);
 
   const [options, setOptions] = useState<Record<TabKey, RekomendasiItem[]>>({
     layanan: [],
@@ -139,6 +144,9 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
     if (checkRoom && selectedRoomFilter !== 'ALL') {
       result = result.filter((i) => (i.kode_ruangan || 'UNASSIGNED') === selectedRoomFilter);
     }
+    if (showOnlyPromo) {
+      result = result.filter((i) => i.is_promo);
+    }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter(
@@ -146,85 +154,150 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
           i.nama.toLowerCase().includes(q) ||
           i.kode.toLowerCase().includes(q) ||
           (i.nama_ruangan && i.nama_ruangan.toLowerCase().includes(q)) ||
-          (i.nama_kategori && i.nama_kategori.toLowerCase().includes(q))
+          (i.nama_kategori && i.nama_kategori.toLowerCase().includes(q)) ||
+          (i.nama_promo && i.nama_promo.toLowerCase().includes(q))
       );
     }
     return result;
   };
 
-  const formatRupiah = (val: number) =>
-    new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
+  const currentTab = TABS.find((t) => t.key === activeTab)!;
+  const isServiceTab = activeTab === 'layanan' || activeTab === 'paket_layanan';
+  const displayItems = filterItems(options[activeTab], isServiceTab);
+
+  const totalPromoItemsCount = useMemo(() => {
+    return Object.values(options).flatMap((arr) => arr).filter((i) => i.is_promo).length;
+  }, [options]);
 
   const countLayanan = selectedItems.filter((s) => ['layanan', 'paket_layanan'].includes(s.jenis)).length;
   const countProduk = selectedItems.filter((s) => ['produk', 'paket_produk'].includes(s.jenis)).length;
-  const totalHargaSelected = selectedItems.reduce((sum, item) => sum + item.harga * (item.qty || 1), 0);
+  const totalHargaSelected = selectedItems.reduce((sum, i) => sum + i.harga * (i.qty || 1), 0);
 
-  const isServiceTab = activeTab === 'layanan' || activeTab === 'paket_layanan';
-  const currentTab = TABS.find((t) => t.key === activeTab)!;
-  const displayItems = filterItems(options[activeTab], isServiceTab);
+  const formatRupiah = (val: number) =>
+    new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
 
   return (
-    <div style={{ fontFamily: "'Inter', sans-serif" }}>
+    <div
+      className="p-3 border-round-2xl surface-card select-none"
+      style={{
+        border: '1.5px solid #e2e8f0',
+        boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+      }}
+    >
       {/* ── HEADER ── */}
-      <div className="flex flex-column sm:flex-row align-items-start sm:align-items-center justify-content-between gap-2 mb-3">
-        <div className="flex align-items-center gap-2">
+      <div className="flex align-items-center justify-content-between mb-3 pb-2 border-bottom-1 surface-border">
+        <div className="flex align-items-center gap-2.5">
           <div
-            className="w-2rem h-2rem border-round-lg flex align-items-center justify-content-center text-white text-sm flex-shrink-0"
-            style={{ background: 'linear-gradient(135deg, #0d9488, #0891b2)' }}
+            className="flex align-items-center justify-content-center border-round-xl"
+            style={{
+              width: '36px',
+              height: '36px',
+              background: 'linear-gradient(135deg, #0d9488, #059669)',
+              boxShadow: '0 2px 8px rgba(13, 148, 136, 0.25)',
+            }}
           >
-            <i className="pi pi-sparkles" />
+            <i className="pi pi-sparkles text-white text-base" />
           </div>
           <div>
-            <span className="font-bold text-gray-900 block" style={{ fontSize: '13px' }}>
+            <span style={{ fontSize: '13.5px', fontWeight: 800, color: '#0f172a', display: 'block', lineHeight: 1.2 }}>
               Treatment &amp; Produk Rekomendasi
             </span>
-            <span className="text-gray-400 block" style={{ fontSize: '11px', fontWeight: 400 }}>
+            <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>
               Pilih tindakan lanjut &amp; produk untuk pasien ini
             </span>
           </div>
         </div>
 
         <div className="flex align-items-center gap-2">
+          {totalPromoItemsCount > 0 && (
+            <span
+              className="inline-flex align-items-center gap-1.5 text-xs font-bold px-2.5 py-1 border-round-pill cursor-pointer"
+              style={{
+                background: showOnlyPromo ? 'linear-gradient(135deg, #ef4444, #f97316)' : '#fff1f2',
+                color: showOnlyPromo ? '#ffffff' : '#e11d48',
+                border: '1px solid #fecdd3',
+                boxShadow: showOnlyPromo ? '0 2px 8px rgba(239,68,68,0.3)' : 'none',
+              }}
+              onClick={() => setShowOnlyPromo(!showOnlyPromo)}
+            >
+              <i className="pi pi-percentage text-xs" />
+              {totalPromoItemsCount} Promo Aktif
+            </span>
+          )}
           {countLayanan > 0 && (
             <span
-              className="flex align-items-center gap-1 text-[11px] font-bold px-2.5 py-1 border-round-xl"
-              style={{ background: '#ccfbf1', color: '#134e4a', border: '1.5px solid #5eead4' }}
+              className="inline-flex align-items-center gap-1.5 text-xs font-bold px-2.5 py-1 border-round-pill"
+              style={{ background: '#ccfbf1', color: '#0f766e', border: '1px solid #99f6e4' }}
             >
-              <i className="pi pi-ticket text-[10px]" />
+              <i className="pi pi-ticket text-xs" />
               {countLayanan} Antrean
             </span>
           )}
           {countProduk > 0 && (
             <span
-              className="flex align-items-center gap-1 text-[11px] font-bold px-2.5 py-1 border-round-xl"
-              style={{ background: '#fef3c7', color: '#78350f', border: '1.5px solid #fcd34d' }}
+              className="inline-flex align-items-center gap-1.5 text-xs font-bold px-2.5 py-1 border-round-pill"
+              style={{ background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a' }}
             >
-              <i className="pi pi-shopping-bag text-[10px]" />
+              <i className="pi pi-shopping-bag text-xs" />
               {countProduk} Produk
             </span>
           )}
         </div>
       </div>
 
-      {/* ── SEARCH ── */}
-      <div className="p-inputgroup mb-3" style={{ maxWidth: '100%' }}>
-        <span className="p-inputgroup-addon" style={{ background: '#f8fafc', border: '1.5px solid #e2e8f0', borderRight: 'none' }}>
-          <i className="pi pi-search text-gray-400 text-xs" />
-        </span>
-        <InputText
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Cari layanan, paket, atau produk..."
-          style={{ fontSize: '13px', border: '1.5px solid #e2e8f0', borderLeft: 'none', borderRight: searchQuery ? 'none' : '1.5px solid #e2e8f0' }}
-        />
-        {searchQuery && (
-          <Button
-            icon="pi pi-times"
-            className="p-button-text p-button-secondary"
-            onClick={() => setSearchQuery('')}
-            style={{ border: '1.5px solid #e2e8f0', borderLeft: 'none' }}
+      {/* ── SEARCH & PROMO FILTER TOGGLE ── */}
+      <div className="flex gap-2 mb-3">
+        <div className="p-inputgroup flex-1">
+          <span className="p-inputgroup-addon" style={{ background: '#f8fafc', border: '1.5px solid #cbd5e1', borderRight: 'none', borderRadius: '12px 0 0 12px' }}>
+            <i className="pi pi-search text-gray-400 text-xs" />
+          </span>
+          <InputText
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Cari layanan, paket, produk, atau nama promo..."
+            style={{
+              fontSize: '13px',
+              border: '1.5px solid #cbd5e1',
+              borderLeft: 'none',
+              borderRight: searchQuery ? 'none' : '1.5px solid #cbd5e1',
+              borderRadius: searchQuery ? '0' : '0 12px 12px 0',
+              boxShadow: 'none',
+            }}
           />
-        )}
+          {searchQuery && (
+            <Button
+              icon="pi pi-times"
+              className="p-button-text p-button-secondary p-button-sm"
+              onClick={() => setSearchQuery('')}
+              style={{ border: '1.5px solid #cbd5e1', borderLeft: 'none', borderRadius: '0 12px 12px 0' }}
+            />
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setShowOnlyPromo(!showOnlyPromo)}
+          style={{
+            padding: '0 14px',
+            borderRadius: '12px',
+            fontSize: '12px',
+            fontWeight: 700,
+            border: showOnlyPromo ? '1.5px solid #ef4444' : '1.5px solid #cbd5e1',
+            background: showOnlyPromo ? 'linear-gradient(135deg, #ef4444, #f97316)' : '#ffffff',
+            color: showOnlyPromo ? '#ffffff' : '#e11d48',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            transition: 'all 0.18s ease',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <i className="pi pi-percentage" style={{ fontSize: '11px' }} />
+          Hanya Promo 🔥
+        </button>
       </div>
 
       {/* ── ROOM LOCK BANNER ── */}
@@ -233,7 +306,7 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
           className="flex align-items-center gap-2 mb-3 px-3 py-2 border-round-xl text-xs font-medium"
           style={{ background: 'linear-gradient(90deg, #f0fdfa, #ecfdf5)', border: '1.5px solid #6ee7b7', color: '#065f46' }}
         >
-          <i className="pi pi-lock" style={{ color: '#059669', fontSize: '13px' }} />
+          <i className="pi pi-lock" style={{ color: '#059669', fontSize: '12px' }} />
           <span>
             Ruangan Aktif: <strong>{activeTreatmentRoom.nama_ruangan}</strong>
             <span className="ml-2 font-normal text-gray-500">— Layanan dari ruangan lain terkunci</span>
@@ -242,7 +315,7 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
       )}
 
       {/* ── CUSTOM TABS ── */}
-      <div className="flex gap-1 mb-3 p-1 border-round-xl" style={{ background: '#f1f5f9', border: '1px solid #e2e8f0' }}>
+      <div className="flex gap-1.5 mb-3 p-1 border-round-xl overflow-x-auto" style={{ background: '#f1f5f9', border: '1px solid #e2e8f0' }}>
         {TABS.map((tab) => {
           const count = filterItems(options[tab.key], tab.key === 'layanan' || tab.key === 'paket_layanan').length;
           const isActive = activeTab === tab.key;
@@ -250,27 +323,32 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
             <button
               key={tab.key}
               type="button"
-              onClick={() => { setActiveTab(tab.key); setSelectedRoomFilter('ALL'); }}
+              onClick={() => {
+                setActiveTab(tab.key);
+                setSelectedRoomFilter('ALL');
+              }}
               style={{
                 flex: 1,
-                padding: '7px 6px',
+                minWidth: '110px',
+                padding: '8px 10px',
                 borderRadius: '10px',
                 border: isActive ? `1.5px solid ${tab.accent}` : '1.5px solid transparent',
-                background: isActive ? '#fff' : 'transparent',
+                background: isActive ? '#ffffff' : 'transparent',
                 cursor: 'pointer',
                 transition: 'all 0.18s ease',
-                boxShadow: isActive ? `0 1px 6px rgba(0,0,0,0.1)` : 'none',
+                boxShadow: isActive ? '0 2px 8px rgba(0, 0, 0, 0.06)' : 'none',
+                userSelect: 'none',
               }}
             >
               <div className="flex align-items-center justify-content-center gap-1.5">
                 <i
                   className={`pi ${tab.icon}`}
-                  style={{ fontSize: '12px', color: isActive ? tab.accent : '#94a3b8' }}
+                  style={{ fontSize: '13px', color: isActive ? tab.accent : '#94a3b8' }}
                 />
                 <span
                   style={{
-                    fontSize: '11px',
-                    fontWeight: isActive ? 700 : 500,
+                    fontSize: '12px',
+                    fontWeight: isActive ? 700 : 600,
                     color: isActive ? tab.accent : '#64748b',
                     whiteSpace: 'nowrap',
                   }}
@@ -281,12 +359,13 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                   <span
                     style={{
                       fontSize: '10px',
-                      fontWeight: 700,
-                      padding: '1px 5px',
+                      fontWeight: 800,
+                      padding: '1px 6px',
                       borderRadius: '999px',
                       background: isActive ? tab.accent : '#cbd5e1',
-                      color: '#fff',
-                      lineHeight: 1.4,
+                      color: '#ffffff',
+                      lineHeight: 1.3,
+                      marginLeft: '2px',
                     }}
                   >
                     {count}
@@ -301,7 +380,10 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
       {/* ── ROOM FILTER PILLS (only for service tabs) ── */}
       {isServiceTab && roomList.length > 0 && (
         <div className="flex align-items-center gap-1.5 flex-wrap mb-3">
-          <span className="text-[11px] font-semibold text-gray-400 mr-1">Ruangan:</span>
+          <span className="text-xs font-bold text-gray-500 mr-1 flex align-items-center gap-1">
+            <i className="pi pi-filter text-xs" />
+            Ruangan:
+          </span>
           {[{ kode: 'ALL', nama: 'Semua' }, ...roomList].map((r) => {
             const isActive = selectedRoomFilter === r.kode;
             const isLocked = r.kode !== 'ALL' && activeTreatmentRoom !== null && activeTreatmentRoom.kode_ruangan !== r.kode;
@@ -311,21 +393,20 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                 type="button"
                 onClick={() => setSelectedRoomFilter(r.kode)}
                 style={{
-                  padding: '3px 10px',
-                  fontSize: '11px',
+                  padding: '4px 12px',
+                  fontSize: '11.5px',
                   fontWeight: 600,
                   borderRadius: '999px',
-                  border: isActive
-                    ? `1.5px solid ${currentTab.accent}`
-                    : '1.5px solid #e2e8f0',
-                  background: isActive ? currentTab.accent : isLocked ? '#f8fafc' : '#fff',
-                  color: isActive ? '#fff' : isLocked ? '#94a3b8' : '#475569',
+                  border: isActive ? `1.5px solid ${currentTab.accent}` : '1.5px solid #cbd5e1',
+                  background: isActive ? currentTab.accent : isLocked ? '#f8fafc' : '#ffffff',
+                  color: isActive ? '#ffffff' : isLocked ? '#94a3b8' : '#334155',
                   cursor: 'pointer',
                   opacity: isLocked ? 0.6 : 1,
                   display: 'flex',
                   alignItems: 'center',
                   gap: '4px',
                   transition: 'all 0.15s ease',
+                  userSelect: 'none',
                 }}
               >
                 {isLocked && <i className="pi pi-lock" style={{ fontSize: '9px' }} />}
@@ -340,21 +421,20 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
       {loading ? (
         <div className="flex align-items-center justify-content-center py-5">
           <ProgressSpinner style={{ width: '28px', height: '28px' }} />
-          <span className="ml-2 text-xs text-gray-400">Memuat katalog...</span>
+          <span className="ml-2 text-xs font-semibold text-gray-400">Memuat katalog...</span>
         </div>
       ) : displayItems.length === 0 ? (
         <div
           className="flex flex-column align-items-center justify-content-center py-5 border-round-xl text-center"
-          style={{ background: '#f8fafc', border: '1.5px dashed #e2e8f0' }}
+          style={{ background: '#f8fafc', border: '1.5px dashed #cbd5e1' }}
         >
           <i className="pi pi-inbox text-3xl mb-2" style={{ color: '#cbd5e1' }} />
-          <span className="text-xs font-semibold text-gray-400">Tidak ada {currentTab.label.toLowerCase()} ditemukan</span>
+          <span className="text-xs font-semibold text-gray-400">
+            {showOnlyPromo ? 'Tidak ada promo aktif untuk kategori ini' : `Tidak ada ${currentTab.label.toLowerCase()} ditemukan`}
+          </span>
         </div>
       ) : (
-        <div
-          className="grid formgrid overflow-y-auto pr-1"
-          style={{ maxHeight: '22rem' }}
-        >
+        <div className="grid formgrid overflow-y-auto pr-1" style={{ maxHeight: '22rem' }}>
           {displayItems.map((item) => {
             const selected = isItemSelected(item);
             const selectedObj = selectedItems.find((s) => s.jenis === item.jenis && s.kode === item.kode);
@@ -370,27 +450,26 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                 <div
                   onClick={() => !isLocked && handleToggleSelect(item)}
                   style={{
-                    borderRadius: '14px',
+                    borderRadius: '12px',
                     border: selected
-                      ? `2px solid ${currentTab.accent}`
+                      ? `2px solid ${item.is_promo ? '#ef4444' : currentTab.accent}`
                       : isLocked
                       ? '1.5px solid #e2e8f0'
+                      : item.is_promo
+                      ? '1.5px solid #fca5a5'
                       : '1.5px solid #e2e8f0',
-                    background: selected
-                      ? `linear-gradient(135deg, #fff, ${activeTab === 'layanan' ? '#f0fdfa' : activeTab === 'paket_layanan' ? '#faf5ff' : activeTab === 'produk' ? '#fffbeb' : '#eef2ff'})`
-                      : isLocked
-                      ? '#f8fafc'
-                      : '#fff',
+                    background: selected ? currentTab.bgActive : isLocked ? '#f8fafc' : item.is_promo ? '#fff1f2' : '#ffffff',
                     padding: '12px 14px',
                     cursor: isLocked ? 'not-allowed' : 'pointer',
-                    opacity: isLocked ? 0.5 : 1,
-                    boxShadow: selected ? `0 2px 12px rgba(0,0,0,0.08), 0 0 0 3px ${currentTab.accent}22` : '0 1px 3px rgba(0,0,0,0.04)',
-                    transition: 'all 0.18s ease',
+                    opacity: isLocked ? 0.55 : 1,
+                    boxShadow: selected ? `0 4px 14px -2px ${currentTab.accent}30` : '0 1px 3px rgba(0, 0, 0, 0.03)',
+                    transition: 'all 0.15s ease',
                     height: '100%',
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'space-between',
                     position: 'relative',
+                    userSelect: 'none',
                   }}
                 >
                   {/* Selected checkmark badge */}
@@ -398,18 +477,19 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                     <span
                       style={{
                         position: 'absolute',
-                        top: '8px',
-                        right: '8px',
+                        top: '10px',
+                        right: '10px',
                         width: '20px',
                         height: '20px',
                         borderRadius: '50%',
-                        background: currentTab.accent,
+                        background: item.is_promo ? '#ef4444' : currentTab.accent,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        boxShadow: `0 2px 6px ${item.is_promo ? '#ef4444' : currentTab.accent}40`,
                       }}
                     >
-                      <i className="pi pi-check" style={{ color: '#fff', fontSize: '10px', fontWeight: 900 }} />
+                      <i className="pi pi-check text-white" style={{ fontSize: '10px', fontWeight: 900 }} />
                     </span>
                   )}
 
@@ -418,8 +498,8 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                     <span
                       style={{
                         position: 'absolute',
-                        top: '8px',
-                        right: '8px',
+                        top: '10px',
+                        right: '10px',
                         background: '#f1f5f9',
                         borderRadius: '6px',
                         padding: '2px 6px',
@@ -437,38 +517,61 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                   )}
 
                   {/* ITEM INFO */}
-                  <div style={{ paddingRight: '28px' }}>
-                    {/* Jenis badge */}
+                  <div style={{ paddingRight: selected || isLocked ? '26px' : '0' }}>
+                    {item.is_promo && (
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '3px',
+                          fontSize: '9.5px',
+                          fontWeight: 800,
+                          padding: '2px 7px',
+                          borderRadius: '6px',
+                          marginBottom: '4px',
+                          marginRight: '4px',
+                          background: 'linear-gradient(135deg, #ef4444, #f97316)',
+                          color: '#ffffff',
+                          boxShadow: '0 2px 6px rgba(239, 68, 68, 0.25)',
+                          letterSpacing: '0.02em',
+                        }}
+                      >
+                        <i className="pi pi-percentage text-white" style={{ fontSize: '9px' }} />
+                        PROMO {item.jenis_diskon === 'persen' ? `-${item.nilai_diskon}%` : ''}
+                      </span>
+                    )}
+
                     {(activeTab === 'paket_layanan' || activeTab === 'paket_produk') && (
                       <span
                         style={{
                           display: 'inline-block',
-                          fontSize: '9px',
-                          fontWeight: 700,
+                          fontSize: '9.5px',
+                          fontWeight: 800,
                           padding: '2px 7px',
                           borderRadius: '6px',
-                          marginBottom: '5px',
-                          background: currentTab.accent + '18',
+                          marginBottom: '4px',
+                          background: `${currentTab.accent}18`,
                           color: currentTab.accent,
-                          letterSpacing: '0.04em',
+                          letterSpacing: '0.03em',
                         }}
                       >
-                        {activeTab === 'paket_layanan' ? 'PAKET' : 'PAKET PRODUK'}
+                        {activeTab === 'paket_layanan' ? 'PAKET LAYANAN' : 'PAKET PRODUK'}
                       </span>
                     )}
 
                     <div
                       style={{
-                        fontSize: '12.5px',
+                        fontSize: '13px',
                         fontWeight: 700,
-                        color: '#1e293b',
-                        lineHeight: 1.4,
+                        color: '#0f172a',
+                        lineHeight: 1.35,
                         marginBottom: '3px',
                       }}
                     >
                       {item.nama}
                     </div>
-                    <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 500 }}>
+                    <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>
+                      {item.nama_promo ? `${item.nama_promo} • ` : ''}
                       {item.nama_kategori || currentTab.label}
                       {isProduk && item.satuan ? ` • ${item.satuan}` : ''}
                     </div>
@@ -483,31 +586,47 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
+                      gap: '6px',
                     }}
                   >
-                    <span
-                      style={{
-                        fontSize: '13px',
-                        fontWeight: 800,
-                        color: currentTab.accent,
-                      }}
-                    >
-                      {formatRupiah(item.harga)}
-                    </span>
+                    <div>
+                      {item.is_promo && item.harga_asal && item.harga_asal > item.harga && (
+                        <span
+                          style={{
+                            fontSize: '11px',
+                            color: '#94a3b8',
+                            textDecoration: 'line-through',
+                            marginRight: '5px',
+                            fontWeight: 600,
+                          }}
+                        >
+                          {formatRupiah(item.harga_asal)}
+                        </span>
+                      )}
+                      <span
+                        style={{
+                          fontSize: '13px',
+                          fontWeight: 800,
+                          color: item.is_promo ? '#e11d48' : currentTab.accent,
+                        }}
+                      >
+                        {formatRupiah(item.harga)}
+                      </span>
+                    </div>
 
                     {isServiceTab && (
                       <span
                         style={{
                           fontSize: '10px',
                           fontWeight: 600,
-                          padding: '2px 7px',
+                          padding: '2px 8px',
                           borderRadius: '999px',
-                          background: selected ? currentTab.accent : currentTab.accent + '18',
-                          color: selected ? '#fff' : currentTab.accent,
-                          display: 'flex',
+                          background: selected ? currentTab.accent : `${currentTab.accent}15`,
+                          color: selected ? '#ffffff' : currentTab.accent,
+                          display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '3px',
-                          maxWidth: '110px',
+                          gap: '4px',
+                          maxWidth: '120px',
                           overflow: 'hidden',
                           whiteSpace: 'nowrap',
                         }}
@@ -521,10 +640,7 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                     )}
 
                     {isProduk && selected && (
-                      <div
-                        className="flex align-items-center gap-1"
-                        onClick={(e) => e.stopPropagation()}
-                      >
+                      <div className="flex align-items-center gap-1" onClick={(e) => e.stopPropagation()}>
                         <button
                           type="button"
                           onClick={() => handleQtyChange(item, (selectedObj?.qty || 1) - 1)}
@@ -532,17 +648,19 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                             width: '22px',
                             height: '22px',
                             borderRadius: '6px',
-                            border: '1.5px solid #e2e8f0',
+                            border: '1.5px solid #cbd5e1',
                             background: '#f8fafc',
                             cursor: 'pointer',
                             fontSize: '12px',
                             fontWeight: 700,
-                            color: '#475569',
+                            color: '#334155',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                           }}
-                        >−</button>
+                        >
+                          −
+                        </button>
                         <span
                           style={{
                             minWidth: '24px',
@@ -566,12 +684,14 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                             cursor: 'pointer',
                             fontSize: '12px',
                             fontWeight: 700,
-                            color: '#fff',
+                            color: '#ffffff',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                           }}
-                        >+</button>
+                        >
+                          +
+                        </button>
                       </div>
                     )}
                   </div>
@@ -582,13 +702,13 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
         </div>
       )}
 
-      {/* ── SELECTED SUMMARY ── */}
+      {/* ── SELECTED SUMMARY BAR ── */}
       {selectedItems.length > 0 && (
         <div
-          className="mt-3"
+          className="mt-3 select-none"
           style={{
             background: 'linear-gradient(135deg, #f8fafc, #f0fdfa)',
-            border: '1.5px solid #b2f5ea',
+            border: '1.5px solid #99f6e4',
             borderRadius: '14px',
             padding: '12px 14px',
           }}
@@ -606,13 +726,13 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                   justifyContent: 'center',
                 }}
               >
-                <i className="pi pi-check" style={{ color: '#fff', fontSize: '10px' }} />
+                <i className="pi pi-check text-white text-xs" />
               </span>
               <div>
-                <span style={{ fontSize: '11px', fontWeight: 800, color: '#134e4a' }}>
+                <span style={{ fontSize: '12px', fontWeight: 800, color: '#0f766e' }}>
                   {selectedItems.length} Item Terpilih
                 </span>
-                <span style={{ fontSize: '11px', color: '#6b7280', marginLeft: '6px' }}>
+                <span style={{ fontSize: '12px', color: '#475569', marginLeft: '6px' }}>
                   • Total: <strong style={{ color: '#0d9488' }}>{formatRupiah(totalHargaSelected)}</strong>
                 </span>
               </div>
@@ -622,7 +742,7 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
               onClick={() => onChangeSelectedItems([])}
               style={{
                 fontSize: '11px',
-                fontWeight: 600,
+                fontWeight: 700,
                 color: '#ef4444',
                 background: 'none',
                 border: 'none',
@@ -661,11 +781,25 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                     style={{ fontSize: '10px', color: isLayanan ? '#0d9488' : '#d97706' }}
                   />
                   {item.nama}
+                  {item.is_promo && (
+                    <span
+                      style={{
+                        background: '#ef4444',
+                        color: '#ffffff',
+                        borderRadius: '999px',
+                        padding: '1px 5px',
+                        fontSize: '9px',
+                        fontWeight: 800,
+                      }}
+                    >
+                      PROMO
+                    </span>
+                  )}
                   {item.qty && item.qty > 1 && (
                     <span
                       style={{
                         background: '#d97706',
-                        color: '#fff',
+                        color: '#ffffff',
                         borderRadius: '999px',
                         padding: '1px 5px',
                         fontSize: '10px',
@@ -688,7 +822,7 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
 
           <div
             className="flex flex-column sm:flex-row gap-2 mt-2 pt-2"
-            style={{ borderTop: '1px solid #a7f3d0', fontSize: '11px', color: '#6b7280' }}
+            style={{ borderTop: '1px solid #99f6e4', fontSize: '11px', color: '#475569' }}
           >
             {countLayanan > 0 && (
               <span style={{ color: '#065f46', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 500 }}>
