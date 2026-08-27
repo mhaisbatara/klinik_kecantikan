@@ -5,41 +5,47 @@ import { Dialog } from 'primereact/dialog';
 import { Button } from 'primereact/button';
 import { Tag } from 'primereact/tag';
 
-interface AntrianLayananItem {
+interface AntrianLayananBaru {
   kode_antrian_layanan: string;
-  kode_kunjungan: string;
-  jenis_layanan: string;
-  kode_layanan: string;
   nomor_antrian: string;
-  status: string;
   nama_layanan?: string;
-  harga?: number;
-  kode_ruangan?: string;
+  kode_layanan?: string;
   nama_ruangan?: string;
+  kode_ruangan?: string;
+  jenis_layanan?: string;
+  harga?: number;
+  status: string;
 }
 
-interface TicketLayananData {
-  kode_kunjungan: string;
-  no_rm: string;
-  nama_pasien: string;
-  nomor_antrian_awal?: string;
-  antrian_layanan: AntrianLayananItem[];
+interface TransaksiDraft {
+  kode_transaksi: string;
+  total_bayar: number;
+  jumlah_produk: number;
 }
 
-interface Props {
+interface DialogHasilTerbitAntrianProps {
   visible: boolean;
   onHide: () => void;
-  data: TicketLayananData | null;
+  pasienNama?: string;
+  noRm?: string;
+  kodeKunjungan?: string;
+  antrianList?: AntrianLayananBaru[];
+  transaksiDraft?: TransaksiDraft | null;
 }
 
-export const KarcisAntrianLayananModal: React.FC<Props> = ({ visible, onHide, data }) => {
+export const DialogHasilTerbitAntrian: React.FC<DialogHasilTerbitAntrianProps> = ({
+  visible,
+  onHide,
+  pasienNama = 'Pasien',
+  noRm = '-',
+  kodeKunjungan = '-',
+  antrianList = [],
+  transaksiDraft = null,
+}) => {
   const printRef = useRef<HTMLDivElement>(null);
 
-  if (!data) return null;
-
-  const formatRupiah = (val: number) => {
-    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
-  };
+  const formatRupiah = (val: number) =>
+    new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
 
   const handlePrint = () => {
     const content = printRef.current?.innerHTML || '';
@@ -49,7 +55,7 @@ export const KarcisAntrianLayananModal: React.FC<Props> = ({ visible, onHide, da
         <!DOCTYPE html>
         <html>
           <head>
-            <title>Karcis Antrian Layanan - ${data.nama_pasien || ''}</title>
+            <title>Karcis Antrian Layanan - ${pasienNama}</title>
             <style>
               body {
                 font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -89,12 +95,8 @@ export const KarcisAntrianLayananModal: React.FC<Props> = ({ visible, onHide, da
                 border-radius: 6px;
                 margin-bottom: 12px;
               }
-              .patient-info table {
-                width: 100%;
-              }
-              .patient-info td {
-                padding: 2px 0;
-              }
+              .patient-info table { width: 100%; }
+              .patient-info td { padding: 2px 0; }
               .item-box {
                 border: 1px solid #e2e8f0;
                 border-radius: 6px;
@@ -164,12 +166,14 @@ export const KarcisAntrianLayananModal: React.FC<Props> = ({ visible, onHide, da
             className="p-button-outlined p-button-secondary"
             onClick={onHide}
           />
-          <Button
-            label="Cetak Karcis Layanan"
-            icon="pi pi-print"
-            className="p-button-success font-bold"
-            onClick={handlePrint}
-          />
+          {antrianList.length > 0 && (
+            <Button
+              label="Cetak Karcis Layanan"
+              icon="pi pi-print"
+              className="p-button-success font-bold"
+              onClick={handlePrint}
+            />
+          )}
         </div>
       }
     >
@@ -178,72 +182,92 @@ export const KarcisAntrianLayananModal: React.FC<Props> = ({ visible, onHide, da
           ref={printRef}
           className="surface-card p-4 border-round-xl border-1 surface-border shadow-2 w-full text-center"
         >
+          {/* KLINIK HEADER */}
           <div className="header border-bottom-1 surface-border pb-2 mb-3">
             <h3 className="m-0 text-xl font-bold text-blue-600">KLINIK KECANTIKAN</h3>
-            <p className="m-0 text-xs text-color-secondary">ANTREAN TERAPI & LAYANAN</p>
+            <p className="m-0 text-xs text-color-secondary">ANTRIAN TERAPI &amp; LAYANAN</p>
           </div>
 
+          {/* PATIENT INFO */}
           <div className="surface-100 p-3 border-round text-left text-xs surface-border mb-3">
             <div className="flex justify-content-between mb-1">
               <span className="text-500">Nama Pasien:</span>
-              <span className="font-bold text-900">{data.nama_pasien}</span>
+              <span className="font-bold text-900">{pasienNama}</span>
             </div>
             <div className="flex justify-content-between mb-1">
               <span className="text-500">No. RM:</span>
-              <span className="font-semibold text-800">{data.no_rm}</span>
-            </div>
-            <div className="flex justify-content-between mb-1">
-              <span className="text-500">Kode Kunjungan:</span>
-              <span className="font-semibold text-700">{data.kode_kunjungan}</span>
+              <span className="font-semibold text-800">{noRm}</span>
             </div>
             <div className="flex justify-content-between">
-              <span className="text-500">Antrean Awal:</span>
-              <span className="font-extrabold text-blue-700">{data.nomor_antrian_awal || '-'}</span>
+              <span className="text-500">Kode Kunjungan:</span>
+              <span className="font-semibold text-700">{kodeKunjungan}</span>
             </div>
           </div>
 
-          <div className="text-xs font-semibold text-600 mb-2 text-left">
-            DAFTAR ANTREAN LAYANAN & PAKET ({data.antrian_layanan.length}):
-          </div>
+          {/* ANTRIAN LAYANAN LIST */}
+          {antrianList.length > 0 && (
+            <>
+              <div className="text-xs font-semibold text-600 mb-2 text-left">
+                DAFTAR ANTRIAN LAYANAN &amp; PAKET ({antrianList.length}):
+              </div>
 
-          <div className="flex flex-column gap-2 text-left">
-            {data.antrian_layanan.map((item, idx) => {
-              const jenisVal = item.jenis_layanan || (item.details && item.details[0]?.jenis_layanan) || (item.detail_items && item.detail_items[0]?.jenis_layanan) || 'layanan';
-              const namaVal = item.nama_layanan || (item.details && item.details.map((d: any) => d.nama_layanan).join(', ')) || (item.detail_items && item.detail_items.map((d: any) => d.nama_layanan || d.nama).join(', ')) || item.kode_layanan || '-';
-
-              return (
-                <div
-                  key={idx}
-                  className="surface-50 p-3 border-round-lg border-1 surface-border flex align-items-center justify-content-between"
-                >
-                  <div>
-                    <div className="flex align-items-center gap-2 mb-1 flex-wrap">
-                      <Tag
-                        value={(jenisVal || 'layanan').toUpperCase()}
-                        severity={jenisVal === 'paket' ? 'warning' : 'info'}
-                        className="text-xs font-bold"
-                      />
-                      <Tag
-                        value={item.nama_ruangan ? `${item.kode_ruangan ? item.kode_ruangan + ' - ' : ''}${item.nama_ruangan}` : (item.kode_ruangan || 'Ruang Treatment')}
-                        severity="success"
-                        className="text-xs font-semibold"
-                      />
-                      <span className="text-xs text-500">{item.kode_antrian_layanan}</span>
+              <div className="flex flex-column gap-2 text-left">
+                {antrianList.map((item, idx) => (
+                  <div
+                    key={item.kode_antrian_layanan || idx}
+                    className="surface-50 p-3 border-round-lg border-1 surface-border flex align-items-center justify-content-between"
+                  >
+                    <div>
+                      <div className="flex align-items-center gap-2 mb-1 flex-wrap">
+                        <Tag
+                          value={(item.jenis_layanan || 'layanan').toUpperCase()}
+                          severity={item.jenis_layanan === 'paket' ? 'warning' : 'info'}
+                          className="text-xs font-bold"
+                        />
+                        <Tag
+                          value={
+                            item.nama_ruangan
+                              ? `${item.kode_ruangan ? item.kode_ruangan + ' - ' : ''}${item.nama_ruangan}`
+                              : item.kode_ruangan || 'Ruang Treatment'
+                          }
+                          severity="success"
+                          className="text-xs font-semibold"
+                        />
+                        <span className="text-xs text-500">{item.kode_antrian_layanan}</span>
+                      </div>
+                      <div className="font-bold text-900 text-sm">{item.nama_layanan || item.kode_layanan}</div>
+                      {item.harga !== undefined && item.harga > 0 && (
+                        <div className="text-xs text-blue-600 font-medium">{formatRupiah(item.harga)}</div>
+                      )}
                     </div>
-                    <div className="font-bold text-900 text-sm">{namaVal}</div>
-                    {item.harga !== undefined && (
-                      <div className="text-xs text-blue-600 font-medium">{formatRupiah(item.harga)}</div>
-                    )}
-                  </div>
 
-                  <div className="text-right">
-                    <span className="text-xs text-500 block">No. Antrian</span>
-                    <span className="text-3xl font-extrabold text-blue-600">{item.nomor_antrian}</span>
+                    <div className="text-right">
+                      <span className="text-xs text-500 block">No. Antrian</span>
+                      <span className="text-3xl font-extrabold text-blue-600">{item.nomor_antrian}</span>
+                    </div>
                   </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* DRAFT TRANSAKSI */}
+          {transaksiDraft && (
+            <div className="mt-3">
+              <div className="text-xs font-semibold text-600 mb-2 text-left">DRAF TRANSAKSI KASIR:</div>
+              <div className="surface-50 p-3 border-round-lg border-1 border-yellow-300 flex align-items-center justify-content-between">
+                <div className="text-left">
+                  <span className="text-xs text-500 block">Kode Transaksi</span>
+                  <span className="font-bold text-900 text-sm">{transaksiDraft.kode_transaksi}</span>
+                  <span className="text-xs text-600 block mt-1">{transaksiDraft.jumlah_produk} item produk</span>
                 </div>
-              );
-            })}
-          </div>
+                <div className="text-right">
+                  <span className="text-xs text-500 block">Estimasi Total</span>
+                  <span className="font-extrabold text-yellow-700 text-base">{formatRupiah(transaksiDraft.total_bayar)}</span>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="mt-3 text-xs text-400 border-top-1 surface-border pt-2">
             Harap menunggu hingga nomor antrian layanan dipanggil oleh terapis / kasir. Terima kasih!

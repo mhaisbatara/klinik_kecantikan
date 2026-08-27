@@ -12,14 +12,18 @@ import { Toast } from 'primereact/toast';
 import { ProgressSpinner } from 'primereact/progressspinner';
 import postData from '@/lib/axios/postData';
 import { showError, showSuccess } from '@/lib/tools/generalTools';
+import { Dialog } from 'primereact/dialog';
 import { AntrianLayananData, RuanganFormField } from './interfaces';
 import { FormRuanganFotoUploader } from './FormRuanganFotoUploader';
+import { RekomendasiTreatmentPanel, RekomendasiItem } from './RekomendasiTreatmentPanel';
+import { DialogHasilTerbitAntrian } from './DialogHasilTerbitAntrian';
 
 interface ActiveTreatmentPanelProps {
     activePatient: AntrianLayananData | null;
     nextWaitingPatient: AntrianLayananData | null;
     kodeRuangan: string;
     namaRuangan: string;
+    isKonsultasi?: boolean;
     toast: React.RefObject<Toast>;
     getGridData: () => void;
     handleAksi: (item: AntrianLayananData, customAksi?: string) => void;
@@ -33,6 +37,7 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
     nextWaitingPatient,
     kodeRuangan,
     namaRuangan,
+    isKonsultasi = false,
     toast,
     getGridData,
     handleAksi,
@@ -44,7 +49,16 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
     const [loadingFields, setLoadingFields] = useState<boolean>(false);
     const [formData, setFormData] = useState<Record<string, any>>({});
     const [catatanPetugas, setCatatanPetugas] = useState<string>('');
+    const [rekomendasiItems, setRekomendasiItems] = useState<RekomendasiItem[]>([]);
     const [saving, setSaving] = useState<boolean>(false);
+
+    // Modal Sukses Terbit Antrean & Transaksi
+    const [showHasilModal, setShowHasilModal] = useState<boolean>(false);
+    const [hasilAntrianList, setHasilAntrianList] = useState<any[]>([]);
+    const [hasilTransaksiDraft, setHasilTransaksiDraft] = useState<any | null>(null);
+    const [hasilKodeKunjungan, setHasilKodeKunjungan] = useState<string>('');
+    const [hasilPasienNama, setHasilPasienNama] = useState<string>('');
+    const [hasilNoRm, setHasilNoRm] = useState<string>('');
 
     useEffect(() => {
         if (kodeRuangan) {
@@ -57,9 +71,11 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
             // Form data dipindahkan ke trx_rekam_medis; form dimulai kosong setiap sesi baru
             setCatatanPetugas('');
             setFormData({});
+            setRekomendasiItems([]);
         } else {
             setFormData({});
             setCatatanPetugas('');
+            setRekomendasiItems([]);
         }
     }, [activePatient]);
 
@@ -80,7 +96,59 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
         setFormData((prev) => ({ ...prev, [key]: value }));
     };
 
-    const handleSaveForm = async (targetStatus?: string) => {
+    const executeSaveForm = async (targetStatus?: string) => {
+        if (!activePatient) return;
+        setSaving(true);
+        try {
+            const payload: any = {
+                kode_antrian_layanan: activePatient.kode_antrian_layanan,
+                hasil_form: formData,
+                catatan_petugas: catatanPetugas,
+                rekomendasi_items: rekomendasiItems,
+            };
+            if (targetStatus) {
+                payload.status_tindakan = targetStatus;
+            }
+
+            const res = await postData('/master/antrian-layanan-simpan-rekomendasi', payload);
+            showSuccess(toast, res.data.message || 'Catatan, rekomendasi & form penanganan berhasil disimpan');
+
+            const antrianBaru = res.data?.data?.antrian_layanan_baru || [];
+            const trxDraft = res.data?.data?.transaksi_draft || null;
+            const kodeKunjungan = res.data?.data?.kode_kunjungan || '';
+
+            // Simpan info pasien SEBELUM getGridData() mengosongkan activePatient
+            if (antrianBaru.length > 0 || trxDraft) {
+                setHasilPasienNama(activePatient?.nama_pasien || '');
+                setHasilNoRm(activePatient?.no_rm || '');
+                setHasilAntrianList(antrianBaru);
+                setHasilTransaksiDraft(trxDraft);
+                setHasilKodeKunjungan(kodeKunjungan);
+            }
+
+            // Clear inputs after successful submit
+            setRekomendasiItems([]);
+            setCatatanPetugas('');
+            setFormData({});
+
+            // Refresh data (mungkin mengosongkan activePatient jika status selesai)
+            getGridData();
+
+            if (antrianBaru.length > 0 || trxDraft) {
+                setShowHasilModal(true);
+            }
+        } catch (error: any) {
+            showError(toast, error?.response?.data?.message || 'Gagal menyimpan catatan & rekomendasi penanganan');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    // State Konfirmasi Simpan
+    const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
+    const [targetStatusToSave, setTargetStatusToSave] = useState<string | undefined>(undefined);
+
+    const handleSaveForm = (targetStatus?: string) => {
         if (!activePatient) return;
 
         // Check mandatory fields
@@ -101,71 +169,131 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
             }
         }
 
-        setSaving(true);
-        try {
-            const payload: any = {
-                kode_antrian_layanan: activePatient.kode_antrian_layanan,
-                hasil_form: formData,
-                catatan_petugas: catatanPetugas,
-            };
-            if (targetStatus) {
-                payload.status_tindakan = targetStatus;
-            }
+        setTargetStatusToSave(targetStatus);
+        setShowConfirmModal(true);
+    };
 
-            const res = await postData('/master/antrian-layanan-simpan-form', payload);
-            showSuccess(toast, res.data.message || 'Catatan & form penanganan berhasil disimpan');
-            getGridData();
-        } catch (error: any) {
-            showError(toast, error?.response?.data?.message || 'Gagal menyimpan catatan penanganan');
-        } finally {
-            setSaving(false);
-        }
+    const handleConfirmAccept = () => {
+        setShowConfirmModal(false);
+        executeSaveForm(targetStatusToSave);
     };
 
     // ─── IF NO PATIENT IS CURRENTLY IN TREATMENT ─────────────────────────────
     if (!activePatient) {
         return (
-            <div className="card shadow-2 border-round-xl p-4 mb-4 surface-card border-top-3 border-teal-500">
-                <div className="flex flex-column md:flex-row align-items-center justify-content-between gap-3">
-                    <div className="flex align-items-center gap-3">
-                        <div className="w-4rem h-4rem border-round-circle bg-teal-50 flex align-items-center justify-content-center text-teal-600 text-3xl">
-                            <i className="pi pi-user-plus" />
+            <>
+                <div className="card shadow-2 border-round-xl p-4 mb-4 surface-card border-top-3 border-teal-500">
+                    <div className="flex flex-column md:flex-row align-items-center justify-content-between gap-3">
+                        <div className="flex align-items-center gap-3">
+                            <div className="w-4rem h-4rem border-round-circle bg-teal-50 flex align-items-center justify-content-center text-teal-600 text-3xl">
+                                <i className="pi pi-user-plus" />
+                            </div>
+                            <div>
+                                <span className="text-xs font-bold text-teal-700 bg-teal-100 px-2 py-1 border-round-md inline-block mb-1">
+                                    Sesi Penanganan Ruangan: {namaRuangan}
+                                </span>
+                                <h3 className="text-xl font-bold text-900 m-0">Belum Ada Pasien Yang Sedang Ditangani</h3>
+                                <p className="text-xs text-500 m-0 mt-1">
+                                    {nextWaitingPatient
+                                        ? `Pasien berikutnya: No. #${nextWaitingPatient.nomor_antrian} — ${nextWaitingPatient.nama_pasien} (${nextWaitingPatient.nama_layanan})`
+                                        : 'Tidak ada antrean pasien yang sedang menunggu di ruangan ini.'}
+                                </p>
+                            </div>
                         </div>
-                        <div>
-                            <span className="text-xs font-bold text-teal-700 bg-teal-100 px-2 py-1 border-round-md inline-block mb-1">
-                                Sesi Penanganan Ruangan: {namaRuangan}
-                            </span>
-                            <h3 className="text-xl font-bold text-900 m-0">Belum Ada Pasien Yang Sedang Ditangani</h3>
-                            <p className="text-xs text-500 m-0 mt-1">
-                                {nextWaitingPatient
-                                    ? `Pasien berikutnya: No. #${nextWaitingPatient.nomor_antrian} — ${nextWaitingPatient.nama_pasien} (${nextWaitingPatient.nama_layanan})`
-                                    : 'Tidak ada antrean pasien yang sedang menunggu di ruangan ini.'}
-                            </p>
-                        </div>
-                    </div>
 
-                    <div className="flex align-items-center gap-2 flex-wrap">
-                        <Button
-                            label="⚙️ Form Ruangan"
-                            icon="pi pi-cog"
-                            outlined
-                            size="small"
-                            severity="help"
-                            onClick={onManageFormClick}
-                        />
-
-                        {nextWaitingPatient && (
+                        <div className="flex align-items-center gap-2 flex-wrap">
                             <Button
-                                label={`📢 Panggil Pasien Next (#${nextWaitingPatient.nomor_antrian})`}
-                                icon="pi pi-megaphone"
+                                label="⚙️ Form Ruangan"
+                                icon="pi pi-cog"
+                                outlined
                                 size="small"
-                                className="font-bold bg-teal-600 border-none text-white"
-                                onClick={() => handleAksi(nextWaitingPatient, 'dipanggil')}
+                                severity="help"
+                                onClick={onManageFormClick}
                             />
-                        )}
+
+                            {nextWaitingPatient && (
+                                <Button
+                                    label={`📢 Panggil Pasien Next (#${nextWaitingPatient.nomor_antrian})`}
+                                    icon="pi pi-megaphone"
+                                    size="small"
+                                    className="font-bold bg-teal-600 border-none text-white"
+                                    onClick={() => handleAksi(nextWaitingPatient, 'dipanggil')}
+                                />
+                            )}
+                        </div>
                     </div>
                 </div>
-            </div>
+
+                {/* CONFIRM DIALOG & HASIL MODAL */}
+                <Dialog
+                    visible={showConfirmModal && !showHasilModal}
+                    onHide={() => setShowConfirmModal(false)}
+                    header="Konfirmasi Penanganan & Rekomendasi"
+                    style={{ width: '480px' }}
+                    modal
+                    className="p-fluid"
+                    footer={
+                        <div className="flex justify-content-end gap-2">
+                            <Button
+                                label="Batal"
+                                icon="pi pi-times"
+                                className="p-button-outlined p-button-secondary text-xs"
+                                onClick={() => setShowConfirmModal(false)}
+                            />
+                            <Button
+                                label="Ya, Simpan & Terbitkan"
+                                icon="pi pi-check"
+                                className="p-button-success font-bold text-xs"
+                                onClick={handleConfirmAccept}
+                            />
+                        </div>
+                    }
+                >
+                    <div className="flex flex-column gap-3 py-1 text-left">
+                        <div className="p-3 border-round-xl" style={{ background: '#f0fdfa', border: '1.5px solid #99f6e4' }}>
+                            <span className="text-[10px] font-bold uppercase block" style={{ color: '#0d9488' }}>Pasien Aktif</span>
+                            <span className="font-extrabold text-sm block" style={{ color: '#134e4a' }}>{activePatient?.nama_pasien || hasilPasienNama || 'Pasien'}</span>
+                            <span className="text-xs" style={{ color: '#0f766e' }}>No. RM: {activePatient?.no_rm || hasilNoRm} | Ruangan: {namaRuangan}</span>
+                        </div>
+
+                        <div className="flex flex-column gap-2">
+                            {rekomendasiItems.filter((i) => ['layanan', 'paket_layanan'].includes(i.jenis)).length > 0 && (
+                                <div className="p-3 border-round-xl text-xs" style={{ background: '#f0fdfa', border: '1.5px solid #5eead4' }}>
+                                    <span className="font-bold block mb-1" style={{ color: '#0f766e' }}>
+                                        <i className="pi pi-ticket mr-1" />
+                                        Menerbitkan {rekomendasiItems.filter((i) => ['layanan', 'paket_layanan'].includes(i.jenis)).length} Nomor Antrean Layanan:
+                                    </span>
+                                    <span className="font-semibold" style={{ color: '#115e59' }}>{rekomendasiItems.filter((i) => ['layanan', 'paket_layanan'].includes(i.jenis)).map((l) => l.nama).join(', ')}</span>
+                                </div>
+                            )}
+
+                            {rekomendasiItems.filter((i) => ['produk', 'paket_produk'].includes(i.jenis)).length > 0 && (
+                                <div className="p-3 border-round-xl text-xs" style={{ background: '#fffbeb', border: '1.5px solid #fcd34d' }}>
+                                    <span className="font-bold block mb-1" style={{ color: '#b45309' }}>
+                                        <i className="pi pi-shopping-bag mr-1" />
+                                        Memasukkan {rekomendasiItems.filter((i) => ['produk', 'paket_produk'].includes(i.jenis)).length} Produk ke Draf Transaksi Kasir:
+                                    </span>
+                                    <span className="font-semibold" style={{ color: '#78350f' }}>{rekomendasiItems.filter((i) => ['produk', 'paket_produk'].includes(i.jenis)).map((p) => `${p.nama} (${p.qty || 1}x)`).join(', ')}</span>
+                                </div>
+                            )}
+                        </div>
+
+                        <p className="text-xs text-gray-700 m-0">
+                            Apakah Anda yakin ingin menyimpan hasil penanganan &amp; menerbitkan nomor antrean/transaksi untuk pasien ini?
+                        </p>
+                    </div>
+                </Dialog>
+
+                <DialogHasilTerbitAntrian
+                    visible={showHasilModal}
+                    onHide={() => setShowHasilModal(false)}
+                    pasienNama={hasilPasienNama}
+                    noRm={hasilNoRm}
+                    kodeKunjungan={hasilKodeKunjungan}
+                    antrianList={hasilAntrianList}
+                    transaksiDraft={hasilTransaksiDraft}
+                />
+            </>
         );
     }
 
@@ -342,7 +470,16 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                             </div>
                         )}
 
-                        {/* 2. SECTION CATATAN PETUGAS / OBSERVASI RUANGAN */}
+                        {/* 2. SECTION REKOMENDASI TREATMENT & PRODUK — HANYA DI RUANG KONSULTASI */}
+                        {isKonsultasi && (
+                            <RekomendasiTreatmentPanel
+                                toast={toast}
+                                selectedItems={rekomendasiItems}
+                                onChangeSelectedItems={setRekomendasiItems}
+                            />
+                        )}
+
+                        {/* 3. SECTION CATATAN PETUGAS / OBSERVASI RUANGAN */}
                         <div className="p-3 border-round-xl border-1 surface-border bg-white shadow-1">
                             <label className="block text-xs font-extrabold text-teal-800 uppercase tracking-wider mb-2 flex align-items-center gap-2">
                                 <i className="pi pi-pencil text-teal-600 text-sm" />
@@ -383,6 +520,77 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                     />
                 </div>
             </div>
+
+            {/* CONFIRM DIALOG & HASIL MODAL */}
+            <Dialog
+                visible={showConfirmModal && !showHasilModal}
+                onHide={() => setShowConfirmModal(false)}
+                header="Konfirmasi Penanganan & Rekomendasi"
+                style={{ width: '480px' }}
+                modal
+                className="p-fluid"
+                footer={
+                    <div className="flex justify-content-end gap-2">
+                        <Button
+                            label="Batal"
+                            icon="pi pi-times"
+                            className="p-button-outlined p-button-secondary text-xs"
+                            onClick={() => setShowConfirmModal(false)}
+                        />
+                        <Button
+                            label="Ya, Simpan & Terbitkan"
+                            icon="pi pi-check"
+                            className="p-button-success font-bold text-xs"
+                            onClick={handleConfirmAccept}
+                        />
+                    </div>
+                }
+            >
+                <div className="flex flex-column gap-3 py-1 text-left">
+                    <div className="p-3 border-round-xl" style={{ background: '#f0fdfa', border: '1.5px solid #99f6e4' }}>
+                        <span className="text-[10px] font-bold uppercase block" style={{ color: '#0d9488' }}>Pasien Aktif</span>
+                        <span className="font-extrabold text-sm block" style={{ color: '#134e4a' }}>{activePatient?.nama_pasien || hasilPasienNama || 'Pasien'}</span>
+                        <span className="text-xs" style={{ color: '#0f766e' }}>No. RM: {activePatient?.no_rm || hasilNoRm} | Ruangan: {namaRuangan}</span>
+                    </div>
+
+                    <div className="flex flex-column gap-2">
+                        {rekomendasiItems.filter((i) => ['layanan', 'paket_layanan'].includes(i.jenis)).length > 0 && (
+                            <div className="p-3 border-round-xl text-xs" style={{ background: '#f0fdfa', border: '1.5px solid #5eead4' }}>
+                                <span className="font-bold block mb-1" style={{ color: '#0f766e' }}>
+                                    <i className="pi pi-ticket mr-1" />
+                                    Menerbitkan {rekomendasiItems.filter((i) => ['layanan', 'paket_layanan'].includes(i.jenis)).length} Nomor Antrean Layanan:
+                                </span>
+                                <span className="font-semibold" style={{ color: '#115e59' }}>{rekomendasiItems.filter((i) => ['layanan', 'paket_layanan'].includes(i.jenis)).map((l) => l.nama).join(', ')}</span>
+                            </div>
+                        )}
+
+                        {rekomendasiItems.filter((i) => ['produk', 'paket_produk'].includes(i.jenis)).length > 0 && (
+                            <div className="p-3 border-round-xl text-xs" style={{ background: '#fffbeb', border: '1.5px solid #fcd34d' }}>
+                                <span className="font-bold block mb-1" style={{ color: '#b45309' }}>
+                                    <i className="pi pi-shopping-bag mr-1" />
+                                    Memasukkan {rekomendasiItems.filter((i) => ['produk', 'paket_produk'].includes(i.jenis)).length} Produk ke Draf Transaksi Kasir:
+                                </span>
+                                <span className="font-semibold" style={{ color: '#78350f' }}>{rekomendasiItems.filter((i) => ['produk', 'paket_produk'].includes(i.jenis)).map((p) => `${p.nama} (${p.qty || 1}x)`).join(', ')}</span>
+                            </div>
+                        )}
+                    </div>
+
+                    <p className="text-xs text-gray-700 m-0">
+                        Apakah Anda yakin ingin menyimpan hasil penanganan &amp; menerbitkan nomor antrean/transaksi untuk pasien ini?
+                    </p>
+                </div>
+            </Dialog>
+
+            {/* MODAL HASIL TERBIT ANTREAN & TRANSAKSI */}
+            <DialogHasilTerbitAntrian
+                visible={showHasilModal}
+                onHide={() => setShowHasilModal(false)}
+                pasienNama={hasilPasienNama}
+                noRm={hasilNoRm}
+                kodeKunjungan={hasilKodeKunjungan}
+                antrianList={hasilAntrianList}
+                transaksiDraft={hasilTransaksiDraft}
+            />
         </div>
     );
 };

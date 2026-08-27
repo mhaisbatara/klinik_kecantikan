@@ -33,15 +33,9 @@ const handleGetData = async (req, res) => {
     const baseQuery = DB("trx_antrian_layanan as al")
       .leftJoin("trx_kunjungan as k", "al.kode_kunjungan", "k.kode_kunjungan")
       .leftJoin("mst_pasien as p", "k.no_rm", "p.no_rm")
-      .leftJoin("mst_layanan as ml", function () {
-        this.on("al.kode_layanan", "=", "ml.kode_layanan").andOnVal("al.jenis_layanan", "=", "layanan");
-      })
-      .leftJoin("mst_paket_layanan as mp", function () {
-        this.on("al.kode_layanan", "=", "mp.kode_paket_layanan").andOnVal("al.jenis_layanan", "=", "paket");
-      })
-      .leftJoin("mst_ruangan as rml", "ml.kode_ruangan", "rml.kode_ruangan")
-      .leftJoin("mst_ruangan as rmp", "mp.kode_ruangan", "rmp.kode_ruangan")
+      .leftJoin("trx_detail_antrian_layanan as dal", "al.kode_antrian_layanan", "dal.kode_antrian_layanan")
       .leftJoin("mst_ruangan as ral", "al.kode_ruangan", "ral.kode_ruangan")
+      .groupBy("al.id", "k.id", "p.id", "ral.id")
       .modify((qb) => {
         if (filterTanggal) {
           qb.whereRaw("DATE(al.created_at) = ?", [filterTanggal]);
@@ -49,15 +43,8 @@ const handleGetData = async (req, res) => {
         if (filterStatus) {
           qb.where("al.status", filterStatus);
         }
-        if (filterJenis) {
-          qb.where("al.jenis_layanan", filterJenis);
-        }
         if (filterKodeRuangan) {
-          qb.where(function () {
-            this.where("al.kode_ruangan", filterKodeRuangan)
-              .orWhere("ml.kode_ruangan", filterKodeRuangan)
-              .orWhere("mp.kode_ruangan", filterKodeRuangan);
-          });
+          qb.where("al.kode_ruangan", filterKodeRuangan);
         }
         if (keyword) {
           const lower = keyword.toLowerCase();
@@ -67,8 +54,7 @@ const handleGetData = async (req, res) => {
               .orWhereRaw("LOWER(al.kode_kunjungan) LIKE ?", [`%${lower}%`])
               .orWhereRaw("LOWER(k.no_rm) LIKE ?", [`%${lower}%`])
               .orWhereRaw("LOWER(p.nama) LIKE ?", [`%${lower}%`])
-              .orWhereRaw("LOWER(ml.nama) LIKE ?", [`%${lower}%`])
-              .orWhereRaw("LOWER(mp.nama) LIKE ?", [`%${lower}%`]);
+              .orWhereRaw("LOWER(dal.nama_layanan) LIKE ?", [`%${lower}%`]);
           });
         }
       });
@@ -81,8 +67,6 @@ const handleGetData = async (req, res) => {
       "al.kode_antrian_layanan",
       "al.kode_kunjungan",
       "al.nomor_antrian",
-      "al.jenis_layanan",
-      "al.kode_layanan",
       "al.status",
       "al.dipanggil_at",
       "al.selesai_at",
@@ -91,11 +75,11 @@ const handleGetData = async (req, res) => {
       "k.jam_datang",
       "p.nama as nama_pasien",
       "p.no_hp",
-      "al.detail_layanan",
-      DB.raw("COALESCE(al.kode_ruangan, ml.kode_ruangan, mp.kode_ruangan, 'RG-01') as kode_ruangan"),
-      DB.raw("COALESCE(ral.nama_ruangan, rml.nama_ruangan, rmp.nama_ruangan, 'Ruang Treatment') as nama_ruangan"),
-      DB.raw("COALESCE(al.nama_layanan, ml.nama, mp.nama, '-') as nama_layanan"),
-      DB.raw("(SELECT COALESCE(SUM(jumlah_sesi), 1) FROM mst_detail_paket_layanan WHERE kode_paket_layanan = al.kode_layanan) as jumlah_sesi_paket")
+      DB.raw("COALESCE(al.kode_ruangan, 'RG-01') as kode_ruangan"),
+      DB.raw("COALESCE(ral.nama_ruangan, al.nama_ruangan, 'Ruang Treatment') as nama_ruangan"),
+      DB.raw("GROUP_CONCAT(DISTINCT dal.jenis_layanan ORDER BY dal.id ASC SEPARATOR ', ') as jenis_layanan"),
+      DB.raw("GROUP_CONCAT(DISTINCT dal.kode_layanan ORDER BY dal.id ASC SEPARATOR ', ') as kode_layanan"),
+      DB.raw("GROUP_CONCAT(DISTINCT dal.nama_layanan ORDER BY dal.id ASC SEPARATOR ', ') as nama_layanan"),
     ];
 
     if (hasPagination) {
@@ -119,6 +103,26 @@ const handleGetData = async (req, res) => {
         .orderBy("al.nomor_antrian", "asc");
 
       totalRecords = vaData.length;
+    }
+
+    // Attach details from trx_detail_antrian_layanan
+    const kodeAntrianList = vaData.map((d) => d.kode_antrian_layanan).filter(Boolean);
+    if (kodeAntrianList.length > 0) {
+      const detailsList = await DB("trx_detail_antrian_layanan")
+        .whereIn("kode_antrian_layanan", kodeAntrianList);
+
+      const detailMap = {};
+      for (const det of detailsList) {
+        if (!detailMap[det.kode_antrian_layanan]) {
+          detailMap[det.kode_antrian_layanan] = [];
+        }
+        detailMap[det.kode_antrian_layanan].push(det);
+      }
+
+      vaData = vaData.map((item) => ({
+        ...item,
+        details: detailMap[item.kode_antrian_layanan] || [],
+      }));
     }
 
     return res.status(200).json({

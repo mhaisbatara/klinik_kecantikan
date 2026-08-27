@@ -23,7 +23,7 @@ const handleRuanganDropdown = async (req, res) => {
   try {
     const vaData = await DB("mst_ruangan")
       .where("status", "aktif")
-      .select("kode_ruangan", "nama_ruangan")
+      .select("kode_ruangan", "nama_ruangan", "is_konsultasi")
       .orderBy("nama_ruangan", "asc");
 
     return res.status(200).json({

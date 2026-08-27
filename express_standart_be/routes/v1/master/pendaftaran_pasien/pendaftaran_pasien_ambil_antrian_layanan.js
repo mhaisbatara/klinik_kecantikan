@@ -90,28 +90,59 @@ router.post("/", async (req, res) => {
 
       await trx("trx_kunjungan").insert(oKunjunganData);
 
-      // C. Alokasi 1 trx_antrian_awal status 'tersedia' terkecil
-      const antrianAwalTersedia = await trx("trx_antrian_awal")
+      // C. Alokasi 1 trx_antrian_awal status 'tersedia' terkecil (Auto-generate jika belum ada)
+      let antrianAwalTersedia = await trx("trx_antrian_awal")
         .where("status", "tersedia")
         .orderBy("id", "asc")
         .first();
 
       if (!antrianAwalTersedia) {
-        const err = new Error("Nomor antrian hari ini tidak tersedia / sudah habis. Silakan buat antrian awal terlebih dahulu pada menu Antrian Awal.");
-        err.statusCode = 422;
-        throw err;
-      }
+        const lastRecord = await trx("trx_antrian_awal")
+          .where("created_at", ">=", todayYmd + " 00:00:00")
+          .orderBy("id", "desc")
+          .first();
 
-      await trx("trx_antrian_awal")
-        .where("id", antrianAwalTersedia.id)
-        .update({
+        let nextNum = 1;
+        if (lastRecord && lastRecord.nomor_antrian) {
+          const parsed = parseInt(lastRecord.nomor_antrian, 10);
+          if (!isNaN(parsed)) nextNum = parsed + 1;
+        }
+
+        const cNoAntrianAwal = String(nextNum).padStart(2, "0");
+        const prefixAntrianAwal = `A-${todayStr}-`;
+        const cKodeAntrianAwal = `${prefixAntrianAwal}${String(nextNum).padStart(3, "0")}`;
+
+        const [newAntrianAwalId] = await trx("trx_antrian_awal").insert({
+          kode_antrian_awal: cKodeAntrianAwal,
+          nomor_antrian: cNoAntrianAwal,
           status: "terpakai",
           diambil_at: formatDateSystem(),
           no_rm: pasien.no_rm,
           kode_kunjungan: cKodeKunjungan,
+          tz: oPayload.tz || "Asia/Jakarta",
+          created_by: username,
+          created_at: formatDateSystem(),
           updated_by: username,
           updated_at: formatDateSystem(),
         });
+
+        antrianAwalTersedia = {
+          id: newAntrianAwalId,
+          kode_antrian_awal: cKodeAntrianAwal,
+          nomor_antrian: cNoAntrianAwal,
+        };
+      } else {
+        await trx("trx_antrian_awal")
+          .where("id", antrianAwalTersedia.id)
+          .update({
+            status: "terpakai",
+            diambil_at: formatDateSystem(),
+            no_rm: pasien.no_rm,
+            kode_kunjungan: cKodeKunjungan,
+            updated_by: username,
+            updated_at: formatDateSystem(),
+          });
+      }
 
       // D. Insert trx_antrian_layanan (jika ada items, diproses & dikelompokkan per ruangan)
       if (items.length > 0) {
@@ -244,10 +275,6 @@ router.post("/", async (req, res) => {
           const oInsertLayanan = {
             kode_antrian_layanan: cKodeAntrianLayanan,
             kode_kunjungan: cKodeKunjungan,
-            jenis_layanan: groupItems[0].jenis_layanan,
-            kode_layanan: combinedKodeLayanan.length > 100 ? combinedKodeLayanan.slice(0, 97) + "..." : combinedKodeLayanan,
-            nama_layanan: combinedNamaLayanan,
-            detail_layanan: JSON.stringify(groupItems),
             nomor_antrian: cNomorAntrianSesi,
             kode_ruangan: group.kode_ruangan,
             nama_ruangan: group.nama_ruangan,
@@ -261,11 +288,39 @@ router.post("/", async (req, res) => {
 
           await trx("trx_antrian_layanan").insert(oInsertLayanan);
 
+          // Insert detail rows into trx_detail_antrian_layanan for each selected service
+          let dSeq = 1;
+          const vaInsertDetail = [];
+          for (const item of groupItems) {
+            const cKodeDetailAntrian = `DAL-${todayStr}-${seqPadded}-${String(dSeq).padStart(2, "0")}`;
+            dSeq++;
+            vaInsertDetail.push({
+              kode_detail_antrian_layanan: cKodeDetailAntrian,
+              kode_antrian_layanan: cKodeAntrianLayanan,
+              kode_kunjungan: cKodeKunjungan,
+              jenis_layanan: item.jenis_layanan || "layanan",
+              kode_layanan: item.kode_layanan,
+              nama_layanan: item.nama_layanan,
+              harga: item.harga || 0,
+              kode_ruangan: group.kode_ruangan,
+              nama_ruangan: group.nama_ruangan,
+              tz: oPayload.tz || "Asia/Jakarta",
+              created_by: username,
+              created_at: formatDateSystem(),
+              updated_by: username,
+              updated_at: formatDateSystem(),
+            });
+          }
+          if (vaInsertDetail.length > 0) {
+            await trx("trx_detail_antrian_layanan").insert(vaInsertDetail);
+          }
+
           vaCreatedAntrianLayanan.push({
             ...oInsertLayanan,
             nama_layanan: combinedNamaLayanan,
             harga: totalHargaGroup,
             detail_items: groupItems,
+            details: vaInsertDetail,
           });
         }
       }

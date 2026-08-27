@@ -32,12 +32,7 @@ const handleGetData = async (req, res) => {
       .leftJoin("mst_pasien as p", "k.no_rm", "p.no_rm")
       .leftJoin("trx_antrian_awal as a", "k.kode_kunjungan", "a.kode_kunjungan")
       .leftJoin("trx_antrian_layanan as al", "k.kode_kunjungan", "al.kode_kunjungan")
-      .leftJoin("mst_layanan as ml", function () {
-        this.on("al.kode_layanan", "=", "ml.kode_layanan").andOnVal("al.jenis_layanan", "=", "layanan");
-      })
-      .leftJoin("mst_paket_layanan as mp", function () {
-        this.on("al.kode_layanan", "=", "mp.kode_paket_layanan").andOnVal("al.jenis_layanan", "=", "paket");
-      })
+      .leftJoin("trx_detail_antrian_layanan as dal", "k.kode_kunjungan", "dal.kode_kunjungan")
       .groupBy("k.id", "p.id", "a.id")
       .modify((qb) => {
         if (filterTanggal) {
@@ -57,8 +52,7 @@ const handleGetData = async (req, res) => {
               .orWhereRaw("LOWER(a.nomor_antrian) LIKE ?", [`%${lower}%`])
               .orWhereRaw("LOWER(al.nomor_antrian) LIKE ?", [`%${lower}%`])
               .orWhereRaw("LOWER(al.kode_antrian_layanan) LIKE ?", [`%${lower}%`])
-              .orWhereRaw("LOWER(ml.nama) LIKE ?", [`%${lower}%`])
-              .orWhereRaw("LOWER(mp.nama) LIKE ?", [`%${lower}%`]);
+              .orWhereRaw("LOWER(dal.nama_layanan) LIKE ?", [`%${lower}%`]);
           });
         }
       });
@@ -84,8 +78,8 @@ const handleGetData = async (req, res) => {
       "a.nomor_antrian as nomor_antrian_awal",
       "a.status as status_antrian_awal",
       "a.dipanggil_at as dipanggil_at_awal",
-      DB.raw("GROUP_CONCAT(DISTINCT al.jenis_layanan ORDER BY al.id ASC SEPARATOR ', ') as jenis_layanan"),
-      DB.raw("GROUP_CONCAT(DISTINCT COALESCE(al.nama_layanan, ml.nama, mp.nama) ORDER BY al.id ASC SEPARATOR ', ') as nama_layanan_detail"),
+      DB.raw("GROUP_CONCAT(DISTINCT dal.jenis_layanan ORDER BY dal.id ASC SEPARATOR ', ') as jenis_layanan"),
+      DB.raw("GROUP_CONCAT(DISTINCT dal.nama_layanan ORDER BY dal.id ASC SEPARATOR ', ') as nama_layanan_detail"),
       DB.raw("GROUP_CONCAT(DISTINCT al.nomor_antrian ORDER BY al.id ASC SEPARATOR ', ') as nomor_antrian_layanan"),
       DB.raw("GROUP_CONCAT(DISTINCT al.kode_antrian_layanan ORDER BY al.id ASC SEPARATOR ', ') as list_kode_antrian_layanan"),
     ];
@@ -111,12 +105,7 @@ const handleGetData = async (req, res) => {
         .leftJoin("mst_pasien as p", "k.no_rm", "p.no_rm")
         .leftJoin("trx_antrian_awal as a", "k.kode_kunjungan", "a.kode_kunjungan")
         .leftJoin("trx_antrian_layanan as al", "k.kode_kunjungan", "al.kode_kunjungan")
-        .leftJoin("mst_layanan as ml", function () {
-          this.on("al.kode_layanan", "=", "ml.kode_layanan").andOnVal("al.jenis_layanan", "=", "layanan");
-        })
-        .leftJoin("mst_paket_layanan as mp", function () {
-          this.on("al.kode_layanan", "=", "mp.kode_paket_layanan").andOnVal("al.jenis_layanan", "=", "paket");
-        })
+        .leftJoin("trx_detail_antrian_layanan as dal", "k.kode_kunjungan", "dal.kode_kunjungan")
         .modify((qb) => {
           if (filterTanggal) qb.where("k.tanggal_kunjungan", filterTanggal);
           if (filterStatus) qb.where("k.status", filterStatus);
@@ -131,8 +120,7 @@ const handleGetData = async (req, res) => {
                 .orWhereRaw("LOWER(a.nomor_antrian) LIKE ?", [`%${lower}%`])
                 .orWhereRaw("LOWER(al.nomor_antrian) LIKE ?", [`%${lower}%`])
                 .orWhereRaw("LOWER(al.kode_antrian_layanan) LIKE ?", [`%${lower}%`])
-                .orWhereRaw("LOWER(ml.nama) LIKE ?", [`%${lower}%`])
-                .orWhereRaw("LOWER(mp.nama) LIKE ?", [`%${lower}%`]);
+                .orWhereRaw("LOWER(dal.nama_layanan) LIKE ?", [`%${lower}%`]);
             });
           }
         })

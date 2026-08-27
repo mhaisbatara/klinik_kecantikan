@@ -27,6 +27,7 @@ interface PanelAntrianRuanganProps {
 interface RuanganItem {
     kode_ruangan: string;
     nama_ruangan: string;
+    is_konsultasi?: number;
 }
 
 // ─── Audio Chime ─────────────────────────────────────────────────────────────
@@ -553,20 +554,25 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
                     </div>
 
                     {/* 2. PANEL PENANGANAN PASIEN AKTIF & FORM ISIAN (HANYA DITAMPILKAN DI MENU PANEL LAYANAN RUANGAN) */}
-                    {Boolean(initialRuangan) && (
-                        <ActiveTreatmentPanel
-                            activePatient={activeDipanggilPatient}
-                            nextWaitingPatient={nextWaitingPatient}
-                            kodeRuangan={selectedRuangan}
-                            namaRuangan={activeRoomObj?.nama_ruangan || selectedRuangan}
-                            toast={toast}
-                            getGridData={getGridData}
-                            handleAksi={handleAksi}
-                            playChime={playChime}
-                            speakNomorLayanan={speakNomorLayanan}
-                            onManageFormClick={() => setManageFormVisible(true)}
-                        />
-                    )}
+                    {Boolean(initialRuangan) && (() => {
+                        const selectedRuanganObj = ruanganList.find(r => r.kode_ruangan === selectedRuangan);
+                        const isKonsultasi = Boolean(selectedRuanganObj?.is_konsultasi);
+                        return (
+                            <ActiveTreatmentPanel
+                                activePatient={activeDipanggilPatient}
+                                nextWaitingPatient={nextWaitingPatient}
+                                kodeRuangan={selectedRuangan}
+                                namaRuangan={activeRoomObj?.nama_ruangan || selectedRuangan}
+                                isKonsultasi={isKonsultasi}
+                                toast={toast}
+                                getGridData={getGridData}
+                                handleAksi={handleAksi}
+                                playChime={playChime}
+                                speakNomorLayanan={speakNomorLayanan}
+                                onManageFormClick={() => setManageFormVisible(true)}
+                            />
+                        );
+                    })()}
                 </div>
             )}
 
@@ -584,6 +590,7 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
                 visible={isiFormVisible}
                 onHide={() => setIsiFormVisible(false)}
                 antrianData={selectedAntrianForForm}
+                isKonsultasi={Boolean(ruanganList.find(r => r.kode_ruangan === selectedRuangan)?.is_konsultasi)}
                 toast={toast}
                 getGridData={getGridData}
             />

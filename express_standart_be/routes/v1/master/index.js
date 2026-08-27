@@ -76,9 +76,11 @@ import poliDropdown from "./poli_dropdown.js";
 import ruanganDropdown from "./ruangan_dropdown.js";
 import wilayah from "./wilayah.js";
 import ruanganFormCrud from "./ruangan/ruangan_form_crud.js";
+import ruanganRekomendasi from "./ruangan/ruangan_rekomendasi.js";
 
 // Dropdown & Utility (must be before "/" catch-all routers)
 router.use("/", ruanganFormCrud);
+router.use("/", ruanganRekomendasi);
 router.use("/wilayah", wilayah);
 router.use("/ruangan-dropdown", ruanganDropdown);
 router.use("/dokter-dropdown", dokterDropdown);

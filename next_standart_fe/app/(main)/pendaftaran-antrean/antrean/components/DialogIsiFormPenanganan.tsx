@@ -15,11 +15,14 @@ import postData from '@/lib/axios/postData';
 import { showError, showSuccess } from '@/lib/tools/generalTools';
 import { AntrianLayananData, RuanganFormField } from './interfaces';
 import { FormRuanganFotoUploader } from './FormRuanganFotoUploader';
+import { RekomendasiTreatmentPanel, RekomendasiItem } from './RekomendasiTreatmentPanel';
+import { DialogHasilTerbitAntrian } from './DialogHasilTerbitAntrian';
 
 interface DialogIsiFormPenangananProps {
     visible: boolean;
     onHide: () => void;
     antrianData: AntrianLayananData | null;
+    isKonsultasi?: boolean;
     toast: React.RefObject<Toast>;
     getGridData: () => void;
 }
@@ -28,6 +31,7 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
     visible,
     onHide,
     antrianData,
+    isKonsultasi = false,
     toast,
     getGridData,
 }) => {
@@ -35,6 +39,7 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
     const [loadingFields, setLoadingFields] = useState<boolean>(false);
     const [formData, setFormData] = useState<Record<string, any>>({});
     const [catatanPetugas, setCatatanPetugas] = useState<string>('');
+    const [rekomendasiItems, setRekomendasiItems] = useState<RekomendasiItem[]>([]);
     const [saving, setSaving] = useState<boolean>(false);
 
     useEffect(() => {
@@ -45,6 +50,7 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
             // Form data dipindahkan ke trx_rekam_medis; form dimulai kosong setiap sesi baru
             setCatatanPetugas('');
             setFormData({});
+            setRekomendasiItems([]);
         }
     }, [visible, antrianData]);
 
@@ -65,7 +71,53 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
         setFormData((prev) => ({ ...prev, [key]: value }));
     };
 
-    const handleSave = async (targetStatus?: string) => {
+    // Modal Sukses Terbit Antrean & Transaksi
+    const [showHasilModal, setShowHasilModal] = useState<boolean>(false);
+    const [hasilAntrianList, setHasilAntrianList] = useState<any[]>([]);
+    const [hasilTransaksiDraft, setHasilTransaksiDraft] = useState<any | null>(null);
+    const [hasilKodeKunjungan, setHasilKodeKunjungan] = useState<string>('');
+
+    const executeSave = async (targetStatus?: string) => {
+        if (!antrianData) return;
+        setSaving(true);
+        try {
+            const payload: any = {
+                kode_antrian_layanan: antrianData.kode_antrian_layanan,
+                hasil_form: formData,
+                catatan_petugas: catatanPetugas,
+                rekomendasi_items: rekomendasiItems,
+            };
+            if (targetStatus) {
+                payload.status_tindakan = targetStatus;
+            }
+
+            const res = await postData('/master/antrian-layanan-simpan-rekomendasi', payload);
+            showSuccess(toast, res.data.message || 'Catatan & rekomendasi penanganan berhasil disimpan');
+            getGridData();
+            onHide();
+
+            const antrianBaru = res.data?.data?.antrian_layanan_baru || [];
+            const trxDraft = res.data?.data?.transaksi_draft || null;
+            const kodeKunjungan = res.data?.data?.kode_kunjungan || '';
+
+            if (antrianBaru.length > 0 || trxDraft) {
+                setHasilAntrianList(antrianBaru);
+                setHasilTransaksiDraft(trxDraft);
+                setHasilKodeKunjungan(kodeKunjungan);
+                setShowHasilModal(true);
+            }
+        } catch (error: any) {
+            showError(toast, error?.response?.data?.message || 'Gagal menyimpan catatan & rekomendasi penanganan');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    // State Konfirmasi Simpan
+    const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
+    const [targetStatusToSave, setTargetStatusToSave] = useState<string | undefined>(undefined);
+
+    const handleSave = (targetStatus?: string) => {
         if (!antrianData) return;
 
         // Check required fields
@@ -86,113 +138,91 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
             }
         }
 
-        setSaving(true);
-        try {
-            const payload: any = {
-                kode_antrian_layanan: antrianData.kode_antrian_layanan,
-                hasil_form: formData,
-                catatan_petugas: catatanPetugas,
-            };
-            if (targetStatus) {
-                payload.status_tindakan = targetStatus;
-            }
+        setTargetStatusToSave(targetStatus);
+        setShowConfirmModal(true);
+    };
 
-            const res = await postData('/master/antrian-layanan-simpan-form', payload);
-            showSuccess(toast, res.data.message || 'Catatan penanganan berhasil disimpan');
-            getGridData();
-            onHide();
-        } catch (error: any) {
-            showError(toast, error?.response?.data?.message || 'Gagal menyimpan catatan penanganan');
-        } finally {
-            setSaving(false);
-        }
+    const handleConfirmAccept = () => {
+        setShowConfirmModal(false);
+        executeSave(targetStatusToSave);
     };
 
     if (!antrianData) return null;
 
     return (
-        <Dialog
-            header={
-                <div className="flex align-items-center gap-3">
-                    <span className="text-2xl font-black text-teal-800 bg-teal-100 px-3 py-1 border-round-lg">
-                        #{antrianData.nomor_antrian}
-                    </span>
-                    <div>
-                        <span className="text-xl font-bold block">{antrianData.nama_pasien || 'Pasien'}</span>
-                        <span className="text-xs text-500 font-normal">
-                            RM: {antrianData.no_rm} | Ruangan: {antrianData.nama_ruangan || antrianData.kode_ruangan} | Layanan: {antrianData.nama_layanan}
+        <>
+            <Dialog
+                header={
+                    <div className="flex align-items-center gap-3">
+                        <span className="text-2xl font-black text-teal-800 bg-teal-100 px-3 py-1 border-round-lg">
+                            #{antrianData.nomor_antrian}
                         </span>
+                        <div>
+                            <span className="text-xl font-bold block">{antrianData.nama_pasien || 'Pasien'}</span>
+                            <span className="text-xs text-500 font-normal">
+                                RM: {antrianData.no_rm} | Ruangan: {antrianData.nama_ruangan || antrianData.kode_ruangan} | Layanan: {antrianData.nama_layanan}
+                            </span>
+                        </div>
+                    </div>
+                }
+                visible={visible && !showHasilModal}
+                style={{ width: '680px' }}
+                modal
+                onHide={onHide}
+                className="p-fluid"
+            >
+                <div className="p-3 bg-teal-50 border-round-xl mb-4 border-1 border-teal-200 flex align-items-center justify-content-between">
+                    <div>
+                        <span className="text-xs text-teal-700 block font-semibold">Status Penanganan Pasien</span>
+                        <Tag
+                            value={(antrianData.status || 'menunggu').toUpperCase()}
+                            severity={antrianData.status === 'dipanggil' ? 'warning' : 'info'}
+                            className="text-xs font-bold mt-1"
+                        />
+                    </div>
+                    <div className="text-right">
+                        <span className="text-xs text-500 block">Jam Datang</span>
+                        <span className="text-sm font-bold text-700">{antrianData.jam_datang || '-'}</span>
                     </div>
                 </div>
-            }
-            visible={visible}
-            style={{ width: '680px' }}
-            modal
-            onHide={onHide}
-            className="p-fluid"
-        >
-            <div className="p-3 bg-teal-50 border-round-xl mb-4 border-1 border-teal-200 flex align-items-center justify-content-between">
-                <div>
-                    <span className="text-xs text-teal-700 block font-semibold">Status Penanganan Pasien</span>
-                    <Tag
-                        value={antrianData.status?.toUpperCase()}
-                        severity={
-                            antrianData.status === 'dipanggil'
-                                ? 'info'
-                                : antrianData.status === 'selesai'
-                                ? 'success'
-                                : 'warning'
-                        }
-                        className="text-xs font-bold mt-1"
-                    />
-                </div>
-                <div className="text-right">
-                    <span className="text-xs text-teal-700 block font-semibold">Waktu Datang</span>
-                    <span className="text-sm font-bold text-teal-900">{antrianData.jam_datang || '-'}</span>
-                </div>
-            </div>
 
-            {loadingFields ? (
-                <div className="flex align-items-center justify-content-center py-5">
-                    <ProgressSpinner style={{ width: '35px', height: '35px' }} />
-                    <span className="ml-2 text-sm text-500">Memuat isian form...</span>
-                </div>
-            ) : (
-                <div className="flex flex-column gap-3">
-                    {/* DYNAMIC FORM FIELDS FOR THIS ROOM */}
-                    {fields.length > 0 && (
+                <div className="flex flex-column gap-4">
+                    {loadingFields ? (
+                        <div className="flex align-items-center justify-content-center py-4">
+                            <ProgressSpinner style={{ width: '30px', height: '30px' }} />
+                            <span className="ml-2 text-xs text-500">Memuat isian form...</span>
+                        </div>
+                    ) : fields.length > 0 && (
                         <div className="surface-card p-3 border-round-xl border-1 surface-border">
-                            <h5 className="text-sm font-bold text-900 mb-3 flex align-items-center gap-2 border-bottom-1 surface-border pb-2">
-                                <i className="pi pi-list text-teal-600" />
-                                Form Khusus Ruangan ({antrianData.nama_ruangan})
-                            </h5>
+                            <label className="block text-xs font-bold text-700 uppercase tracking-wider mb-3 pb-2 border-bottom-1 surface-border flex align-items-center justify-content-between">
+                                <span>ISIAN KHUSUS RUANGAN ({antrianData.nama_ruangan || antrianData.kode_ruangan})</span>
+                                <Tag value={`${fields.length} Field`} severity="info" className="text-[10px]" />
+                            </label>
 
-                            <div className="flex flex-column gap-3">
-                                {fields.map((f, i) => {
-                                    const val = formData[f.label_field] !== undefined ? formData[f.label_field] : '';
-                                    const isReq = Boolean(f.is_required);
-
-                                    let optionsList: string[] = [];
-                                    if (f.tipe_field === 'select' && f.options) {
-                                        optionsList = f.options.split(',').map((s) => s.trim());
-                                    }
+                            <div className="grid formgrid p-fluid">
+                                {fields.map((f) => {
+                                    const val = formData[f.label_field];
+                                    const isFoto = f.tipe_field === 'upload_foto';
+                                    const colSize = isFoto ? 'col-12' : 'col-12 md:col-6';
+                                    const optionsList = f.opsi_select ? f.opsi_select.split(',').map((o) => o.trim()) : [];
 
                                     return (
-                                        <div key={f.id || i}>
-                                            {f.tipe_field === 'upload_foto' ? (
+                                        <div key={f.id} className={`${colSize} mb-3`}>
+                                            <label className="block text-xs font-semibold text-700 mb-1">
+                                                {f.label_field}
+                                                {f.is_required && <span className="text-red-500 ml-1">*</span>}
+                                                <span className="text-[10px] text-400 font-normal uppercase ml-1">
+                                                    ({f.tipe_field})
+                                                </span>
+                                            </label>
+
+                                            {isFoto ? (
                                                 <FormRuanganFotoUploader
                                                     value={val}
                                                     onChange={(newVal) => handleFieldChange(f.label_field, newVal)}
-                                                    labelField={f.label_field}
-                                                    isRequired={isReq}
-                                                    toast={toast}
                                                 />
                                             ) : (
                                                 <>
-                                                    <label className="block text-xs font-bold mb-1 text-800">
-                                                        {f.label_field} {isReq && <span className="text-red-500">*</span>}
-                                                    </label>
-
                                                     {f.tipe_field === 'textarea' ? (
                                                         <InputTextarea
                                                             value={val}
@@ -207,7 +237,6 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
                                                             onValueChange={(e) => handleFieldChange(f.label_field, e.value)}
                                                             placeholder={`Masukkan ${f.label_field}`}
                                                             className="w-full text-sm shadow-1 border-round-md"
-                                                            inputClassName="w-full text-sm"
                                                         />
                                                     ) : f.tipe_field === 'select' ? (
                                                         <Dropdown
@@ -242,7 +271,14 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
                         </div>
                     )}
 
-                    {/* CATATAN PETUGAS RUANGAN */}
+                    {isKonsultasi && (
+                        <RekomendasiTreatmentPanel
+                            toast={toast}
+                            selectedItems={rekomendasiItems}
+                            onChangeSelectedItems={setRekomendasiItems}
+                        />
+                    )}
+
                     <div className="surface-card p-3 border-round-xl border-1 surface-border">
                         <label className="block text-xs font-bold mb-2 text-800 flex align-items-center gap-2">
                             <i className="pi pi-pencil text-teal-600" />
@@ -257,34 +293,106 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
                         />
                     </div>
                 </div>
-            )}
 
-            <div className="flex align-items-center justify-content-between gap-2 mt-4 pt-3 border-top-1 surface-border">
-                <Button label="Tutup" outlined severity="secondary" onClick={onHide} size="small" />
+                <div className="flex align-items-center justify-content-between gap-2 mt-4 pt-3 border-top-1 surface-border">
+                    <Button label="Tutup" outlined severity="secondary" onClick={onHide} size="small" />
 
-                <div className="flex gap-2">
-                    <Button
-                        label="Simpan Form"
-                        icon="pi pi-save"
-                        outlined
-                        severity="info"
-                        loading={saving}
-                        onClick={() => handleSave()}
-                        size="small"
-                    />
-
-                    {antrianData.status !== 'selesai' && (
+                    <div className="flex gap-2">
                         <Button
-                            label="Simpan & Selesaikan Tindakan"
-                            icon="pi pi-check-circle"
-                            severity="success"
+                            label="Simpan Form"
+                            icon="pi pi-save"
+                            outlined
+                            severity="info"
                             loading={saving}
-                            onClick={() => handleSave('selesai')}
+                            onClick={() => handleSave()}
                             size="small"
                         />
-                    )}
+
+                        {antrianData.status === 'dipanggil' && (
+                            <Button
+                                label="Simpan & Selesaikan Tindakan"
+                                icon="pi pi-check-circle"
+                                severity="success"
+                                loading={saving}
+                                onClick={() => handleSave('selesai')}
+                                size="small"
+                            />
+                        )}
+                    </div>
                 </div>
-            </div>
-        </Dialog>
+            </Dialog>
+
+            <Dialog
+                visible={showConfirmModal && !showHasilModal}
+                onHide={() => setShowConfirmModal(false)}
+                header="Konfirmasi Penanganan & Rekomendasi"
+                style={{ width: '480px' }}
+                modal
+                className="p-fluid"
+                footer={
+                    <div className="flex justify-content-end gap-2">
+                        <Button
+                            label="Batal"
+                            icon="pi pi-times"
+                            className="p-button-outlined p-button-secondary text-xs"
+                            onClick={() => setShowConfirmModal(false)}
+                        />
+                        <Button
+                            label="Ya, Simpan & Terbitkan"
+                            icon="pi pi-check"
+                            className="p-button-success font-bold text-xs"
+                            onClick={handleConfirmAccept}
+                        />
+                    </div>
+                }
+            >
+                <div className="flex flex-column gap-3 py-1 text-left">
+                    <div className="p-3 border-round-xl" style={{ background: '#f0fdfa', border: '1.5px solid #99f6e4' }}>
+                        <span className="text-[10px] font-bold uppercase block" style={{ color: '#0d9488' }}>Pasien Aktif</span>
+                        <span className="font-extrabold text-sm block" style={{ color: '#134e4a' }}>{antrianData?.nama_pasien || 'Pasien'}</span>
+                        <span className="text-xs" style={{ color: '#0f766e' }}>No. RM: {antrianData?.no_rm} | Ruangan: {antrianData?.nama_ruangan || antrianData?.kode_ruangan}</span>
+                    </div>
+
+                    <div className="flex flex-column gap-2">
+                        {rekomendasiItems.filter((i) => ['layanan', 'paket_layanan'].includes(i.jenis)).length > 0 && (
+                            <div className="p-3 border-round-xl text-xs" style={{ background: '#f0fdfa', border: '1.5px solid #5eead4' }}>
+                                <span className="font-bold block mb-1" style={{ color: '#0f766e' }}>
+                                    <i className="pi pi-ticket mr-1" />
+                                    Menerbitkan {rekomendasiItems.filter((i) => ['layanan', 'paket_layanan'].includes(i.jenis)).length} Nomor Antrean Layanan:
+                                </span>
+                                <span className="font-semibold" style={{ color: '#115e59' }}>{rekomendasiItems.filter((i) => ['layanan', 'paket_layanan'].includes(i.jenis)).map((l) => l.nama).join(', ')}</span>
+                            </div>
+                        )}
+
+                        {rekomendasiItems.filter((i) => ['produk', 'paket_produk'].includes(i.jenis)).length > 0 && (
+                            <div className="p-3 border-round-xl text-xs" style={{ background: '#fffbeb', border: '1.5px solid #fcd34d' }}>
+                                <span className="font-bold block mb-1" style={{ color: '#b45309' }}>
+                                    <i className="pi pi-shopping-bag mr-1" />
+                                    Memasukkan {rekomendasiItems.filter((i) => ['produk', 'paket_produk'].includes(i.jenis)).length} Produk ke Draf Transaksi Kasir:
+                                </span>
+                                <span className="font-semibold" style={{ color: '#78350f' }}>{rekomendasiItems.filter((i) => ['produk', 'paket_produk'].includes(i.jenis)).map((p) => `${p.nama} (${p.qty || 1}x)`).join(', ')}</span>
+                            </div>
+                        )}
+                    </div>
+
+                    <p className="text-xs text-gray-700 m-0">
+                        Apakah Anda yakin ingin menyimpan hasil penanganan &amp; menerbitkan nomor antrean/transaksi untuk pasien ini?
+                    </p>
+                </div>
+            </Dialog>
+
+            <DialogHasilTerbitAntrian
+                visible={showHasilModal}
+                onHide={() => {
+                    setShowHasilModal(false);
+                    onHide();
+                }}
+                pasienNama={antrianData.nama_pasien}
+                noRm={antrianData.no_rm}
+                kodeKunjungan={hasilKodeKunjungan}
+                antrianList={hasilAntrianList}
+                transaksiDraft={hasilTransaksiDraft}
+            />
+        </>
     );
 };
