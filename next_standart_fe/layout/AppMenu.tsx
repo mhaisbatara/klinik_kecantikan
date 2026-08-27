@@ -244,34 +244,6 @@ const AppMenu = () => {
                             <>
                                 {topItems.map((item, i) => renderItem(item, i))}
 
-                                {/* ── KASIR ── */}
-                                <li className="layout-root-menuitem" key="kasir-section">
-                                    <div className="layout-menuitem-root-text">KASIR</div>
-                                    <ul>
-                                        <li className={pathname === '/kasir' ? 'active-menuitem' : ''}>
-                                            <Link
-                                                href="/kasir"
-                                                className={`p-ripple flex align-items-center gap-2${pathname === '/kasir' ? ' active-route' : ''}`}
-                                                style={{ padding: '0.75rem 1.25rem', borderRadius: '6px', transition: 'background 0.2s' }}
-                                            >
-                                                <i
-                                                    className="layout-menuitem-icon pi pi-calculator"
-                                                    style={{ color: pathname === '/kasir' ? 'var(--primary-color)' : undefined }}
-                                                />
-                                                <span
-                                                    className="layout-menuitem-text"
-                                                    style={{
-                                                        fontWeight: pathname === '/kasir' ? 700 : undefined,
-                                                        color: pathname === '/kasir' ? 'var(--primary-color)' : undefined,
-                                                    }}
-                                                >
-                                                    Kasir
-                                                </span>
-                                            </Link>
-                                        </li>
-                                    </ul>
-                                </li>
-
                                 {/* ── LAYANAN PER RUANGAN ── */}
                                 <li className="layout-root-menuitem" key="layanan-ruangan-section">
                                     <div className="layout-menuitem-root-text">LAYANAN</div>
@@ -322,6 +294,34 @@ const AppMenu = () => {
                                                 );
                                             })
                                         )}
+                                    </ul>
+                                </li>
+
+                                {/* ── KASIR ── */}
+                                <li className="layout-root-menuitem" key="kasir-section">
+                                    <div className="layout-menuitem-root-text">KASIR</div>
+                                    <ul>
+                                        <li className={pathname === '/kasir' ? 'active-menuitem' : ''}>
+                                            <Link
+                                                href="/kasir"
+                                                className={`p-ripple flex align-items-center gap-2${pathname === '/kasir' ? ' active-route' : ''}`}
+                                                style={{ padding: '0.75rem 1.25rem', borderRadius: '6px', transition: 'background 0.2s' }}
+                                            >
+                                                <i
+                                                    className="layout-menuitem-icon pi pi-calculator"
+                                                    style={{ color: pathname === '/kasir' ? 'var(--primary-color)' : undefined }}
+                                                />
+                                                <span
+                                                    className="layout-menuitem-text"
+                                                    style={{
+                                                        fontWeight: pathname === '/kasir' ? 700 : undefined,
+                                                        color: pathname === '/kasir' ? 'var(--primary-color)' : undefined,
+                                                    }}
+                                                >
+                                                    Kasir
+                                                </span>
+                                            </Link>
+                                        </li>
                                     </ul>
                                 </li>
 

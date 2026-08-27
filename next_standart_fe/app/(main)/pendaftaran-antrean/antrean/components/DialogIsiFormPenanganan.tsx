@@ -126,8 +126,7 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
                 const val = formData[f.label_field];
                 if (f.tipe_field === 'upload_foto') {
                     const hasBefore = val && typeof val === 'object' && val.before;
-                    const hasAfter = val && typeof val === 'object' && val.after;
-                    if (!hasBefore && !hasAfter) {
+                    if (!hasBefore) {
                         showError(toast, `Field '${f.label_field}' wajib mengunggah foto!`);
                         return;
                     }
@@ -204,7 +203,7 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
                                     const val = formData[f.label_field];
                                     const isFoto = f.tipe_field === 'upload_foto';
                                     const colSize = isFoto ? 'col-12' : 'col-12 md:col-6';
-                                    const optionsList = f.opsi_select ? f.opsi_select.split(',').map((o) => o.trim()) : [];
+                                    const optionsList = f.options ? f.options.split(',').map((o) => o.trim()) : [];
 
                                     return (
                                         <div key={f.id} className={`${colSize} mb-3`}>
@@ -219,6 +218,7 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
                                             {isFoto ? (
                                                 <FormRuanganFotoUploader
                                                     value={val}
+                                                    labelField={f.label_field}
                                                     onChange={(newVal) => handleFieldChange(f.label_field, newVal)}
                                                 />
                                             ) : (

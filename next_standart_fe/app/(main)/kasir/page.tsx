@@ -1,13 +1,14 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { Toast } from 'primereact/toast';
+import postData from '@/lib/axios/postData';
+import { showError } from '@/lib/tools/generalTools';
+
 import { KasirSidebar } from './components/KasirSidebar';
 import { KasirPOSPanel } from './components/KasirPOSPanel';
 import { KasirBayarModal } from './components/KasirBayarModal';
 import { KasirStrukModal } from './components/KasirStrukModal';
-import postData from '@/lib/axios/postData';
-import { showError } from '@/lib/tools/generalTools';
 
 export interface CartItem {
   jenis: 'layanan' | 'produk';
@@ -17,15 +18,15 @@ export interface CartItem {
   satuan?: string;
   qty: number;
   harga_satuan: number;
-  harga_asal?: number;
-  is_promo?: boolean;
-  nama_promo?: string;
   subtotal: number;
+  is_promo?: boolean;
+  kode_promo_item?: string;
+  is_from_pendaftaran?: boolean;
 }
 
 export interface TransaksiListItem {
   kode_transaksi: string;
-  kode_kunjungan: string;
+  kode_kunjungan: string | null;
   no_rm: string;
   nama_pasien: string;
   no_hp: string;
@@ -37,7 +38,6 @@ export interface TransaksiListItem {
   total_bayar: number;
   metode_bayar: string;
   status: 'draft' | 'lunas' | 'batal';
-  created_at: string;
 }
 
 export interface BayarResult {
@@ -59,7 +59,6 @@ export default function KasirPage() {
 
   // State sidebar
   const [transaksiList, setTransaksiList] = useState<TransaksiListItem[]>([]);
-  const [loadingList, setLoadingList] = useState(false);
   const [selectedKodeTrx, setSelectedKodeTrx] = useState<string | null>(null);
   const [listRefreshKey, setListRefreshKey] = useState(0);
 
@@ -137,27 +136,15 @@ export default function KasirPage() {
   return (
     <div
       style={{
-        display: 'flex',
-        height: 'calc(100vh - 70px)',
-        gap: '0',
-        background: '#f8fafc',
+        height: 'calc(100vh - 85px)',
         overflow: 'hidden',
       }}
+      className="flex gap-2 p-2 surface-ground border-round-xl"
     >
       <Toast ref={toast} position="top-right" />
 
-      {/* SIDEBAR KIRI */}
-      <div
-        style={{
-          width: '340px',
-          minWidth: '300px',
-          flexShrink: 0,
-          height: '100%',
-          overflow: 'hidden',
-          borderRight: '1.5px solid #e2e8f0',
-          background: '#ffffff',
-        }}
-      >
+      {/* SIDEBAR KIRI: Daftar Transaksi & Stat */}
+      <div style={{ width: '290px', flexShrink: 0 }} className="h-full overflow-hidden border-round-xl shadow-1">
         <KasirSidebar
           toast={toast}
           selectedKodeTrx={selectedKodeTrx}
@@ -168,8 +155,8 @@ export default function KasirPage() {
         />
       </div>
 
-      {/* PANEL UTAMA POS */}
-      <div style={{ flex: 1, height: '100%', overflow: 'hidden' }}>
+      {/* PANEL UTAMA POS: Katalog (Kiri 50%) & Cart/Checkout (Kanan 50%) */}
+      <div className="flex-1 h-full overflow-hidden">
         <KasirPOSPanel
           toast={toast}
           kode_transaksi={selectedKodeTrx}

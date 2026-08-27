@@ -367,63 +367,59 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
 
                                 <div className="flex gap-2 flex-wrap align-items-center">
                                     {[
-                                        { color: '#d97706', bg: '#fef3c7', border: '#fde68a', iconBg: '#f59e0b', label: 'Menunggu',  count: mCount },
-                                        { color: '#2563eb', bg: '#dbeafe', border: '#bfdbfe', iconBg: '#3b82f6', label: 'Dipanggil', count: pCount },
-                                        { color: '#16a34a', bg: '#dcfce7', border: '#86efac', iconBg: '#22c55e', label: 'Selesai',   count: sCount },
-                                        { color: '#dc2626', bg: '#fee2e2', border: '#fca5a5', iconBg: '#ef4444', label: 'Batal',     count: bCount },
-                                        { color: '#4b5563', bg: '#f3f4f6', border: '#d1d5db', iconBg: '#6b7280', label: 'Total',     count: roomFilteredItems.length },
+                                        { color: '#f59e0b', label: 'Menunggu',  count: mCount },
+                                        { color: '#3b82f6', label: 'Dipanggil', count: pCount },
+                                        { color: '#22c55e', label: 'Selesai',   count: sCount },
+                                        { color: '#ef4444', label: 'Batal',     count: bCount },
+                                        { color: '#6b7280', label: 'Total',     count: roomFilteredItems.length },
                                     ].map((item) => (
-                                        <div
+                                        <span
                                             key={item.label}
-                                            className="flex align-items-center gap-2 px-3.5 border-round-md text-xs font-bold shadow-1 cursor-default"
+                                            className="flex align-items-center gap-2 px-3 py-2 border-round-lg text-sm font-semibold"
                                             style={{
-                                                backgroundColor: item.bg,
-                                                border: `1px solid ${item.border}`,
+                                                background: `${item.color}18`,
+                                                border: `1.5px solid ${item.color}55`,
                                                 color: item.color,
-                                                height: '28px',
                                             }}
                                         >
-                                            <span
-                                                style={{
-                                                    display: 'inline-block',
-                                                    width: '13px',
-                                                    height: '13px',
-                                                    borderRadius: '3.5px',
-                                                    backgroundColor: item.iconBg,
-                                                    flexShrink: 0,
-                                                    boxShadow: `0 1px 2px ${item.iconBg}44`,
-                                                }}
-                                            />
-                                            <span style={{ fontSize: '0.75rem', lineHeight: '1' }}>
-                                                {item.label}: <strong className="text-xs font-black">{item.count}</strong>
-                                            </span>
-                                        </div>
+                                            <span style={{
+                                                display: 'inline-block',
+                                                width: '14px', height: '14px',
+                                                borderRadius: '4px',
+                                                backgroundColor: item.color,
+                                                boxShadow: `0 1px 4px ${item.color}55`,
+                                                flexShrink: 0,
+                                            }} />
+                                            {item.label}: <strong>{item.count}</strong>
+                                        </span>
                                     ))}
                                 </div>
                             </div>
 
                             {/* BARIS KETERANGAN STATUS LEGEND */}
-                            <div className="flex align-items-center gap-3 px-3 py-2 border-round-lg surface-100 text-600 text-xs font-semibold flex-wrap border-1 surface-border mt-3">
-                                <span className="flex align-items-center gap-1 text-700 font-extrabold uppercase tracking-wider" style={{ fontSize: '0.7rem' }}>
-                                    <i className="pi pi-info-circle text-teal-600 text-xs" />
-                                    KETERANGAN STATUS:
+                            <div className="flex flex-wrap align-items-center gap-3 px-2 py-2 border-round-md surface-100 text-xs font-medium text-color-secondary mt-3">
+                                <span className="flex align-items-center gap-1">
+                                    <i className="pi pi-info-circle" />
+                                    <span className="font-semibold">KETERANGAN STATUS:</span>
                                 </span>
-                                <span className="flex align-items-center gap-1.5" style={{ fontSize: '0.7rem' }}>
-                                    <span style={{ width: '10px', height: '10px', borderRadius: '3px', backgroundColor: '#f59e0b', display: 'inline-block' }} />
-                                    <span className="text-600 font-medium">Menunggu = klik kartu untuk panggil</span>
-                                </span>
-                                <span className="flex align-items-center gap-1.5" style={{ fontSize: '0.7rem' }}>
-                                    <span style={{ width: '10px', height: '10px', borderRadius: '3px', backgroundColor: '#3b82f6', display: 'inline-block' }} />
-                                    <span className="text-600 font-medium">Dipanggil = pasien sedang ditangani</span>
-                                </span>
-                                <span className="flex align-items-center gap-1.5" style={{ fontSize: '0.7rem' }}>
-                                    <span style={{ width: '10px', height: '10px', borderRadius: '3px', backgroundColor: '#22c55e', display: 'inline-block' }} />
-                                    <span className="text-600 font-medium">Selesai = tindakan selesai</span>
-                                </span>
-                                <span className="flex align-items-center gap-1.5" style={{ fontSize: '0.7rem' }}>
-                                    <span style={{ width: '10px', height: '10px', borderRadius: '3px', backgroundColor: '#ef4444', display: 'inline-block' }} />
-                                    <span className="text-600 font-medium">Batal = antrean dibatalkan</span>
-                                </span>
+                                {[
+                                    { color: '#f59e0b', label: 'Menunggu = klik kartu untuk panggil' },
+                                    { color: '#3b82f6', label: 'Dipanggil = pasien sedang ditangani' },
+                                    { color: '#22c55e', label: 'Selesai = tindakan selesai' },
+                                    { color: '#ef4444', label: 'Batal = antrean dibatalkan' },
+                                ].map((s) => (
+                                    <span key={s.label} className="flex align-items-center gap-1">
+                                        <span style={{
+                                            display: 'inline-block',
+                                            width: '12px', height: '12px',
+                                            borderRadius: '3px',
+                                            backgroundColor: s.color,
+                                            boxShadow: `0 1px 3px ${s.color}55`,
+                                            flexShrink: 0,
+                                        }} />
+                                        {s.label}
+                                    </span>
+                                ))}
                             </div>
                         </div>
 

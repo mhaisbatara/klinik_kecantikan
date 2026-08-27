@@ -74,12 +74,15 @@ import penjaminDropdown from "./penjamin_dropdown.js";
 import antrianLayananIndex from "./antrian_layanan/index.js";
 import poliDropdown from "./poli_dropdown.js";
 import ruanganDropdown from "./ruangan_dropdown.js";
+import produkDropdown from "./produk_dropdown.js";
+import hasilTreatmentSave from "./hasil_treatment_save.js";
 import wilayah from "./wilayah.js";
 import ruanganFormCrud from "./ruangan/ruangan_form_crud.js";
 import ruanganRekomendasi from "./ruangan/ruangan_rekomendasi.js";
 
 import kasirOptions from "./kasir/kasir_options.js";
-import kasirData from "./kasir/kasir_data.js";
+import kasirList from "./kasir/kasir_list.js";
+import kasirDetail from "./kasir/kasir_detail.js";
 import kasirSave from "./kasir/kasir_save.js";
 import kasirBayar from "./kasir/kasir_bayar.js";
 
@@ -88,6 +91,8 @@ router.use("/", ruanganFormCrud);
 router.use("/", ruanganRekomendasi);
 router.use("/wilayah", wilayah);
 router.use("/ruangan-dropdown", ruanganDropdown);
+router.use("/produk-dropdown", produkDropdown);
+router.use("/hasil-treatment-save", hasilTreatmentSave);
 router.use("/dokter-dropdown", dokterDropdown);
 router.use("/penjamin-dropdown", penjaminDropdown);
 router.use("/poli-dropdown", poliDropdown);
@@ -179,8 +184,8 @@ router.use("/jadwal-karyawan-delete", jadwalKaryawanDelete);
 
 // Kasir
 router.use("/kasir-options", kasirOptions);
-router.use("/kasir-list", kasirData);
-router.use("/kasir-detail", kasirData);
+router.use("/kasir-list", kasirList);
+router.use("/kasir-detail", kasirDetail);
 router.use("/kasir-save", kasirSave);
 router.use("/kasir-bayar", kasirBayar);
 

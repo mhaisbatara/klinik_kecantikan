@@ -225,7 +225,7 @@ export const GridPanggilLayanan = ({
                     <div>
                         <h3 className="font-bold text-xl mb-1">Reset Antrean Layanan Hari Ini?</h3>
                         <p className="text-color-secondary text-sm">
-                            Seluruh status antrean layanan & paket pasien hari ini akan dikembalikan ke status 'Menunggu'.
+                            Seluruh status antrean layanan & paket pasien hari ini akan dikembalikan ke status &quot;Menunggu&quot;.
                         </p>
                     </div>
                 </div>

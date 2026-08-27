@@ -1,7 +1,7 @@
 /**
  * @project Sistem Klinik Kecantikan
  * @file kasir_options.js
- * @description Endpoint opsi untuk kasir: pasien (kunjungan hari ini), layanan aktif, produk aktif, promo aktif
+ * @description Endpoint opsi untuk kasir: pasien (kunjungan hari ini + layanan pendaftaran), semua layanan & paket aktif, produk aktif, promo aktif
  */
 import express from "express";
 import DB from "../../../../core/config/knex.js";
@@ -17,7 +17,7 @@ router.post("/", async (req, res) => {
   const todayStr = new Date().toISOString().slice(0, 10);
 
   try {
-    // Pasien dengan kunjungan aktif hari ini
+    // 1. Pasien dengan kunjungan aktif hari ini
     const vaKunjungan = await DB("trx_kunjungan as k")
       .join("mst_pasien as p", "k.no_rm", "p.no_rm")
       .where("k.tanggal_kunjungan", todayStr)
@@ -32,8 +32,42 @@ router.post("/", async (req, res) => {
       )
       .orderBy("k.jam_datang", "asc");
 
-    // Layanan aktif
-    const vaLayanan = await DB("mst_layanan as l")
+    // Ambil layanan/paket dari pendaftaran (trx_detail_antrian_layanan)
+    const kodeKunjunganList = vaKunjungan.map((k) => k.kode_kunjungan).filter(Boolean);
+    let vaLayananPendaftaran = [];
+    if (kodeKunjunganList.length > 0) {
+      vaLayananPendaftaran = await DB("trx_detail_antrian_layanan as dal")
+        .whereIn("dal.kode_kunjungan", kodeKunjunganList)
+        .select(
+          "dal.kode_kunjungan",
+          "dal.jenis_layanan",
+          "dal.kode_layanan",
+          "dal.nama_layanan",
+          "dal.harga"
+        );
+    }
+
+    const kunjunganMapped = vaKunjungan.map((k) => {
+      const items = vaLayananPendaftaran
+        .filter((l) => l.kode_kunjungan === k.kode_kunjungan)
+        .map((l) => ({
+          jenis: "layanan",
+          kode: l.kode_layanan,
+          nama: l.nama_layanan,
+          satuan: "tindakan",
+          qty: 1,
+          harga_satuan: parseFloat(l.harga || 0),
+          subtotal: parseFloat(l.harga || 0),
+          is_from_pendaftaran: true,
+        }));
+      return {
+        ...k,
+        layanan_pendaftaran: items,
+      };
+    });
+
+    // 2a. Layanan Single Aktif
+    const vaLayananSingle = await DB("mst_layanan as l")
       .leftJoin("mst_kategori_layanan as k", "l.kode_kategori_layanan", "k.kode_kategori_layanan")
       .leftJoin("mst_ruangan as r", "l.kode_ruangan", "r.kode_ruangan")
       .where("l.status", "aktif")
@@ -48,7 +82,40 @@ router.post("/", async (req, res) => {
       )
       .orderBy("l.nama", "asc");
 
-    // Produk aktif
+    // 2b. Paket Layanan Aktif
+    const vaPaketLayanan = await DB("mst_paket_layanan as pl")
+      .leftJoin("mst_ruangan as r", "pl.kode_ruangan", "r.kode_ruangan")
+      .where("pl.status", "aktif")
+      .select(
+        "pl.kode_paket_layanan",
+        "pl.nama",
+        "pl.harga_paket as harga",
+        "pl.kode_ruangan",
+        "r.nama_ruangan"
+      )
+      .orderBy("pl.nama", "asc");
+
+    // Gabungkan Single Layanan + Paket Layanan di tab Layanan
+    const listLayanan = [
+      ...vaLayananSingle.map((item) => ({
+        jenis: "layanan",
+        kode: item.kode_layanan,
+        nama: item.nama,
+        nama_kategori: item.nama_kategori || "Layanan",
+        nama_ruangan: item.nama_ruangan || item.kode_ruangan || "-",
+        harga: parseFloat(item.harga || 0),
+      })),
+      ...vaPaketLayanan.map((item) => ({
+        jenis: "layanan",
+        kode: item.kode_paket_layanan,
+        nama: item.nama,
+        nama_kategori: "Paket Layanan",
+        nama_ruangan: item.nama_ruangan || item.kode_ruangan || "-",
+        harga: parseFloat(item.harga || 0),
+      })),
+    ].sort((a, b) => a.nama.localeCompare(b.nama));
+
+    // 3. Produk aktif
     const vaProduk = await DB("mst_produk as p")
       .leftJoin("mst_kategori_produk as k", "p.kode_kategori_produk", "k.kode_kategori_produk")
       .where("p.status", "aktif")
@@ -61,70 +128,6 @@ router.post("/", async (req, res) => {
       )
       .orderBy("p.nama", "asc");
 
-    // Promo aktif hari ini
-    const vaPromo = await DB("mst_promo as p")
-      .join("mst_detail_promo as dp", "p.kode_promo", "dp.kode_promo")
-      .where("p.status", "aktif")
-      .where("dp.status", "aktif")
-      .whereRaw("DATE(p.tanggal_mulai) <= ?", [todayStr])
-      .whereRaw("DATE(p.tanggal_selesai) >= ?", [todayStr])
-      .select(
-        "p.kode_promo",
-        "p.nama as nama_promo",
-        "p.jenis_diskon",
-        "p.nilai_diskon",
-        "dp.jenis_item",
-        "dp.kode_item"
-      );
-
-    // Build promoMap: best discount per item
-    const promoMap = {};
-    vaPromo.forEach((pr) => {
-      const jenisClean = (pr.jenis_item || "").toLowerCase();
-      const normJenis = jenisClean.includes("layanan")
-        ? jenisClean.includes("paket") ? "paket_layanan" : "layanan"
-        : jenisClean.includes("produk") ? jenisClean.includes("paket") ? "paket_produk" : "produk" : jenisClean;
-      const keys = [`${normJenis}_${pr.kode_item}`, `${jenisClean}_${pr.kode_item}`];
-      keys.forEach((key) => {
-        if (!promoMap[key]) {
-          promoMap[key] = pr;
-        } else {
-          if (parseFloat(pr.nilai_diskon) > parseFloat(promoMap[key].nilai_diskon)) {
-            promoMap[key] = pr;
-          }
-        }
-      });
-    });
-
-    const applyPromoToItem = (jenis, kode, harga) => {
-      const key = `${jenis}_${kode}`;
-      const promo = promoMap[key];
-      if (!promo) return { is_promo: false, harga_asal: harga, harga_promo: null, kode_promo: null, nama_promo: null, jenis_diskon: null, nilai_diskon: null };
-      const diskon = parseFloat(promo.nilai_diskon || 0);
-      const hargaPromo = promo.jenis_diskon === "persen"
-        ? Math.max(0, harga - (harga * diskon) / 100)
-        : Math.max(0, harga - diskon);
-      return {
-        is_promo: true,
-        harga_asal: harga,
-        harga_promo: hargaPromo,
-        kode_promo: promo.kode_promo,
-        nama_promo: promo.nama_promo,
-        jenis_diskon: promo.jenis_diskon,
-        nilai_diskon: diskon,
-      };
-    };
-
-    const listLayanan = vaLayanan.map((item) => ({
-      jenis: "layanan",
-      kode: item.kode_layanan,
-      nama: item.nama,
-      nama_kategori: item.nama_kategori || "Layanan",
-      nama_ruangan: item.nama_ruangan || item.kode_ruangan || "-",
-      harga: parseFloat(item.harga || 0),
-      ...applyPromoToItem("layanan", item.kode_layanan, parseFloat(item.harga || 0)),
-    }));
-
     const listProduk = vaProduk.map((item) => ({
       jenis: "produk",
       kode: item.kode_produk,
@@ -132,7 +135,29 @@ router.post("/", async (req, res) => {
       nama_kategori: item.nama_kategori || "Produk",
       satuan: item.satuan || "pcs",
       harga: parseFloat(item.harga || 0),
-      ...applyPromoToItem("produk", item.kode_produk, parseFloat(item.harga || 0)),
+    }));
+
+    // 4. Promo aktif hari ini (Sederhana — level total transaksi)
+    const vaPromo = await DB("mst_promo as p")
+      .where("p.status", "aktif")
+      .whereRaw("CURDATE() BETWEEN DATE(p.tanggal_mulai) AND DATE(p.tanggal_selesai)")
+      .select(
+        "p.kode_promo",
+        "p.nama as nama_promo",
+        "p.jenis_diskon",
+        "p.nilai_diskon",
+        "p.tanggal_mulai",
+        "p.tanggal_selesai"
+      )
+      .orderBy("p.nama", "asc");
+
+    const listPromo = vaPromo.map((p) => ({
+      kode_promo: p.kode_promo,
+      nama_promo: p.nama_promo,
+      jenis_diskon: p.jenis_diskon,
+      nilai_diskon: parseFloat(p.nilai_diskon || 0),
+      tanggal_mulai: p.tanggal_mulai,
+      tanggal_selesai: p.tanggal_selesai,
     }));
 
     return res.status(200).json({
@@ -140,9 +165,10 @@ router.post("/", async (req, res) => {
       message: "Data opsi kasir berhasil dimuat",
       datetime: formatDateSystem(),
       data: {
-        kunjungan: vaKunjungan,
+        kunjungan: kunjunganMapped,
         layanan: listLayanan,
         produk: listProduk,
+        promo: listPromo,
       },
     });
   } catch (error) {

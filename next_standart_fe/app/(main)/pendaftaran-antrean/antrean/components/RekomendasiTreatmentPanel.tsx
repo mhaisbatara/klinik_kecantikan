@@ -33,6 +33,7 @@ interface RekomendasiTreatmentPanelProps {
   toast: React.RefObject<Toast>;
   selectedItems: RekomendasiItem[];
   onChangeSelectedItems: (items: RekomendasiItem[]) => void;
+  disabled?: boolean;
 }
 
 type TabKey = 'layanan' | 'paket_layanan' | 'produk' | 'paket_produk';
@@ -48,6 +49,7 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
   toast,
   selectedItems,
   onChangeSelectedItems,
+  disabled = false,
 }) => {
   const [loading, setLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -110,6 +112,7 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
     selectedItems.some((s) => s.jenis === item.jenis && s.kode === item.kode);
 
   const handleToggleSelect = (item: RekomendasiItem) => {
+    if (disabled) return;
     const isService = ['layanan', 'paket_layanan'].includes(item.jenis);
     const exists = isItemSelected(item);
 
@@ -133,6 +136,7 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
   };
 
   const handleQtyChange = (item: RekomendasiItem, newQty: number) => {
+    if (disabled) return;
     const validQty = Math.max(1, newQty || 1);
     onChangeSelectedItems(
       selectedItems.map((s) => (s.jenis === item.jenis && s.kode === item.kode ? { ...s, qty: validQty } : s))
