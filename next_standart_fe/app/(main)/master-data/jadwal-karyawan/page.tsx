@@ -30,12 +30,14 @@ const Page = () => {
     const [selectedRows, setSelectedRows] = useState<any[]>([]);
 
     const [karyawanOptions, setKaryawanOptions] = useState<any[]>([]);
+    const [ruanganOptions, setRuanganOptions] = useState<any[]>([]);
     const [dialogVisible, setDialogVisible] = useState<boolean>(false);
     const [isEdit, setIsEdit] = useState<boolean>(false);
     const [submitted, setSubmitted] = useState<boolean>(false);
     const [formData, setFormData] = useState<any>({
         kode_jadwal: '',
         no_sip: '',
+        kode_ruangan: '',
         hari: 'senin',
         jam_mulai: '08:00',
         jam_selesai: '16:00',
@@ -53,6 +55,19 @@ const Page = () => {
         { label: 'Sabtu', value: 'sabtu' },
         { label: 'Minggu', value: 'minggu' },
     ];
+
+    const loadRuangan = async () => {
+        try {
+            const res = await postData('/master/ruangan-dropdown', {});
+            const list = (res.data.data || []).map((r: any) => ({
+                label: `${r.nama_ruangan} (${r.kode_ruangan})`,
+                value: r.kode_ruangan
+            }));
+            setRuanganOptions(list);
+        } catch (error) {
+            console.error('Gagal memuat list ruangan:', error);
+        }
+    };
 
     const loadKaryawan = async () => {
         try {
@@ -82,6 +97,7 @@ const Page = () => {
 
     useEffect(() => {
         loadKaryawan();
+        loadRuangan();
     }, []);
 
     useEffect(() => {
@@ -94,6 +110,7 @@ const Page = () => {
         setFormData({
             kode_jadwal: '',
             no_sip: karyawanOptions.length > 0 ? karyawanOptions[0].value : '',
+            kode_ruangan: '',
             hari: 'senin',
             jam_mulai: '08:00',
             jam_selesai: '16:00',
@@ -293,6 +310,17 @@ const Page = () => {
                     <Column field="kode_jadwal" header="Kode" sortable headerStyle={{ fontWeight: 'bold' }}></Column>
                     <Column field="nama_karyawan" header="Nama Karyawan/Dokter" body={(r) => r.nama_karyawan ? `${r.nama_karyawan} (${r.jabatan?.toUpperCase()})` : r.no_sip} sortable headerStyle={{ fontWeight: 'bold' }}></Column>
                     <Column field="no_sip" header="No. SIP" body={(r) => r.no_sip || '-'}></Column>
+                    <Column
+                        field="nama_ruangan"
+                        header="Ruangan"
+                        body={(r) => r.nama_ruangan ? (
+                            <span className="flex align-items-center gap-1 text-xs">
+                                <i className="pi pi-building text-purple-500 text-xs" />
+                                <span className="font-medium">{r.nama_ruangan}</span>
+                            </span>
+                        ) : <span className="text-400 text-xs">-</span>}
+                        headerStyle={{ fontWeight: 'bold' }}
+                    ></Column>
                     <Column field="hari" header="Hari" body={(r) => <Tag value={r.hari?.toUpperCase()} severity="info" />}></Column>
                     <Column header="Jam Kerja" body={(r) => `${r.jam_mulai} - ${r.jam_selesai}`}></Column>
                     <Column field="kuota" header="Kuota Pasien" body={(r) => `${r.kuota} Pasien`}></Column>
@@ -331,6 +359,19 @@ const Page = () => {
                         {submitted && !formData.no_sip && (
                             <small className="p-error text-red-500 text-xs block mt-1">Karyawan/Dokter wajib dipilih.</small>
                         )}
+                    </div>
+                    <div>
+                        <label className="block text-sm font-semibold mb-1">Ruangan</label>
+                        <Dropdown
+                            value={formData.kode_ruangan || null}
+                            options={ruanganOptions}
+                            onChange={(e) => setFormData({ ...formData, kode_ruangan: e.value })}
+                            placeholder="Pilih Ruangan (opsional)..."
+                            filter
+                            showClear
+                            className="w-full text-sm border-round-md"
+                        />
+                        <small className="text-400 text-xs block mt-1">Opsional — Ruangan tempat karyawan/dokter bertugas</small>
                     </div>
                     <div className="grid">
                         <div className="col-6">

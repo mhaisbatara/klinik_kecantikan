@@ -44,11 +44,22 @@ const handleGetOptions = async (req, res) => {
       )
       .orderBy("l.id", "asc");
 
+    // Auto nonaktifkan paket yang sudah melewati tanggal_selesai
+    const todayStr = formatDateSystem(new Date(), "yyyy-MM-dd");
+    await DB("mst_paket_layanan")
+      .where("status", "aktif")
+      .whereNotNull("tanggal_selesai")
+      .whereRaw("DATE(tanggal_selesai) < ?", [todayStr])
+      .update({
+        status: "nonaktif",
+        updated_at: formatDateSystem(),
+      });
+
     // 3. Fetch paket layanan aktif
     const vaPaket = await DB("mst_paket_layanan as p")
       .leftJoin("mst_ruangan as r", "p.kode_ruangan", "r.kode_ruangan")
       .where("p.status", "aktif")
-      .select("p.kode_paket_layanan", "p.nama", "p.harga_paket", "p.masa_berlaku_hari", "p.kode_ruangan", "r.nama_ruangan as nama_ruangan")
+      .select("p.kode_paket_layanan", "p.nama", "p.harga_paket", "p.masa_berlaku_hari", "p.tanggal_mulai", "p.tanggal_selesai", "p.kode_ruangan", "r.nama_ruangan as nama_ruangan")
       .orderBy("p.id", "asc");
 
     // Map layanan & paket grouped by ruangan (initialized with ALL DB rooms)
