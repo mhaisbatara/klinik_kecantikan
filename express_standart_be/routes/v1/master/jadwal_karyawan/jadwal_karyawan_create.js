@@ -15,6 +15,7 @@ router.post("/", async (req, res) => {
     const cValidation = await validatePayload(
       {
         no_sip: Joi.string().required().label("No SIP / Karyawan"),
+        kode_ruangan: Joi.string().optional().allow("", null).label("Ruangan"),
         hari: Joi.string().valid("senin", "selasa", "rabu", "kamis", "jumat", "sabtu", "minggu").required().label("Hari"),
         jam_mulai: Joi.string().required().label("Jam Mulai"),
         jam_selesai: Joi.string().required().label("Jam Selesai"),
@@ -40,6 +41,7 @@ router.post("/", async (req, res) => {
       const oData = {
         kode_jadwal: kode,
         no_sip: oPayload.no_sip,
+        kode_ruangan: oPayload.kode_ruangan || null,
         hari: oPayload.hari,
         jam_mulai: oPayload.jam_mulai,
         jam_selesai: oPayload.jam_selesai,

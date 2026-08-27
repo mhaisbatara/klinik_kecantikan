@@ -12,30 +12,45 @@ router.post("/", async (req, res) => {
   const keyword = oPayload.keyword || "";
   const filterHari = oPayload.hari || null;
   const filterStatus = oPayload.status || null;
+  const filterKodeRuangan = oPayload.kode_ruangan || null;
   const page = parseInt(oPayload.page) || 1;
   const perPage = parseInt(oPayload.perPage) || 10;
   const hasPagination = oPayload.page !== undefined || oPayload.perPage !== undefined;
 
   try {
+    const hasKodeRuangan = await DB.schema.hasColumn("mst_jadwal_karyawan", "kode_ruangan");
+    if (!hasKodeRuangan) {
+      await DB.schema.table("mst_jadwal_karyawan", (table) => {
+        table.string("kode_ruangan", 20).nullable().after("no_sip");
+        table.index("kode_ruangan", "idx_jadwal_karyawan_kode_ruangan");
+      });
+    }
+
     const baseQuery = DB("mst_jadwal_karyawan as j")
       .leftJoin("mst_karyawan as k", "j.no_sip", "k.no_sip")
+      .leftJoin("mst_ruangan as r", "j.kode_ruangan", "r.kode_ruangan")
       .modify((qb) => {
         if (keyword) {
           const lower = keyword.toLowerCase();
           qb.where(function () {
             this.whereRaw("LOWER(j.kode_jadwal) LIKE ?", [`%${lower}%`])
               .orWhereRaw("LOWER(j.no_sip) LIKE ?", [`%${lower}%`])
-              .orWhereRaw("LOWER(k.nama) LIKE ?", [`%${lower}%`]);
+              .orWhereRaw("LOWER(k.nama) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(j.kode_ruangan) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(r.nama_ruangan) LIKE ?", [`%${lower}%`]);
           });
         }
         if (filterHari) qb.where("j.hari", filterHari);
         if (filterStatus) qb.where("j.status", filterStatus);
+        if (filterKodeRuangan) qb.where("j.kode_ruangan", filterKodeRuangan);
       });
 
     const selectFields = [
       "j.id",
       "j.kode_jadwal",
       "j.no_sip",
+      "j.kode_ruangan",
+      "r.nama_ruangan as nama_ruangan",
       "k.nama as nama_karyawan",
       "k.jabatan",
       "j.hari",

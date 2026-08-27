@@ -39,6 +39,8 @@ const Page = () => {
         nama: '',
         harga_paket: 0,
         masa_berlaku_hari: 365,
+        tanggal_mulai: '',
+        tanggal_selesai: '',
         status: 'aktif',
         details: []
     });
@@ -75,6 +77,24 @@ const Page = () => {
         loadProduk();
     }, []);
 
+    const formatYmd = (val: any) => {
+        if (!val) return '';
+        if (typeof val === 'string') {
+            if (val.includes('T')) return val.split('T')[0];
+            if (val.length >= 10 && /^\d{4}-\d{2}-\d{2}/.test(val)) return val.slice(0, 10);
+        }
+        try {
+            const d = new Date(val);
+            if (isNaN(d.getTime())) return '';
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        } catch (_) {
+            return '';
+        }
+    };
+
     const handleOpenCreate = () => {
         setIsEdit(false);
         setSubmitted(false);
@@ -83,6 +103,8 @@ const Page = () => {
             nama: '',
             harga_paket: 0,
             masa_berlaku_hari: 365,
+            tanggal_mulai: '',
+            tanggal_selesai: '',
             status: 'aktif',
             details: produkOptions.length > 0 ? [{ kode_produk: produkOptions[0].value, jumlah: 1 }] : []
         });
@@ -94,6 +116,8 @@ const Page = () => {
         setSubmitted(false);
         setFormData({
             ...rowData,
+            tanggal_mulai: formatYmd(rowData.tanggal_mulai),
+            tanggal_selesai: formatYmd(rowData.tanggal_selesai),
             details: (rowData.details || []).map((d: any) => ({
                 kode_produk: d.kode_produk,
                 jumlah: d.jumlah
@@ -386,6 +410,42 @@ const Page = () => {
                     <Column field="harga_paket" header="Harga Paket" body={(r) => <span className="font-semibold text-green-600">{formatRupiah(r.harga_paket)}</span>}></Column>
                     <Column field="masa_berlaku_hari" header="Masa Berlaku" body={(r) => `${r.masa_berlaku_hari} Hari`}></Column>
                     <Column
+                        header="Periode Aktif Paket"
+                        body={(r) => {
+                            const start = formatYmd(r.tanggal_mulai);
+                            const end = formatYmd(r.tanggal_selesai);
+                            const sisa = r.sisa_hari !== undefined ? parseInt(r.sisa_hari, 10) : 0;
+                            const isInactive = r.status === 'nonaktif' || sisa <= 0;
+
+                            if (isInactive) {
+                                return (
+                                    <div className="flex flex-column gap-1 text-xs">
+                                        <Tag severity="danger" value="0 Hari (Nonaktif)" className="text-[10px] py-0 px-2 font-bold" style={{ width: 'fit-content' }} />
+                                        {start && end && (
+                                            <span className="text-400 text-[11px]">
+                                                {start} s/d {end}
+                                            </span>
+                                        )}
+                                    </div>
+                                );
+                            }
+
+                            return (
+                                <div className="flex flex-column gap-1 text-xs">
+                                    <span className="font-bold text-green-600 flex align-items-center gap-1">
+                                        <i className="pi pi-clock text-green-600 text-xs" />
+                                        Sisa {sisa} Hari
+                                    </span>
+                                    {start && end && (
+                                        <span className="text-500 text-[11px]">
+                                            {start} s/d {end}
+                                        </span>
+                                    )}
+                                </div>
+                            );
+                        }}
+                    ></Column>
+                    <Column
                         header="Aksi"
                         align="center"
                         headerStyle={{ width: '8rem', textAlign: 'center' }}
@@ -431,6 +491,29 @@ const Page = () => {
                         </div>
                     </div>
 
+                    <div className="grid">
+                        <div className="col-6">
+                            <label className="block text-sm font-semibold mb-1">Tanggal Mulai Aktif</label>
+                            <InputText
+                                type="date"
+                                value={formData.tanggal_mulai || ''}
+                                onChange={(e) => setFormData({ ...formData, tanggal_mulai: e.target.value })}
+                                className="w-full text-sm border-round-md"
+                            />
+                            <small className="text-400 text-xs block mt-1">Kosongkan untuk otomatis tanggal hari ini</small>
+                        </div>
+                        <div className="col-6">
+                            <label className="block text-sm font-semibold mb-1">Tanggal Selesai Aktif (Kustom)</label>
+                            <InputText
+                                type="date"
+                                value={formData.tanggal_selesai || ''}
+                                onChange={(e) => setFormData({ ...formData, tanggal_selesai: e.target.value })}
+                                className="w-full text-sm border-round-md"
+                            />
+                            <small className="text-400 text-xs block mt-1">Otomatis dihitung dari masa berlaku jika kosong</small>
+                        </div>
+                    </div>
+
                     <div className="surface-50 p-3 border-round-md border-1 surface-border">
                         <div className="flex align-items-center justify-content-between mb-2">
                             <span className="font-bold text-sm text-900">Status Paket</span>
@@ -440,8 +523,12 @@ const Page = () => {
                             />
                         </div>
                         <span className="text-xs text-600 block">
-                            <strong>Status: {formData.status === 'aktif' ? 'Aktif' : 'Non-aktif'}</strong>. {formData.status === 'aktif' ? 'Paket aktif dan dapat digunakan dalam seluruh transaksi.' : 'Paket dinonaktifkan dari transaksi.'}
+                            <strong>Status: {formData.status === 'aktif' ? 'Aktif' : 'Non-aktif'}</strong>. {formData.status === 'aktif' ? 'Paket aktif dan dapat digunakan dalam transaksi.' : 'Paket dinonaktifkan.'}
                         </span>
+                        <div className="text-xs text-purple-700 bg-purple-50 p-2 border-round-md border-1 border-purple-200 mt-2">
+                            <i className="pi pi-clock mr-1" />
+                            <strong>Hitungan Mundur Masa Aktif:</strong> Periode aktif dihitung mundur dari total <strong>{formData.masa_berlaku_hari || 0} Hari</strong> sejak tanggal pembuatan/mulai. Paket akan otomatis <strong>Non-aktif</strong> begitu sisa hari mencapai 0.
+                        </div>
                     </div>
 
                     <div className="mt-2 border-top-1 surface-border pt-3">

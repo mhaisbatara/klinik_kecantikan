@@ -59,6 +59,11 @@ import promoCreate from "./promo/promo_create.js";
 import promoUpdate from "./promo/promo_update.js";
 import promoDelete from "./promo/promo_delete.js";
 
+import detailPromoData from "./detail_promo/detail_promo_data.js";
+import detailPromoCreate from "./detail_promo/detail_promo_create.js";
+import detailPromoUpdate from "./detail_promo/detail_promo_update.js";
+import detailPromoDelete from "./detail_promo/detail_promo_delete.js";
+
 import jadwalKaryawanData from "./jadwal_karyawan/jadwal_karyawan_data.js";
 import jadwalKaryawanCreate from "./jadwal_karyawan/jadwal_karyawan_create.js";
 import jadwalKaryawanUpdate from "./jadwal_karyawan/jadwal_karyawan_update.js";
@@ -152,6 +157,12 @@ router.use("/promo-data", promoData);
 router.use("/promo-create", promoCreate);
 router.use("/promo-update", promoUpdate);
 router.use("/promo-delete", promoDelete);
+
+// Detail Promo
+router.use("/detail-promo-data", detailPromoData);
+router.use("/detail-promo-create", detailPromoCreate);
+router.use("/detail-promo-update", detailPromoUpdate);
+router.use("/detail-promo-delete", detailPromoDelete);
 
 // Jadwal Karyawan
 router.use("/jadwal-karyawan-data", jadwalKaryawanData);

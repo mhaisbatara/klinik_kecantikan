@@ -16,6 +16,27 @@ router.post("/", async (req, res) => {
   const hasPagination = oPayload.page !== undefined || oPayload.perPage !== undefined;
 
   try {
+    const hasTglMulai = await DB.schema.hasColumn("mst_paket_layanan", "tanggal_mulai");
+    if (!hasTglMulai) {
+      await DB.schema.table("mst_paket_layanan", (table) => {
+        table.date("tanggal_mulai").nullable();
+        table.date("tanggal_selesai").nullable();
+      });
+    }
+
+    // Auto nonaktifkan paket yang sudah melewati masa berlaku (sisa hari <= 0)
+    const todayStr = formatDateSystem(new Date(), "yyyy-MM-dd");
+    await DB("mst_paket_layanan")
+      .where("status", "aktif")
+      .whereRaw(
+        "DATE(COALESCE(tanggal_selesai, DATE_ADD(COALESCE(tanggal_mulai, created_at), INTERVAL masa_berlaku_hari DAY))) < ?",
+        [todayStr]
+      )
+      .update({
+        status: "nonaktif",
+        updated_at: formatDateSystem(),
+      });
+
     const baseQuery = DB("mst_paket_layanan as p")
       .leftJoin("mst_ruangan as r", "p.kode_ruangan", "r.kode_ruangan")
       .modify((qb) => {
@@ -35,6 +56,9 @@ router.post("/", async (req, res) => {
       "p.nama",
       "p.harga_paket",
       "p.masa_berlaku_hari",
+      DB.raw("COALESCE(DATE_FORMAT(p.tanggal_mulai, '%Y-%m-%d'), DATE_FORMAT(p.created_at, '%Y-%m-%d')) as tanggal_mulai"),
+      DB.raw("COALESCE(DATE_FORMAT(p.tanggal_selesai, '%Y-%m-%d'), DATE_FORMAT(DATE_ADD(COALESCE(p.tanggal_mulai, p.created_at), INTERVAL p.masa_berlaku_hari DAY), '%Y-%m-%d')) as tanggal_selesai"),
+      DB.raw("GREATEST(0, DATEDIFF(COALESCE(p.tanggal_selesai, DATE_ADD(COALESCE(p.tanggal_mulai, p.created_at), INTERVAL p.masa_berlaku_hari DAY)), CURDATE())) as sisa_hari"),
       "p.kode_ruangan",
       "r.nama_ruangan as nama_ruangan",
       "p.status",

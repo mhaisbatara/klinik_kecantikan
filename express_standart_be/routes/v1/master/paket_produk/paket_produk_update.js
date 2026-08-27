@@ -18,6 +18,8 @@ router.post("/", async (req, res) => {
         nama: Joi.string().max(100).required().label("Nama Paket Produk"),
         harga_paket: Joi.number().min(0).required().label("Harga Paket"),
         masa_berlaku_hari: Joi.number().integer().min(1).required().label("Masa Berlaku (Hari)"),
+        tanggal_mulai: Joi.string().optional().allow("", null).label("Tanggal Mulai"),
+        tanggal_selesai: Joi.string().optional().allow("", null).label("Tanggal Selesai"),
         status: Joi.string().valid("aktif", "nonaktif").required().label("Status"),
         details: Joi.array().items(
           Joi.object({
@@ -30,6 +32,20 @@ router.post("/", async (req, res) => {
     );
     if (cValidation) return res.status(422).json({ status: status.BAD_REQUEST, message: cValidation, datetime: formatDateSystem() });
 
+    const todayStr = formatDateSystem(new Date(), "yyyy-MM-dd");
+    const tglMulai = oPayload.tanggal_mulai || todayStr;
+    let tglSelesai = oPayload.tanggal_selesai;
+    if (!tglSelesai && oPayload.masa_berlaku_hari) {
+      const d = new Date(tglMulai);
+      d.setDate(d.getDate() + parseInt(oPayload.masa_berlaku_hari, 10));
+      tglSelesai = formatDateSystem(d, "yyyy-MM-dd");
+    }
+
+    let finalStatus = oPayload.status;
+    if (tglSelesai && tglSelesai < todayStr) {
+      finalStatus = "nonaktif";
+    }
+
     await DB.transaction(async (trx) => {
       const prev = await trx("mst_paket_produk").where("kode_paket_produk", oPayload.kode_paket_produk).forUpdate().first();
       if (!prev) { const e = new Error("Data tidak ditemukan"); e.statusCode = 404; throw e; }
@@ -38,7 +54,9 @@ router.post("/", async (req, res) => {
         nama: oPayload.nama,
         harga_paket: oPayload.harga_paket,
         masa_berlaku_hari: oPayload.masa_berlaku_hari,
-        status: oPayload.status,
+        tanggal_mulai: tglMulai,
+        tanggal_selesai: tglSelesai,
+        status: finalStatus,
         updated_by: username,
         updated_at: formatDateSystem(),
       };
