@@ -10,6 +10,9 @@ import postData from '@/lib/axios/postData';
 import { showError } from '@/lib/tools/generalTools';
 import type { TransaksiListItem } from '../page';
 
+import { IconField } from 'primereact/iconfield';
+import { InputIcon } from 'primereact/inputicon';
+
 const METODE_ICON: Record<string, string> = {
   tunai: 'pi-wallet',
   debit: 'pi-credit-card',
@@ -136,15 +139,15 @@ export const KasirSidebar: React.FC<KasirSidebarProps> = ({
 
       {/* Filter & Search */}
       <div className="p-3 border-bottom-1 surface-border flex-shrink-0 bg-white">
-        <div className="p-input-icon-left w-full mb-2">
-          <i className="pi pi-search text-xs" />
+        <IconField iconPosition="left" className="w-full mb-2">
+          <InputIcon className="pi pi-search text-xs text-400" />
           <InputText
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Cari transaksi / pasien / RM..."
             className="p-inputtext-sm w-full border-round-lg text-xs"
           />
-        </div>
+        </IconField>
 
         {/* Status Filter Tabs */}
         <div className="flex gap-1 p-1 bg-slate-100 border-round-lg">
