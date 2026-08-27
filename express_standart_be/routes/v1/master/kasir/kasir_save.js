@@ -38,7 +38,7 @@ router.post("/", async (req, res) => {
     kode_transaksi,       // jika ada = update, jika tidak = create baru
     kode_kunjungan,
     no_rm,
-    items = [],           // [{ jenis, kode, nama, qty, harga_satuan, kode_promo_item }]
+    items = [],           // [{ jenis, kode, nama, qty, harga_satuan, is_from_pendaftaran }]
     kode_promo,           // promo level transaksi (opsional)
     metode_bayar = "tunai",
   } = body;
@@ -53,18 +53,24 @@ router.post("/", async (req, res) => {
 
   const trx = await DB.transaction();
   try {
-    // Hitung total
+    // 1. Hitung total_harga
     let total_harga = 0;
     items.forEach((item) => {
       total_harga += parseFloat(item.harga_satuan || 0) * parseInt(item.qty || 1);
     });
 
-    // Hitung diskon level transaksi dari promo
+    // 2. Hitung diskon level transaksi dari promo (mst_promo sederhana)
     let total_diskon = 0;
-    let promoData = null;
+    let validKodePromo = null;
+
     if (kode_promo) {
-      promoData = await DB("mst_promo").where("kode_promo", kode_promo).where("status", "aktif").first();
+      const promoData = await trx("mst_promo")
+        .where("kode_promo", kode_promo)
+        .where("status", "aktif")
+        .first();
+
       if (promoData) {
+        validKodePromo = promoData.kode_promo;
         const diskon = parseFloat(promoData.nilai_diskon || 0);
         total_diskon = promoData.jenis_diskon === "persen"
           ? (total_harga * diskon) / 100
@@ -80,7 +86,7 @@ router.post("/", async (req, res) => {
 
     if (kode_trx) {
       // UPDATE existing draft
-      const existing = await DB("trx_transaksi").where("kode_transaksi", kode_trx).first();
+      const existing = await trx("trx_transaksi").where("kode_transaksi", kode_trx).first();
       if (!existing) {
         await trx.rollback();
         return res.status(404).json({ status: status.BAD_REQUEST, message: "Transaksi tidak ditemukan", datetime: formatDateSystem() });
@@ -92,7 +98,7 @@ router.post("/", async (req, res) => {
 
       await trx("trx_transaksi").where("kode_transaksi", kode_trx).update({
         kode_kunjungan: kode_kunjungan || existing.kode_kunjungan,
-        kode_promo: kode_promo || null,
+        kode_promo: validKodePromo,
         total_harga,
         total_diskon,
         total_bayar,
@@ -110,7 +116,7 @@ router.post("/", async (req, res) => {
         kode_transaksi: kode_trx,
         kode_kunjungan: kode_kunjungan || null,
         no_rm,
-        kode_promo: kode_promo || null,
+        kode_promo: validKodePromo,
         tanggal_transaksi,
         total_harga,
         total_diskon,
@@ -126,11 +132,10 @@ router.post("/", async (req, res) => {
     }
 
     // Insert detail items
-    let detailSeq = 1;
     const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
 
     // Get last DT kode
-    const lastDT = await DB("trx_detail_transaksi")
+    const lastDT = await trx("trx_detail_transaksi")
       .where("kode_detail_transaksi", "like", `DT-${today}-%`)
       .orderBy("kode_detail_transaksi", "desc")
       .select("kode_detail_transaksi")
@@ -152,13 +157,13 @@ router.post("/", async (req, res) => {
         qty,
         harga_satuan,
         subtotal,
+        is_from_pendaftaran: item.is_from_pendaftaran ? 1 : 0,
         tz,
         created_by: username,
         created_at: DB.fn.now(),
         updated_by: username,
         updated_at: DB.fn.now(),
       });
-      detailSeq++;
     }
 
     await trx.commit();
@@ -167,7 +172,12 @@ router.post("/", async (req, res) => {
       status: status.SUKSES,
       message: kode_transaksi ? "Draft transaksi berhasil diperbarui" : "Draft transaksi berhasil dibuat",
       datetime: formatDateSystem(),
-      data: { kode_transaksi: kode_trx },
+      data: {
+        kode_transaksi: kode_trx,
+        total_harga,
+        total_diskon,
+        total_bayar,
+      },
     });
   } catch (error) {
     await trx.rollback();

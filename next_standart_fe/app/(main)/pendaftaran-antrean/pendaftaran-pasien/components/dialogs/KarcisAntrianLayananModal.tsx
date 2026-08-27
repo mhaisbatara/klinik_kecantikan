@@ -16,6 +16,8 @@ interface AntrianLayananItem {
   harga?: number;
   kode_ruangan?: string;
   nama_ruangan?: string;
+  details?: any[];
+  detail_items?: any[];
 }
 
 interface TicketLayananData {

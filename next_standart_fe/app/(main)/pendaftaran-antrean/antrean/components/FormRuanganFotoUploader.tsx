@@ -16,6 +16,7 @@ interface FormRuanganFotoUploaderProps {
     labelField: string;
     isRequired?: boolean;
     toast?: React.RefObject<Toast> | any;
+    disabled?: boolean;
 }
 
 export const FormRuanganFotoUploader: React.FC<FormRuanganFotoUploaderProps> = ({
@@ -24,17 +25,13 @@ export const FormRuanganFotoUploader: React.FC<FormRuanganFotoUploaderProps> = (
     labelField,
     isRequired = false,
     toast,
+    disabled = false,
 }) => {
     const [uploadingBefore, setUploadingBefore] = useState<boolean>(false);
-    const [uploadingAfter, setUploadingAfter] = useState<boolean>(false);
-
     const fileInputBeforeRef = useRef<HTMLInputElement>(null);
-    const fileInputAfterRef = useRef<HTMLInputElement>(null);
 
-    const handleFileSelect = async (
-        e: React.ChangeEvent<HTMLInputElement>,
-        prefix: 'before' | 'after'
-    ) => {
+    const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (disabled) return;
         const file = e.target.files?.[0];
         if (!file) return;
 
@@ -43,33 +40,31 @@ export const FormRuanganFotoUploader: React.FC<FormRuanganFotoUploaderProps> = (
             return;
         }
 
-        const setUploading = prefix === 'before' ? setUploadingBefore : setUploadingAfter;
-        setUploading(true);
+        setUploadingBefore(true);
 
         try {
             const base64 = await convertFileToBase64(file);
             const res = await postData('/master/ruangan-form-upload-foto', {
                 image_base64: base64,
                 file_name: file.name,
-                prefix,
+                prefix: 'before',
             });
 
             if (res?.data?.status === 200 || res?.status === 200) {
                 const filePath = res.data?.data?.file_path || res.data?.file_path;
                 const updatedVal = {
-                    before: value?.before || '',
-                    after: value?.after || '',
-                    [prefix]: filePath,
+                    ...value,
+                    before: filePath,
                 };
                 onChange(updatedVal);
-                showSuccess(toast, `Foto ${prefix === 'before' ? 'Sebelum' : 'Sesudah'} berhasil diunggah`);
+                showSuccess(toast, 'Foto Sebelum (Before) berhasil diunggah');
             } else {
                 showError(toast, res?.data?.message || 'Gagal mengunggah foto');
             }
         } catch (error: any) {
             showError(toast, error?.response?.data?.message || 'Gagal mengunggah foto');
         } finally {
-            setUploading(false);
+            setUploadingBefore(false);
             if (e.target) e.target.value = '';
         }
     };
@@ -83,11 +78,11 @@ export const FormRuanganFotoUploader: React.FC<FormRuanganFotoUploaderProps> = (
         });
     };
 
-    const handleRemove = (prefix: 'before' | 'after') => {
+    const handleRemove = () => {
+        if (disabled) return;
         const updatedVal = {
-            before: value?.before || '',
-            after: value?.after || '',
-            [prefix]: '',
+            ...value,
+            before: '',
         };
         onChange(updatedVal);
     };
@@ -108,13 +103,14 @@ export const FormRuanganFotoUploader: React.FC<FormRuanganFotoUploaderProps> = (
                 <label className="text-xs font-bold text-800 uppercase flex align-items-center gap-1">
                     <span>📷 {labelField}</span>
                     {isRequired && <span className="text-red-500 font-bold">*</span>}
+                    {disabled && <span className="text-[10px] text-teal-600 font-bold bg-teal-50 px-2 py-0.5 border-round-md ml-2">(Telah Disimpan)</span>}
                 </label>
             </div>
 
             <div className="grid">
                 {/* BEFORE FOTO */}
-                <div className="col-12 md:col-6">
-                    <div className="border-1 surface-border border-round p-2 text-center bg-gray-50 flex flex-column align-items-center justify-content-center min-h-10rem relative">
+                <div className="col-12">
+                    <div className="border-1 surface-border border-round p-3 text-center bg-gray-50 flex flex-column align-items-center justify-content-center min-h-10rem relative">
                         <span className="text-xs font-bold text-600 mb-2">FOTO SEBELUM (BEFORE)</span>
                         {value?.before ? (
                             <div className="relative w-full flex flex-column align-items-center">
@@ -122,24 +118,26 @@ export const FormRuanganFotoUploader: React.FC<FormRuanganFotoUploaderProps> = (
                                     src={getImgSrc(value.before)}
                                     alt="Before"
                                     className="max-w-full border-round shadow-1"
-                                    style={{ maxHeight: '160px', objectFit: 'cover' }}
+                                    style={{ maxHeight: '180px', objectFit: 'cover' }}
                                 />
-                                <div className="flex gap-2 mt-2">
-                                    <Button
-                                        type="button"
-                                        icon="pi pi-pencil"
-                                        label="Ganti"
-                                        className="p-button-outlined p-button-sm text-xs p-button-secondary"
-                                        onClick={() => fileInputBeforeRef.current?.click()}
-                                    />
-                                    <Button
-                                        type="button"
-                                        icon="pi pi-trash"
-                                        label="Hapus"
-                                        className="p-button-outlined p-button-sm text-xs p-button-danger"
-                                        onClick={() => handleRemove('before')}
-                                    />
-                                </div>
+                                {!disabled && (
+                                    <div className="flex gap-2 mt-2">
+                                        <Button
+                                            type="button"
+                                            icon="pi pi-pencil"
+                                            label="Ganti Foto"
+                                            className="p-button-outlined p-button-sm text-xs p-button-secondary"
+                                            onClick={() => fileInputBeforeRef.current?.click()}
+                                        />
+                                        <Button
+                                            type="button"
+                                            icon="pi pi-trash"
+                                            label="Hapus Foto"
+                                            className="p-button-outlined p-button-sm text-xs p-button-danger"
+                                            onClick={handleRemove}
+                                        />
+                                    </div>
+                                )}
                             </div>
                         ) : (
                             <div>
@@ -154,75 +152,21 @@ export const FormRuanganFotoUploader: React.FC<FormRuanganFotoUploaderProps> = (
                                         icon="pi pi-upload"
                                         label="Unggah Foto Before"
                                         className="p-button-sm p-button-outlined text-xs p-button-info"
+                                        disabled={disabled}
                                         onClick={() => fileInputBeforeRef.current?.click()}
                                     />
                                 )}
                             </div>
                         )}
-                        <input
-                            ref={fileInputBeforeRef}
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(e) => handleFileSelect(e, 'before')}
-                        />
-                    </div>
-                </div>
-
-                {/* AFTER FOTO */}
-                <div className="col-12 md:col-6">
-                    <div className="border-1 surface-border border-round p-2 text-center bg-gray-50 flex flex-column align-items-center justify-content-center min-h-10rem relative">
-                        <span className="text-xs font-bold text-600 mb-2">FOTO SESUDAH (AFTER)</span>
-                        {value?.after ? (
-                            <div className="relative w-full flex flex-column align-items-center">
-                                <img
-                                    src={getImgSrc(value.after)}
-                                    alt="After"
-                                    className="max-w-full border-round shadow-1"
-                                    style={{ maxHeight: '160px', objectFit: 'cover' }}
-                                />
-                                <div className="flex gap-2 mt-2">
-                                    <Button
-                                        type="button"
-                                        icon="pi pi-pencil"
-                                        label="Ganti"
-                                        className="p-button-outlined p-button-sm text-xs p-button-secondary"
-                                        onClick={() => fileInputAfterRef.current?.click()}
-                                    />
-                                    <Button
-                                        type="button"
-                                        icon="pi pi-trash"
-                                        label="Hapus"
-                                        className="p-button-outlined p-button-sm text-xs p-button-danger"
-                                        onClick={() => handleRemove('after')}
-                                    />
-                                </div>
-                            </div>
-                        ) : (
-                            <div>
-                                {uploadingAfter ? (
-                                    <div className="flex flex-column align-items-center">
-                                        <ProgressSpinner style={{ width: '30px', height: '30px' }} />
-                                        <span className="text-xs text-500 mt-2">Mengunggah...</span>
-                                    </div>
-                                ) : (
-                                    <Button
-                                        type="button"
-                                        icon="pi pi-upload"
-                                        label="Unggah Foto After"
-                                        className="p-button-sm p-button-outlined text-xs p-button-success"
-                                        onClick={() => fileInputAfterRef.current?.click()}
-                                    />
-                                )}
-                            </div>
+                        {!disabled && (
+                            <input
+                                ref={fileInputBeforeRef}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={handleFileSelect}
+                            />
                         )}
-                        <input
-                            ref={fileInputAfterRef}
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(e) => handleFileSelect(e, 'after')}
-                        />
                     </div>
                 </div>
             </div>

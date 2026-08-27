@@ -1,19 +1,14 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Toast } from 'primereact/toast';
 import { InputText } from 'primereact/inputtext';
 import { Button } from 'primereact/button';
+import { Tag } from 'primereact/tag';
 import { ProgressSpinner } from 'primereact/progressspinner';
 import postData from '@/lib/axios/postData';
 import { showError } from '@/lib/tools/generalTools';
 import type { TransaksiListItem } from '../page';
-
-const STATUS_CONFIG: Record<string, { label: string; bg: string; color: string; dot: string }> = {
-  draft: { label: 'DRAFT', bg: '#f1f5f9', color: '#475569', dot: '#94a3b8' },
-  lunas: { label: 'LUNAS', bg: '#dcfce7', color: '#15803d', dot: '#22c55e' },
-  batal: { label: 'BATAL', bg: '#fee2e2', color: '#b91c1c', dot: '#ef4444' },
-};
 
 const METODE_ICON: Record<string, string> = {
   tunai: 'pi-wallet',
@@ -64,8 +59,8 @@ export const KasirSidebar: React.FC<KasirSidebarProps> = ({
       } else {
         showError(toast, res?.data?.message || 'Gagal memuat daftar transaksi');
       }
-    } catch {
-      showError(toast, 'Gagal terhubung ke server');
+    } catch (err: any) {
+      showError(toast, err?.response?.data?.message || err?.message || 'Gagal terhubung ke server');
     } finally {
       setLoading(false);
     }
@@ -86,34 +81,28 @@ export const KasirSidebar: React.FC<KasirSidebarProps> = ({
   const totalPendapatan = list.filter((i) => i.status === 'lunas').reduce((s, i) => s + parseFloat(String(i.total_bayar || 0)), 0);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', userSelect: 'none' }}>
-      {/* HEADER */}
-      <div
-        style={{
-          padding: '16px 16px 12px',
-          background: 'linear-gradient(135deg, #0f172a, #1e293b)',
-          flexShrink: 0,
-        }}
-      >
+    <div className="flex flex-column h-full user-select-none surface-card border-right-1 surface-border">
+      {/* Header Stat Bar */}
+      <div className="p-3 bg-teal-50 border-bottom-1 surface-border flex-shrink-0">
         <div className="flex align-items-center justify-content-between mb-3">
           <div className="flex align-items-center gap-2">
             <div
               style={{
-                width: '34px',
-                height: '34px',
+                width: '36px',
+                height: '36px',
                 borderRadius: '10px',
-                background: 'linear-gradient(135deg, #0d9488, #059669)',
+                background: 'linear-gradient(135deg, #0d9488 0%, #059669 100%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: '0 2px 8px rgba(13,148,136,0.3)',
+                boxShadow: '0 2px 6px rgba(13,148,136,0.3)',
               }}
             >
-              <i className="pi pi-calculator text-white" style={{ fontSize: '15px' }} />
+              <i className="pi pi-calculator text-white text-base" />
             </div>
             <div>
-              <div style={{ fontSize: '14px', fontWeight: 800, color: '#ffffff' }}>Kasir</div>
-              <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 400 }}>
+              <div className="text-sm font-black text-teal-900 m-0">Transaksi Kasir</div>
+              <div className="text-[11px] text-teal-700 font-semibold m-0">
                 {new Date().toLocaleDateString('id-ID', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}
               </div>
             </div>
@@ -121,164 +110,120 @@ export const KasirSidebar: React.FC<KasirSidebarProps> = ({
           <Button
             icon="pi pi-plus"
             label="Baru"
-            className="p-button-sm p-button-outlined"
+            severity="success"
+            size="small"
             onClick={onNewTrx}
-            style={{
-              border: '1.5px solid #0d9488',
-              color: '#0d9488',
-              background: 'transparent',
-              fontSize: '12px',
-              fontWeight: 700,
-              padding: '6px 12px',
-              borderRadius: '8px',
-            }}
+            className="font-bold text-xs bg-teal-600 border-none border-round-lg px-3 text-white shadow-1"
           />
         </div>
 
         {/* Ringkasan hari ini */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr 1fr',
-            gap: '6px',
-          }}
-        >
-          {[
-            { label: 'Draft', value: totalDraft, color: '#94a3b8' },
-            { label: 'Lunas', value: totalLunas, color: '#22c55e' },
-            { label: 'Pendapatan', value: formatRupiah(totalPendapatan), color: '#0d9488', small: true },
-          ].map((s) => (
-            <div
-              key={s.label}
-              style={{
-                background: 'rgba(255,255,255,0.07)',
-                borderRadius: '8px',
-                padding: '8px 8px 6px',
-                textAlign: 'center',
-                border: '1px solid rgba(255,255,255,0.08)',
-              }}
-            >
-              <div style={{ fontSize: s.small ? '10px' : '16px', fontWeight: 800, color: s.color, lineHeight: 1.2 }}>
-                {s.value}
-              </div>
-              <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 500, marginTop: '2px' }}>{s.label}</div>
-            </div>
-          ))}
+        <div className="grid grid-nogutter gap-1">
+          <div className="col bg-white p-2 border-round-lg border-1 surface-border text-center shadow-1">
+            <div className="text-[10px] font-bold text-500 uppercase">Draft</div>
+            <div className="text-sm font-extrabold text-slate-700">{totalDraft}</div>
+          </div>
+          <div className="col bg-white p-2 border-round-lg border-1 surface-border text-center shadow-1">
+            <div className="text-[10px] font-bold text-500 uppercase">Lunas</div>
+            <div className="text-sm font-extrabold text-green-600">{totalLunas}</div>
+          </div>
+          <div className="col-5 bg-white p-2 border-round-lg border-1 surface-border text-center shadow-1">
+            <div className="text-[10px] font-bold text-500 uppercase">Pendapatan</div>
+            <div className="text-xs font-black text-teal-700 white-space-nowrap">{formatRupiah(totalPendapatan)}</div>
+          </div>
         </div>
       </div>
 
-      {/* SEARCH + FILTER */}
-      <div style={{ padding: '10px 12px', borderBottom: '1px solid #f1f5f9', background: '#fafafa', flexShrink: 0 }}>
-        <div className="p-inputgroup mb-2">
-          <span className="p-inputgroup-addon" style={{ background: '#f1f5f9', border: '1.5px solid #e2e8f0', borderRight: 'none', borderRadius: '8px 0 0 8px' }}>
-            <i className="pi pi-search text-gray-400 text-xs" />
-          </span>
+      {/* Filter & Search */}
+      <div className="p-3 border-bottom-1 surface-border flex-shrink-0 bg-white">
+        <div className="p-input-icon-left w-full mb-2">
+          <i className="pi pi-search text-xs" />
           <InputText
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cari pasien / kode..."
-            style={{ fontSize: '12px', border: '1.5px solid #e2e8f0', borderLeft: 'none', borderRadius: '0 8px 8px 0', boxShadow: 'none' }}
+            placeholder="Cari transaksi / pasien / RM..."
+            className="p-inputtext-sm w-full border-round-lg text-xs"
           />
         </div>
 
-        <div className="flex gap-1">
-          {['semua', 'draft', 'lunas', 'batal'].map((s) => (
-            <button
-              key={s}
-              onClick={() => setFilterStatus(s)}
-              style={{
-                flex: 1,
-                padding: '5px 4px',
-                fontSize: '11px',
-                fontWeight: 700,
-                borderRadius: '6px',
-                border: filterStatus === s ? `1.5px solid ${s === 'lunas' ? '#22c55e' : s === 'draft' ? '#0d9488' : s === 'batal' ? '#ef4444' : '#0d9488'}` : '1.5px solid #e2e8f0',
-                background: filterStatus === s ? (s === 'lunas' ? '#dcfce7' : s === 'draft' ? '#f0fdfa' : s === 'batal' ? '#fee2e2' : '#f0fdfa') : '#ffffff',
-                color: filterStatus === s ? (s === 'lunas' ? '#15803d' : s === 'draft' ? '#0d9488' : s === 'batal' ? '#b91c1c' : '#0d9488') : '#64748b',
-                cursor: 'pointer',
-                textTransform: 'capitalize',
-              }}
-            >
-              {s}
-            </button>
-          ))}
+        {/* Status Filter Tabs */}
+        <div className="flex gap-1 p-1 bg-slate-100 border-round-lg">
+          {[
+            { key: 'semua', label: 'Semua' },
+            { key: 'draft', label: 'Draft' },
+            { key: 'lunas', label: 'Lunas' },
+            { key: 'batal', label: 'Batal' },
+          ].map((t) => {
+            const isActive = filterStatus === t.key;
+            return (
+              <button
+                key={t.key}
+                onClick={() => setFilterStatus(t.key)}
+                className={`flex-1 py-1 text-xs border-round-md font-bold transition-all border-none cursor-pointer ${
+                  isActive ? 'bg-teal-600 text-white shadow-1' : 'bg-transparent text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                {t.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* LIST */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px' }}>
+      {/* Transaction Cards List */}
+      <div className="flex-1 overflow-y-auto p-3 surface-ground">
         {loading ? (
           <div className="flex align-items-center justify-content-center py-5">
-            <ProgressSpinner style={{ width: '24px', height: '24px' }} />
-            <span className="ml-2 text-xs text-gray-400">Memuat...</span>
+            <ProgressSpinner style={{ width: '28px', height: '28px' }} />
           </div>
         ) : filteredList.length === 0 ? (
           <div className="flex flex-column align-items-center justify-content-center py-5 text-center">
-            <i className="pi pi-receipt text-3xl mb-2" style={{ color: '#cbd5e1' }} />
-            <span className="text-xs text-gray-400">Belum ada transaksi hari ini</span>
+            <i className="pi pi-inbox text-3xl text-300 mb-2" />
+            <span className="text-xs text-500 font-medium">Belum ada transaksi hari ini</span>
           </div>
         ) : (
-          filteredList.map((item) => {
-            const cfg = STATUS_CONFIG[item.status] || STATUS_CONFIG.draft;
-            const isSelected = selectedKodeTrx === item.kode_transaksi;
-            return (
-              <div
-                key={item.kode_transaksi}
-                onClick={() => onSelectTrx(item.kode_transaksi)}
-                style={{
-                  borderRadius: '10px',
-                  border: isSelected ? '2px solid #0d9488' : '1.5px solid #e2e8f0',
-                  background: isSelected ? '#f0fdfa' : '#ffffff',
-                  padding: '10px 12px',
-                  marginBottom: '6px',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                  boxShadow: isSelected ? '0 0 0 3px rgba(13,148,136,0.12)' : '0 1px 3px rgba(0,0,0,0.04)',
-                }}
-              >
-                <div className="flex align-items-center justify-content-between mb-1">
-                  <span style={{ fontSize: '11.5px', fontWeight: 800, color: isSelected ? '#0d9488' : '#0f172a' }}>
-                    {item.kode_transaksi}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: '9.5px',
-                      fontWeight: 800,
-                      padding: '2px 7px',
-                      borderRadius: '999px',
-                      background: cfg.bg,
-                      color: cfg.color,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                    }}
-                  >
-                    <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: cfg.dot, display: 'inline-block' }} />
-                    {cfg.label}
-                  </span>
-                </div>
+          <div className="flex flex-column gap-2">
+            {filteredList.map((item) => {
+              const isSelected = selectedKodeTrx === item.kode_transaksi;
+              const isLunas = item.status === 'lunas';
+              const isBatal = item.status === 'batal';
 
-                <div style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b', marginBottom: '2px' }}>
-                  {item.nama_pasien || '-'}
-                </div>
-                <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '6px' }}>
-                  {item.no_rm}
-                </div>
+              return (
+                <div
+                  key={item.kode_transaksi}
+                  onClick={() => onSelectTrx(item.kode_transaksi)}
+                  className={`surface-card p-3 border-round-xl border-1 transition-all cursor-pointer shadow-1 hover:shadow-2 ${
+                    isSelected ? 'border-2 border-teal-500 bg-teal-50/50' : 'surface-border'
+                  }`}
+                >
+                  <div className="flex align-items-center justify-content-between mb-1">
+                    <span className="font-extrabold text-xs text-teal-900">{item.kode_transaksi}</span>
+                    <Tag
+                      value={item.status.toUpperCase()}
+                      severity={isLunas ? 'success' : isBatal ? 'danger' : 'info'}
+                      className="text-[10px] font-bold px-2 py-0.5"
+                    />
+                  </div>
 
-                <div className="flex align-items-center justify-content-between">
-                  <span style={{ fontSize: '13px', fontWeight: 800, color: item.status === 'lunas' ? '#15803d' : '#0d9488' }}>
-                    {formatRupiah(parseFloat(String(item.total_bayar || 0)))}
-                  </span>
-                  {item.metode_bayar && (
-                    <span className="flex align-items-center gap-1" style={{ fontSize: '10.5px', color: '#64748b' }}>
-                      <i className={`pi ${METODE_ICON[item.metode_bayar] || 'pi-money-bill'}`} style={{ fontSize: '11px' }} />
-                      {item.metode_bayar}
-                    </span>
+                  <div className="font-bold text-sm text-slate-800 mb-1 overflow-hidden text-ellipsis white-space-nowrap">
+                    {item.nama_pasien || item.no_rm}
+                  </div>
+
+                  <div className="flex align-items-center justify-content-between text-xs pt-1 border-top-1 surface-border">
+                    <span className="text-[11px] text-500">RM: {item.no_rm}</span>
+                    <span className="font-black text-teal-700">{formatRupiah(parseFloat(String(item.total_bayar || 0)))}</span>
+                  </div>
+
+                  {item.metode_bayar && isLunas && (
+                    <div className="flex align-items-center gap-1 text-[10px] text-slate-500 mt-1">
+                      <i className={`pi ${METODE_ICON[item.metode_bayar] || 'pi-credit-card'}`} style={{ fontSize: '10px' }} />
+                      <span className="capitalize">{item.metode_bayar}</span>
+                    </div>
                   )}
                 </div>
-              </div>
-            );
-          })
+              );
+            })}
+          </div>
         )}
       </div>
     </div>

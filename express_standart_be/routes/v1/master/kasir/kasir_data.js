@@ -11,8 +11,8 @@ import { status } from "../../components/tools/general.js";
 
 const router = express.Router();
 
-// GET list transaksi
-router.post("/list", async (req, res) => {
+// Handler List Transaksi
+export const handleList = async (req, res) => {
   const { body } = req;
   const username = req?.auth?.username || "";
   const keyword = body.keyword || "";
@@ -48,6 +48,7 @@ router.post("/list", async (req, res) => {
         "t.kode_transaksi",
         "t.kode_kunjungan",
         "t.no_rm",
+        "t.kode_rekam_medis",
         "p.nama as nama_pasien",
         "p.no_hp",
         "t.kode_promo",
@@ -81,10 +82,10 @@ router.post("/list", async (req, res) => {
     Logging(error, { file: "/master/kasir/kasir_data.js", func: "list", user: username });
     return res.status(500).json(oResult);
   }
-});
+};
 
-// GET detail satu transaksi
-router.post("/detail", async (req, res) => {
+// Handler Detail Transaksi
+export const handleDetail = async (req, res) => {
   const { body } = req;
   const username = req?.auth?.username || "";
   const kode_transaksi = body.kode_transaksi || "";
@@ -113,21 +114,24 @@ router.post("/detail", async (req, res) => {
       return res.status(404).json({ status: status.BAD_REQUEST, message: "Transaksi tidak ditemukan", datetime: formatDateSystem() });
     }
 
+    // Ambil detail item dengan flag is_from_pendaftaran
     const details = await DB("trx_detail_transaksi as dt")
       .leftJoin("mst_layanan as l", "dt.kode_layanan", "l.kode_layanan")
-      .leftJoin("mst_produk as p", "dt.kode_produk", "p.kode_produk")
+      .leftJoin("mst_produk as prod", "dt.kode_produk", "prod.kode_produk")
       .where("dt.kode_transaksi", kode_transaksi)
       .select(
         "dt.kode_detail_transaksi",
         "dt.kode_layanan",
         "dt.kode_produk",
         "l.nama as nama_layanan",
-        "p.nama as nama_produk",
-        "p.satuan",
+        "prod.nama as nama_produk",
+        "prod.satuan",
         "dt.qty",
         "dt.harga_satuan",
-        "dt.subtotal"
+        "dt.subtotal",
+        DB.raw("COALESCE(dt.is_from_pendaftaran, 0) as is_from_pendaftaran")
       )
+      .orderBy("dt.is_from_pendaftaran", "desc")
       .orderBy("dt.id", "asc");
 
     const detailsMapped = details.map((d) => ({
@@ -136,6 +140,7 @@ router.post("/detail", async (req, res) => {
       kode: d.kode_layanan || d.kode_produk,
       nama: d.nama_layanan || d.nama_produk || "-",
       satuan: d.satuan || (d.kode_layanan ? "tindakan" : "pcs"),
+      is_from_pendaftaran: Boolean(d.is_from_pendaftaran),
     }));
 
     return res.status(200).json({
@@ -153,6 +158,18 @@ router.post("/detail", async (req, res) => {
     Logging(error, { file: "/master/kasir/kasir_data.js", func: "detail", user: username });
     return res.status(500).json(oResult);
   }
+};
+
+// Sub-routes for /list and /detail
+router.post("/list", handleList);
+router.post("/detail", handleDetail);
+
+// Root route handler for router.use("/kasir-list", kasirData) & router.use("/kasir-detail", kasirData)
+router.post("/", (req, res) => {
+  if (req.baseUrl.endsWith("kasir-detail")) {
+    return handleDetail(req, res);
+  }
+  return handleList(req, res);
 });
 
 export default router;
