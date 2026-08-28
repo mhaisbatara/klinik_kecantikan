@@ -15,12 +15,11 @@ router.post("/", async (req, res) => {
   try {
     const baseQuery = DB("mst_produk as p")
       .leftJoin("mst_kategori_produk as k", "p.kode_kategori_produk", "k.kode_kategori_produk")
-      .leftJoin("mst_supplier as s", "p.kode_supplier", "s.kode_supplier")
       .modify((qb) => {
         if (keyword) { const lower = keyword.toLowerCase(); qb.where(function () { this.whereRaw("LOWER(p.kode_produk) LIKE ?", [`%${lower}%`]).orWhereRaw("LOWER(p.nama) LIKE ?", [`%${lower}%`]).orWhereRaw("LOWER(k.nama) LIKE ?", [`%${lower}%`]); }); }
         if (filterStatus) qb.where("p.status", filterStatus);
       });
-    const selectFields = ["p.kode_produk", "p.kode_kategori_produk", "k.nama as nama_kategori", "p.kode_supplier", "s.nama as nama_supplier", "p.nama", "p.satuan", "p.harga_beli", "p.harga_jual", "p.stok_minimum", "p.status", "p.created_by", "p.created_at", "p.updated_at"];
+    const selectFields = ["p.kode_produk", "p.kode_kategori_produk", "k.nama as nama_kategori", "p.nama", "p.satuan", "p.harga_beli", "p.harga_jual", "p.stok_minimum", "p.stok_tersedia", "p.status", "p.created_by", "p.created_at", "p.updated_at"];
     let totalRecords = 0, vaData = [];
     if (hasPagination) {
       const offset = (page - 1) * perPage;

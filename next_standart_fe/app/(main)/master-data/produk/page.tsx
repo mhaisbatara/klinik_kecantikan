@@ -23,7 +23,6 @@ const Page = () => {
 
     const [data, setData] = useState<any[]>([]);
     const [kategoriList, setKategoriList] = useState<any[]>([]);
-    const [supplierList, setSupplierList] = useState<any[]>([]);
     const [loading, setLoading] = useState<boolean>(false);
     const [totalRecords, setTotalRecords] = useState<number>(0);
     const [page, setPage] = useState<number>(1);
@@ -36,11 +35,11 @@ const Page = () => {
     const [formData, setFormData] = useState<any>({
         kode_produk: '',
         kode_kategori_produk: '',
-        kode_supplier: '',
         nama: '',
         satuan: 'Pcs',
         harga_beli: 0,
         harga_jual: 0,
+        stok_tersedia: 0,
         stok_minimum: 5,
         status: 'aktif',
     });
@@ -64,9 +63,6 @@ const Page = () => {
         try {
             const resKat = await postData('/master/kategori-produk-data', { status: 'aktif' });
             setKategoriList((resKat.data.data || []).map((k: any) => ({ label: k.nama, value: k.kode_kategori_produk })));
-
-            const resSup = await postData('/master/supplier-data', { status: 'aktif' });
-            setSupplierList((resSup.data.data || []).map((s: any) => ({ label: s.nama, value: s.kode_supplier })));
         } catch (error) {
             console.error('Failed to load dropdowns');
         }
@@ -86,11 +82,11 @@ const Page = () => {
         setFormData({
             kode_produk: '',
             kode_kategori_produk: kategoriList[0]?.value || '',
-            kode_supplier: supplierList[0]?.value || '',
             nama: '',
             satuan: 'Pcs',
             harga_beli: 0,
             harga_jual: 0,
+            stok_tersedia: 0,
             stok_minimum: 5,
             status: 'aktif',
         });
@@ -224,6 +220,7 @@ const Page = () => {
                     onSelectionChange={(e) => setSelectedRows(e.value as any[])}
                     dataKey="kode_produk"
                     className="p-datatable-sm"
+                    rowClassName={(r) => ((r.stok_tersedia ?? 0) < (r.stok_minimum ?? 0) ? 'bg-red-50' : '')}
                     emptyMessage="Data produk tidak ditemukan."
                     responsiveLayout="scroll"
                     rowsPerPageOptions={[10, 25, 50]}
@@ -252,15 +249,19 @@ const Page = () => {
                             <div className="flex flex-wrap align-items-center gap-3 px-1 py-2 border-round-md surface-100 text-xs font-medium text-color-secondary">
                                 <span className="flex align-items-center gap-1">
                                     <i className="pi pi-info-circle" />
-                                    <span className="font-semibold">KETERANGAN STATUS:</span>
+                                    <span className="font-semibold">KETERANGAN:</span>
                                 </span>
                                 <span className="flex align-items-center gap-1">
                                     <span style={{ display:'inline-block', width:'12px', height:'12px', borderRadius:'3px', backgroundColor:'#22c55e', boxShadow:'0 1px 3px #22c55e55' }} />
-                                    Aktif
+                                    Status Aktif
                                 </span>
                                 <span className="flex align-items-center gap-1">
                                     <span style={{ display:'inline-block', width:'12px', height:'12px', borderRadius:'3px', backgroundColor:'#ef4444', boxShadow:'0 1px 3px #ef444455' }} />
-                                    Tidak Aktif
+                                    Status Tidak Aktif
+                                </span>
+                                <span className="flex align-items-center gap-1 ml-2 text-red-600 font-bold">
+                                    <span style={{ display:'inline-block', width:'12px', height:'12px', borderRadius:'3px', backgroundColor:'#ef4444', boxShadow:'0 1px 3px #ef444455' }} />
+                                    Baris Merah: Stok Dibawah Minimum
                                 </span>
                             </div>
                         </div>
@@ -288,10 +289,20 @@ const Page = () => {
                     <Column field="kode_produk" header="Kode" sortable headerStyle={{ fontWeight: 'bold' }}></Column>
                     <Column field="nama" header="Nama Produk" sortable headerStyle={{ fontWeight: 'bold' }}></Column>
                     <Column field="nama_kategori" header="Kategori" body={(r) => r.nama_kategori || r.kode_kategori_produk || '-'}></Column>
-                    <Column field="nama_supplier" header="Supplier" body={(r) => r.nama_supplier || '-'}></Column>
                     <Column field="satuan" header="Satuan"></Column>
                     <Column field="harga_beli" header="Harga Beli" body={(r) => formatRupiah(r.harga_beli)}></Column>
                     <Column field="harga_jual" header="Harga Jual" body={(r) => <span className="font-semibold text-green-600">{formatRupiah(r.harga_jual)}</span>}></Column>
+                    <Column field="stok_tersedia" header="Stok Tersedia" sortable body={(r) => {
+                        const isBelowMin = (r.stok_tersedia ?? 0) < (r.stok_minimum ?? 0);
+                        return (
+                            <span className={`px-2 py-1 border-round text-xs font-bold inline-flex align-items-center gap-1 ${
+                                isBelowMin ? 'bg-red-500 text-white shadow-1' : 'bg-blue-100 text-blue-800'
+                            }`}>
+                                {isBelowMin && <i className="pi pi-exclamation-triangle text-xs" />}
+                                {r.stok_tersedia ?? 0} {r.satuan || ''}
+                            </span>
+                        );
+                    }}></Column>
                     <Column field="stok_minimum" header="Stok Min" body={(r) => <Tag value={`${r.stok_minimum}`} severity="warning" />}></Column>
                     <Column
                         header="Aksi"
@@ -319,28 +330,15 @@ const Page = () => {
                         <label className="block text-sm font-semibold mb-1">Nama Produk *</label>
                         <InputText value={formData.nama} onChange={(e) => setFormData({ ...formData, nama: e.target.value })} placeholder="Masukkan nama produk" className="w-full text-sm" />
                     </div>
-                    <div className="grid">
-                        <div className="col-6">
-                            <label className="block text-sm font-semibold mb-1">Kategori Produk *</label>
-                            <Dropdown
-                                value={formData.kode_kategori_produk}
-                                options={kategoriList}
-                                onChange={(e) => setFormData({ ...formData, kode_kategori_produk: e.value })}
-                                placeholder="Pilih Kategori"
-                                className="w-full text-sm"
-                            />
-                        </div>
-                        <div className="col-6">
-                            <label className="block text-sm font-semibold mb-1">Supplier</label>
-                            <Dropdown
-                                value={formData.kode_supplier}
-                                options={supplierList}
-                                onChange={(e) => setFormData({ ...formData, kode_supplier: e.value })}
-                                placeholder="Pilih Supplier (Opsional)"
-                                className="w-full text-sm"
-                                showClear
-                            />
-                        </div>
+                    <div>
+                        <label className="block text-sm font-semibold mb-1">Kategori Produk *</label>
+                        <Dropdown
+                            value={formData.kode_kategori_produk}
+                            options={kategoriList}
+                            onChange={(e) => setFormData({ ...formData, kode_kategori_produk: e.value })}
+                            placeholder="Pilih Kategori"
+                            className="w-full text-sm"
+                        />
                     </div>
                     <div className="grid">
                         <div className="col-4">
@@ -357,11 +355,15 @@ const Page = () => {
                         </div>
                     </div>
                     <div className="grid">
-                        <div className="col-6">
-                            <label className="block text-sm font-semibold mb-1">Stok Minimum *</label>
-                            <InputNumber value={formData.stok_minimum} onValueChange={(e) => setFormData({ ...formData, stok_minimum: e.value })} className="w-full text-sm" />
+                        <div className="col-4">
+                            <label className="block text-sm font-semibold mb-1">Stok Tersedia *</label>
+                            <InputNumber value={formData.stok_tersedia} onValueChange={(e) => setFormData({ ...formData, stok_tersedia: e.value ?? 0 })} className="w-full text-sm" min={0} />
                         </div>
-                        <div className="col-6">
+                        <div className="col-4">
+                            <label className="block text-sm font-semibold mb-1">Stok Minimum *</label>
+                            <InputNumber value={formData.stok_minimum} onValueChange={(e) => setFormData({ ...formData, stok_minimum: e.value ?? 0 })} className="w-full text-sm" min={0} />
+                        </div>
+                        <div className="col-4">
                             <label className="block text-sm font-semibold mb-1">Status *</label>
                             <Dropdown
                                 value={formData.status}

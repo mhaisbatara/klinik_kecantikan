@@ -10,6 +10,7 @@ import { InputText } from 'primereact/inputtext';
 import { Dialog } from 'primereact/dialog';
 import { Tag } from 'primereact/tag';
 import { Dropdown } from 'primereact/dropdown';
+import { MultiSelect } from 'primereact/multiselect';
 import { InputSwitch } from 'primereact/inputswitch';
 import { Divider } from 'primereact/divider';
 import { confirmDialog, ConfirmDialog } from 'primereact/confirmdialog';
@@ -42,7 +43,7 @@ const Page = () => {
         kode_detail_promo: '',
         kode_promo: '',
         jenis_item: 'produk',
-        kode_item: '',
+        kode_item: [],
         status: 'aktif',
     });
     const [saving, setSaving] = useState<boolean>(false);
@@ -140,7 +141,7 @@ const Page = () => {
             kode_detail_promo: '',
             kode_promo: promoOptions.length > 0 ? promoOptions[0].value : '',
             jenis_item: 'produk',
-            kode_item: '',
+            kode_item: [],
             status: 'aktif',
         });
         setDialogVisible(true);
@@ -161,7 +162,11 @@ const Page = () => {
 
     const handleSave = async () => {
         setSubmitted(true);
-        if (!formData.kode_promo || !formData.jenis_item || !formData.kode_item) {
+        const isItemEmpty = isEdit
+            ? !formData.kode_item
+            : (!formData.kode_item || (Array.isArray(formData.kode_item) && formData.kode_item.length === 0));
+
+        if (!formData.kode_promo || !formData.jenis_item || isItemEmpty) {
             showError(toast, 'Harap lengkapi seluruh bidang wajib!');
             return;
         }
@@ -372,7 +377,7 @@ const Page = () => {
             </div>
 
             {/* Modal Create/Edit */}
-            <Dialog header={isEdit ? 'Edit Detail Promo' : 'Tambah Detail Promo'} visible={dialogVisible} style={{ width: '520px' }} modal onHide={() => setDialogVisible(false)}>
+            <Dialog header={isEdit ? 'Edit Detail Promo' : 'Tambah Detail Promo'} visible={dialogVisible} style={{ width: '540px' }} modal onHide={() => setDialogVisible(false)}>
                 <div className="flex flex-column gap-3 pt-2">
                     {isEdit && (
                         <div>
@@ -401,7 +406,7 @@ const Page = () => {
                         <Dropdown
                             value={formData.jenis_item}
                             options={jenisItemOptions}
-                            onChange={(e) => setFormData({ ...formData, jenis_item: e.value, kode_item: '' })}
+                            onChange={(e) => setFormData({ ...formData, jenis_item: e.value, kode_item: isEdit ? '' : [] })}
                             className="w-full text-sm border-round-md"
                         />
                         <small className="text-400 text-xs block mt-1">
@@ -417,16 +422,40 @@ const Page = () => {
                             {formData.jenis_item === 'layanan' && 'Layanan *'}
                             {formData.jenis_item === 'paket' && 'Paket *'}
                         </label>
-                        <Dropdown
-                            value={formData.kode_item}
-                            options={getItemOptions()}
-                            onChange={(e) => setFormData({ ...formData, kode_item: e.value })}
-                            placeholder={`Pilih ${jenisItemLabel[formData.jenis_item] || 'Item'}...`}
-                            filter
-                            className={`w-full text-sm border-round-md ${submitted && !formData.kode_item ? 'p-invalid' : ''}`}
-                        />
-                        {submitted && !formData.kode_item && (
-                            <small className="p-error text-red-500 text-xs block mt-1">Item wajib dipilih.</small>
+                        {isEdit ? (
+                            <Dropdown
+                                value={formData.kode_item}
+                                options={getItemOptions()}
+                                onChange={(e) => setFormData({ ...formData, kode_item: e.value })}
+                                placeholder={`Pilih ${jenisItemLabel[formData.jenis_item] || 'Item'}...`}
+                                filter
+                                className={`w-full text-sm border-round-md ${submitted && !formData.kode_item ? 'p-invalid' : ''}`}
+                            />
+                        ) : (
+                            <div>
+                                <MultiSelect
+                                    value={formData.kode_item}
+                                    options={getItemOptions()}
+                                    onChange={(e) => setFormData({ ...formData, kode_item: e.value })}
+                                    placeholder={`Pilih ${jenisItemLabel[formData.jenis_item] || 'Item'} (bisa pilih banyak)...`}
+                                    filter
+                                    display="chip"
+                                    showSelectAll
+                                    selectAllLabel="Pilih Semua"
+                                    className={`w-full text-sm border-round-md ${submitted && Array.isArray(formData.kode_item) && formData.kode_item.length === 0 ? 'p-invalid' : ''}`}
+                                    maxSelectedLabels={3}
+                                    selectedItemsLabel="{0} item dipilih"
+                                />
+                                {Array.isArray(formData.kode_item) && formData.kode_item.length > 0 && (
+                                    <small className="text-purple-600 font-semibold block mt-1">
+                                        <i className="pi pi-check-circle mr-1" />
+                                        {formData.kode_item.length} item dipilih untuk ditambahkan sekaligus.
+                                    </small>
+                                )}
+                            </div>
+                        )}
+                        {submitted && (isEdit ? !formData.kode_item : (Array.isArray(formData.kode_item) && formData.kode_item.length === 0)) && (
+                            <small className="p-error text-red-500 text-xs block mt-1">Item wajib dipilih (minimal 1 item).</small>
                         )}
                     </div>
 

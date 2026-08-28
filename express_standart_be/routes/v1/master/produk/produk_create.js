@@ -10,7 +10,7 @@ router.post("/", async (req, res) => {
   const username = req?.auth?.username || "";
   try {
     const cValidation = await validatePayload(
-      { nama: Joi.string().max(100).required().label("Nama Produk"), kode_kategori_produk: Joi.string().required().label("Kategori Produk"), kode_supplier: Joi.string().allow("", null).label("Supplier"), satuan: Joi.string().max(20).required().label("Satuan"), harga_beli: Joi.number().min(0).required().label("Harga Beli"), harga_jual: Joi.number().min(0).required().label("Harga Jual"), stok_minimum: Joi.number().integer().min(0).required().label("Stok Minimum"), status: Joi.string().valid("aktif", "nonaktif").required().label("Status") },
+      { nama: Joi.string().max(100).required().label("Nama Produk"), kode_kategori_produk: Joi.string().required().label("Kategori Produk"), satuan: Joi.string().max(20).required().label("Satuan"), harga_beli: Joi.number().min(0).required().label("Harga Beli"), harga_jual: Joi.number().min(0).required().label("Harga Jual"), stok_minimum: Joi.number().integer().min(0).required().label("Stok Minimum"), stok_tersedia: Joi.number().integer().min(0).optional().default(0).label("Stok Tersedia"), status: Joi.string().valid("aktif", "nonaktif").required().label("Status") },
       { "any.required": "{#label} wajib diisi", "string.empty": "{#label} tidak boleh kosong" },
       oPayload, { uniqueField: ["nama"], table: "mst_produk", allowUnknown: true }
     );
@@ -21,7 +21,7 @@ router.post("/", async (req, res) => {
       let n = 1;
       if (last?.kode_produk) { n = (parseInt(last.kode_produk.replace("PRD-", "")) || 0) + 1; }
       kode = `PRD-${String(n).padStart(3, "0")}`;
-      const oData = { kode_produk: kode, kode_kategori_produk: oPayload.kode_kategori_produk, kode_supplier: oPayload.kode_supplier || null, nama: oPayload.nama, satuan: oPayload.satuan, harga_beli: oPayload.harga_beli, harga_jual: oPayload.harga_jual, stok_minimum: oPayload.stok_minimum, status: oPayload.status, tz: oPayload.tz || "UTC", created_by: username, created_at: formatDateSystem(), updated_by: username, updated_at: formatDateSystem() };
+      const oData = { kode_produk: kode, kode_kategori_produk: oPayload.kode_kategori_produk, nama: oPayload.nama, satuan: oPayload.satuan, harga_beli: oPayload.harga_beli, harga_jual: oPayload.harga_jual, stok_minimum: oPayload.stok_minimum, stok_tersedia: oPayload.stok_tersedia ?? 0, status: oPayload.status, tz: oPayload.tz || "UTC", created_by: username, created_at: formatDateSystem(), updated_by: username, updated_at: formatDateSystem() };
       await trx("mst_produk").insert(oData);
       await ChangesLog({ description: `Tambah Produk ${kode}`, tableName: "mst_produk", referenceCode: kode, action: "CREATE", dataBefore: null, dataAfter: oData, user: username, tz: oPayload.tz || "UTC" }, trx);
     });
