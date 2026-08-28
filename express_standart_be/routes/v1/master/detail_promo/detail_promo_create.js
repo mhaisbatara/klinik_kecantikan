@@ -16,7 +16,7 @@ router.post("/", async (req, res) => {
       {
         kode_promo: Joi.string().required().label("Kode Promo"),
         jenis_item: Joi.string().valid("produk", "layanan", "paket").required().label("Jenis Item"),
-        kode_item: Joi.string().required().label("Kode Item"),
+        kode_item: Joi.any().required().label("Kode Item"),
         status: Joi.string().valid("aktif", "nonaktif").optional().default("aktif").label("Status")
       },
       { "any.required": "{#label} wajib diisi", "any.only": "{#label} tidak valid" },
@@ -26,45 +26,77 @@ router.post("/", async (req, res) => {
 
     if (cValidation) return res.status(422).json({ status: status.BAD_REQUEST, message: cValidation, datetime: formatDateSystem() });
 
+    if (typeof oPayload.kode_item !== "string" && (!Array.isArray(oPayload.kode_item) || oPayload.kode_item.length === 0)) {
+      return res.status(422).json({ status: status.BAD_REQUEST, message: "Kode Item wajib diisi", datetime: formatDateSystem() });
+    }
+
     // Validate kode_promo exists
     const promo = await DB("mst_promo").where("kode_promo", oPayload.kode_promo).first();
     if (!promo) return res.status(422).json({ status: status.BAD_REQUEST, message: "Promo tidak ditemukan", datetime: formatDateSystem() });
 
-    // Check duplicate kode_promo + jenis_item + kode_item
-    const existing = await DB("mst_detail_promo")
+    const itemCodes = Array.isArray(oPayload.kode_item) ? oPayload.kode_item : [oPayload.kode_item];
+
+    // Check existing records for this promo & jenis_item
+    const existingRecords = await DB("mst_detail_promo")
       .where("kode_promo", oPayload.kode_promo)
       .where("jenis_item", oPayload.jenis_item)
-      .where("kode_item", oPayload.kode_item)
-      .first();
-    if (existing) return res.status(422).json({ status: status.BAD_REQUEST, message: "Item ini sudah terdaftar pada promo yang sama", datetime: formatDateSystem() });
+      .whereIn("kode_item", itemCodes);
 
-    let kode = "";
+    const existingSet = new Set(existingRecords.map((r) => r.kode_item));
+    const itemsToAdd = itemCodes.filter((item) => !existingSet.has(item));
+
+    if (itemsToAdd.length === 0) {
+      return res.status(422).json({
+        status: status.BAD_REQUEST,
+        message: itemCodes.length > 1
+          ? "Seluruh item yang dipilih sudah terdaftar pada promo ini"
+          : "Item ini sudah terdaftar pada promo yang sama",
+        datetime: formatDateSystem()
+      });
+    }
+
+    let createdCount = 0;
+    const insertedCodes = [];
+
     await DB.transaction(async (trx) => {
       const last = await trx("mst_detail_promo").orderBy("id", "desc").first();
       let n = 1;
       if (last?.kode_detail_promo) {
         n = (parseInt(last.kode_detail_promo.replace("DPRM-", "")) || 0) + 1;
       }
-      kode = `DPRM-${String(n).padStart(4, "0")}`;
 
-      const oData = {
-        kode_detail_promo: kode,
-        kode_promo: oPayload.kode_promo,
-        jenis_item: oPayload.jenis_item,
-        kode_item: oPayload.kode_item,
-        status: oPayload.status || "aktif",
-        tz: oPayload.tz || "UTC",
-        created_by: username,
-        created_at: formatDateSystem(),
-        updated_by: username,
-        updated_at: formatDateSystem()
-      };
+      for (const itemCode of itemsToAdd) {
+        const kode = `DPRM-${String(n).padStart(4, "0")}`;
+        n++;
 
-      await trx("mst_detail_promo").insert(oData);
-      await ChangesLog({ description: `Tambah Detail Promo ${kode}`, tableName: "mst_detail_promo", referenceCode: kode, action: "CREATE", dataBefore: null, dataAfter: oData, user: username, tz: oPayload.tz || "UTC" }, trx);
+        const oData = {
+          kode_detail_promo: kode,
+          kode_promo: oPayload.kode_promo,
+          jenis_item: oPayload.jenis_item,
+          kode_item: itemCode,
+          status: oPayload.status || "aktif",
+          tz: oPayload.tz || "UTC",
+          created_by: username,
+          created_at: formatDateSystem(),
+          updated_by: username,
+          updated_at: formatDateSystem()
+        };
+
+        await trx("mst_detail_promo").insert(oData);
+        await ChangesLog({ description: `Tambah Detail Promo ${kode}`, tableName: "mst_detail_promo", referenceCode: kode, action: "CREATE", dataBefore: null, dataAfter: oData, user: username, tz: oPayload.tz || "UTC" }, trx);
+        insertedCodes.push(kode);
+        createdCount++;
+      }
     });
 
-    return res.status(200).json({ status: status.SUKSES, message: "Detail promo berhasil ditambahkan", datetime: formatDateSystem(), data: { kode_detail_promo: kode } });
+    let msg = createdCount > 1 
+      ? `${createdCount} detail promo berhasil ditambahkan` 
+      : "Detail promo berhasil ditambahkan";
+    if (existingSet.size > 0) {
+      msg += ` (${existingSet.size} item dilewati karena sudah terdaftar)`;
+    }
+
+    return res.status(200).json({ status: status.SUKSES, message: msg, datetime: formatDateSystem(), data: { inserted_codes: insertedCodes } });
   } catch (error) {
     const oResult = { status: status.BAD_REQUEST, message: error.message || "Sistem sedang maintenance", datetime: formatDateSystem() };
     Logging(error, { file: "/master/detail_promo/detail_promo_create.js", func: "create", request: oPayload, response: oResult, user: username });

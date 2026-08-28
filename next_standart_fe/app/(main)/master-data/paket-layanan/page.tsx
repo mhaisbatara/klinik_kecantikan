@@ -64,7 +64,13 @@ const Page = () => {
     const loadLayanan = async () => {
         try {
             const res = await postData('/master/layanan-data', { status: 'aktif' });
-            const list = (res.data.data || []).map((l: any) => ({ label: `${l.nama} (${l.kode_layanan})`, value: l.kode_layanan, nama: l.nama }));
+            const list = (res.data.data || []).map((l: any) => ({
+                label: `${l.nama} (${l.kode_layanan})`,
+                value: l.kode_layanan,
+                nama: l.nama,
+                kode_ruangan: l.kode_ruangan,
+                nama_ruangan: l.nama_ruangan
+            }));
             setLayananOptions(list);
         } catch (error) {
             console.error('Failed to load layanan options');
@@ -108,19 +114,30 @@ const Page = () => {
         }
     };
 
+    const getFilteredLayananOptions = (kodeRuangan?: string) => {
+        const targetRuangan = kodeRuangan !== undefined ? kodeRuangan : formData.kode_ruangan;
+        if (!targetRuangan) return layananOptions;
+        return layananOptions.filter((l: any) => l.kode_ruangan === targetRuangan);
+    };
+
     const handleOpenCreate = () => {
         setIsEdit(false);
         setSubmitted(false);
+        const initialRuangan = ruanganList[0]?.value || '';
+        const initialAvailable = initialRuangan
+            ? layananOptions.filter((l: any) => l.kode_ruangan === initialRuangan)
+            : layananOptions;
+
         setFormData({
             kode_paket_layanan: '',
-            kode_ruangan: ruanganList[0]?.value || '',
+            kode_ruangan: initialRuangan,
             nama: '',
             harga_paket: 0,
             masa_berlaku_hari: 365,
             tanggal_mulai: '',
             tanggal_selesai: '',
             status: 'aktif',
-            details: layananOptions.length > 0 ? [{ kode_layanan: layananOptions[0].value, jumlah_sesi: 1 }] : []
+            details: initialAvailable.length > 0 ? [{ kode_layanan: initialAvailable[0].value, jumlah_sesi: 1 }] : []
         });
         setDialogVisible(true);
     };
@@ -152,10 +169,14 @@ const Page = () => {
     };
 
     const handleAddDetail = () => {
-        if (layananOptions.length === 0) return;
+        const available = getFilteredLayananOptions();
+        if (available.length === 0) {
+            showError(toast, 'Tidak ada layanan yang tersedia untuk ruangan ini!');
+            return;
+        }
         setFormData((prev: any) => ({
             ...prev,
-            details: [...prev.details, { kode_layanan: layananOptions[0].value, jumlah_sesi: 1 }]
+            details: [...prev.details, { kode_layanan: available[0].value, jumlah_sesi: 1 }]
         }));
     };
 
@@ -501,11 +522,39 @@ const Page = () => {
                         <Dropdown
                             value={formData.kode_ruangan}
                             options={ruanganList}
-                            onChange={(e) => setFormData({ ...formData, kode_ruangan: e.value })}
+                            onChange={(e) => {
+                                const newRuangan = e.value;
+                                const filteredLayanan = newRuangan
+                                    ? layananOptions.filter((l: any) => l.kode_ruangan === newRuangan)
+                                    : layananOptions;
+
+                                const validDetails = (formData.details || []).filter((d: any) =>
+                                    !newRuangan || filteredLayanan.some((fl: any) => fl.value === d.kode_layanan)
+                                );
+
+                                if (validDetails.length === 0 && filteredLayanan.length > 0) {
+                                    validDetails.push({ kode_layanan: filteredLayanan[0].value, jumlah_sesi: 1 });
+                                }
+
+                                setFormData({
+                                    ...formData,
+                                    kode_ruangan: newRuangan,
+                                    details: validDetails
+                                });
+                            }}
                             placeholder="Pilih Ruangan..."
                             showClear
+                            filter
                             className="w-full text-sm border-round-md"
                         />
+                        {formData.kode_ruangan && (
+                            <small className="text-purple-600 font-medium text-xs block mt-1">
+                                <i className="pi pi-filter mr-1" />
+                                {getFilteredLayananOptions().length > 0
+                                    ? `Menampilkan ${getFilteredLayananOptions().length} layanan yang terdaftar di ruangan ini.`
+                                    : 'Perhatian: Tidak ada layanan yang terdaftar di ruangan ini.'}
+                            </small>
+                        )}
                     </div>
                     <div className="grid">
                         <div className="col-6">
@@ -567,29 +616,39 @@ const Page = () => {
                             <small className="p-error text-red-500 text-xs block mb-2">Minimal tambahkan 1 detail layanan dalam paket.</small>
                         )}
 
-                        {(formData.details || []).map((det: any, idx: number) => (
-                            <div key={idx} className="flex align-items-center gap-2 mb-2 p-2 surface-100 border-round">
-                                <div className="flex-grow-1">
-                                    <Dropdown
-                                        value={det.kode_layanan}
-                                        options={layananOptions}
-                                        onChange={(e) => handleDetailChange(idx, 'kode_layanan', e.value)}
-                                        placeholder="Pilih Layanan..."
-                                        className="w-full text-sm"
-                                    />
+                        {(formData.details || []).map((det: any, idx: number) => {
+                            const availableLayanan = getFilteredLayananOptions();
+                            const currentOption = layananOptions.find((l: any) => l.value === det.kode_layanan);
+                            let rowLayananOptions = availableLayanan;
+                            if (currentOption && !rowLayananOptions.some((o: any) => o.value === det.kode_layanan)) {
+                                rowLayananOptions = [currentOption, ...rowLayananOptions];
+                            }
+                            return (
+                                <div key={idx} className="flex align-items-center gap-2 mb-2 p-2 surface-100 border-round">
+                                    <div className="flex-grow-1">
+                                        <Dropdown
+                                            value={det.kode_layanan}
+                                            options={rowLayananOptions}
+                                            onChange={(e) => handleDetailChange(idx, 'kode_layanan', e.value)}
+                                            placeholder="Pilih Layanan..."
+                                            filter
+                                            emptyMessage={formData.kode_ruangan ? "Tidak ada layanan di ruangan ini" : "Tidak ada layanan"}
+                                            className="w-full text-sm"
+                                        />
+                                    </div>
+                                    <div style={{ width: '120px' }}>
+                                        <InputNumber
+                                            value={det.jumlah_sesi}
+                                            onValueChange={(e) => handleDetailChange(idx, 'jumlah_sesi', e.value || 1)}
+                                            suffix=" Sesi"
+                                            min={1}
+                                            className="w-full text-sm"
+                                        />
+                                    </div>
+                                    <Button icon="pi pi-trash" rounded text severity="danger" onClick={() => handleRemoveDetail(idx)} tooltip="Hapus" />
                                 </div>
-                                <div style={{ width: '120px' }}>
-                                    <InputNumber
-                                        value={det.jumlah_sesi}
-                                        onValueChange={(e) => handleDetailChange(idx, 'jumlah_sesi', e.value || 1)}
-                                        suffix=" Sesi"
-                                        min={1}
-                                        className="w-full text-sm"
-                                    />
-                                </div>
-                                <Button icon="pi pi-trash" rounded text severity="danger" onClick={() => handleRemoveDetail(idx)} tooltip="Hapus" />
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
                 <div className="flex justify-content-end gap-2 mt-4">
