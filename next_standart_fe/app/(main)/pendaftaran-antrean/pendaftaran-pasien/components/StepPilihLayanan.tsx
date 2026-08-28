@@ -132,8 +132,10 @@ export const StepPilihLayanan: React.FC<Props> = ({
   };
 
   const selectedList = Object.values(selectedMap);
-  const totalHarga = selectedList.reduce((sum, i) => sum + i.harga, 0);
+  // totalHarga selalu pakai harga asli — diskon akan diterapkan di kasir
+  const totalHarga = selectedList.reduce((sum, i) => sum + (i.harga_asal ?? i.harga), 0);
   const totalDurasi = selectedList.reduce((sum, i) => sum + i.durasi_menit, 0);
+  const hasPromo = selectedList.some((i) => i.is_promo);
 
   const formatRupiah = (val: number) => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
@@ -217,7 +219,12 @@ export const StepPilihLayanan: React.FC<Props> = ({
               <div className="font-bold text-900 text-sm mb-1">{combinedNama}</div>
               <div className="text-xs text-500 flex justify-content-between align-items-center pt-2 border-top-1 surface-border mt-2">
                 <span>Estimasi Biaya:</span>
-                <span className="font-extrabold text-blue-600 text-base">{formatRupiah(totalHarga)}</span>
+                <div className="flex flex-column align-items-end gap-1">
+                  <span className="font-extrabold text-blue-600 text-base">{formatRupiah(totalHarga)}</span>
+                  {hasPromo && (
+                    <span className="text-xs text-rose-500 font-semibold">* Diskon promo diterapkan di kasir</span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -309,13 +316,8 @@ export const StepPilihLayanan: React.FC<Props> = ({
               </div>
 
               <div>
-                {item.is_promo && item.harga_asal && item.harga_asal > item.harga && (
-                  <span className="text-xs text-gray-400 line-through mr-2 font-semibold">
-                    {formatRupiah(item.harga_asal)}
-                  </span>
-                )}
-                <span className={`text-base font-extrabold ${item.is_promo ? 'text-rose-600' : isPaket ? 'text-amber-700' : 'text-blue-600'}`}>
-                  {formatRupiah(item.harga)}
+                <span className={`text-base font-extrabold ${isPaket ? 'text-amber-700' : 'text-blue-600'}`}>
+                  {formatRupiah(item.harga_asal ?? item.harga)}
                 </span>
               </div>
 

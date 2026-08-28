@@ -59,25 +59,54 @@ router.post("/", async (req, res) => {
       total_harga += parseFloat(item.harga_satuan || 0) * parseInt(item.qty || 1);
     });
 
-    // 2. Hitung diskon level transaksi dari promo (mst_promo sederhana)
+    // 2. Hitung diskon multi-promo: hanya untuk item yang terdaftar di mst_detail_promo
     let total_diskon = 0;
-    let validKodePromo = null;
+    const validPromoCodes = [];
 
-    if (kode_promo) {
-      const promoData = await trx("mst_promo")
-        .where("kode_promo", kode_promo)
-        .where("status", "aktif")
-        .first();
+    const rawCodes = Array.isArray(kode_promo)
+      ? kode_promo
+      : typeof kode_promo === "string" && kode_promo.trim()
+      ? kode_promo.split(",").map((s) => s.trim()).filter(Boolean)
+      : [];
 
-      if (promoData) {
-        validKodePromo = promoData.kode_promo;
-        const diskon = parseFloat(promoData.nilai_diskon || 0);
-        total_diskon = promoData.jenis_diskon === "persen"
-          ? (total_harga * diskon) / 100
-          : diskon;
-        total_diskon = Math.min(total_diskon, total_harga);
+    if (rawCodes.length > 0) {
+      const activePromos = await trx("mst_promo")
+        .whereIn("kode_promo", rawCodes)
+        .where("status", "aktif");
+
+      for (const promoData of activePromos) {
+        validPromoCodes.push(promoData.kode_promo);
+        const nilDiskon = parseFloat(promoData.nilai_diskon || 0);
+
+        const detailPromo = await trx("mst_detail_promo")
+          .where("kode_promo", promoData.kode_promo)
+          .where("status", "aktif")
+          .select("jenis_item", "kode_item");
+
+        let diskonPromo = 0;
+        if (detailPromo.length === 0) {
+          diskonPromo = promoData.jenis_diskon === "persen"
+            ? (total_harga * nilDiskon) / 100
+            : nilDiskon;
+        } else {
+          const promoKodeSet = new Set(detailPromo.map((dp) => dp.kode_item));
+          let baseDiskon = 0;
+          items.forEach((item) => {
+            if (promoKodeSet.has(item.kode)) {
+              const subtotalItem = parseFloat(item.harga_satuan || 0) * parseInt(item.qty || 1);
+              baseDiskon += subtotalItem;
+            }
+          });
+          diskonPromo = promoData.jenis_diskon === "persen"
+            ? (baseDiskon * nilDiskon) / 100
+            : Math.min(nilDiskon, baseDiskon);
+        }
+        total_diskon += diskonPromo;
       }
+      total_diskon = Math.min(total_diskon, total_harga);
     }
+
+    const validKodePromoStr = validPromoCodes.length > 0 ? validPromoCodes.join(",") : null;
 
     const total_bayar = Math.max(0, total_harga - total_diskon);
     const tanggal_transaksi = new Date().toISOString().slice(0, 10);
@@ -98,7 +127,7 @@ router.post("/", async (req, res) => {
 
       await trx("trx_transaksi").where("kode_transaksi", kode_trx).update({
         kode_kunjungan: kode_kunjungan || existing.kode_kunjungan,
-        kode_promo: validKodePromo,
+        kode_promo: validKodePromoStr,
         total_harga,
         total_diskon,
         total_bayar,
@@ -116,7 +145,7 @@ router.post("/", async (req, res) => {
         kode_transaksi: kode_trx,
         kode_kunjungan: kode_kunjungan || null,
         no_rm,
-        kode_promo: validKodePromo,
+        kode_promo: validKodePromoStr,
         tanggal_transaksi,
         total_harga,
         total_diskon,

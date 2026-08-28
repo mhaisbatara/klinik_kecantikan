@@ -43,7 +43,11 @@ router.post("/", async (req, res) => {
           "dal.jenis_layanan",
           "dal.kode_layanan",
           "dal.nama_layanan",
-          "dal.harga"
+          "dal.harga",
+          "dal.kode_promo",
+          "dal.nama_promo",
+          "dal.jenis_diskon",
+          "dal.nilai_diskon"
         );
     }
 
@@ -59,6 +63,10 @@ router.post("/", async (req, res) => {
           harga_satuan: parseFloat(l.harga || 0),
           subtotal: parseFloat(l.harga || 0),
           is_from_pendaftaran: true,
+          kode_promo: l.kode_promo || null,
+          nama_promo: l.nama_promo || null,
+          jenis_diskon: l.jenis_diskon || null,
+          nilai_diskon: l.nilai_diskon ? parseFloat(l.nilai_diskon) : null,
         }));
       return {
         ...k,
@@ -137,7 +145,7 @@ router.post("/", async (req, res) => {
       harga: parseFloat(item.harga || 0),
     }));
 
-    // 4. Promo aktif hari ini (Sederhana — level total transaksi)
+    // 4. Promo aktif hari ini & detail item promo
     const vaPromo = await DB("mst_promo as p")
       .where("p.status", "aktif")
       .whereRaw("CURDATE() BETWEEN DATE(p.tanggal_mulai) AND DATE(p.tanggal_selesai)")
@@ -151,6 +159,20 @@ router.post("/", async (req, res) => {
       )
       .orderBy("p.nama", "asc");
 
+    const promoCodes = vaPromo.map((p) => p.kode_promo).filter(Boolean);
+    let promoDetailMap = {};
+    if (promoCodes.length > 0) {
+      const vaPromoDetails = await DB("mst_detail_promo")
+        .whereIn("kode_promo", promoCodes)
+        .where("status", "aktif")
+        .select("kode_promo", "jenis_item", "kode_item");
+
+      vaPromoDetails.forEach((dp) => {
+        if (!promoDetailMap[dp.kode_promo]) promoDetailMap[dp.kode_promo] = [];
+        promoDetailMap[dp.kode_promo].push(dp.kode_item);
+      });
+    }
+
     const listPromo = vaPromo.map((p) => ({
       kode_promo: p.kode_promo,
       nama_promo: p.nama_promo,
@@ -158,6 +180,7 @@ router.post("/", async (req, res) => {
       nilai_diskon: parseFloat(p.nilai_diskon || 0),
       tanggal_mulai: p.tanggal_mulai,
       tanggal_selesai: p.tanggal_selesai,
+      eligible_items: promoDetailMap[p.kode_promo] || [],
     }));
 
     return res.status(200).json({

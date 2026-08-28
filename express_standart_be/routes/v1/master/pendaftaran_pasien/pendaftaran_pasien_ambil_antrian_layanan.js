@@ -148,7 +148,42 @@ router.post("/", async (req, res) => {
       if (items.length > 0) {
         const prefixAntrianLayanan = `AL-${todayStr}-`;
 
-        // 1. Validasi & Ambil Detail Semua Item
+        // Ambil promo aktif hari ini untuk referensi kasir
+        const activePromos = await trx("mst_promo as p")
+          .join("mst_detail_promo as dp", "p.kode_promo", "dp.kode_promo")
+          .where("p.status", "aktif")
+          .where("dp.status", "aktif")
+          .whereRaw("DATE(p.tanggal_mulai) <= ?", [todayYmd])
+          .whereRaw("DATE(p.tanggal_selesai) >= ?", [todayYmd])
+          .select(
+            "p.kode_promo",
+            "p.nama as nama_promo",
+            "p.jenis_diskon",
+            "p.nilai_diskon",
+            "dp.jenis_item",
+            "dp.kode_item"
+          );
+
+        // Bangun promoMap: key = `{jenis}_{kode_item}`
+        const promoMap = {};
+        for (const pr of activePromos) {
+          const jenisClean = (pr.jenis_item || "").toLowerCase();
+          const normJenis = jenisClean.includes("layanan")
+            ? jenisClean.includes("paket") ? "paket" : "layanan"
+            : jenisClean.includes("produk") ? jenisClean.includes("paket") ? "paket" : "produk" : jenisClean;
+          const keys = [`${normJenis}_${pr.kode_item}`, `${jenisClean}_${pr.kode_item}`];
+          for (const key of keys) {
+            if (!promoMap[key]) {
+              promoMap[key] = pr;
+            } else {
+              if (parseFloat(pr.nilai_diskon || 0) > parseFloat(promoMap[key].nilai_diskon || 0)) {
+                promoMap[key] = pr;
+              }
+            }
+          }
+        }
+
+        // 1. Validasi & Ambil Detail Semua Item (harga ASLI dari master, promo disimpan sebagai referensi)
         const processedItems = [];
         for (const item of items) {
           const jenis = (item.jenis_layanan || item.jenis || "layanan").toLowerCase();
@@ -159,7 +194,7 @@ router.post("/", async (req, res) => {
           }
 
           let namaLayanan = "";
-          let hargaLayanan = 0;
+          let hargaLayanan = 0; // Selalu harga ASLI dari master
           let kodeRuangan = "";
           let namaRuangan = "";
 
@@ -177,7 +212,7 @@ router.post("/", async (req, res) => {
               throw err;
             }
             namaLayanan = lay.nama;
-            hargaLayanan = parseFloat(lay.harga || 0);
+            hargaLayanan = parseFloat(lay.harga || 0); // harga ASLI
             kodeRuangan = lay.kode_ruangan || "";
             namaRuangan = lay.nama_ruangan || lay.kode_ruangan || "Ruang Treatment";
           } else {
@@ -194,16 +229,24 @@ router.post("/", async (req, res) => {
               throw err;
             }
             namaLayanan = pkt.nama;
-            hargaLayanan = parseFloat(pkt.harga_paket || 0);
+            hargaLayanan = parseFloat(pkt.harga_paket || 0); // harga ASLI
             kodeRuangan = pkt.kode_ruangan || "";
             namaRuangan = pkt.nama_ruangan || pkt.kode_ruangan || "Ruang Treatment";
           }
+
+          // Cari promo aktif untuk item ini (disimpan sebagai referensi kasir, tidak mengubah harga)
+          const promoKey1 = `${jenis}_${kodeLayanan}`;
+          const promoItem = promoMap[promoKey1] || null;
 
           processedItems.push({
             jenis_layanan: jenis,
             kode_layanan: kodeLayanan,
             nama_layanan: namaLayanan,
-            harga: hargaLayanan,
+            harga: hargaLayanan,         // harga ASLI — diskon diterapkan di kasir
+            kode_promo: promoItem?.kode_promo || null,
+            nama_promo: promoItem?.nama_promo || null,
+            jenis_diskon: promoItem?.jenis_diskon || null,
+            nilai_diskon: promoItem ? parseFloat(promoItem.nilai_diskon || 0) : null,
             kode_ruangan: kodeRuangan,
             nama_ruangan: namaRuangan,
           });
@@ -301,7 +344,11 @@ router.post("/", async (req, res) => {
               jenis_layanan: item.jenis_layanan || "layanan",
               kode_layanan: item.kode_layanan,
               nama_layanan: item.nama_layanan,
-              harga: item.harga || 0,
+              harga: item.harga || 0,         // harga ASLI — diskon diterapkan di kasir
+              kode_promo: item.kode_promo || null,
+              nama_promo: item.nama_promo || null,
+              jenis_diskon: item.jenis_diskon || null,
+              nilai_diskon: item.nilai_diskon ?? null,
               kode_ruangan: group.kode_ruangan,
               nama_ruangan: group.nama_ruangan,
               tz: oPayload.tz || "Asia/Jakarta",

@@ -44,7 +44,8 @@ router.post("/", async (req, res) => {
     if (trx.kode_kunjungan && trx.status === "draft") {
       const antrianItems = await DB("trx_detail_antrian_layanan")
         .where("kode_kunjungan", trx.kode_kunjungan)
-        .select("kode_layanan", "nama_layanan", "harga");
+        .select("kode_layanan", "nama_layanan", "harga",
+          "kode_promo", "nama_promo", "jenis_diskon", "nilai_diskon");
 
       if (antrianItems.length > 0) {
         const existingDetails = await DB("trx_detail_transaksi")
@@ -106,19 +107,42 @@ router.post("/", async (req, res) => {
           let newTotalDiskon = parseFloat(trx.total_diskon || 0);
 
           if (trx.kode_promo) {
-            const promo = await DB("mst_promo")
-              .where("kode_promo", trx.kode_promo)
-              .where("status", "aktif")
-              .first();
-            if (promo) {
-              const nilDiskon = parseFloat(promo.nilai_diskon || 0);
-              newTotalDiskon = promo.jenis_diskon === "persen"
-                ? (newTotalHarga * nilDiskon) / 100
-                : nilDiskon;
-              newTotalDiskon = Math.min(newTotalDiskon, newTotalHarga);
-            } else {
-              newTotalDiskon = 0;
+            const rawCodes = String(trx.kode_promo).split(",").map((s) => s.trim()).filter(Boolean);
+            const activePromos = await DB("mst_promo")
+              .whereIn("kode_promo", rawCodes)
+              .where("status", "aktif");
+
+            const allDetails = await DB("trx_detail_transaksi")
+              .where("kode_transaksi", kode_transaksi)
+              .select("kode_layanan", "kode_produk", "qty", "harga_satuan");
+
+            let calculatedDiskon = 0;
+            for (const promoData of activePromos) {
+              const nilDiskon = parseFloat(promoData.nilai_diskon || 0);
+              const detailPromo = await DB("mst_detail_promo")
+                .where("kode_promo", promoData.kode_promo)
+                .where("status", "aktif")
+                .select("kode_item");
+
+              if (detailPromo.length === 0) {
+                calculatedDiskon += promoData.jenis_diskon === "persen"
+                  ? (newTotalHarga * nilDiskon) / 100
+                  : nilDiskon;
+              } else {
+                const promoKodeSet = new Set(detailPromo.map((dp) => dp.kode_item));
+                let baseDiskon = 0;
+                for (const d of allDetails) {
+                  const kode = d.kode_layanan || d.kode_produk;
+                  if (kode && promoKodeSet.has(kode)) {
+                    baseDiskon += parseFloat(d.harga_satuan || 0) * parseInt(d.qty || 1);
+                  }
+                }
+                calculatedDiskon += promoData.jenis_diskon === "persen"
+                  ? (baseDiskon * nilDiskon) / 100
+                  : Math.min(nilDiskon, baseDiskon);
+              }
             }
+            newTotalDiskon = Math.min(calculatedDiskon, newTotalHarga);
           }
 
           const newTotalBayar = Math.max(0, newTotalHarga - newTotalDiskon);
@@ -143,9 +167,17 @@ router.post("/", async (req, res) => {
 
     // Ambil detail item dengan flag is_from_pendaftaran
     const details = await DB("trx_detail_transaksi as dt")
+      .leftJoin("trx_transaksi as t", "t.kode_transaksi", "dt.kode_transaksi")
       .leftJoin("mst_layanan as l", "dt.kode_layanan", "l.kode_layanan")
       .leftJoin("mst_paket_layanan as pl", "dt.kode_layanan", "pl.kode_paket_layanan")
       .leftJoin("mst_produk as prod", "dt.kode_produk", "prod.kode_produk")
+      .leftJoin(
+        "trx_detail_antrian_layanan as dal",
+        function () {
+          this.on("dal.kode_kunjungan", "t.kode_kunjungan")
+            .andOn("dal.kode_layanan", "dt.kode_layanan");
+        }
+      )
       .where("dt.kode_transaksi", kode_transaksi)
       .select(
         "dt.kode_detail_transaksi",
@@ -158,7 +190,11 @@ router.post("/", async (req, res) => {
         "dt.qty",
         "dt.harga_satuan",
         "dt.subtotal",
-        DB.raw("COALESCE(dt.is_from_pendaftaran, 0) as is_from_pendaftaran")
+        DB.raw("COALESCE(dt.is_from_pendaftaran, 0) as is_from_pendaftaran"),
+        "dal.kode_promo",
+        "dal.nama_promo",
+        "dal.jenis_diskon",
+        "dal.nilai_diskon"
       )
       .orderBy("dt.is_from_pendaftaran", "desc")
       .orderBy("dt.id", "asc");
