@@ -14,8 +14,11 @@ router.post("/", async (req, res) => {
   const page = parseInt(oPayload.page) || 1;
   const perPage = parseInt(oPayload.perPage) || 10;
   const hasPagination = oPayload.page !== undefined || oPayload.perPage !== undefined;
-
   try {
+    const filterIsKonsultasi = oPayload.is_konsultasi !== undefined && oPayload.is_konsultasi !== null && oPayload.is_konsultasi !== ""
+      ? parseInt(oPayload.is_konsultasi)
+      : null;
+
     const baseQuery = DB("mst_ruangan as r").modify((qb) => {
       if (keyword) {
         const lower = keyword.toLowerCase();
@@ -25,6 +28,7 @@ router.post("/", async (req, res) => {
         });
       }
       if (filterStatus) qb.where("r.status", filterStatus);
+      if (filterIsKonsultasi !== null) qb.where("r.is_konsultasi", filterIsKonsultasi);
     });
 
     const selectFields = [
@@ -32,6 +36,7 @@ router.post("/", async (req, res) => {
       "r.kode_ruangan",
       "r.nama_ruangan",
       "r.status",
+      "r.is_konsultasi",
       "r.created_by",
       "r.created_at",
       "r.updated_by",

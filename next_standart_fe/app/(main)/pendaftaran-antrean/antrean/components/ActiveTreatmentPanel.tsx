@@ -309,61 +309,63 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                 </div>
             </div>
 
-            {/* STEP NAVIGATION HEADER BAR */}
-            <div className="flex flex-column sm:flex-row align-items-center justify-content-between p-3 bg-teal-50 border-bottom-1 surface-border gap-2">
-                <div className="flex align-items-center gap-2 w-full sm:w-auto">
-                    <button
-                        type="button"
-                        onClick={() => setActiveStep('form')}
-                        className={`flex align-items-center gap-2 px-3 py-2 border-round-lg font-bold text-xs cursor-pointer border-none transition-all ${
-                            activeStep === 'form'
-                                ? 'bg-teal-700 text-white shadow-2'
-                                : 'surface-card text-700 hover:surface-200 border-1 surface-border'
-                        }`}
-                    >
-                        <span className={`w-1.5rem h-1.5rem border-circle flex align-items-center justify-content-center text-xs font-extrabold ${
-                            activeStep === 'form' ? 'bg-white text-teal-800' : 'bg-teal-100 text-teal-800'
-                        }`}>
-                            1
-                        </span>
-                        <span>1. Form Penanganan Pasien</span>
-                    </button>
+            {/* STEP NAVIGATION HEADER BAR (Hanya untuk Ruangan Tindakan non-konsultasi) */}
+            {!isKonsultasi && (
+                <div className="flex flex-column sm:flex-row align-items-center justify-content-between p-3 bg-teal-50 border-bottom-1 surface-border gap-2">
+                    <div className="flex align-items-center gap-2 w-full sm:w-auto">
+                        <button
+                            type="button"
+                            onClick={() => setActiveStep('form')}
+                            className={`flex align-items-center gap-2 px-3 py-2 border-round-lg font-bold text-xs cursor-pointer border-none transition-all ${
+                                activeStep === 'form'
+                                    ? 'bg-teal-700 text-white shadow-2'
+                                    : 'surface-card text-700 hover:surface-200 border-1 surface-border'
+                            }`}
+                        >
+                            <span className={`w-1.5rem h-1.5rem border-circle flex align-items-center justify-content-center text-xs font-extrabold ${
+                                activeStep === 'form' ? 'bg-white text-teal-800' : 'bg-teal-100 text-teal-800'
+                            }`}>
+                                1
+                            </span>
+                            <span>1. Form Penanganan Pasien</span>
+                        </button>
 
-                    <i className="pi pi-chevron-right text-400 text-sm hidden sm:inline-block" />
+                        <i className="pi pi-chevron-right text-400 text-sm hidden sm:inline-block" />
 
-                    <button
-                        type="button"
-                        onClick={() => setActiveStep('hasil')}
-                        className={`flex align-items-center gap-2 px-3 py-2 border-round-lg font-bold text-xs cursor-pointer border-none transition-all ${
-                            activeStep === 'hasil'
-                                ? 'bg-teal-700 text-white shadow-2'
-                                : 'surface-card text-700 hover:surface-200 border-1 surface-border'
-                        }`}
-                    >
-                        <span className={`w-1.5rem h-1.5rem border-circle flex align-items-center justify-content-center text-xs font-extrabold ${
-                            activeStep === 'hasil' ? 'bg-white text-teal-800' : 'bg-teal-100 text-teal-800'
-                        }`}>
-                            2
-                        </span>
-                        <span>2. Hasil Treatment (Foto After) &amp; Rekomendasi Produk</span>
-                    </button>
+                        <button
+                            type="button"
+                            onClick={() => setActiveStep('hasil')}
+                            className={`flex align-items-center gap-2 px-3 py-2 border-round-lg font-bold text-xs cursor-pointer border-none transition-all ${
+                                activeStep === 'hasil'
+                                    ? 'bg-teal-700 text-white shadow-2'
+                                    : 'surface-card text-700 hover:surface-200 border-1 surface-border'
+                            }`}
+                        >
+                            <span className={`w-1.5rem h-1.5rem border-circle flex align-items-center justify-content-center text-xs font-extrabold ${
+                                activeStep === 'hasil' ? 'bg-white text-teal-800' : 'bg-teal-100 text-teal-800'
+                            }`}>
+                                2
+                            </span>
+                            <span>2. Hasil Treatment (Foto After) &amp; Rekomendasi Produk</span>
+                        </button>
+                    </div>
+
+                    {activeStep === 'hasil' && (
+                        <Button
+                            label="Kembali ke Form Penanganan"
+                            icon="pi pi-arrow-left"
+                            outlined
+                            size="small"
+                            severity="secondary"
+                            className="text-xs font-bold border-round-lg"
+                            onClick={() => setActiveStep('form')}
+                        />
+                    )}
                 </div>
-
-                {activeStep === 'hasil' && (
-                    <Button
-                        label="Kembali ke Form Penanganan"
-                        icon="pi pi-arrow-left"
-                        outlined
-                        size="small"
-                        severity="secondary"
-                        className="text-xs font-bold border-round-lg"
-                        onClick={() => setActiveStep('form')}
-                    />
-                )}
-            </div>
+            )}
 
             {/* STEP 1: FORM PENANGANAN PASIEN */}
-            {activeStep === 'form' ? (
+            {activeStep === 'form' || isKonsultasi ? (
                 <div className="p-4 flex flex-column gap-4 surface-ground">
                     {/* 1. SECTION ISIAN KHUSUS FORM RUANGAN */}
                     {loadingFields ? (
@@ -410,7 +412,6 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                                                         <span>
                                                             {f.label_field} {isReq && <span className="text-red-500 font-bold">*</span>}
                                                         </span>
-                                                        <span className="text-[10px] text-400 font-normal uppercase">({f.tipe_field})</span>
                                                     </label>
 
                                                     {f.tipe_field === 'textarea' ? (
@@ -496,19 +497,25 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                     <div className="flex align-items-center justify-content-end gap-3 mt-2 pt-3 border-top-1 surface-border">
                         {isFormSaved ? (
                             <div className="flex align-items-center gap-3 flex-wrap">
-                                <Tag value="✅ Form Penanganan Telah Disimpan & Dikunci" severity="success" className="px-3 py-2 text-xs font-bold" />
-                                <Button
-                                    label="Lanjut ke Hasil Treatment →"
+                                <Tag
+                                    value={isKonsultasi ? "✅ Form Konsultasi & Rekomendasi Telah Disimpan" : "✅ Form Penanganan Telah Disimpan & Dikunci"}
                                     severity="success"
-                                    size="small"
-                                    onClick={() => setActiveStep('hasil')}
-                                    className="font-bold text-xs bg-teal-600 border-none border-round-lg px-4 text-white shadow-2"
+                                    className="px-3 py-2 text-xs font-bold"
                                 />
+                                {!isKonsultasi && (
+                                    <Button
+                                        label="Lanjut ke Hasil Treatment →"
+                                        severity="success"
+                                        size="small"
+                                        onClick={() => setActiveStep('hasil')}
+                                        className="font-bold text-xs bg-teal-600 border-none border-round-lg px-4 text-white shadow-2"
+                                    />
+                                )}
                             </div>
                         ) : (
                             <Button
-                                label="Simpan Form Penanganan & Lanjut ke Hasil Treatment"
-                                icon="pi pi-arrow-right"
+                                label={isKonsultasi ? "Simpan Rekomendasi & Penanganan Pasien" : "Simpan Form Penanganan & Lanjut ke Hasil Treatment"}
+                                icon={isKonsultasi ? "pi pi-check-circle" : "pi pi-arrow-right"}
                                 iconPos="right"
                                 severity="success"
                                 size="small"

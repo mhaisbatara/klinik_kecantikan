@@ -72,12 +72,36 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
         fetchProdukOptions();
     }, []);
 
-    // Reset state kunci saat pasien berganti
+    const loadExistingRekomendasiProduk = async (kodeKunjungan: string) => {
+        if (!kodeKunjungan) return;
+        try {
+            const res = await postData('/master/kunjungan-produk-rekomendasi', { kode_kunjungan: kodeKunjungan });
+            const list = res.data?.data || [];
+            if (list.length > 0) {
+                const mapped: SelectedProduk[] = list.map((item: any) => ({
+                    kode_produk: item.kode_produk,
+                    nama: item.nama,
+                    harga_jual: parseFloat(item.harga_jual || 0),
+                    satuan: item.satuan || 'pcs',
+                    qty: parseInt(item.qty || 1, 10),
+                }));
+                setSelectedProdukList(mapped);
+            }
+        } catch (_) {
+            // silent fail
+        }
+    };
+
+    // Reset state & auto-load rekomendasi produk dari dokter saat pasien berganti
     useEffect(() => {
         setIsSubmitted(false);
         setFotoAfterUrl('');
         setCatatan('');
         setSelectedProdukList([]);
+
+        if (activePatient?.kode_kunjungan) {
+            loadExistingRekomendasiProduk(activePatient.kode_kunjungan);
+        }
     }, [activePatient?.kode_antrian_layanan]);
 
     const fetchProdukOptions = async (keyword = '') => {
@@ -430,8 +454,9 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                         {/* List Produk Terpilih */}
                         <div className="border-top-1 surface-border pt-3 flex-1 flex flex-column">
                             <div className="flex align-items-center justify-content-between mb-2">
-                                <span className="text-xs font-extrabold text-teal-800 uppercase tracking-wider">
-                                    DAFTAR PRODUK TERPILIH ({selectedProdukList.length})
+                                <span className="text-xs font-extrabold text-teal-800 uppercase tracking-wider flex align-items-center gap-1">
+                                    <i className="pi pi-sparkles text-amber-500 text-xs" />
+                                    PRODUK REKOMENDASI DOKTER &amp; TERPILIH ({selectedProdukList.length})
                                 </span>
                                 {selectedProdukList.length > 0 && !isSubmitted && (
                                     <button

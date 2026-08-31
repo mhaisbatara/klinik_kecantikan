@@ -136,6 +136,28 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
     const [selectedRuangan, setSelectedRuangan] = useState<string>('');
     const [loadingRuangan, setLoadingRuangan] = useState<boolean>(true);
     const [statusFilter, setStatusFilter] = useState<string>('');
+    const [petugasJaga, setPetugasJaga] = useState<any[]>([]);
+
+    const loadPetugasJaga = async (kodeRuangan: string) => {
+        try {
+            const days = ['minggu', 'senin', 'selasa', 'rabu', 'kamis', 'jumat', 'sabtu'];
+            const todayStr = days[new Date().getDay()];
+            const res = await postData('/master/jadwal-karyawan-data', {
+                kode_ruangan: kodeRuangan,
+                hari: todayStr,
+                status: 'aktif',
+            });
+            setPetugasJaga(res.data.data || []);
+        } catch (_) {
+            setPetugasJaga([]);
+        }
+    };
+
+    useEffect(() => {
+        if (selectedRuangan) {
+            loadPetugasJaga(selectedRuangan);
+        }
+    }, [selectedRuangan]);
 
     // State for Custom Form Dialogs
     const [manageFormVisible, setManageFormVisible] = useState<boolean>(false);
@@ -348,6 +370,27 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
                                     />
                                 </div>
                             </div>
+
+                            {/* BANNER DOKTER / STAF JAGA HARI INI SECARA OTOMATIS */}
+                            {petugasJaga.length > 0 ? (
+                                <div className="flex align-items-center gap-2 px-3 py-2 border-round-lg bg-teal-50 border-1 border-teal-200 text-teal-900 text-xs font-semibold">
+                                    <i className="pi pi-user text-teal-600 text-sm" />
+                                    <span>
+                                        <strong>Dokter / Petugas Jaga Hari Ini:</strong>{' '}
+                                        {petugasJaga
+                                            .map(
+                                                (p) =>
+                                                    `${p.nama_karyawan} (${(p.jabatan || 'DOKTER').toUpperCase()} • Jam ${p.jam_mulai} - ${p.jam_selesai})`
+                                            )
+                                            .join(' | ')}
+                                    </span>
+                                </div>
+                            ) : (
+                                <div className="flex align-items-center gap-2 px-3 py-2 border-round-lg bg-amber-50 border-1 border-amber-200 text-amber-900 text-xs font-medium">
+                                    <i className="pi pi-exclamation-circle text-amber-600 text-sm" />
+                                    <span>Tidak ada jadwal dokter/petugas aktif di ruangan ini untuk hari ini.</span>
+                                </div>
+                            )}
 
                             {/* ROW 2: FILTER DROPDOWN & STATUS BADGES */}
                             <div className="flex flex-column lg:flex-row align-items-start lg:align-items-center justify-content-between gap-3 pt-1">

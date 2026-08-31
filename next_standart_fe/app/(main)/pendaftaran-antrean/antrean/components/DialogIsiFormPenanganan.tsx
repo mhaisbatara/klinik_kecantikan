@@ -210,9 +210,6 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
                                             <label className="block text-xs font-semibold text-700 mb-1">
                                                 {f.label_field}
                                                 {f.is_required && <span className="text-red-500 ml-1">*</span>}
-                                                <span className="text-[10px] text-400 font-normal uppercase ml-1">
-                                                    ({f.tipe_field})
-                                                </span>
                                             </label>
 
                                             {isFoto ? (

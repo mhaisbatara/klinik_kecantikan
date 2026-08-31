@@ -30,6 +30,7 @@ router.post("/", async (req, res) => {
       const oData = {
         nama_ruangan: oPayload.nama_ruangan,
         status: oPayload.status,
+        is_konsultasi: parseInt(oPayload.is_konsultasi || 0) === 1 ? 1 : 0,
         updated_by: username,
         updated_at: formatDateSystem()
       };

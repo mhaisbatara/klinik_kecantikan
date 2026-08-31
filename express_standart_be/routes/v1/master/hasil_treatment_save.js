@@ -107,10 +107,13 @@ const handleHasilTreatmentSave = async (req, res) => {
       const hasItems = layananPendaftaran.length > 0 || produkItems.length > 0;
 
       if (hasItems) {
-        // Cek apakah sudah ada transaksi draft untuk kunjungan ini
+        // Cek apakah sudah ada transaksi draft (non-produk saja) untuk kunjungan ini
         let existingTrx = await trx("trx_transaksi")
           .where("kode_kunjungan", kode_kunjungan)
           .where("status", "draft")
+          .where(function() {
+            this.whereNull("is_product_only").orWhere("is_product_only", 0);
+          })
           .first();
 
         if (existingTrx) {
@@ -169,7 +172,12 @@ const handleHasilTreatmentSave = async (req, res) => {
           await trx("trx_transaksi").insert(newTrx);
         }
 
-        // ─── 4. HAPUS DETAIL LAMA LALU INSERT ULANG (SYNC PENUH) ─────────────
+        // Ambil produk lama yang direkomendasikan dokter di ruang konsultasi sebelum delete
+        const existingProdukDetails = await trx("trx_detail_transaksi")
+          .where("kode_transaksi", createdTransaksiKode)
+          .whereNotNull("kode_produk")
+          .select("kode_produk", "qty", "harga_satuan");
+
         // Hapus semua detail lama agar tidak duplikat saat sync ulang
         await trx("trx_detail_transaksi")
           .where("kode_transaksi", createdTransaksiKode)
@@ -189,8 +197,16 @@ const handleHasilTreatmentSave = async (req, res) => {
           if (!isNaN(num)) nextDetailSeq = num + 1;
         }
 
-        // ─── 4a. INSERT LAYANAN DARI PENDAFTARAN ─────────────────────────────
-        for (const layanan of layananPendaftaran) {
+        // ─── 4a. INSERT LAYANAN DARI PENDAFTARAN (UNIQUE) ─────────────────────
+        const uniqueLayananMap = {};
+        layananPendaftaran.forEach((l) => {
+          if (l.kode_layanan && !uniqueLayananMap[l.kode_layanan]) {
+            uniqueLayananMap[l.kode_layanan] = l;
+          }
+        });
+        const finalLayananList = Object.values(uniqueLayananMap);
+
+        for (const layanan of finalLayananList) {
           const cKodeDetail = `${prefixDetail}${String(nextDetailSeq).padStart(3, "0")}`;
           nextDetailSeq++;
 
@@ -214,9 +230,30 @@ const handleHasilTreatmentSave = async (req, res) => {
           });
         }
 
-        // ─── 4b. INSERT PRODUK DARI DOKTER/TREATMENT ─────────────────────────
-        // Fetch harga produk terkini dari mst_produk
-        const kodeProdukList = produkItems.map((i) => i.kode_produk).filter(Boolean);
+        // ─── 4b. MERGE & INSERT PRODUK DARI DOKTER KONSULTASI + TREATMENT ───
+        const finalProdukMap = {};
+        existingProdukDetails.forEach((p) => {
+          if (p.kode_produk) {
+            finalProdukMap[p.kode_produk] = {
+              kode_produk: p.kode_produk,
+              qty: p.qty,
+              harga_satuan: p.harga_satuan,
+            };
+          }
+        });
+
+        produkItems.forEach((p) => {
+          if (p.kode_produk) {
+            finalProdukMap[p.kode_produk] = {
+              kode_produk: p.kode_produk,
+              qty: Math.max(1, parseInt(p.qty || 1, 10)),
+              harga_satuan: parseFloat(p.harga_jual || p.harga_satuan || 0),
+            };
+          }
+        });
+
+        const finalProdukList = Object.values(finalProdukMap);
+        const kodeProdukList = finalProdukList.map((i) => i.kode_produk).filter(Boolean);
         let produkPriceMap = {};
         if (kodeProdukList.length > 0) {
           const mstProdukList = await trx("mst_produk")
@@ -227,7 +264,7 @@ const handleHasilTreatmentSave = async (req, res) => {
           });
         }
 
-        for (const item of produkItems) {
+        for (const item of finalProdukList) {
           const cKodeDetail = `${prefixDetail}${String(nextDetailSeq).padStart(3, "0")}`;
           nextDetailSeq++;
 

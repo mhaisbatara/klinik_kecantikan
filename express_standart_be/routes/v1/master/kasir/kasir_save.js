@@ -38,10 +38,12 @@ router.post("/", async (req, res) => {
     kode_transaksi,       // jika ada = update, jika tidak = create baru
     kode_kunjungan,
     no_rm,
-    items = [],           // [{ jenis, kode, nama, qty, harga_satuan, is_from_pendaftaran }]
     kode_promo,           // promo level transaksi (opsional)
     metode_bayar = "tunai",
   } = body;
+
+  // items perlu let agar bisa di-filter ulang untuk transaksi is_product_only
+  let items = body.items || [];
 
   if (!no_rm) {
     return res.status(400).json({ status: status.BAD_REQUEST, message: "no_rm pasien wajib diisi", datetime: formatDateSystem() });
@@ -108,7 +110,7 @@ router.post("/", async (req, res) => {
 
     const validKodePromoStr = validPromoCodes.length > 0 ? validPromoCodes.join(",") : null;
 
-    const total_bayar = Math.max(0, total_harga - total_diskon);
+    let total_bayar = Math.max(0, total_harga - total_diskon);
     const tanggal_transaksi = new Date().toISOString().slice(0, 10);
 
     let kode_trx = kode_transaksi;
@@ -125,6 +127,14 @@ router.post("/", async (req, res) => {
         return res.status(400).json({ status: status.BAD_REQUEST, message: "Transaksi sudah lunas, tidak bisa diubah", datetime: formatDateSystem() });
       }
 
+      // Jika transaksi ini khusus produk saja, filter ulang items (hapus layanan)
+      if (existing.is_product_only) {
+        items = items.filter((item) => item.jenis === "produk");
+        total_harga = 0;
+        items.forEach((item) => { total_harga += parseFloat(item.harga_satuan || 0) * parseInt(item.qty || 1); });
+        total_bayar = Math.max(0, total_harga - total_diskon);
+      }
+
       await trx("trx_transaksi").where("kode_transaksi", kode_trx).update({
         kode_kunjungan: kode_kunjungan || existing.kode_kunjungan,
         kode_promo: validKodePromoStr,
@@ -132,6 +142,7 @@ router.post("/", async (req, res) => {
         total_diskon,
         total_bayar,
         metode_bayar,
+        is_product_only: existing.is_product_only || 0,
         updated_by: username,
         updated_at: DB.fn.now(),
       });

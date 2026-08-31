@@ -52,25 +52,29 @@ router.post("/", async (req, res) => {
     }
 
     const kunjunganMapped = vaKunjungan.map((k) => {
-      const items = vaLayananPendaftaran
-        .filter((l) => l.kode_kunjungan === k.kode_kunjungan)
-        .map((l) => ({
-          jenis: "layanan",
-          kode: l.kode_layanan,
-          nama: l.nama_layanan,
-          satuan: "tindakan",
-          qty: 1,
-          harga_satuan: parseFloat(l.harga || 0),
-          subtotal: parseFloat(l.harga || 0),
-          is_from_pendaftaran: true,
-          kode_promo: l.kode_promo || null,
-          nama_promo: l.nama_promo || null,
-          jenis_diskon: l.jenis_diskon || null,
-          nilai_diskon: l.nilai_diskon ? parseFloat(l.nilai_diskon) : null,
-        }));
+      const roomItems = vaLayananPendaftaran.filter((l) => l.kode_kunjungan === k.kode_kunjungan);
+      const uniqueItemsMap = {};
+      roomItems.forEach((l) => {
+        if (l.kode_layanan && !uniqueItemsMap[l.kode_layanan]) {
+          uniqueItemsMap[l.kode_layanan] = {
+            jenis: "layanan",
+            kode: l.kode_layanan,
+            nama: l.nama_layanan,
+            satuan: "tindakan",
+            qty: 1,
+            harga_satuan: parseFloat(l.harga || 0),
+            subtotal: parseFloat(l.harga || 0),
+            is_from_pendaftaran: true,
+            kode_promo: l.kode_promo || null,
+            nama_promo: l.nama_promo || null,
+            jenis_diskon: l.jenis_diskon || null,
+            nilai_diskon: l.nilai_diskon ? parseFloat(l.nilai_diskon) : null,
+          };
+        }
+      });
       return {
         ...k,
-        layanan_pendaftaran: items,
+        layanan_pendaftaran: Object.values(uniqueItemsMap),
       };
     });
 

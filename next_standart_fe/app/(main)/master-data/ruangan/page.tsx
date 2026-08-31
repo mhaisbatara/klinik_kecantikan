@@ -27,6 +27,7 @@ const Page = () => {
     const [page, setPage] = useState<number>(1);
     const [rows, setRows] = useState<number>(10);
     const [keyword, setKeyword] = useState<string>('');
+    const [filterIsKonsultasi, setFilterIsKonsultasi] = useState<string>('');
     const [selectedRows, setSelectedRows] = useState<any[]>([]);
 
     const [dialogVisible, setDialogVisible] = useState<boolean>(false);
@@ -36,6 +37,7 @@ const Page = () => {
         kode_ruangan: '',
         nama_ruangan: '',
         status: 'aktif',
+        is_konsultasi: 0,
     });
     const [saving, setSaving] = useState<boolean>(false);
 
@@ -46,7 +48,12 @@ const Page = () => {
     const loadData = async () => {
         setLoading(true);
         try {
-            const res = await postData('/master/ruangan-data', { page, perPage: rows, keyword });
+            const res = await postData('/master/ruangan-data', {
+                page,
+                perPage: rows,
+                keyword,
+                is_konsultasi: filterIsKonsultasi === '' ? undefined : filterIsKonsultasi,
+            });
             setData(res.data.data || []);
             setTotalRecords(res.data.total_data || 0);
         } catch (error: any) {
@@ -58,19 +65,22 @@ const Page = () => {
 
     useEffect(() => {
         loadData();
-    }, [page, rows, keyword]);
+    }, [page, rows, keyword, filterIsKonsultasi]);
 
     const handleOpenCreate = () => {
         setIsEdit(false);
         setSubmitted(false);
-        setFormData({ kode_ruangan: '', nama_ruangan: '', status: 'aktif' });
+        setFormData({ kode_ruangan: '', nama_ruangan: '', status: 'aktif', is_konsultasi: 0 });
         setDialogVisible(true);
     };
 
     const handleOpenEdit = (rowData: any) => {
         setIsEdit(true);
         setSubmitted(false);
-        setFormData({ ...rowData });
+        setFormData({
+            ...rowData,
+            is_konsultasi: rowData.is_konsultasi === 1 || rowData.is_konsultasi === '1' ? 1 : 0,
+        });
         setDialogVisible(true);
     };
 
@@ -83,7 +93,10 @@ const Page = () => {
         setSaving(true);
         try {
             const endpoint = isEdit ? '/master/ruangan-update' : '/master/ruangan-create';
-            const res = await postData(endpoint, formData);
+            const res = await postData(endpoint, {
+                ...formData,
+                is_konsultasi: formData.is_konsultasi ? 1 : 0,
+            });
             showSuccess(toast, res.data.message || 'Berhasil disimpan');
             setDialogVisible(false);
             loadData();
@@ -175,8 +188,6 @@ const Page = () => {
                     />
                 </div>
 
-
-
                 <DataTable
                     value={data}
                     loading={loading}
@@ -199,8 +210,19 @@ const Page = () => {
                         <div className="flex flex-column gap-3">
                             <div className="flex flex-wrap align-items-center justify-content-between gap-2">
                                 <span className="text-xl font-bold">Data Ruangan</span>
-                                <div className="flex align-items-center gap-2 ml-auto w-full md:w-auto">
-                                    <IconField iconPosition="left" className="w-full md:w-20rem">
+                                <div className="flex flex-wrap align-items-center gap-2 ml-auto w-full md:w-auto">
+                                    <Dropdown
+                                        value={filterIsKonsultasi}
+                                        options={[
+                                            { label: 'Semua Tipe Ruangan', value: '' },
+                                            { label: '🩺 Ruangan Konsultasi', value: '1' },
+                                            { label: '💆 Ruangan Biasa / Tindakan', value: '0' },
+                                        ]}
+                                        onChange={(e) => setFilterIsKonsultasi(e.value)}
+                                        placeholder="Filter Tipe Ruangan"
+                                        className="w-full md:w-14rem p-inputtext-sm text-sm border-round-md"
+                                    />
+                                    <IconField iconPosition="left" className="w-full md:w-16rem">
                                         <InputIcon className="pi pi-search" />
                                         <InputText value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="Cari Data..." className="w-full text-sm" />
                                     </IconField>
@@ -211,7 +233,7 @@ const Page = () => {
                                         severity="danger"
                                         tooltip="Reset Filter"
                                         tooltipOptions={{ position: 'bottom' }}
-                                        onClick={() => setKeyword('')}
+                                        onClick={() => { setKeyword(''); setFilterIsKonsultasi(''); }}
                                     />
                                 </div>
                             </div>
@@ -221,11 +243,11 @@ const Page = () => {
                                     <span className="font-semibold">KETERANGAN STATUS:</span>
                                 </span>
                                 <span className="flex align-items-center gap-1">
-                                    <span style={{ display:'inline-block', width:'12px', height:'12px', borderRadius:'3px', backgroundColor:'#22c55e', boxShadow:'0 1px 3px #22c55e55' }} />
+                                    <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', backgroundColor: '#22c55e', boxShadow: '0 1px 3px #22c55e55' }} />
                                     Aktif
                                 </span>
                                 <span className="flex align-items-center gap-1">
-                                    <span style={{ display:'inline-block', width:'12px', height:'12px', borderRadius:'3px', backgroundColor:'#ef4444', boxShadow:'0 1px 3px #ef444455' }} />
+                                    <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', backgroundColor: '#ef4444', boxShadow: '0 1px 3px #ef444455' }} />
                                     Tidak Aktif
                                 </span>
                             </div>
@@ -254,6 +276,19 @@ const Page = () => {
                     <Column field="kode_ruangan" header="Kode" sortable headerStyle={{ fontWeight: 'bold' }}></Column>
                     <Column field="nama_ruangan" header="Nama Ruangan" sortable headerStyle={{ fontWeight: 'bold' }}></Column>
                     <Column
+                        header="Tipe Ruangan"
+                        sortable
+                        sortField="is_konsultasi"
+                        headerStyle={{ fontWeight: 'bold' }}
+                        body={(r) =>
+                            r.is_konsultasi === 1 || r.is_konsultasi === '1' ? (
+                                <Tag value="🩺 Ruangan Konsultasi" severity="info" className="font-bold text-xs px-2 py-1" />
+                            ) : (
+                                <Tag value="💆 Ruangan Biasa / Tindakan" severity="secondary" className="font-bold text-xs px-2 py-1" />
+                            )
+                        }
+                    ></Column>
+                    <Column
                         header="Aksi"
                         align="center"
                         headerStyle={{ width: '10rem', textAlign: 'center' }}
@@ -278,7 +313,7 @@ const Page = () => {
                 </DataTable>
             </div>
 
-            <Dialog header={isEdit ? 'Edit Data Ruangan' : 'Tambah Data Ruangan'} visible={dialogVisible} style={{ width: '480px' }} modal onHide={() => setDialogVisible(false)}>
+            <Dialog header={isEdit ? 'Edit Data Ruangan' : 'Tambah Data Ruangan'} visible={dialogVisible} style={{ width: '520px' }} modal onHide={() => setDialogVisible(false)}>
                 <div className="flex flex-column gap-3 pt-2">
                     {isEdit && (
                         <div>
@@ -291,13 +326,56 @@ const Page = () => {
                         <InputText
                             value={formData.nama_ruangan}
                             onChange={(e) => setFormData({ ...formData, nama_ruangan: e.target.value })}
-                            placeholder="contoh : Ruang Perawatan 1"
+                            placeholder="contoh : Ruang Perawatan 1 / Ruang Konsultasi Dokter"
                             className={`w-full text-sm border-round-md ${submitted && !formData.nama_ruangan?.trim() ? 'p-invalid' : ''}`}
                         />
                         {submitted && !formData.nama_ruangan?.trim() && (
                             <small className="p-error text-red-500 text-xs block mt-1">Nama ruangan wajib diisi.</small>
                         )}
                     </div>
+
+                    {/* Tipe / Jenis Ruangan Selector */}
+                    <div>
+                        <label className="block text-sm font-semibold mb-1">Tipe / Fungsi Ruangan *</label>
+                        <div className="flex flex-column gap-2 mt-1">
+                            <div
+                                onClick={() => setFormData({ ...formData, is_konsultasi: 1 })}
+                                className={`p-3 border-round-lg border-1 cursor-pointer transition-all flex align-items-center gap-3 ${
+                                    formData.is_konsultasi === 1 ? 'bg-purple-50 border-purple-500 shadow-1' : 'bg-white surface-border hover:bg-slate-50'
+                                }`}
+                            >
+                                <i className={`pi pi-user text-2xl ${formData.is_konsultasi === 1 ? 'text-purple-600' : 'text-slate-400'}`} />
+                                <div className="flex-1">
+                                    <div className="font-bold text-sm text-slate-900 flex align-items-center gap-1.5">
+                                        🩺 Ruangan Konsultasi
+                                    </div>
+                                    <div className="text-xs text-slate-500 mt-0.5">
+                                        Digunakan khusus untuk sesi konsultasi dokter & pengisian rekam medis medis pasien.
+                                    </div>
+                                </div>
+                                {formData.is_konsultasi === 1 && <i className="pi pi-check-circle text-purple-600 text-xl" />}
+                            </div>
+
+                            <div
+                                onClick={() => setFormData({ ...formData, is_konsultasi: 0 })}
+                                className={`p-3 border-round-lg border-1 cursor-pointer transition-all flex align-items-center gap-3 ${
+                                    formData.is_konsultasi === 0 ? 'bg-teal-50 border-teal-500 shadow-1' : 'bg-white surface-border hover:bg-slate-50'
+                                }`}
+                            >
+                                <i className={`pi pi-building text-2xl ${formData.is_konsultasi === 0 ? 'text-teal-600' : 'text-slate-400'}`} />
+                                <div className="flex-1">
+                                    <div className="font-bold text-sm text-slate-900 flex align-items-center gap-1.5">
+                                        💆 Ruangan Biasa / Tindakan
+                                    </div>
+                                    <div className="text-xs text-slate-500 mt-0.5">
+                                        Digunakan untuk eksekusi treatment, facial, laser, peeling, & perawatan kecantikan.
+                                    </div>
+                                </div>
+                                {formData.is_konsultasi === 0 && <i className="pi pi-check-circle text-teal-600 text-xl" />}
+                            </div>
+                        </div>
+                    </div>
+
                     <div className="surface-50 p-3 border-round-md border-1 surface-border">
                         <div className="flex align-items-center justify-content-between mb-2">
                             <span className="font-bold text-sm text-900">Status Ruangan</span>

@@ -120,7 +120,9 @@ const Page = () => {
         try {
             const payload = {
                 ...formData,
-                tanggal_beli: formData.tanggal_beli ? new Date(formData.tanggal_beli).toISOString().slice(0, 10) : null
+                tanggal_beli: formData.tanggal_beli && formData.tanggal_beli instanceof Date && !isNaN(formData.tanggal_beli.getTime())
+                    ? formData.tanggal_beli.toISOString().slice(0, 10)
+                    : null
             };
             const endpoint = isEdit ? '/master/alat-update' : '/master/alat-create';
             const res = await postData(endpoint, payload);

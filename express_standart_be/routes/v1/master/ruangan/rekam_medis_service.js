@@ -37,6 +37,13 @@ export async function syncRekamMedisPerKunjungan({
         table.string("updated_by", 100).nullable();
         table.string("updated_at", 50).nullable();
       });
+    } else {
+      const hasDetailCol = await DB.schema.hasColumn("trx_rekam_medis", "detail_layanan_ruangan");
+      if (!hasDetailCol) {
+        await DB.schema.table("trx_rekam_medis", (table) => {
+          table.text("detail_layanan_ruangan").nullable();
+        });
+      }
     }
 
     const kunjungan = await DB("trx_kunjungan")
@@ -66,6 +73,7 @@ export async function syncRekamMedisPerKunjungan({
       nama_ruangan,
       hasil_form,
       catatan_petugas,
+      rekomendasi_items: (typeof hasil_form === "object" && Array.isArray(hasil_form?.rekomendasi_items)) ? hasil_form.rekomendasi_items : [],
       updated_at: formatDateSystem(),
       updated_by: username,
     };
@@ -77,18 +85,21 @@ export async function syncRekamMedisPerKunjungan({
       await DB("trx_rekam_medis")
         .where("id", existingRM.id)
         .update({
-          no_rm: no_rm || existingRM.no_rm,
+          no_rm: no_rm || existingRM.no_rm || "RM-000000",
           detail_layanan_ruangan: detailJsonStr,
-          catatan_petugas: catatan_petugas || existingRM.catatan_petugas,
+          catatan: catatan_petugas || existingRM.catatan,
           updated_by: username,
           updated_at: now,
         });
     } else {
       await DB("trx_rekam_medis").insert({
-        kode_kunjungan,
-        no_rm,
+        kode_rekam_medis: `RM-${kode_kunjungan}`,
+        kode_kunjungan: kode_kunjungan,
+        no_rm: no_rm || "RM-000000",
+        no_sip: "-",
         detail_layanan_ruangan: detailJsonStr,
-        catatan_petugas: catatan_petugas || "",
+        catatan: catatan_petugas || "",
+        tz: "Asia/Jakarta",
         created_by: username,
         created_at: now,
         updated_by: username,

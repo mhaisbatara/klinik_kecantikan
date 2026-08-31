@@ -4,6 +4,7 @@ import React, { useRef } from 'react';
 import { Dialog } from 'primereact/dialog';
 import { Button } from 'primereact/button';
 import type { BayarResult, CartItem } from '../page';
+import { getStoredPrinterSettings } from './KasirPrinterModal';
 
 const formatRupiah = (val: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val || 0);
@@ -24,40 +25,82 @@ interface KasirStrukModalProps {
 
 export const KasirStrukModal: React.FC<KasirStrukModalProps> = ({ visible, result, onHide }) => {
   const printRef = useRef<HTMLDivElement>(null);
+  const printerSettings = getStoredPrinterSettings();
+
+  const paperWidthPx =
+    printerSettings.paperSize === '58mm' ? '280px' : printerSettings.paperSize === '80mm' ? '340px' : '100%';
+
+  React.useEffect(() => {
+    if (visible && result && printerSettings.autoPrint) {
+      const timer = setTimeout(() => {
+        handlePrint();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [visible, result]);
 
   const handlePrint = () => {
     const el = printRef.current;
     if (!el) return;
+
+    // Ambil semua tag style & link stylesheet agar CSS PrimeFlex/Tailwind terbawa ke popup cetak
+    const styleTags = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+      .map((s) => s.outerHTML)
+      .join('\n');
+
     const printWindow = window.open('', '_blank', 'width=450,height=750');
     if (!printWindow) return;
+
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
         <head>
           <title>Struk Transaksi ${result?.kode_transaksi}</title>
+          ${styleTags}
           <style>
             @page { size: auto; margin: 0; }
             * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { font-family: 'Courier New', Courier, monospace; font-size: 12px; color: #111; background: #fff; padding: 12px; }
-            .receipt { max-width: 320px; margin: 0 auto; }
-            .header { text-align: center; margin-bottom: 12px; }
-            .header h2 { font-size: 16px; font-weight: bold; margin-bottom: 2px; }
-            .header p { font-size: 11px; color: #555; }
-            .dashed { border-top: 1px dashed #666; margin: 8px 0; }
-            .flex-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
-            .text-left { text-align: left; }
-            .text-right { text-align: right; }
-            .label { color: #555; }
-            .val { font-weight: 600; text-align: right; }
-            .item-title { font-weight: bold; margin-bottom: 2px; }
-            .item-sub { color: #555; font-size: 11px; }
-            .total-row { font-size: 13px; font-weight: bold; }
-            .badge-lunas { text-align: center; font-size: 16px; font-weight: bold; border: 1.5px dashed #059669; color: #059669; padding: 4px; margin: 10px 0; border-radius: 4px; }
-            .footer { text-align: center; font-size: 11px; color: #666; margin-top: 12px; line-height: 1.4; }
+            body {
+              font-family: 'Courier New', Courier, monospace;
+              font-size: 12px;
+              color: #1e293b;
+              background: #ffffff !important;
+              padding: 12px;
+            }
+            .receipt-print-wrapper {
+              max-width: ${paperWidthPx};
+              margin: 0 auto;
+            }
+            /* Hilangkan border & shadow kartu saat dicetak */
+            .receipt-print-wrapper > div {
+              box-shadow: none !important;
+              border: none !important;
+              padding: 0 !important;
+            }
+            .flex { display: flex !important; }
+            .flex-column { flex-direction: column !important; }
+            .justify-content-between { justify-content: space-between !important; }
+            .align-items-center { align-items: center !important; }
+            .font-bold { font-weight: 700 !important; }
+            .font-black { font-weight: 900 !important; }
+            .font-semibold { font-weight: 600 !important; }
+            .text-center { text-align: center !important; }
+            .text-rose-600 { color: #e11d48 !important; }
+            .text-teal-700 { color: #0f766e !important; }
+            .text-slate-500 { color: #64748b !important; }
+            .text-slate-600 { color: #475569 !important; }
+            .text-slate-800 { color: #1e293b !important; }
+            .text-slate-900 { color: #0f172a !important; }
+            .border-top-1 { border-top: 1px solid #cbd5e1 !important; }
+            .border-dashed { border-top: 1px dashed #94a3b8 !important; }
+            .my-2 { margin-top: 8px !important; margin-bottom: 8px !important; }
+            .mb-1 { margin-bottom: 4px !important; }
+            .mb-2 { margin-bottom: 8px !important; }
+            .mb-3 { margin-bottom: 12px !important; }
           </style>
         </head>
         <body>
-          <div class="receipt">
+          <div class="receipt-print-wrapper">
             ${el.innerHTML}
           </div>
         </body>
@@ -68,7 +111,7 @@ export const KasirStrukModal: React.FC<KasirStrukModalProps> = ({ visible, resul
     setTimeout(() => {
       printWindow.print();
       printWindow.close();
-    }, 250);
+    }, 300);
   };
 
   if (!result) return null;
@@ -84,7 +127,7 @@ export const KasirStrukModal: React.FC<KasirStrukModalProps> = ({ visible, resul
       visible={visible}
       onHide={onHide}
       showHeader={false}
-      style={{ width: '450px', borderRadius: '20px', overflow: 'hidden' }}
+      style={{ width: '460px', borderRadius: '20px', overflow: 'hidden' }}
       contentStyle={{ padding: 0, borderRadius: '20px' }}
     >
       {/* Top Banner Header */}
@@ -129,12 +172,16 @@ export const KasirStrukModal: React.FC<KasirStrukModalProps> = ({ visible, resul
       <div className="p-4 surface-ground max-h-[55vh] overflow-y-auto">
         <div
           ref={printRef}
+          style={{ maxWidth: paperWidthPx, margin: '0 auto' }}
           className="bg-white p-4 border-round-xl border-1 surface-border shadow-2 text-slate-800 text-xs font-mono"
         >
           {/* Receipt Brand Header */}
           <div className="text-center mb-3">
             <div className="text-base font-black text-slate-900 tracking-tight">🌸 Klinik Kecantikan</div>
-            <div className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider mt-0.5">Struk Transaksi</div>
+            {printerSettings.headerAddress && (
+              <div className="text-[10px] text-slate-500 font-semibold mt-0.5">{printerSettings.headerAddress}</div>
+            )}
+            <div className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider mt-1">Struk Transaksi</div>
           </div>
 
           <div className="border-top-1 border-dashed surface-border my-2" />
@@ -226,9 +273,8 @@ export const KasirStrukModal: React.FC<KasirStrukModalProps> = ({ visible, resul
           </div>
 
           {/* Footer message */}
-          <div className="text-center text-[11px] text-slate-500 line-height-2 mt-2">
-            Terima kasih atas kunjungan Anda!<br />
-            Semoga lekas sembuh &amp; cantik selalu 🌸
+          <div className="text-center text-[11px] text-slate-500 line-height-2 mt-2 whitespace-pre-line">
+            {printerSettings.footerMessage || 'Terima kasih atas kunjungan Anda!\nSemoga lekas sembuh & cantik selalu 🌸'}
           </div>
         </div>
       </div>

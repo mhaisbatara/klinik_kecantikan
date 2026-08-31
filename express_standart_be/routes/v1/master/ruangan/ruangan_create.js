@@ -37,6 +37,7 @@ router.post("/", async (req, res) => {
         kode_ruangan: kode,
         nama_ruangan: oPayload.nama_ruangan,
         status: oPayload.status,
+        is_konsultasi: parseInt(oPayload.is_konsultasi || 0) === 1 ? 1 : 0,
         tz: oPayload.tz || "UTC",
         created_by: username,
         created_at: formatDateSystem(),

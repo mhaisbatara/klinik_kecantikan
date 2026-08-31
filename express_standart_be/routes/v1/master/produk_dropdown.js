@@ -24,7 +24,7 @@ const handleProdukDropdown = async (req, res) => {
   try {
     let query = DB("mst_produk")
       .where("status", "aktif")
-      .select("kode_produk", "nama", "harga_jual", "satuan", "stok_tersedia")
+      .select("kode_produk", "nama", "harga_jual", "satuan")
       .orderBy("nama", "asc");
 
     if (search) {
