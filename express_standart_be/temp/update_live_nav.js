@@ -48,7 +48,7 @@ const updatedMenuObj = [
     ]
   },
   {
-    "label": "Master Data & User",
+    "label": "PENGATURAN",
     "icon": "pi pi-fw pi-cog",
     "items": [
       { "label": "Data Pasien", "icon": "pi pi-fw pi-user", "to": "/master-data-user/data-pasien" },
