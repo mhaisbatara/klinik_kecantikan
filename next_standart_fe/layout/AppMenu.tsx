@@ -74,13 +74,23 @@ const AppMenu = () => {
                 throw new Error('Invalid menu data');
             }
 
-            const menu: AppMenuItem[] = JSON.parse(JSON.stringify(vaData.data));
-            const menu2: AppMenuItem[] = JSON.parse(JSON.stringify(vaData.data));
+            const rawMenu: AppMenuItem[] = JSON.parse(JSON.stringify(vaData.data));
+            const transformedMenu = rawMenu.map((item) => {
+                if (
+                    item.label &&
+                    (item.label.toLowerCase().includes('master data & user') ||
+                        item.label.toLowerCase().includes('pengaturan'))
+                ) {
+                    return { ...item, label: 'PENGATURAN' };
+                }
+                return item;
+            });
+            const menu2: AppMenuItem[] = JSON.parse(JSON.stringify(transformedMenu));
 
             setState(prev => ({
                 ...prev,
                 filteredMenu: menu2,
-                menu: menu
+                menu: transformedMenu
             }));
         } catch (error) {
             console.error("Error loading menu:", error);
@@ -221,7 +231,10 @@ const AppMenu = () => {
                         // Split tepat setelah "Pendaftaran & Antrean" dan sebelum "Master Data & User"
                         // Label dari DB: "Master Data & User"
                         const splitIdx = state.filteredMenu.findIndex((item) =>
-                            item.label && item.label.toLowerCase().includes('master data & user')
+                            item.label && (
+                                item.label.toLowerCase().includes('pengaturan') ||
+                                item.label.toLowerCase().includes('master data & user')
+                            )
                         );
 
                         const topItems = splitIdx === -1 ? state.filteredMenu : state.filteredMenu.slice(0, splitIdx);

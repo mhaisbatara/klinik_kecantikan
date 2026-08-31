@@ -4,7 +4,7 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from 'primereact/button';
 
-export default function ManajemenUserPage() {
+export default function ManajemenMenuPage() {
   const router = useRouter();
 
   return (
@@ -14,14 +14,14 @@ export default function ManajemenUserPage() {
           className="flex align-items-center justify-content-center border-round-circle mx-auto mb-4"
           style={{ width: '80px', height: '80px', backgroundColor: '#fef3c7', color: '#d97706' }}
         >
-          <i className="pi pi-users text-4xl"></i>
+          <i className="pi pi-cog text-4xl pi-spin"></i>
         </div>
 
-        <h1 className="text-2xl font-bold text-900 mb-2">Manajemen User</h1>
+        <h1 className="text-2xl font-bold text-900 mb-2">Manajemen Menu</h1>
         <p className="text-amber-600 font-semibold text-lg mb-3">Fitur ini masih dalam proggres</p>
 
         <p className="text-600 text-sm mb-5 leading-normal">
-          Halaman pengaturan hak akses dan manajemen akun pengguna sedang dalam tahap pengembangan akhir.
+          Halaman pengaturan dan pengelolaan menu navigasi sedang dalam tahap pengembangan akhir dan akan segera tersedia.
         </p>
 
         <div className="flex justify-content-center gap-3">
