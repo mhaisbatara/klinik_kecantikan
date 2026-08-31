@@ -9,11 +9,12 @@
  */
 
 import express from "express";
+import Joi from "joi";
 import DB from "../../../../core/config/knex.js";
 import { formatDateSystem } from "../../components/tools/date_tools.js";
 import { Logging, ChangesLog } from "../../components/tools/servertool.js";
 import { status } from "../../components/tools/general.js";
-import Joi from "joi";
+import { syncRekamMedisPerAntrian } from "../ruangan/rekam_medis_service.js";
 
 const router = express.Router();
 
@@ -55,9 +56,19 @@ router.post("/", async (req, res) => {
         updated_at: formatDateSystem(),
       };
 
+      if (oPayload.kode_karyawan) {
+        updateData.kode_karyawan = oPayload.kode_karyawan;
+      }
+
       if (aksi === "dipanggil") {
         updateData.dipanggil_at = formatDateSystem();
       } else if (aksi === "selesai") {
+        const resolvedKaryawan = oPayload.kode_karyawan || record.kode_karyawan;
+        if (!resolvedKaryawan) {
+          const error = new Error("Petugas / karyawan wajib dipilih sebelum antrian dapat diselesaikan");
+          error.statusCode = 422;
+          throw error;
+        }
         updateData.selesai_at = formatDateSystem();
       }
 
@@ -81,6 +92,19 @@ router.post("/", async (req, res) => {
         trx
       );
     });
+
+    if (aksi === "selesai" && updatedRecord?.kode_kunjungan) {
+      await syncRekamMedisPerAntrian({
+        kode_kunjungan: updatedRecord.kode_kunjungan,
+        kode_antrian_layanan: kodeAntrian,
+        kode_ruangan: updatedRecord.kode_ruangan,
+        nama_ruangan: updatedRecord.nama_ruangan,
+        hasil_form: updatedRecord.hasil_form,
+        catatan_petugas: updatedRecord.catatan_petugas,
+        kode_karyawan: updatedRecord.kode_karyawan,
+        username: username,
+      });
+    }
 
     const pesanAksi = {
       dipanggil: `Nomor antrian layanan ${updatedRecord.nomor_antrian} dipanggil`,

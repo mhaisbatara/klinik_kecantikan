@@ -35,6 +35,10 @@ interface HasilTreatmentPanelProps {
     getGridData: () => void;
     kodeRuangan: string;
     namaRuangan: string;
+    savedFormData?: Record<string, any>;
+    savedCatatanPetugas?: string;
+    savedPetugasNama?: string;
+    onHasilSavedChange?: (saved: boolean) => void;
 }
 
 const formatRupiah = (val: number) =>
@@ -46,6 +50,10 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
     getGridData,
     kodeRuangan,
     namaRuangan,
+    savedFormData,
+    savedCatatanPetugas,
+    savedPetugasNama,
+    onHasilSavedChange,
 }) => {
     // Foto After state
     const [fotoAfterUrl, setFotoAfterUrl] = useState<string>('');
@@ -95,6 +103,7 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
     // Reset state & auto-load rekomendasi produk dari dokter saat pasien berganti
     useEffect(() => {
         setIsSubmitted(false);
+        onHasilSavedChange?.(false);
         setFotoAfterUrl('');
         setCatatan('');
         setSelectedProdukList([]);
@@ -240,6 +249,7 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
 
                 // Kunci form setelah berhasil simpan tanpa mengosongkan nilainya
                 setIsSubmitted(true);
+                onHasilSavedChange?.(true);
 
                 // Refresh data grid
                 getGridData();

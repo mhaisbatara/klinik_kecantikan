@@ -2,11 +2,9 @@
  * @copyright (c) 2026 PT Marstech Global (info@marstech.co.id)
  * @project Sistem Klinik Kecantikan
  * @file hasil_treatment_save.js
- * @description Endpoint dokter untuk menyimpan hasil treatment (foto after, catatan, dan daftar produk)
- *              Append foto after & catatan ke rekam medis dan buat/update draft transaksi kasir.
- *              Draft transaksi mencakup:
- *              - Layanan/paket yang dipilih saat pendaftaran (dari trx_detail_antrian_layanan)
- *              - Produk tambahan yang direkomendasikan dokter di ruangan
+ * @description Endpoint dokter untuk menyimpan hasil treatment (foto after, catatan hasil treatment, dan daftar produk)
+ *              Menyimpan foto after & catatan_hasil_treatment ke trx_rekam_medis_ruangan
+ *              dan buat/update draft transaksi kasir.
  *
  * @author Antigravity
  * @created 2026-08-27
@@ -17,7 +15,7 @@ import DB from "../../../core/config/knex.js";
 import { formatDateSystem } from "../components/tools/date_tools.js";
 import { Logging } from "../components/tools/servertool.js";
 import { status } from "../components/tools/general.js";
-import { syncRekamMedisPerKunjungan } from "./ruangan/rekam_medis_service.js";
+import { syncRekamMedisPerAntrian } from "./ruangan/rekam_medis_service.js";
 
 const router = express.Router();
 
@@ -56,42 +54,54 @@ const handleHasilTreatmentSave = async (req, res) => {
       const todayYmd = now.toISOString().slice(0, 10);
       const todayStr = todayYmd.replace(/-/g, "");
 
-      // ─── 1. APPEND FOTO AFTER & CATATAN KE REKAM MEDIS ───────────────────────
-      let formattedNote = foto_after ? `Foto: After: ${foto_after}` : "";
-      if (catatan) {
-        formattedNote = formattedNote ? `${formattedNote}\nCatatan: ${catatan}` : `Catatan: ${catatan}`;
-      }
-
-      let rmRecord = null;
-      if (kode_rekam_medis) {
-        rmRecord = await trx("trx_rekam_medis")
-          .where("id", kode_rekam_medis)
-          .orWhere("kode_kunjungan", kode_kunjungan)
-          .first();
-      } else {
-        rmRecord = await trx("trx_rekam_medis")
+      // ─── 1. RESOLVE KODE ANTRIAN LAYANAN & BARIS REKAM MEDIS RUANGAN ─────────
+      let resolvedKodeAntrian = oPayload.kode_antrian_layanan;
+      if (!resolvedKodeAntrian) {
+        const lastAntrian = await trx("trx_antrian_layanan")
           .where("kode_kunjungan", kode_kunjungan)
+          .orderBy("id", "desc")
+          .first();
+        if (lastAntrian) resolvedKodeAntrian = lastAntrian.kode_antrian_layanan;
+      }
+
+      let currentAL = null;
+      if (resolvedKodeAntrian) {
+        currentAL = await trx("trx_antrian_layanan")
+          .where("kode_antrian_layanan", resolvedKodeAntrian)
           .first();
       }
 
-      let mergedCatatan = formattedNote;
-      if (rmRecord && rmRecord.catatan_petugas && rmRecord.catatan_petugas.trim()) {
-        mergedCatatan = `${rmRecord.catatan_petugas}\n${formattedNote}`;
-      }
+      const targetKodeRuangan = kode_ruangan || currentAL?.kode_ruangan || "RNG-000";
 
-      await syncRekamMedisPerKunjungan({
+      // Panggil syncRekamMedisPerAntrian untuk memastikan baris ruangan ada & ter-update
+      const rmSyncResult = await syncRekamMedisPerAntrian({
         kode_kunjungan,
-        kode_ruangan,
+        kode_antrian_layanan: resolvedKodeAntrian,
+        kode_ruangan: targetKodeRuangan,
         nama_ruangan,
-        hasil_form: { foto_after },
-        catatan_petugas: mergedCatatan,
+        hasil_form: foto_after ? { foto_after } : null,
+        catatan_hasil_treatment: catatan || null,
+        kode_karyawan: oPayload.kode_karyawan || currentAL?.kode_karyawan,
         username,
       });
 
-      let resolvedKodeRM = kode_rekam_medis || (rmRecord ? String(rmRecord.id) : null);
+      const id_rekam_medis = rmSyncResult?.id_rekam_medis;
+      const id_rekam_medis_ruangan = rmSyncResult?.id_rekam_medis_ruangan;
 
-      // ─── 2. AMBIL LAYANAN DARI PENDAFTARAN (trx_detail_antrian_layanan) ──────
-      // Ambil semua layanan/paket yang terdaftar untuk kunjungan ini
+      // ─── 2. UPDATE CATATAN HASIL TREATMENT & FOTO AFTER (OVERWRITE, TANPA CONCAT ---) ──
+      if (id_rekam_medis_ruangan && catatan) {
+        await trx("trx_rekam_medis_ruangan")
+          .where("id", id_rekam_medis_ruangan)
+          .update({
+            catatan_hasil_treatment: catatan,
+            updated_by: username,
+            updated_at: new Date(),
+          });
+      }
+
+      let resolvedKodeRM = kode_rekam_medis || (id_rekam_medis ? String(id_rekam_medis) : null);
+
+      // ─── 3. AMBIL LAYANAN DARI PENDAFTARAN (trx_detail_antrian_layanan) ──────
       const layananPendaftaran = await trx("trx_detail_antrian_layanan as dal")
         .join("trx_antrian_layanan as al", "dal.kode_antrian_layanan", "al.kode_antrian_layanan")
         .where("dal.kode_kunjungan", kode_kunjungan)
@@ -102,23 +112,17 @@ const handleHasilTreatmentSave = async (req, res) => {
           "dal.jenis_layanan"
         );
 
-      // ─── 3. GABUNGKAN LAYANAN PENDAFTARAN + PRODUK DOKTER ────────────────────
-      // Buat/update draft transaksi jika ada item (layanan pendaftaran atau produk dokter)
+      // ─── 4. GABUNGKAN LAYANAN PENDAFTARAN + PRODUK DOKTER ────────────────────
       const hasItems = layananPendaftaran.length > 0 || produkItems.length > 0;
 
       if (hasItems) {
-        // Cek apakah sudah ada transaksi draft (non-produk saja) untuk kunjungan ini
         let existingTrx = await trx("trx_transaksi")
           .where("kode_kunjungan", kode_kunjungan)
           .where("status", "draft")
-          .where(function() {
-            this.whereNull("is_product_only").orWhere("is_product_only", 0);
-          })
           .first();
 
         if (existingTrx) {
           createdTransaksiKode = existingTrx.kode_transaksi;
-          // Update kode_rekam_medis bila ada
           if (resolvedKodeRM) {
             await trx("trx_transaksi")
               .where("kode_transaksi", createdTransaksiKode)
@@ -129,7 +133,6 @@ const handleHasilTreatmentSave = async (req, res) => {
               });
           }
         } else {
-          // Generate kode_transaksi baru
           const prefixTrx = `TRX-${todayStr}-`;
           const lastTrx = await trx("trx_transaksi")
             .where("kode_transaksi", "like", `${prefixTrx}%`)
@@ -144,7 +147,6 @@ const handleHasilTreatmentSave = async (req, res) => {
           }
           createdTransaksiKode = `${prefixTrx}${String(nextTrxSeq).padStart(3, "0")}`;
 
-          // Dapatkan no_rm dari kunjungan jika tidak tersedia
           const kunjunganData = await trx("trx_kunjungan")
             .where("kode_kunjungan", kode_kunjungan)
             .select("no_rm")
@@ -172,18 +174,11 @@ const handleHasilTreatmentSave = async (req, res) => {
           await trx("trx_transaksi").insert(newTrx);
         }
 
-        // Ambil produk lama yang direkomendasikan dokter di ruang konsultasi sebelum delete
-        const existingProdukDetails = await trx("trx_detail_transaksi")
-          .where("kode_transaksi", createdTransaksiKode)
-          .whereNotNull("kode_produk")
-          .select("kode_produk", "qty", "harga_satuan");
-
-        // Hapus semua detail lama agar tidak duplikat saat sync ulang
+        // Hapus detail lama untuk sync ulang
         await trx("trx_detail_transaksi")
           .where("kode_transaksi", createdTransaksiKode)
           .delete();
 
-        // Generate prefix kode detail
         const prefixDetail = `DT-${todayStr}-`;
         const lastDetail = await trx("trx_detail_transaksi")
           .where("kode_detail_transaksi", "like", `${prefixDetail}%`)
@@ -197,19 +192,10 @@ const handleHasilTreatmentSave = async (req, res) => {
           if (!isNaN(num)) nextDetailSeq = num + 1;
         }
 
-        // ─── 4a. INSERT LAYANAN DARI PENDAFTARAN (UNIQUE) ─────────────────────
-        const uniqueLayananMap = {};
-        layananPendaftaran.forEach((l) => {
-          if (l.kode_layanan && !uniqueLayananMap[l.kode_layanan]) {
-            uniqueLayananMap[l.kode_layanan] = l;
-          }
-        });
-        const finalLayananList = Object.values(uniqueLayananMap);
-
-        for (const layanan of finalLayananList) {
+        // Insert layanan pendaftaran
+        for (const layanan of layananPendaftaran) {
           const cKodeDetail = `${prefixDetail}${String(nextDetailSeq).padStart(3, "0")}`;
           nextDetailSeq++;
-
           const hargaSatuan = parseFloat(layanan.harga || 0);
 
           await trx("trx_detail_transaksi").insert({
@@ -220,7 +206,6 @@ const handleHasilTreatmentSave = async (req, res) => {
             qty: 1,
             harga_satuan: hargaSatuan,
             subtotal: hargaSatuan,
-            // Tandai bahwa item ini berasal dari pendaftaran (tidak bisa diubah kasir)
             is_from_pendaftaran: 1,
             tz: tz,
             created_by: username,
@@ -230,30 +215,8 @@ const handleHasilTreatmentSave = async (req, res) => {
           });
         }
 
-        // ─── 4b. MERGE & INSERT PRODUK DARI DOKTER KONSULTASI + TREATMENT ───
-        const finalProdukMap = {};
-        existingProdukDetails.forEach((p) => {
-          if (p.kode_produk) {
-            finalProdukMap[p.kode_produk] = {
-              kode_produk: p.kode_produk,
-              qty: p.qty,
-              harga_satuan: p.harga_satuan,
-            };
-          }
-        });
-
-        produkItems.forEach((p) => {
-          if (p.kode_produk) {
-            finalProdukMap[p.kode_produk] = {
-              kode_produk: p.kode_produk,
-              qty: Math.max(1, parseInt(p.qty || 1, 10)),
-              harga_satuan: parseFloat(p.harga_jual || p.harga_satuan || 0),
-            };
-          }
-        });
-
-        const finalProdukList = Object.values(finalProdukMap);
-        const kodeProdukList = finalProdukList.map((i) => i.kode_produk).filter(Boolean);
+        // Insert produk dokter
+        const kodeProdukList = produkItems.map((i) => i.kode_produk).filter(Boolean);
         let produkPriceMap = {};
         if (kodeProdukList.length > 0) {
           const mstProdukList = await trx("mst_produk")
@@ -264,10 +227,9 @@ const handleHasilTreatmentSave = async (req, res) => {
           });
         }
 
-        for (const item of finalProdukList) {
+        for (const item of produkItems) {
           const cKodeDetail = `${prefixDetail}${String(nextDetailSeq).padStart(3, "0")}`;
           nextDetailSeq++;
-
           const qty = Math.max(1, parseInt(item.qty || 1, 10));
           const hargaSatuan = produkPriceMap[item.kode_produk] !== undefined
             ? produkPriceMap[item.kode_produk]
@@ -291,7 +253,7 @@ const handleHasilTreatmentSave = async (req, res) => {
           });
         }
 
-        // ─── 5. RECALCULATE TOTAL ─────────────────────────────────────────────
+        // Recalculate total
         const allDetails = await trx("trx_detail_transaksi")
           .where("kode_transaksi", createdTransaksiKode)
           .sum("subtotal as total");
@@ -311,7 +273,7 @@ const handleHasilTreatmentSave = async (req, res) => {
 
     return res.status(200).json({
       status: status.SUKSES,
-      message: "Hasil treatment berhasil disimpan dan transaksi draft kasir siap diproses",
+      message: "Hasil treatment berhasil disimpan",
       datetime: formatDateSystem(),
       data: {
         kode_kunjungan,

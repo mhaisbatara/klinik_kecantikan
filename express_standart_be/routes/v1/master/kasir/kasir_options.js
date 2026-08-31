@@ -149,42 +149,46 @@ router.post("/", async (req, res) => {
       harga: parseFloat(item.harga || 0),
     }));
 
-    // 4. Promo aktif hari ini & detail item promo
-    const vaPromo = await DB("mst_promo as p")
+    // 4. Detail promo aktif hari ini (per baris mst_detail_promo)
+    const vaDetailPromo = await DB("mst_detail_promo as dp")
+      .join("mst_promo as p", "dp.kode_promo", "p.kode_promo")
+      .where("dp.status", "aktif")
       .where("p.status", "aktif")
       .whereRaw("CURDATE() BETWEEN DATE(p.tanggal_mulai) AND DATE(p.tanggal_selesai)")
       .select(
-        "p.kode_promo",
+        "dp.kode_detail_promo",
+        "dp.kode_promo",
         "p.nama as nama_promo",
         "p.jenis_diskon",
         "p.nilai_diskon",
-        "p.tanggal_mulai",
-        "p.tanggal_selesai"
+        "dp.jenis_item",
+        "dp.kode_item"
       )
       .orderBy("p.nama", "asc");
 
-    const promoCodes = vaPromo.map((p) => p.kode_promo).filter(Boolean);
-    let promoDetailMap = {};
-    if (promoCodes.length > 0) {
-      const vaPromoDetails = await DB("mst_detail_promo")
-        .whereIn("kode_promo", promoCodes)
-        .where("status", "aktif")
-        .select("kode_promo", "jenis_item", "kode_item");
+    // Ambil nama item per jenis
+    const kodesLayanan = vaDetailPromo.filter((d) => d.jenis_item === "layanan").map((d) => d.kode_item);
+    const kodesPaket   = vaDetailPromo.filter((d) => d.jenis_item === "paket").map((d) => d.kode_item);
+    const kodesProduk  = vaDetailPromo.filter((d) => d.jenis_item === "produk").map((d) => d.kode_item);
 
-      vaPromoDetails.forEach((dp) => {
-        if (!promoDetailMap[dp.kode_promo]) promoDetailMap[dp.kode_promo] = [];
-        promoDetailMap[dp.kode_promo].push(dp.kode_item);
-      });
-    }
+    const [namaLayanan, namaPaket, namaProduk] = await Promise.all([
+      kodesLayanan.length > 0 ? DB("mst_layanan").whereIn("kode_layanan", kodesLayanan).select("kode_layanan as kode", "nama") : Promise.resolve([]),
+      kodesPaket.length   > 0 ? DB("mst_paket_layanan").whereIn("kode_paket_layanan", kodesPaket).select("kode_paket_layanan as kode", "nama") : Promise.resolve([]),
+      kodesProduk.length  > 0 ? DB("mst_produk").whereIn("kode_produk", kodesProduk).select("kode_produk as kode", "nama") : Promise.resolve([]),
+    ]);
 
-    const listPromo = vaPromo.map((p) => ({
-      kode_promo: p.kode_promo,
-      nama_promo: p.nama_promo,
-      jenis_diskon: p.jenis_diskon,
-      nilai_diskon: parseFloat(p.nilai_diskon || 0),
-      tanggal_mulai: p.tanggal_mulai,
-      tanggal_selesai: p.tanggal_selesai,
-      eligible_items: promoDetailMap[p.kode_promo] || [],
+    const namaMap = {};
+    [...namaLayanan, ...namaPaket, ...namaProduk].forEach((i) => { namaMap[i.kode] = i.nama; });
+
+    const listPromo = vaDetailPromo.map((dp) => ({
+      kode_detail_promo: dp.kode_detail_promo,
+      kode_promo: dp.kode_promo,
+      nama_promo: dp.nama_promo,
+      jenis_diskon: dp.jenis_diskon,
+      nilai_diskon: parseFloat(dp.nilai_diskon || 0),
+      jenis_item: dp.jenis_item,
+      kode_item: dp.kode_item,
+      nama_item: namaMap[dp.kode_item] || dp.kode_item,
     }));
 
     return res.status(200).json({

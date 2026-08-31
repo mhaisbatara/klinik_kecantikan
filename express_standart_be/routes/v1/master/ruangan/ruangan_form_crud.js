@@ -5,7 +5,7 @@ import DB from "../../../../core/config/knex.js";
 import { formatDateSystem } from "../../components/tools/date_tools.js";
 import { Logging } from "../../components/tools/servertool.js";
 import { status } from "../../components/tools/general.js";
-import { syncRekamMedisPerKunjungan } from "./rekam_medis_service.js";
+import { syncRekamMedisPerAntrian } from "./rekam_medis_service.js";
 
 const router = express.Router();
 
@@ -197,9 +197,21 @@ router.post("/antrian-layanan-simpan-form", async (req, res) => {
       updated_at: formatDateSystem(),
     };
 
+    if (oPayload.kode_karyawan || oPayload.no_sip) {
+      updateObj.kode_karyawan = oPayload.kode_karyawan || oPayload.no_sip;
+    }
+
     if (status_tindakan && ["menunggu", "dipanggil", "selesai", "batal"].includes(status_tindakan)) {
       updateObj.status = status_tindakan;
       if (status_tindakan === "selesai") {
+        const resolvedKaryawan = updateObj.kode_karyawan || currentAntrian.kode_karyawan;
+        if (!resolvedKaryawan) {
+          return res.status(422).json({
+            status: status.BAD_REQUEST,
+            message: "Petugas / karyawan wajib dipilih sebelum status tindakan dapat diubah menjadi selesai",
+            datetime: formatDateSystem(),
+          });
+        }
         updateObj.selesai_at = formatDateSystem();
       }
     }
@@ -208,10 +220,10 @@ router.post("/antrian-layanan-simpan-form", async (req, res) => {
       .where("kode_antrian_layanan", kode_antrian_layanan)
       .update(updateObj);
 
-    // Simpan/Gabungkan seluruh detail form & catatan penanganan langsung ke trx_rekam_medis
     if (currentAntrian.kode_kunjungan) {
-      await syncRekamMedisPerKunjungan({
+      await syncRekamMedisPerAntrian({
         kode_kunjungan: currentAntrian.kode_kunjungan,
+        kode_antrian_layanan: currentAntrian.kode_antrian_layanan,
         kode_ruangan: currentAntrian.kode_ruangan,
         nama_ruangan: currentAntrian.nama_ruangan,
         hasil_form: hasil_form,

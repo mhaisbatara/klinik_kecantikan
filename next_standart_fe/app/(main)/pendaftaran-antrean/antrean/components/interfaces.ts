@@ -22,6 +22,9 @@ export interface AntrianLayananData {
     jumlah_sesi_paket?: number | null;
     hasil_form?: string | null;
     catatan_petugas?: string | null;
+    kode_karyawan?: string | null;
+    nama_petugas?: string | null;
+    jabatan_petugas?: string | null;
 }
 
 export interface RuanganFormField {

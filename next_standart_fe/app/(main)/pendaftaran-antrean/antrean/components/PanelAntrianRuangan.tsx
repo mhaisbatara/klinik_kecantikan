@@ -220,10 +220,16 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
         }
     };
 
-    const handleAksi = (item: AntrianLayananData, customAksi?: string) => {
+    const handleAksi = (item: AntrianLayananData, customAksi?: string, skipFormValidation: boolean = false) => {
         const nextCfg = NEXT_AKSI[item.status];
         const targetAksi = customAksi || nextCfg?.aksi;
         if (!targetAksi) return;
+
+        // Validation: Block completing room treatment if Form Penanganan Pasien has not been saved
+        if (targetAksi === 'selesai' && !skipFormValidation && !item.hasil_form) {
+            showError(toast, 'Tindakan tidak dapat diselesaikan! Harap isi dan simpan Form Penanganan Pasien serta Hasil Treatment terlebih dahulu.');
+            return;
+        }
 
         const isDipanggil = targetAksi === 'dipanggil';
         const isBatal = targetAksi === 'batal';

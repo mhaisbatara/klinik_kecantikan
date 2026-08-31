@@ -42,6 +42,14 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
     const [rekomendasiItems, setRekomendasiItems] = useState<RekomendasiItem[]>([]);
     const [saving, setSaving] = useState<boolean>(false);
 
+    // Dropdown Petugas / Dokter State
+    const [karyawanOptions, setKaryawanOptions] = useState<any[]>([]);
+    const [selectedPetugas, setSelectedPetugas] = useState<string>('');
+
+    useEffect(() => {
+        loadKaryawan();
+    }, []);
+
     useEffect(() => {
         if (visible && antrianData?.kode_ruangan) {
             loadFormFields();
@@ -51,8 +59,26 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
             setCatatanPetugas('');
             setFormData({});
             setRekomendasiItems([]);
+            setSelectedPetugas(antrianData.kode_karyawan || '');
         }
     }, [visible, antrianData]);
+
+    const loadKaryawan = async () => {
+        try {
+            const res = await postData('/master/karyawan-data', { page: 1, perPage: 100 });
+            const list = res.data?.data || [];
+            const opts = list.map((k: any) => ({
+                label: `${k.nama}${k.jabatan ? ` (${k.jabatan.toUpperCase()})` : ''}`,
+                value: k.no_sip,
+                nama: k.nama,
+                jabatan: k.jabatan,
+                no_sip: k.no_sip,
+            }));
+            setKaryawanOptions(opts);
+        } catch (_) {
+            // silent fail
+        }
+    };
 
     const loadFormFields = async () => {
         if (!antrianData?.kode_ruangan) return;
@@ -83,6 +109,8 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
         try {
             const payload: any = {
                 kode_antrian_layanan: antrianData.kode_antrian_layanan,
+                kode_karyawan: selectedPetugas,
+                no_sip: selectedPetugas,
                 hasil_form: formData,
                 catatan_petugas: catatanPetugas,
                 rekomendasi_items: rekomendasiItems,
@@ -119,6 +147,12 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
 
     const handleSave = (targetStatus?: string) => {
         if (!antrianData) return;
+
+        // Validation: Petugas / Dokter Penanggung Jawab wajib dipilih
+        if (!selectedPetugas) {
+            showError(toast, 'Petugas / Dokter Penanggung Jawab wajib dipilih!');
+            return;
+        }
 
         // Check required fields
         for (const f of fields) {
@@ -186,6 +220,50 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
                 </div>
 
                 <div className="flex flex-column gap-4">
+                    {/* SECTION PETUGAS / DOKTER PENANGGUNG JAWAB (SESUAI SIP) */}
+                    <div className="surface-card p-3 border-round-xl border-1 surface-border shadow-1">
+                        <div className="flex align-items-center justify-content-between mb-3 pb-2 border-bottom-1 surface-border">
+                            <label className="text-xs font-extrabold text-teal-800 uppercase tracking-wider flex align-items-center gap-2 m-0">
+                                <i className="pi pi-user text-teal-600 text-sm" />
+                                PETUGAS / DOKTER PENANGGUNG JAWAB (SESUAI SIP)
+                            </label>
+                            <span className="text-[10px] text-500 font-semibold">Tersimpan berdasar No. SIP</span>
+                        </div>
+                        <div className="p-fluid">
+                            <Dropdown
+                                value={selectedPetugas}
+                                options={karyawanOptions}
+                                onChange={(e) => setSelectedPetugas(e.value)}
+                                placeholder="-- Pilih Nama Petugas / Dokter --"
+                                filter
+                                filterBy="label,value,nama"
+                                showClear
+                                className="w-full text-sm border-round-md shadow-1 bg-white"
+                                valueTemplate={(option) => {
+                                    if (option) {
+                                        return (
+                                            <div className="flex align-items-center gap-2">
+                                                <span className="font-bold text-teal-900">{option.nama || option.label}</span>
+                                                {option.value && (
+                                                    <span className="text-xs text-500 font-normal">(No. SIP: {option.value})</span>
+                                                )}
+                                            </div>
+                                        );
+                                    }
+                                    return <span>-- Pilih Nama Petugas / Dokter --</span>;
+                                }}
+                                itemTemplate={(option) => (
+                                    <div className="flex align-items-center justify-content-between py-1">
+                                        <div>
+                                            <span className="font-bold text-teal-900 block text-sm">{option.nama || option.label}</span>
+                                            <span className="text-xs text-500 block">No. SIP: {option.value}</span>
+                                        </div>
+                                    </div>
+                                )}
+                            />
+                        </div>
+                    </div>
+
                     {loadingFields ? (
                         <div className="flex align-items-center justify-content-center py-4">
                             <ProgressSpinner style={{ width: '30px', height: '30px' }} />

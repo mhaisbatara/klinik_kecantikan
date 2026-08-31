@@ -25,10 +25,9 @@ interface ActiveTreatmentPanelProps {
     kodeRuangan: string;
     namaRuangan: string;
     isKonsultasi?: boolean;
-    petugasJagaList?: any[];
     toast: React.RefObject<Toast>;
     getGridData: () => void;
-    handleAksi: (item: AntrianLayananData, customAksi?: string) => void;
+    handleAksi: (item: AntrianLayananData, customAksi?: string, skipFormValidation?: boolean) => void;
     playChime: () => void;
     speakNomorLayanan: (noAntrian: string, namaPasien?: string, namaRuangan?: string) => void;
     onManageFormClick: () => void;
@@ -40,7 +39,6 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
     kodeRuangan,
     namaRuangan,
     isKonsultasi = false,
-    petugasJagaList = [],
     toast,
     getGridData,
     handleAksi,
@@ -55,21 +53,15 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
     const [rekomendasiItems, setRekomendasiItems] = useState<RekomendasiItem[]>([]);
     const [saving, setSaving] = useState<boolean>(false);
 
-    // State Dokter / Petugas Jaga
-    const [dokterBertugas, setDokterBertugas] = useState<string>('');
-
-    useEffect(() => {
-        if (petugasJagaList && petugasJagaList.length > 0) {
-            const initialName = petugasJagaList[0].nama_karyawan;
-            setDokterBertugas(initialName);
-            setFormData((prev) => ({ ...prev, 'Dokter / Petugas Jaga': initialName }));
-        }
-    }, [petugasJagaList]);
+    // Dropdown Petugas / Dokter (SIP) State
+    const [karyawanOptions, setKaryawanOptions] = useState<any[]>([]);
+    const [selectedPetugas, setSelectedPetugas] = useState<string>('');
 
     // Step state: 'form' (Form Penanganan) vs 'hasil' (Hasil Treatment & Produk Kasir)
     const [activeStep, setActiveStep] = useState<'form' | 'hasil'>('form');
     // Setelah simpan, kunci semua input form agar tidak bisa diubah lagi
     const [isFormSaved, setIsFormSaved] = useState<boolean>(false);
+    const [isHasilSaved, setIsHasilSaved] = useState<boolean>(false);
 
     // Modal Sukses Terbit Antrean & Transaksi
     const [showHasilModal, setShowHasilModal] = useState<boolean>(false);
@@ -80,27 +72,67 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
     const [hasilNoRm, setHasilNoRm] = useState<string>('');
 
     useEffect(() => {
+        loadKaryawan();
+    }, []);
+
+    useEffect(() => {
         if (kodeRuangan) {
             loadFormFields();
         }
     }, [kodeRuangan]);
 
+    const [currentAntrianId, setCurrentAntrianId] = useState<string>('');
+
     useEffect(() => {
-        if (activePatient) {
-            // Form data dipindahkan ke trx_rekam_medis; form dimulai kosong setiap sesi baru
-            setCatatanPetugas('');
-            setFormData({});
-            setRekomendasiItems([]);
-            setActiveStep('form');
-            setIsFormSaved(false);
+        if (activePatient?.kode_antrian_layanan) {
+            if (activePatient.kode_antrian_layanan !== currentAntrianId) {
+                setCurrentAntrianId(activePatient.kode_antrian_layanan);
+                let initialForm = {};
+                let hasForm = false;
+                if (activePatient.hasil_form) {
+                    try {
+                        initialForm = typeof activePatient.hasil_form === 'string' ? JSON.parse(activePatient.hasil_form) : activePatient.hasil_form;
+                        hasForm = Object.keys(initialForm).length > 0;
+                    } catch (_) {}
+                }
+                setFormData(initialForm);
+                setCatatanPetugas(activePatient.catatan_petugas || '');
+                setRekomendasiItems([]);
+                setSelectedPetugas(activePatient.kode_karyawan || '');
+                setActiveStep(hasForm ? 'hasil' : 'form');
+                setIsFormSaved(hasForm);
+                setIsHasilSaved(false);
+            } else if (activePatient.kode_karyawan && !selectedPetugas) {
+                setSelectedPetugas(activePatient.kode_karyawan);
+            }
         } else {
+            setCurrentAntrianId('');
             setFormData({});
             setCatatanPetugas('');
             setRekomendasiItems([]);
+            setSelectedPetugas('');
             setActiveStep('form');
             setIsFormSaved(false);
+            setIsHasilSaved(false);
         }
     }, [activePatient?.kode_antrian_layanan]);
+
+    const loadKaryawan = async () => {
+        try {
+            const res = await postData('/master/karyawan-data', { page: 1, perPage: 100 });
+            const list = res.data?.data || [];
+            const opts = list.map((k: any) => ({
+                label: `${k.nama}${k.jabatan ? ` (${k.jabatan.toUpperCase()})` : ''}`,
+                value: k.no_sip,
+                nama: k.nama,
+                jabatan: k.jabatan,
+                no_sip: k.no_sip,
+            }));
+            setKaryawanOptions(opts);
+        } catch (_) {
+            // silent fail
+        }
+    };
 
     const loadFormFields = async () => {
         if (!kodeRuangan) return;
@@ -126,6 +158,8 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
         try {
             const payload: any = {
                 kode_antrian_layanan: activePatient.kode_antrian_layanan,
+                kode_karyawan: selectedPetugas,
+                no_sip: selectedPetugas,
                 hasil_form: formData,
                 catatan_petugas: catatanPetugas,
                 rekomendasi_items: rekomendasiItems,
@@ -150,7 +184,16 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                 setHasilKodeKunjungan(kodeKunjungan);
             }
 
-            // Kunci form setelah berhasil simpan tanpa mengosongkan nilainya
+            // Update local officer info so header badge displays doctor name immediately
+            if (selectedPetugas) {
+                const foundKaryawan = karyawanOptions.find((k) => k.value === selectedPetugas);
+                if (foundKaryawan) {
+                    activePatient.nama_petugas = foundKaryawan.nama;
+                    activePatient.kode_karyawan = selectedPetugas;
+                }
+            }
+
+            // Kunci form setelah berhasil simpan tanpa mengosongkan nilainya (form tidak bisa diotak-atik)
             setIsFormSaved(true);
 
             // Pindah otomatis ke step Hasil Treatment (Foto After & Produk Kasir)
@@ -175,6 +218,12 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
 
     const handleSaveForm = (targetStatus?: string) => {
         if (!activePatient) return;
+
+        // Validation: Petugas / Dokter Examiner wajib dipilih
+        if (!selectedPetugas) {
+            showError(toast, 'Petugas / Dokter Penanggung Jawab wajib dipilih!');
+            return;
+        }
 
         // Check mandatory fields
         for (const f of fields) {
@@ -290,6 +339,12 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                                 <i className="pi pi-building text-xs" />
                                 {namaRuangan}
                             </span>
+                            {(activePatient.nama_petugas || karyawanOptions.find((k) => k.value === selectedPetugas)?.nama) && (
+                                <span className="inline-flex align-items-center gap-1 bg-teal-900 text-teal-100 text-xs font-semibold px-2 py-1 border-round-md border-1 border-teal-400">
+                                    <i className="pi pi-user text-xs" />
+                                    Petugas: {karyawanOptions.find((k) => k.value === selectedPetugas)?.nama || activePatient.nama_petugas}
+                                </span>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -316,119 +371,149 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                         label="Selesaikan Tindakan"
                         icon="pi pi-check"
                         size="small"
-                        className="text-xs font-bold bg-green-500 text-white border-none border-round-lg hover:bg-green-600"
-                        onClick={() => handleAksi(activePatient, 'selesai')}
+                        disabled={(!isFormSaved && !activePatient?.hasil_form) || !isHasilSaved}
+                        className={`text-xs font-bold border-none border-round-lg ${
+                            (!isFormSaved && !activePatient?.hasil_form) || !isHasilSaved
+                                ? 'bg-gray-400 text-white cursor-not-allowed opacity-60'
+                                : 'bg-green-500 text-white hover:bg-green-600 shadow-2'
+                        }`}
+                        tooltip={
+                            !isHasilSaved
+                                ? 'Tombol Selesaikan Tindakan baru bisa diklik setelah data Form Hasil Treatment (Step 2) disimpan'
+                                : ''
+                        }
+                        onClick={() => {
+                            if (!isFormSaved && !activePatient?.hasil_form) {
+                                showError(toast, 'Harap isi dan simpan Form Penanganan Pasien (Step 1) terlebih dahulu.');
+                                return;
+                            }
+                            if (!isHasilSaved) {
+                                showError(toast, 'Selesaikan Tindakan baru bisa diklik setelah data Form Hasil Treatment (Step 2) disimpan!');
+                                return;
+                            }
+                            handleAksi(activePatient, 'selesai', true);
+                        }}
                     />
                 </div>
             </div>
 
-            {/* STEP NAVIGATION HEADER BAR (Hanya untuk Ruangan Tindakan non-konsultasi) */}
-            {!isKonsultasi && (
-                <div className="flex flex-column sm:flex-row align-items-center justify-content-between p-3 bg-teal-50 border-bottom-1 surface-border gap-2">
-                    <div className="flex align-items-center gap-2 w-full sm:w-auto">
-                        <button
-                            type="button"
-                            onClick={() => setActiveStep('form')}
-                            className={`flex align-items-center gap-2 px-3 py-2 border-round-lg font-bold text-xs cursor-pointer border-none transition-all ${
-                                activeStep === 'form'
-                                    ? 'bg-teal-700 text-white shadow-2'
-                                    : 'surface-card text-700 hover:surface-200 border-1 surface-border'
-                            }`}
-                        >
-                            <span className={`w-1.5rem h-1.5rem border-circle flex align-items-center justify-content-center text-xs font-extrabold ${
-                                activeStep === 'form' ? 'bg-white text-teal-800' : 'bg-teal-100 text-teal-800'
-                            }`}>
-                                1
-                            </span>
-                            <span>1. Form Penanganan Pasien</span>
-                        </button>
+            {/* STEP NAVIGATION HEADER BAR */}
+            <div className="flex flex-column sm:flex-row align-items-center justify-content-between p-3 bg-teal-50 border-bottom-1 surface-border gap-2">
+                <div className="flex align-items-center gap-2 w-full sm:w-auto">
+                    <button
+                        type="button"
+                        onClick={() => setActiveStep('form')}
+                        className={`flex align-items-center gap-2 px-3 py-2 border-round-lg font-bold text-xs cursor-pointer border-none transition-all ${
+                            activeStep === 'form'
+                                ? 'bg-teal-700 text-white shadow-2'
+                                : 'surface-card text-700 hover:surface-200 border-1 surface-border'
+                        }`}
+                    >
+                        <span className={`w-1.5rem h-1.5rem border-circle flex align-items-center justify-content-center text-xs font-extrabold ${
+                            activeStep === 'form' ? 'bg-white text-teal-800' : 'bg-teal-100 text-teal-800'
+                        }`}>
+                            1
+                        </span>
+                        <span>1. Form Penanganan Pasien</span>
+                    </button>
 
-                        <i className="pi pi-chevron-right text-400 text-sm hidden sm:inline-block" />
+                    <i className="pi pi-chevron-right text-400 text-sm hidden sm:inline-block" />
 
-                        <button
-                            type="button"
-                            onClick={() => setActiveStep('hasil')}
-                            className={`flex align-items-center gap-2 px-3 py-2 border-round-lg font-bold text-xs cursor-pointer border-none transition-all ${
-                                activeStep === 'hasil'
-                                    ? 'bg-teal-700 text-white shadow-2'
-                                    : 'surface-card text-700 hover:surface-200 border-1 surface-border'
-                            }`}
-                        >
-                            <span className={`w-1.5rem h-1.5rem border-circle flex align-items-center justify-content-center text-xs font-extrabold ${
-                                activeStep === 'hasil' ? 'bg-white text-teal-800' : 'bg-teal-100 text-teal-800'
-                            }`}>
-                                2
-                            </span>
-                            <span>2. Hasil Treatment (Foto After) &amp; Rekomendasi Produk</span>
-                        </button>
-                    </div>
-
-                    {activeStep === 'hasil' && (
-                        <Button
-                            label="Kembali ke Form Penanganan"
-                            icon="pi pi-arrow-left"
-                            outlined
-                            size="small"
-                            severity="secondary"
-                            className="text-xs font-bold border-round-lg"
-                            onClick={() => setActiveStep('form')}
-                        />
-                    )}
+                    <button
+                        type="button"
+                        onClick={() => setActiveStep('hasil')}
+                        className={`flex align-items-center gap-2 px-3 py-2 border-round-lg font-bold text-xs cursor-pointer border-none transition-all ${
+                            activeStep === 'hasil'
+                                ? 'bg-teal-700 text-white shadow-2'
+                                : 'surface-card text-700 hover:surface-200 border-1 surface-border'
+                        }`}
+                    >
+                        <span className={`w-1.5rem h-1.5rem border-circle flex align-items-center justify-content-center text-xs font-extrabold ${
+                            activeStep === 'hasil' ? 'bg-white text-teal-800' : 'bg-teal-100 text-teal-800'
+                        }`}>
+                            2
+                        </span>
+                        <span>2. Hasil Treatment (Foto After) &amp; Rekomendasi Produk</span>
+                    </button>
                 </div>
-            )}
+
+                {activeStep === 'hasil' && (
+                    <Button
+                        label="Kembali ke Form Penanganan"
+                        icon="pi pi-arrow-left"
+                        outlined
+                        size="small"
+                        severity="secondary"
+                        className="text-xs font-bold border-round-lg"
+                        onClick={() => setActiveStep('form')}
+                    />
+                )}
+            </div>
 
             {/* STEP 1: FORM PENANGANAN PASIEN */}
-            {activeStep === 'form' || isKonsultasi ? (
+            {activeStep === 'form' ? (
                 <div className="p-4 flex flex-column gap-4 surface-ground">
+                    {/* SECTION PETUGAS / DOKTER PENANGGUNG JAWAB (SESUAI SIP) */}
+                    <div className="surface-card p-3 border-round-xl border-1 surface-border shadow-1">
+                        <div className="flex align-items-center justify-content-between mb-3 pb-2 border-bottom-1 surface-border">
+                            <label className="text-xs font-extrabold text-teal-800 uppercase tracking-wider flex align-items-center gap-2 m-0">
+                                <i className="pi pi-user text-teal-600 text-sm" />
+                                PETUGAS / DOKTER PENANGGUNG JAWAB (SESUAI SIP)
+                            </label>
+                            <span className="text-[10px] text-500 font-semibold">Tersimpan berdasar No. SIP</span>
+                        </div>
+                        <div className="p-fluid">
+                            <Dropdown
+                                value={selectedPetugas}
+                                options={karyawanOptions}
+                                onChange={(e) => setSelectedPetugas(e.value)}
+                                placeholder="-- Pilih Nama Petugas / Dokter --"
+                                filter
+                                filterBy="label,value,nama"
+                                showClear
+                                disabled={isFormSaved}
+                                className="w-full text-sm border-round-md shadow-1 bg-white"
+                                valueTemplate={(option) => {
+                                    if (option) {
+                                        return (
+                                            <div className="flex align-items-center gap-2">
+                                                <span className="font-bold text-teal-900">{option.nama || option.label}</span>
+                                                {option.value && (
+                                                    <span className="text-xs text-500 font-normal">(No. SIP: {option.value})</span>
+                                                )}
+                                            </div>
+                                        );
+                                    }
+                                    return <span>-- Pilih Nama Petugas / Dokter --</span>;
+                                }}
+                                itemTemplate={(option) => (
+                                    <div className="flex align-items-center justify-content-between py-1">
+                                        <div>
+                                            <span className="font-bold text-teal-900 block text-sm">{option.nama || option.label}</span>
+                                            <span className="text-xs text-500 block">No. SIP: {option.value}</span>
+                                        </div>
+                                    </div>
+                                )}
+                            />
+                        </div>
+                    </div>
                     {/* 1. SECTION ISIAN KHUSUS FORM RUANGAN */}
                     {loadingFields ? (
                         <div className="flex align-items-center justify-content-center py-4">
                             <ProgressSpinner style={{ width: '30px', height: '30px' }} />
                             <span className="ml-2 text-xs text-500">Memuat format form ruangan...</span>
                         </div>
-                    ) : (
+                    ) : fields.length > 0 && (
                         <div className="surface-card p-3 border-round-xl border-1 surface-border shadow-1">
                             <div className="flex align-items-center justify-content-between mb-3 pb-2 border-bottom-1 surface-border">
                                 <label className="text-xs font-extrabold text-teal-800 uppercase tracking-wider flex align-items-center gap-2 m-0">
                                     <i className="pi pi-file-edit text-teal-600 text-sm" />
                                     ISIAN KHUSUS FORM RUANGAN ({namaRuangan})
                                 </label>
-                                <Tag value={`${fields.length + 1} Field`} severity="info" className="text-[10px] font-bold" />
+                                <Tag value={`${fields.length} Field`} severity="info" className="text-[10px] font-bold" />
                             </div>
 
                             <div className="grid formgrid p-fluid">
-                                {/* DOKTER / PETUGAS JAGA HARI INI (DITARUH PALING ATAS SEBELUM KELUHAN UTAMA) */}
-                                <div className="col-12 mb-3">
-                                    <label className="block text-xs font-bold text-700 mb-2 flex align-items-center justify-content-between">
-                                        <span className="flex align-items-center gap-1.5 text-teal-900 font-extrabold">
-                                            <i className="pi pi-user-edit text-teal-600 font-bold" />
-                                            Dokter / Petugas Jaga Hari Ini <span className="text-red-500 font-bold">*</span>
-                                        </span>
-                                    </label>
-                                    {petugasJagaList && petugasJagaList.length > 0 ? (
-                                        <Dropdown
-                                            value={dokterBertugas || (petugasJagaList[0] ? petugasJagaList[0].nama_karyawan : '')}
-                                            options={petugasJagaList.map((p) => ({
-                                                label: `👨‍⚕️ ${p.nama_karyawan} (${(p.jabatan || 'DOKTER').toUpperCase()} • Jam ${p.jam_mulai} - ${p.jam_selesai})`,
-                                                value: p.nama_karyawan,
-                                            }))}
-                                            onChange={(e) => {
-                                                setDokterBertugas(e.value);
-                                                handleFieldChange('Dokter / Petugas Jaga', e.value);
-                                            }}
-                                            placeholder="-- Pilih Dokter / Petugas Jaga --"
-                                            disabled={isFormSaved}
-                                            className="w-full text-sm font-bold border-round-md shadow-1 bg-white border-teal-300 text-teal-900"
-                                        />
-                                    ) : (
-                                        <InputText
-                                            value="Tidak ada jadwal dokter/petugas aktif di ruangan ini"
-                                            disabled
-                                            className="w-full text-sm border-round-md shadow-1 bg-amber-50 text-amber-900 border-amber-200"
-                                        />
-                                    )}
-                                </div>
-
                                 {fields.map((f, i) => {
                                     const val = formData[f.label_field];
                                     const isReq = Boolean(f.is_required);
@@ -457,6 +542,7 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                                                         <span>
                                                             {f.label_field} {isReq && <span className="text-red-500 font-bold">*</span>}
                                                         </span>
+                                                        <span className="text-[10px] text-400 font-normal uppercase">({f.tipe_field})</span>
                                                     </label>
 
                                                     {f.tipe_field === 'textarea' ? (
@@ -542,25 +628,19 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                     <div className="flex align-items-center justify-content-end gap-3 mt-2 pt-3 border-top-1 surface-border">
                         {isFormSaved ? (
                             <div className="flex align-items-center gap-3 flex-wrap">
-                                <Tag
-                                    value={isKonsultasi ? "✅ Form Konsultasi & Rekomendasi Telah Disimpan" : "✅ Form Penanganan Telah Disimpan & Dikunci"}
+                                <Tag value="✅ Form Penanganan Telah Disimpan & Dikunci" severity="success" className="px-3 py-2 text-xs font-bold" />
+                                <Button
+                                    label="Lanjut ke Hasil Treatment →"
                                     severity="success"
-                                    className="px-3 py-2 text-xs font-bold"
+                                    size="small"
+                                    onClick={() => setActiveStep('hasil')}
+                                    className="font-bold text-xs bg-teal-600 border-none border-round-lg px-4 text-white shadow-2"
                                 />
-                                {!isKonsultasi && (
-                                    <Button
-                                        label="Lanjut ke Hasil Treatment →"
-                                        severity="success"
-                                        size="small"
-                                        onClick={() => setActiveStep('hasil')}
-                                        className="font-bold text-xs bg-teal-600 border-none border-round-lg px-4 text-white shadow-2"
-                                    />
-                                )}
                             </div>
                         ) : (
                             <Button
-                                label={isKonsultasi ? "Simpan Rekomendasi & Penanganan Pasien" : "Simpan Form Penanganan & Lanjut ke Hasil Treatment"}
-                                icon={isKonsultasi ? "pi pi-check-circle" : "pi pi-arrow-right"}
+                                label="Simpan Form Penanganan & Lanjut ke Hasil Treatment"
+                                icon="pi pi-arrow-right"
                                 iconPos="right"
                                 severity="success"
                                 size="small"
@@ -580,6 +660,10 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                         getGridData={getGridData}
                         kodeRuangan={kodeRuangan}
                         namaRuangan={namaRuangan}
+                        savedFormData={formData}
+                        savedCatatanPetugas={catatanPetugas}
+                        savedPetugasNama={karyawanOptions.find((k) => k.value === selectedPetugas)?.nama}
+                        onHasilSavedChange={(saved) => setIsHasilSaved(saved)}
                     />
                 </div>
             )}
@@ -588,113 +672,59 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
             <Dialog
                 visible={showConfirmModal && !showHasilModal}
                 onHide={() => setShowConfirmModal(false)}
-                header={
-                    <div className="flex align-items-center gap-3">
-                        <div
-                            className="flex align-items-center justify-content-center border-round-xl"
-                            style={{
-                                width: '40px',
-                                height: '40px',
-                                background: 'linear-gradient(135deg, #0d9488, #059669)',
-                                boxShadow: '0 4px 12px rgba(13, 148, 136, 0.3)',
-                            }}
-                        >
-                            <i className="pi pi-shield text-white text-xl" />
-                        </div>
-                        <div>
-                            <span className="text-lg font-black text-900 block" style={{ lineHeight: 1.2 }}>
-                                Persetujuan &amp; Konfirmasi Penanganan Pasien
-                            </span>
-                            <span className="text-xs text-500 font-medium">
-                                Konfirmasi data form penanganan dan rekomendasi produk kasir
-                            </span>
-                        </div>
-                    </div>
-                }
-                style={{ width: '540px' }}
+                header="Konfirmasi Penanganan & Rekomendasi"
+                style={{ width: '480px' }}
                 modal
                 className="p-fluid"
                 footer={
-                    <div className="flex align-items-center justify-content-end gap-2 pt-2 border-top-1 surface-border">
+                    <div className="flex justify-content-end gap-2">
                         <Button
                             label="Batal"
                             icon="pi pi-times"
-                            outlined
-                            severity="secondary"
-                            className="font-bold text-xs border-round-lg px-3 py-2"
+                            className="p-button-outlined p-button-secondary text-xs"
                             onClick={() => setShowConfirmModal(false)}
                         />
                         <Button
-                            label="✓ Setujui &amp; Simpan Penanganan"
-                            icon="pi pi-check-circle"
-                            severity="success"
-                            className="font-extrabold text-xs border-round-lg px-4 py-2 shadow-2 bg-teal-600 border-none hover:bg-teal-700"
+                            label="Ya, Simpan & Terbitkan"
+                            icon="pi pi-check"
+                            className="p-button-success font-bold text-xs"
                             onClick={handleConfirmAccept}
                         />
                     </div>
                 }
             >
-                <div className="flex flex-column gap-3 py-2 text-left">
-                    <div
-                        className="p-3 border-round-2xl relative overflow-hidden"
-                        style={{
-                            background: 'linear-gradient(135deg, #f0fdfa, #ccfbf1)',
-                            border: '1.5px solid #99f6e4',
-                        }}
-                    >
-                        <div className="flex align-items-center justify-content-between">
-                            <div>
-                                <span className="text-[10px] font-extrabold uppercase tracking-wider block text-teal-700 mb-0.5">
-                                    PASIEN AKTIF TINDAKAN
-                                </span>
-                                <span className="font-black text-base text-teal-950 block">
-                                    {activePatient?.nama_pasien || hasilPasienNama || 'Pasien'}
-                                </span>
-                                <span className="text-xs text-teal-800 font-medium">
-                                    No. RM: <strong>{activePatient?.no_rm || hasilNoRm}</strong> | Ruangan: <strong>{namaRuangan}</strong>
-                                </span>
-                            </div>
-                            <Tag value={`No. #${activePatient?.nomor_antrian || '-'}`} severity="success" className="text-sm font-extrabold px-3 py-1.5 border-round-xl shadow-1" />
-                        </div>
+                <div className="flex flex-column gap-3 py-1 text-left">
+                    <div className="p-3 border-round-xl" style={{ background: '#f0fdfa', border: '1.5px solid #99f6e4' }}>
+                        <span className="text-[10px] font-bold uppercase block" style={{ color: '#0d9488' }}>Pasien Aktif</span>
+                        <span className="font-extrabold text-sm block" style={{ color: '#134e4a' }}>{activePatient?.nama_pasien || hasilPasienNama || 'Pasien'}</span>
+                        <span className="text-xs" style={{ color: '#0f766e' }}>No. RM: {activePatient?.no_rm || hasilNoRm} | Ruangan: {namaRuangan}</span>
                     </div>
 
-                    <div className="surface-card p-3 border-round-2xl border-1 surface-border shadow-1 flex flex-column gap-2">
-                        <span className="text-xs font-extrabold text-700 uppercase tracking-wider block border-bottom-1 surface-border pb-2">
-                            📋 Ringkasan Data Ditambahkan
-                        </span>
-
-                        {rekomendasiItems.filter((i) => ['produk', 'paket_produk'].includes(i.jenis)).length > 0 ? (
-                            <div className="p-2.5 border-round-xl text-xs surface-50 flex flex-column gap-1">
-                                <span className="font-bold text-amber-700 flex align-items-center gap-1.5">
-                                    <i className="pi pi-shopping-bag text-amber-600" />
-                                    {rekomendasiItems.filter((i) => ['produk', 'paket_produk'].includes(i.jenis)).length} Produk Rekomendasi Kasir:
+                    <div className="flex flex-column gap-2">
+                        {rekomendasiItems.filter((i) => ['layanan', 'paket_layanan'].includes(i.jenis)).length > 0 && (
+                            <div className="p-3 border-round-xl text-xs" style={{ background: '#f0fdfa', border: '1.5px solid #5eead4' }}>
+                                <span className="font-bold block mb-1" style={{ color: '#0f766e' }}>
+                                    <i className="pi pi-ticket mr-1" />
+                                    Menerbitkan {rekomendasiItems.filter((i) => ['layanan', 'paket_layanan'].includes(i.jenis)).length} Nomor Antrean Layanan:
                                 </span>
-                                <span className="font-semibold text-800 pl-4">
-                                    {rekomendasiItems.filter((i) => ['produk', 'paket_produk'].includes(i.jenis)).map((p) => `${p.nama} (${p.qty || 1}x)`).join(', ')}
-                                </span>
+                                <span className="font-semibold" style={{ color: '#115e59' }}>{rekomendasiItems.filter((i) => ['layanan', 'paket_layanan'].includes(i.jenis)).map((l) => l.nama).join(', ')}</span>
                             </div>
-                        ) : (
-                            <span className="text-xs text-500 italic p-1">Tanpa produk tambahan yang dimasukkan.</span>
+                        )}
+
+                        {rekomendasiItems.filter((i) => ['produk', 'paket_produk'].includes(i.jenis)).length > 0 && (
+                            <div className="p-3 border-round-xl text-xs" style={{ background: '#fffbeb', border: '1.5px solid #fcd34d' }}>
+                                <span className="font-bold block mb-1" style={{ color: '#b45309' }}>
+                                    <i className="pi pi-shopping-bag mr-1" />
+                                    Memasukkan {rekomendasiItems.filter((i) => ['produk', 'paket_produk'].includes(i.jenis)).length} Produk ke Draf Transaksi Kasir:
+                                </span>
+                                <span className="font-semibold" style={{ color: '#78350f' }}>{rekomendasiItems.filter((i) => ['produk', 'paket_produk'].includes(i.jenis)).map((p) => `${p.nama} (${p.qty || 1}x)`).join(', ')}</span>
+                            </div>
                         )}
                     </div>
 
-                    <div
-                        className="p-3 border-round-2xl flex align-items-start gap-3"
-                        style={{
-                            background: '#f0fdfa',
-                            border: '1.5px solid #99f6e4',
-                        }}
-                    >
-                        <i className="pi pi-check-circle text-teal-600 text-2xl mt-0.5 flex-shrink-0" />
-                        <div>
-                            <span className="font-extrabold text-xs text-teal-950 block mb-1">
-                                Persetujuan Tindakan Pasien (Informed Consent)
-                            </span>
-                            <p className="text-xs text-teal-800 m-0 leading-relaxed font-medium">
-                                Apakah Anda yakin data penanganan dan rekomendasi produk untuk pasien ini sudah sesuai dan disetujui pasien?
-                            </p>
-                        </div>
-                    </div>
+                    <p className="text-xs text-gray-700 m-0">
+                        Apakah Anda yakin ingin menyimpan hasil penanganan &amp; menerbitkan nomor antrean/transaksi untuk pasien ini?
+                    </p>
                 </div>
             </Dialog>
 

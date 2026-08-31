@@ -175,6 +175,12 @@ export const GridPanggilLayanan = ({
         const next = NEXT_AKSI[item.status];
         if (!next) return;
 
+        // Validation: Block completing status if Form Penanganan Pasien has not been saved
+        if (next.aksi === 'selesai' && !item.hasil_form) {
+            showError(toast, 'Selesaikan Tindakan tidak dapat diklik! Harap isi dan simpan Form Penanganan Pasien serta Hasil Treatment terlebih dahulu.');
+            return;
+        }
+
         confirmDialog({
             message: (
                 <div className="flex flex-column align-items-center text-center gap-3 py-2">
@@ -346,6 +352,22 @@ export const GridPanggilLayanan = ({
                                 >
                                     🏠 {item.nama_ruangan ? `${item.kode_ruangan ? item.kode_ruangan + ' - ' : ''}${item.nama_ruangan}` : (item.kode_ruangan || 'Ruang Treatment')}
                                 </div>
+
+                                {item.nama_petugas && (
+                                    <div
+                                        className="text-xs font-bold text-truncate w-full mb-1"
+                                        style={{
+                                            fontSize: '0.68rem',
+                                            color: '#1e3a8a',
+                                            background: 'rgba(219, 234, 254, 0.9)',
+                                            padding: '2px 6px',
+                                            borderRadius: '6px',
+                                        }}
+                                        title={`Petugas: ${item.nama_petugas}`}
+                                    >
+                                        👤 {item.nama_petugas}
+                                    </div>
+                                )}
 
                                 {/* Informasi Tambahan Sesi untuk Paket */}
                                 {isPaket && (
