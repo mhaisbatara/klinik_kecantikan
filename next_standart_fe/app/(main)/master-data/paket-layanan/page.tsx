@@ -64,13 +64,22 @@ const Page = () => {
     const loadLayanan = async () => {
         try {
             const res = await postData('/master/layanan-data', { status: 'aktif' });
-            const list = (res.data.data || []).map((l: any) => ({
-                label: `${l.nama} (${l.kode_layanan})`,
-                value: l.kode_layanan,
-                nama: l.nama,
-                kode_ruangan: l.kode_ruangan,
-                nama_ruangan: l.nama_ruangan
-            }));
+            const list = (res.data.data || []).map((l: any) => {
+                const tipeVal = l.tipe || 'BEAUTY TREATMENT';
+                let labelExtra = '';
+                if (tipeVal === 'MEDICAL TREATMENT') labelExtra = ' [MEDICAL - Wajib Konsul]';
+                else if (tipeVal === 'BEAUTY TREATMENT') labelExtra = ' [BEAUTY - Opsional]';
+                else if (tipeVal === 'SERVICE TREATMENT') labelExtra = ' [SERVICE - Tanpa Konsul]';
+
+                return {
+                    label: `${l.nama} (${l.kode_layanan})${labelExtra}`,
+                    value: l.kode_layanan,
+                    nama: l.nama,
+                    kode_ruangan: l.kode_ruangan,
+                    nama_ruangan: l.nama_ruangan,
+                    tipe: tipeVal
+                };
+            });
             setLayananOptions(list);
         } catch (error) {
             console.error('Failed to load layanan options');
@@ -114,10 +123,25 @@ const Page = () => {
         }
     };
 
+    const getPackageLockedTipe = () => {
+        if (!formData.details || formData.details.length === 0) return null;
+        const firstSelectedKode = formData.details[0]?.kode_layanan;
+        if (!firstSelectedKode) return null;
+        const found = layananOptions.find((l: any) => l.value === firstSelectedKode);
+        return found?.tipe || null;
+    };
+
     const getFilteredLayananOptions = (kodeRuangan?: string) => {
         const targetRuangan = kodeRuangan !== undefined ? kodeRuangan : formData.kode_ruangan;
-        if (!targetRuangan) return layananOptions;
-        return layananOptions.filter((l: any) => l.kode_ruangan === targetRuangan);
+        let list = layananOptions;
+        if (targetRuangan) {
+            list = list.filter((l: any) => l.kode_ruangan === targetRuangan);
+        }
+        const lockedTipe = getPackageLockedTipe();
+        if (lockedTipe) {
+            list = list.filter((l: any) => l.tipe === lockedTipe);
+        }
+        return list;
     };
 
     const handleOpenCreate = () => {
@@ -261,23 +285,34 @@ const Page = () => {
                                 <th className="p-2 border-bottom-1 surface-border" style={{ width: '3rem' }}>No</th>
                                 <th className="p-2 border-bottom-1 surface-border">Kode Layanan</th>
                                 <th className="p-2 border-bottom-1 surface-border">Nama Layanan</th>
+                                <th className="p-2 border-bottom-1 surface-border">Tipe Layanan</th>
                                 <th className="p-2 border-bottom-1 surface-border text-right" style={{ width: '120px' }}>Jumlah Sesi</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {(data.details || []).map((item: any, idx: number) => (
-                                <tr key={idx} className="border-bottom-1 surface-border text-sm hover:surface-100">
-                                    <td className="p-2 text-500">{idx + 1}</td>
-                                    <td className="p-2 text-primary font-medium">{item.kode_layanan}</td>
-                                    <td className="p-2 font-medium">{item.nama_layanan || item.kode_layanan}</td>
-                                    <td className="p-2 text-right">
-                                        <Tag value={`${item.jumlah_sesi} Sesi`} severity="info" />
-                                    </td>
-                                </tr>
-                            ))}
+                            {(data.details || []).map((item: any, idx: number) => {
+                                const tipeVal = item.tipe_layanan || 'BEAUTY TREATMENT';
+                                let severity: 'danger' | 'info' | 'success' | 'warning' = 'info';
+                                if (tipeVal === 'MEDICAL TREATMENT') severity = 'danger';
+                                else if (tipeVal === 'SERVICE TREATMENT') severity = 'success';
+
+                                return (
+                                    <tr key={idx} className="border-bottom-1 surface-border text-sm hover:surface-100">
+                                        <td className="p-2 text-500">{idx + 1}</td>
+                                        <td className="p-2 text-primary font-medium">{item.kode_layanan}</td>
+                                        <td className="p-2 font-medium">{item.nama_layanan || item.kode_layanan}</td>
+                                        <td className="p-2">
+                                            <Tag value={tipeVal} severity={severity} className="text-xs px-2 py-0.5" />
+                                        </td>
+                                        <td className="p-2 text-right">
+                                            <Tag value={`${item.jumlah_sesi} Sesi`} severity="info" />
+                                        </td>
+                                    </tr>
+                                );
+                            })}
                             {(!data.details || data.details.length === 0) && (
                                 <tr>
-                                    <td colSpan={4} className="p-3 text-center text-500 text-sm">Tidak ada detail layanan.</td>
+                                    <td colSpan={5} className="p-3 text-center text-500 text-sm">Tidak ada detail layanan.</td>
                                 </tr>
                             )}
                         </tbody>
@@ -612,6 +647,21 @@ const Page = () => {
                             <label className="font-bold text-sm text-900">Detail Layanan Dalam Paket *</label>
                             <Button label="Tambah Layanan" icon="pi pi-plus" text size="small" onClick={handleAddDetail} />
                         </div>
+                        {getPackageLockedTipe() ? (
+                            <div className="text-xs text-purple-700 bg-purple-50 p-2 border-round-md border-1 border-purple-200 mb-2 flex align-items-center gap-2">
+                                <i className="pi pi-shield text-purple-600 text-sm" />
+                                <span>
+                                    Tipe Paket Dikunci: <strong>{getPackageLockedTipe()}</strong>. Pilihan layanan berikutnya secara otomatis disaring hanya untuk tipe ini.
+                                </span>
+                            </div>
+                        ) : (
+                            <div className="text-xs text-500 bg-surface-100 p-2 border-round-md border-1 surface-border mb-2 flex align-items-center gap-2">
+                                <i className="pi pi-info-circle text-500 text-sm" />
+                                <span>
+                                    Pilih layanan pertama untuk menentukan Tipe Layanan Paket ini.
+                                </span>
+                            </div>
+                        )}
                         {submitted && (!formData.details || formData.details.length === 0) && (
                             <small className="p-error text-red-500 text-xs block mb-2">Minimal tambahkan 1 detail layanan dalam paket.</small>
                         )}
