@@ -3,24 +3,22 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Toast } from 'primereact/toast';
 import { Calendar } from 'primereact/calendar';
-import { Dropdown } from 'primereact/dropdown';
 import { Button } from 'primereact/button';
 import { Tag } from 'primereact/tag';
 import { ProgressSpinner } from 'primereact/progressspinner';
 import { Paginator } from 'primereact/paginator';
 import { Image } from 'primereact/image';
+import { IconField } from 'primereact/iconfield';
+import { InputIcon } from 'primereact/inputicon';
+import { InputText } from 'primereact/inputtext';
+import { Menu } from 'primereact/menu';
+import { DataTable } from 'primereact/datatable';
+import { Column } from 'primereact/column';
+import { ColumnGroup } from 'primereact/columngroup';
+import { Row } from 'primereact/row';
 import postData from '@/lib/axios/postData';
-import { showError, showSuccess } from '@/lib/tools/generalTools';
-
-interface PasienOption {
-  no_rm: string;
-  nama: string;
-  nik?: string;
-  no_hp?: string;
-  tanggal_lahir?: string;
-  jenis_kelamin?: string;
-  alergi?: string;
-}
+import { showError } from '@/lib/tools/generalTools';
+import { exportToXLSX } from '@/lib/tools/printTools/exportToXLSX';
 
 interface KaryawanInfo {
   kode_karyawan: string;
@@ -38,7 +36,7 @@ interface RekamMedisDetail {
   dokter_penanggung_jawab: KaryawanInfo | null;
   data_form?: any;
   formatted_data_form?: Array<{ key: string; label: string; value: any }>;
-  fotos?: Array<{ id?: number; tipe: string; url_foto: string }>;
+  fotos?: Array<{ id?: number; tipe: string; jenis_foto?: string; url_foto: string }>;
 }
 
 interface LayananDetail {
@@ -68,8 +66,34 @@ interface KunjunganRecord {
   layanan: LayananDetail[];
 }
 
-const formatRupiah = (val: number) =>
-  new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val || 0);
+interface DetailItemTransaksi {
+  kode_detail_transaksi: string;
+  jenis: string;
+  kode: string;
+  nama: string;
+  satuan: string;
+  qty: number;
+  harga_satuan: number;
+  subtotal: number;
+}
+
+interface TransaksiRecord {
+  id: number;
+  kode_transaksi: string;
+  kode_kunjungan: string | null;
+  kode_rekam_medis: string | null;
+  no_rm: string;
+  nama_pasien: string;
+  no_hp: string | null;
+  tanggal_transaksi: string;
+  total_harga: number;
+  total_diskon: number;
+  total_bayar: number;
+  metode_bayar: string;
+  status: string;
+  created_at: string;
+  details: DetailItemTransaksi[];
+}
 
 const formatDateIndo = (dateStr: string) => {
   if (!dateStr) return '-';
@@ -79,6 +103,10 @@ const formatDateIndo = (dateStr: string) => {
   } catch (_) {
     return dateStr;
   }
+};
+
+const formatRupiah = (num: number) => {
+  return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num || 0);
 };
 
 const getImgSrc = (path?: string) => {
@@ -93,33 +121,51 @@ const getImgSrc = (path?: string) => {
 
 const getJabatanBadge = (jabatan?: string) => {
   const j = (jabatan || '').toLowerCase();
-  if (j === 'dokter') return 'bg-purple-100 text-purple-800 border-purple-200 border-1 font-bold px-2 py-0.5 border-round-md text-xs';
-  if (j === 'perawat') return 'bg-blue-100 text-blue-800 border-blue-200 border-1 font-bold px-2 py-0.5 border-round-md text-xs';
-  if (j === 'terapis') return 'bg-teal-100 text-teal-800 border-teal-200 border-1 font-bold px-2 py-0.5 border-round-md text-xs';
-  if (j === 'kasir') return 'bg-amber-100 text-amber-800 border-amber-200 border-1 font-bold px-2 py-0.5 border-round-md text-xs';
-  if (j === 'apoteker') return 'bg-emerald-100 text-emerald-800 border-emerald-200 border-1 font-bold px-2 py-0.5 border-round-md text-xs';
-  return 'bg-slate-100 text-slate-800 border-slate-200 border-1 font-bold px-2 py-0.5 border-round-md text-xs';
+  if (j === 'dokter') return 'bg-purple-50 text-purple-700 border-purple-200 border-1 font-semibold px-2.5 py-0.5 border-round-pill text-xs';
+  if (j === 'perawat') return 'bg-blue-50 text-blue-700 border-blue-200 border-1 font-semibold px-2.5 py-0.5 border-round-pill text-xs';
+  if (j === 'terapis') return 'bg-teal-50 text-teal-700 border-teal-200 border-1 font-semibold px-2.5 py-0.5 border-round-pill text-xs';
+  if (j === 'kasir') return 'bg-amber-50 text-amber-700 border-amber-200 border-1 font-semibold px-2.5 py-0.5 border-round-pill text-xs';
+  if (j === 'apoteker') return 'bg-emerald-50 text-emerald-700 border-emerald-200 border-1 font-semibold px-2.5 py-0.5 border-round-pill text-xs';
+  return 'bg-gray-50 text-gray-700 border-gray-200 border-1 font-semibold px-2.5 py-0.5 border-round-pill text-xs';
 };
 
 const getStatusKunjunganSeverity = (status?: string) => {
   const s = (status || '').toLowerCase();
-  if (s === 'selesai') return 'success';
-  if (s === 'berlangsung') return 'info';
+  if (s === 'selesai' || s === 'sudah_diambil') return 'success';
+  if (s === 'berlangsung' || s === 'dipanggil' || s === 'pengecekan' || s === 'pengerjaan') return 'info';
+  if (s === 'menunggu' || s === 'pending') return 'warning';
   if (s === 'batal') return 'danger';
+  return 'secondary';
+};
+
+const getStatusLeftBorderClass = (status?: string) => {
+  const s = (status || '').toLowerCase();
+  if (s === 'selesai' || s === 'sudah_diambil' || s === 'lunas' || s === 'berhasil') return 'border-left-4 border-teal-500';
+  if (s === 'berlangsung' || s === 'dipanggil' || s === 'pengecekan' || s === 'pengerjaan' || s === 'proses') return 'border-left-4 border-blue-500';
+  if (s === 'menunggu' || s === 'pending' || s === 'draft') return 'border-left-4 border-yellow-500';
+  if (s === 'batal' || s === 'cancelled') return 'border-left-4 border-red-500';
+  return 'border-left-4 border-gray-300';
+};
+
+const getStatusTransaksiSeverity = (status?: string) => {
+  const s = (status || '').toLowerCase();
+  if (s === 'lunas' || s === 'selesai' || s === 'berhasil') return 'success';
+  if (s === 'draft' || s === 'pending' || s === 'menunggu') return 'warning';
+  if (s === 'batal' || s === 'cancelled') return 'danger';
   return 'secondary';
 };
 
 const getStatusAntrianSeverity = (status?: string) => {
   const s = (status || '').toLowerCase();
-  if (s === 'selesai') return 'success';
-  if (s === 'dipanggil') return 'info';
-  if (s === 'menunggu') return 'warning';
+  if (s === 'selesai' || s === 'sudah_diambil') return 'success';
+  if (s === 'dipanggil' || s === 'berlangsung' || s === 'proses') return 'info';
+  if (s === 'menunggu' || s === 'pending') return 'warning';
   if (s === 'batal') return 'danger';
   return 'secondary';
 };
 
 const renderFormattedContent = (text?: string | null) => {
-  if (!text || text === '-' || text.trim() === '') return '-';
+  if (!text || text === '-' || text.trim() === '') return <span className="text-gray-400 italic text-xs">-</span>;
 
   const imgRegex = /(https?:\/\/[^\s"'<>]+|\/uploads\/[^\s"'<>]+)/gi;
   const matches = text.match(imgRegex);
@@ -131,14 +177,14 @@ const renderFormattedContent = (text?: string | null) => {
         <div className="flex align-items-center gap-3 mt-2 flex-wrap">
           {matches.map((url, idx) => (
             <div key={idx} className="text-center">
-              <span className="block text-[10px] font-bold text-teal-700 mb-1">Foto Lampiran #{idx + 1}</span>
+              <span className="block text-[10px] font-bold text-emerald-700 mb-1">Foto Lampiran #{idx + 1}</span>
               <Image
                 src={getImgSrc(url)}
                 alt={`Foto Lampiran ${idx + 1}`}
                 width="110"
                 height="110"
                 preview
-                className="border-round-lg overflow-hidden shadow-1 border-2 border-teal-500 cursor-pointer"
+                className="border-round-lg overflow-hidden shadow-1 border-2 border-emerald-500 cursor-pointer"
                 imageClassName="w-full h-full object-cover border-round-lg"
               />
             </div>
@@ -156,7 +202,6 @@ const renderDataFormDinamis = (rm: any, item?: any) => {
   const catPetugas = item?.catatan_petugas || rm?.catatan_petugas || null;
   const catHasil = item?.catatan_hasil_treatment || rm?.catatan_hasil_treatment || null;
 
-  // Key yang sudah di-render terpisah agar tidak duplikat
   const ignoredKeys = [
     'catatan_tindakan',
     'catatan_tindakan_alat_digunakan',
@@ -186,27 +231,27 @@ const renderDataFormDinamis = (rm: any, item?: any) => {
     <div className="mt-3 flex flex-column gap-3">
       {/* CARD: ISIAN KHUSUS FORM RUANGAN */}
       {formattedForm.length > 0 && (
-        <div className="surface-card p-3 border-round-xl border-1 surface-border shadow-1">
+        <div className="surface-card p-3 border-round-lg border-1 surface-border shadow-2xs">
           <div className="flex align-items-center justify-content-between mb-3 pb-2 border-bottom-1 surface-border">
-            <span className="text-xs font-extrabold text-teal-800 uppercase tracking-wider flex align-items-center gap-2 m-0">
-              <i className="pi pi-th-large text-teal-600 text-sm" />
+            <span className="text-xs font-bold text-gray-700 uppercase tracking-wider flex align-items-center gap-2 m-0">
+              <i className="pi pi-th-large text-emerald-600 text-sm" />
               ISIAN KHUSUS FORM RUANGAN ({item?.nama_ruangan || 'RUANGAN'})
             </span>
-            <span className="bg-teal-600 text-white font-extrabold text-[10px] px-2 py-0.5 border-round-md">
+            <span className="bg-emerald-600 text-white font-bold text-[10px] px-2.5 py-0.5 border-round-pill">
               {formattedForm.length} Field
             </span>
           </div>
 
-          <div className="flex flex-column gap-3">
+          <div className="grid formgrid p-fluid">
             {formattedForm.map((fItem, idx) => (
-              <div key={idx} className="bg-white p-3 border-round-lg border-1 surface-border shadow-2xs">
-                <div className="mb-1.5">
-                  <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wide m-0">
+              <div key={idx} className="col-12 md:col-6 mb-2">
+                <div className="bg-gray-50 p-2.5 border-round-lg border-1 surface-border h-full">
+                  <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">
                     {fItem.label}
                   </label>
-                </div>
-                <div className="bg-slate-50 p-2.5 border-round-lg border-1 surface-border text-slate-900 font-medium text-xs white-space-pre-wrap">
-                  {typeof fItem.value === 'object' ? JSON.stringify(fItem.value) : String(fItem.value || '-')}
+                  <div className="text-gray-800 font-medium text-xs white-space-pre-wrap">
+                    {typeof fItem.value === 'object' ? JSON.stringify(fItem.value) : String(fItem.value || '-')}
+                  </div>
                 </div>
               </div>
             ))}
@@ -216,14 +261,14 @@ const renderDataFormDinamis = (rm: any, item?: any) => {
 
       {/* CARD: CATATAN TINDAKAN RUANGAN */}
       {catTindakan && (
-        <div className="surface-card p-3 border-round-xl border-1 surface-border shadow-1">
+        <div className="surface-card p-3 border-round-lg border-1 surface-border shadow-2xs">
           <div className="flex align-items-center gap-2 mb-2 pb-2 border-bottom-1 surface-border">
-            <i className="pi pi-briefcase text-teal-600 text-sm" />
-            <span className="text-xs font-extrabold text-teal-800 uppercase tracking-wider">
-              Catatan Tindakan Ruangan
+            <i className="pi pi-briefcase text-emerald-600 text-sm" />
+            <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+              CATATAN TINDAKAN RUANGAN
             </span>
           </div>
-          <div className="bg-teal-50/60 p-3 border-round-lg border-1 border-teal-200 text-teal-950 font-medium text-xs white-space-pre-wrap">
+          <div className="bg-emerald-50/50 p-3 border-round-lg border-1 border-emerald-200 text-gray-800 font-medium text-xs white-space-pre-wrap">
             {catTindakan}
           </div>
         </div>
@@ -231,14 +276,14 @@ const renderDataFormDinamis = (rm: any, item?: any) => {
 
       {/* CARD: CATATAN PETUGAS & OBSERVASI */}
       {catPetugas && (
-        <div className="surface-card p-3 border-round-xl border-1 surface-border shadow-1">
+        <div className="surface-card p-3 border-round-lg border-1 surface-border shadow-2xs">
           <div className="flex align-items-center gap-2 mb-2 pb-2 border-bottom-1 surface-border">
             <i className="pi pi-user-edit text-emerald-600 text-sm" />
-            <span className="text-xs font-extrabold text-emerald-800 uppercase tracking-wider">
-              Catatan &amp; Observasi Petugas Ruangan
+            <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+              CATATAN &amp; OBSERVASI PETUGAS RUANGAN
             </span>
           </div>
-          <div className="bg-emerald-50/60 p-3 border-round-lg border-1 border-emerald-200 text-emerald-950 font-medium text-xs white-space-pre-wrap">
+          <div className="bg-emerald-50/50 p-3 border-round-lg border-1 border-emerald-200 text-gray-800 font-medium text-xs white-space-pre-wrap">
             {catPetugas}
           </div>
         </div>
@@ -246,14 +291,14 @@ const renderDataFormDinamis = (rm: any, item?: any) => {
 
       {/* CARD: CATATAN HASIL TREATMENT */}
       {catHasil && (
-        <div className="surface-card p-3 border-round-xl border-1 surface-border shadow-1">
+        <div className="surface-card p-3 border-round-lg border-1 surface-border shadow-2xs">
           <div className="flex align-items-center gap-2 mb-2 pb-2 border-bottom-1 surface-border">
-            <i className="pi pi-check-circle text-indigo-600 text-sm" />
-            <span className="text-xs font-extrabold text-indigo-800 uppercase tracking-wider">
-              Catatan Hasil Treatment (Pasca Tindakan)
+            <i className="pi pi-check-circle text-blue-600 text-sm" />
+            <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+              CATATAN HASIL TREATMENT (PASCA TINDAKAN)
             </span>
           </div>
-          <div className="bg-indigo-50/60 p-3 border-round-lg border-1 border-indigo-200 text-indigo-950 font-medium text-xs white-space-pre-wrap">
+          <div className="bg-blue-50/50 p-3 border-round-lg border-1 border-blue-200 text-gray-800 font-medium text-xs white-space-pre-wrap">
             {catHasil}
           </div>
         </div>
@@ -261,18 +306,18 @@ const renderDataFormDinamis = (rm: any, item?: any) => {
 
       {/* CARD: GALERI FOTO BEFORE / AFTER */}
       {fotos.length > 0 && (
-        <div className="surface-card p-3 border-round-xl border-1 surface-border shadow-1">
+        <div className="surface-card p-3 border-round-lg border-1 surface-border shadow-2xs">
           <div className="flex align-items-center justify-content-between mb-2 pb-2 border-bottom-1 surface-border">
-            <span className="text-xs font-extrabold text-slate-700 uppercase tracking-wider flex align-items-center gap-2">
-              <i className="pi pi-images text-teal-600 text-sm" />
-              Dokumentasi Foto Before / After
+            <span className="text-xs font-bold text-gray-700 uppercase tracking-wider flex align-items-center gap-2">
+              <i className="pi pi-images text-emerald-600 text-sm" />
+              DOKUMENTASI FOTO BEFORE / AFTER
             </span>
-            <span className="text-[10px] text-slate-400 font-semibold">Klik foto untuk memperbesar</span>
+            <span className="text-[10px] text-gray-400 font-medium">Klik foto untuk memperbesar</span>
           </div>
-          <div className="flex align-items-center gap-3 flex-wrap bg-slate-50 p-3 border-round-lg border-1 surface-border">
+          <div className="flex align-items-center gap-3 flex-wrap bg-gray-50 p-3 border-round-lg border-1 surface-border">
             {beforeFotos.map((f, idx) => (
               <div key={`before-${idx}`} className="text-center flex flex-column align-items-center">
-                <span className="block text-[10px] font-bold text-slate-600 mb-1.5 bg-slate-200 px-2 py-0.5 border-round-md">
+                <span className="block text-[10px] font-bold text-gray-600 mb-1.5 bg-gray-200 px-2 py-0.5 border-round-pill">
                   📷 Foto Before (Sebelum)
                 </span>
                 <Image
@@ -281,14 +326,14 @@ const renderDataFormDinamis = (rm: any, item?: any) => {
                   width="120"
                   height="120"
                   preview
-                  className="border-round-lg overflow-hidden shadow-1 border-2 border-slate-300 hover:scale-105 transition-all cursor-pointer"
+                  className="border-round-lg overflow-hidden shadow-1 border-2 border-gray-300 hover:scale-105 transition-all cursor-pointer"
                   imageClassName="w-full h-full object-cover border-round-lg"
                 />
               </div>
             ))}
             {afterFotos.map((f, idx) => (
               <div key={`after-${idx}`} className="text-center flex flex-column align-items-center">
-                <span className="block text-[10px] font-bold text-teal-800 mb-1.5 bg-teal-100 px-2 py-0.5 border-round-md">
+                <span className="block text-[10px] font-bold text-emerald-800 mb-1.5 bg-emerald-100 px-2 py-0.5 border-round-pill">
                   ✨ Foto After (Sesudah)
                 </span>
                 <Image
@@ -297,7 +342,7 @@ const renderDataFormDinamis = (rm: any, item?: any) => {
                   width="120"
                   height="120"
                   preview
-                  className="border-round-lg overflow-hidden shadow-2 border-2 border-teal-500 hover:scale-105 transition-all cursor-pointer"
+                  className="border-round-lg overflow-hidden shadow-2 border-2 border-emerald-500 hover:scale-105 transition-all cursor-pointer"
                   imageClassName="w-full h-full object-cover border-round-lg"
                 />
               </div>
@@ -309,52 +354,64 @@ const renderDataFormDinamis = (rm: any, item?: any) => {
   );
 };
 
-const RekamMedisPage = () => {
+const LaporanPage = () => {
   const toast = useRef<Toast>(null);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const printMenuTrxRef = useRef<Menu>(null);
+  const printMenuRMRef = useRef<Menu>(null);
 
-  // Pasien selection state
-  const [pasienList, setPasienList] = useState<PasienOption[]>([]);
-  const [loadingPasien, setLoadingPasien] = useState(false);
-  const [selectedPasien, setSelectedPasien] = useState<PasienOption | null>(null);
+  // Tab State: 'rekam_medis' | 'transaksi'
+  const [activeTab, setActiveTab] = useState<'rekam_medis' | 'transaksi'>('rekam_medis');
 
-  // Date Filters & Pagination
+  // ─── REKAM MEDIS STATE ───
+  const [searchVal, setSearchVal] = useState('');
   const [tanggalDari, setTanggalDari] = useState<Date | null>(null);
   const [tanggalSampai, setTanggalSampai] = useState<Date | null>(null);
   const [page, setPage] = useState(1);
-  const [perPage, setPerPage] = useState(10);
+  const [perPage] = useState(10);
   const [totalRecords, setTotalRecords] = useState(0);
 
-  // Data Records & Expansion state
   const [records, setRecords] = useState<KunjunganRecord[]>([]);
   const [loadingRecords, setLoadingRecords] = useState(false);
+  const [expandedRMRows, setExpandedRMRows] = useState<any>(null);
   const [expandedVisits, setExpandedVisits] = useState<Record<string, boolean>>({});
 
+  // ─── TRANSAKSI STATE ───
+  const [trxSearchVal, setTrxSearchVal] = useState('');
+  const [trxTanggalDari, setTrxTanggalDari] = useState<Date | null>(null);
+  const [trxTanggalSampai, setTrxTanggalSampai] = useState<Date | null>(null);
+  const [trxPage, setTrxPage] = useState(1);
+  const [trxPerPage] = useState(10);
+  const [trxTotalRecords, setTrxTotalRecords] = useState(0);
+
+  const [trxRecords, setTrxRecords] = useState<TransaksiRecord[]>([]);
+  const [loadingTrx, setLoadingTrx] = useState(false);
+  const [expandedTrx, setExpandedTrx] = useState<Record<string, boolean>>({});
+  const [expandedTrxRows, setExpandedTrxRows] = useState<any>(null);
+
+  // Fetch Rekam Medis
   useEffect(() => {
-    fetchPasienList();
-  }, []);
-
-  const fetchPasienList = async () => {
-    setLoadingPasien(true);
-    try {
-      const res = await postData('/master/pendaftaran-pasien-cari', { page: 1, perPage: 100 });
-      if (['00', '0000'].includes(res?.data?.status)) {
-        setPasienList(res.data.data || []);
-      }
-    } catch (_) {
-      // silent fail
-    } finally {
-      setLoadingPasien(false);
+    if (activeTab === 'rekam_medis') {
+      fetchRekamMedis(1);
     }
-  };
+  }, [tanggalDari, tanggalSampai, activeTab]);
 
-  const fetchRekamMedis = async (pNoRm?: string, pPage = 1) => {
-    const targetRm = pNoRm !== undefined ? pNoRm : selectedPasien?.no_rm;
-
-    if (!targetRm) {
-      setRecords([]);
-      setTotalRecords(0);
-      return;
+  // Fetch Transaksi
+  useEffect(() => {
+    if (activeTab === 'transaksi') {
+      fetchTransaksi(1);
     }
+  }, [trxTanggalDari, trxTanggalSampai, activeTab]);
+
+  const fetchRekamMedis = async (
+    pPage = 1,
+    pKeyword?: string,
+    pTglDari?: Date | null,
+    pTglSampai?: Date | null
+  ) => {
+    const targetKeyword = pKeyword !== undefined ? pKeyword : searchVal;
+    const targetTglDari = pTglDari !== undefined ? pTglDari : tanggalDari;
+    const targetTglSampai = pTglSampai !== undefined ? pTglSampai : tanggalSampai;
 
     setLoadingRecords(true);
     try {
@@ -367,11 +424,11 @@ const RekamMedisPage = () => {
       };
 
       const payload = {
-        no_rm: targetRm,
+        keyword: targetKeyword || undefined,
         page: pPage,
         perPage: perPage,
-        tanggal_dari: formatDateParam(tanggalDari),
-        tanggal_sampai: formatDateParam(tanggalSampai),
+        tanggal_dari: formatDateParam(targetTglDari),
+        tanggal_sampai: formatDateParam(targetTglSampai),
       };
 
       const res = await postData('/master/pasien-rekam-medis', payload);
@@ -381,7 +438,6 @@ const RekamMedisPage = () => {
         setTotalRecords(res.data.total_data || 0);
         setPage(pPage);
 
-        // Auto-expand first visit if exists
         if (dataList.length > 0) {
           const initialMap: Record<string, boolean> = {};
           dataList.forEach((k, idx) => {
@@ -401,19 +457,372 @@ const RekamMedisPage = () => {
     }
   };
 
-  const handleSelectPasien = (pasien: PasienOption | null) => {
-    setSelectedPasien(pasien);
-    fetchRekamMedis(pasien?.no_rm, 1);
+  const fetchTransaksi = async (
+    pPage = 1,
+    pKeyword?: string,
+    pTglDari?: Date | null,
+    pTglSampai?: Date | null
+  ) => {
+    const targetKeyword = pKeyword !== undefined ? pKeyword : trxSearchVal;
+    const targetTglDari = pTglDari !== undefined ? pTglDari : trxTanggalDari;
+    const targetTglSampai = pTglSampai !== undefined ? pTglSampai : trxTanggalSampai;
+
+    setLoadingTrx(true);
+    try {
+      const formatDateParam = (d: Date | null) => {
+        if (!d) return undefined;
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+
+      const payload = {
+        keyword: targetKeyword || undefined,
+        page: pPage,
+        perPage: trxPerPage,
+        tanggal_dari: formatDateParam(targetTglDari),
+        tanggal_sampai: formatDateParam(targetTglSampai),
+      };
+
+      const res = await postData('/master/pasien-transaksi', payload);
+      if (['00', '0000'].includes(res?.data?.status)) {
+        const dataList: TransaksiRecord[] = res.data.data || [];
+        setTrxRecords(dataList);
+        setTrxTotalRecords(res.data.total_data || 0);
+        setTrxPage(pPage);
+
+        if (dataList.length > 0) {
+          const initialMap: Record<string, boolean> = {};
+          dataList.forEach((t, idx) => {
+            initialMap[t.kode_transaksi] = idx === 0;
+          });
+          setExpandedTrx(initialMap);
+        } else {
+          setExpandedTrx({});
+        }
+      } else {
+        showError(toast, res?.data?.message || 'Gagal memuat laporan transaksi');
+      }
+    } catch (err: any) {
+      showError(toast, err?.response?.data?.message || err?.message || 'Gagal terhubung ke server');
+    } finally {
+      setLoadingTrx(false);
+    }
   };
 
-  const handleResetFilter = () => {
+  const handleResetFilterRM = () => {
     setTanggalDari(null);
     setTanggalSampai(null);
-    setSelectedPasien(null);
-    setRecords([]);
-    setTotalRecords(0);
-    fetchPasienList();
+    setSearchVal('');
+    fetchRekamMedis(1, '', null, null);
   };
+
+  const handleResetFilterTrx = () => {
+    setTrxTanggalDari(null);
+    setTrxTanggalSampai(null);
+    setTrxSearchVal('');
+    fetchTransaksi(1, '', null, null);
+  };
+
+  const handleCetakLaporanTrx = () => {
+    if (trxRecords.length === 0) {
+      showError(toast, 'Tidak ada data transaksi untuk dicetak');
+      return;
+    }
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      showError(toast, 'Gagal membuka jendela cetak. Mohon izinkan popup browser.');
+      return;
+    }
+
+    const tglMulaiStr = trxTanggalDari ? formatDateIndo(trxTanggalDari.toISOString()) : 'Semua Tanggal';
+    const tglSelesaiStr = trxTanggalSampai ? formatDateIndo(trxTanggalSampai.toISOString()) : 'Semua Tanggal';
+    const periodeStr = `${tglMulaiStr} s.d ${tglSelesaiStr}`;
+    const totalNominal = trxRecords.reduce((acc, curr) => acc + (curr.total_bayar || 0), 0);
+
+    const tableRowsHtml = trxRecords
+      .map(
+        (tr, idx) => `
+        <tr>
+          <td style="text-align: center;">${idx + 1}</td>
+          <td><strong>${tr.kode_transaksi}</strong></td>
+          <td>${formatDateIndo(tr.tanggal_transaksi)}</td>
+          <td>${tr.nama_pasien || 'Umum'}</td>
+          <td style="text-align: center;">${tr.no_rm || '-'}</td>
+          <td style="text-align: center;">${tr.kode_kunjungan || '-'}</td>
+          <td style="text-align: center; text-transform: uppercase;">${tr.metode_bayar || 'TUNAI'}</td>
+          <td style="text-align: right;">${formatRupiah(tr.total_harga)}</td>
+          <td style="text-align: right; color: red;">${tr.total_diskon > 0 ? '-' + formatRupiah(tr.total_diskon) : 'Rp 0'}</td>
+          <td style="text-align: right; font-weight: bold; color: #047857;">${formatRupiah(tr.total_bayar)}</td>
+          <td style="text-align: center; font-weight: bold; text-transform: uppercase;">${tr.status}</td>
+        </tr>
+      `
+      )
+      .join('');
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Laporan Transaksi Pembayaran</title>
+          <style>
+            body { font-family: Arial, sans-serif; font-size: 12px; margin: 20px; color: #1e293b; }
+            .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #047857; padding-bottom: 10px; }
+            .header h2 { margin: 0; color: #047857; font-size: 18px; }
+            .header h3 { margin: 4px 0 0 0; font-size: 14px; color: #334155; }
+            .header p { margin: 4px 0 0 0; color: #64748b; font-size: 11px; }
+            .summary-box { display: flex; justify-content: space-between; background: #f8fafc; border: 1px solid #e2e8f0; padding: 12px; border-radius: 6px; margin-bottom: 20px; }
+            .summary-item { font-size: 12px; }
+            .summary-item label { color: #64748b; display: block; font-size: 10px; font-weight: bold; text-transform: uppercase; }
+            .summary-item span { font-weight: bold; font-size: 14px; color: #047857; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+            th, td { border: 1px solid #cbd5e1; padding: 8px; font-size: 11px; }
+            th { background-color: #f1f5f9; color: #0f172a; text-transform: uppercase; font-size: 10px; }
+            .footer { margin-top: 30px; text-align: right; font-size: 10px; color: #94a3b8; }
+            @media print {
+              body { margin: 0; }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h2>KLINIK KECANTIKAN</h2>
+            <h3>LAPORAN TRANSAKSI PEMBAYARAN</h3>
+            <p>Periode Laporan: ${periodeStr}</p>
+          </div>
+
+          <div class="summary-box">
+            <div class="summary-item">
+              <label>Total Transaksi</label>
+              <span>${trxRecords.length} Data</span>
+            </div>
+            <div class="summary-item">
+              <label>Total Nominal Pendapatan</label>
+              <span>${formatRupiah(totalNominal)}</span>
+            </div>
+            <div class="summary-item">
+              <label>Waktu Cetak</label>
+              <span style="color: #334155; font-size: 12px;">${new Date().toLocaleString('id-ID')}</span>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Kode Transaksi</th>
+                <th>Tanggal</th>
+                <th>Nama Pasien</th>
+                <th>No. RM</th>
+                <th>Kode Kunjungan</th>
+                <th>Metode Bayar</th>
+                <th>Subtotal</th>
+                <th>Diskon</th>
+                <th>Total Bayar</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tableRowsHtml}
+            </tbody>
+          </table>
+
+          <div class="footer">
+            Dicetak otomatis oleh Sistem Klinik Kecantikan pada ${new Date().toLocaleString('id-ID')}
+          </div>
+
+          <script>
+            window.onload = function() {
+              window.print();
+            };
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  };
+
+  const handleExportExcelTrx = async () => {
+    if (trxRecords.length === 0) {
+      showError(toast, 'Tidak ada data transaksi untuk diexport');
+      return;
+    }
+
+    const exportData = trxRecords.map((tr, idx) => ({
+      No: idx + 1,
+      'Kode Transaksi': tr.kode_transaksi,
+      Tanggal: formatDateIndo(tr.tanggal_transaksi),
+      'Nama Pasien': tr.nama_pasien || 'Umum',
+      'No. RM': tr.no_rm || '-',
+      'Kode Kunjungan': tr.kode_kunjungan || '-',
+      'Metode Bayar': String(tr.metode_bayar || 'TUNAI').toUpperCase(),
+      'Total Harga (Rp)': tr.total_harga,
+      'Total Diskon (Rp)': tr.total_diskon,
+      'Total Bayar (Rp)': tr.total_bayar,
+      Status: String(tr.status || '').toUpperCase(),
+    }));
+
+    const fileName = `Laporan_Transaksi_${new Date().toISOString().slice(0, 10)}`;
+    await exportToXLSX({ data: exportData, fileName });
+  };
+
+  const handleCetakLaporanRM = () => {
+    if (records.length === 0) {
+      showError(toast, 'Tidak ada data rekam medis untuk dicetak');
+      return;
+    }
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      showError(toast, 'Gagal membuka jendela cetak. Mohon izinkan popup browser.');
+      return;
+    }
+
+    const tglMulaiStr = tanggalDari ? formatDateIndo(tanggalDari.toISOString()) : 'Semua Tanggal';
+    const tglSelesaiStr = tanggalSampai ? formatDateIndo(tanggalSampai.toISOString()) : 'Semua Tanggal';
+    const periodeStr = `${tglMulaiStr} s.d ${tglSelesaiStr}`;
+
+    const tableRowsHtml = records
+      .map(
+        (rec, idx) => `
+        <tr>
+          <td style="text-align: center;">${idx + 1}</td>
+          <td><strong>${rec.nama_pasien || '-'}</strong></td>
+          <td style="text-align: center;">${rec.no_rm || '-'}</td>
+          <td style="text-align: center;">${rec.kode_kunjungan}</td>
+          <td>${formatDateIndo(rec.tanggal_kunjungan)} (${rec.jam_datang} WIB)</td>
+          <td style="text-align: center;">${rec.layanan.length} Sesi</td>
+          <td style="text-align: center; font-weight: bold; text-transform: uppercase;">${rec.status_kunjungan}</td>
+        </tr>
+      `
+      )
+      .join('');
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Laporan Rekam Medis Pasien</title>
+          <style>
+            body { font-family: Arial, sans-serif; font-size: 12px; margin: 20px; color: #1e293b; }
+            .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #047857; padding-bottom: 10px; }
+            .header h2 { margin: 0; color: #047857; font-size: 18px; }
+            .header h3 { margin: 4px 0 0 0; font-size: 14px; color: #334155; }
+            .header p { margin: 4px 0 0 0; color: #64748b; font-size: 11px; }
+            .summary-box { display: flex; justify-content: space-between; background: #f8fafc; border: 1px solid #e2e8f0; padding: 12px; border-radius: 6px; margin-bottom: 20px; }
+            .summary-item { font-size: 12px; }
+            .summary-item label { color: #64748b; display: block; font-size: 10px; font-weight: bold; text-transform: uppercase; }
+            .summary-item span { font-weight: bold; font-size: 14px; color: #047857; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+            th, td { border: 1px solid #cbd5e1; padding: 8px; font-size: 11px; }
+            th { background-color: #f1f5f9; color: #0f172a; text-transform: uppercase; font-size: 10px; }
+            .footer { margin-top: 30px; text-align: right; font-size: 10px; color: #94a3b8; }
+            @media print { body { margin: 0; } }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h2>KLINIK KECANTIKAN</h2>
+            <h3>LAPORAN REKAM MEDIS PASIEN</h3>
+            <p>Periode Laporan: ${periodeStr}</p>
+          </div>
+
+          <div class="summary-box">
+            <div class="summary-item">
+              <label>Total Kunjungan</label>
+              <span>${records.length} Kunjungan</span>
+            </div>
+            <div class="summary-item">
+              <label>Waktu Cetak</label>
+              <span style="color: #334155; font-size: 12px;">${new Date().toLocaleString('id-ID')}</span>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Nama Pasien</th>
+                <th>No. RM</th>
+                <th>Kode Kunjungan</th>
+                <th>Tanggal &amp; Jam</th>
+                <th>Sesi Treatment</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tableRowsHtml}
+            </tbody>
+          </table>
+
+          <div class="footer">
+            Dicetak otomatis oleh Sistem Klinik Kecantikan pada ${new Date().toLocaleString('id-ID')}
+          </div>
+
+          <script>
+            window.onload = function() { window.print(); };
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  };
+
+  const handleExportExcelRM = async () => {
+    if (records.length === 0) {
+      showError(toast, 'Tidak ada data rekam medis untuk diexport');
+      return;
+    }
+
+    const exportData = records.map((rec, idx) => ({
+      No: idx + 1,
+      'Kode Kunjungan': rec.kode_kunjungan,
+      'No. RM': rec.no_rm,
+      'Nama Pasien': rec.nama_pasien,
+      Tanggal: formatDateIndo(rec.tanggal_kunjungan),
+      'Jam Datang': `${rec.jam_datang} WIB`,
+      'Status Kunjungan': String(rec.status_kunjungan || '').toUpperCase(),
+      'Jumlah Sesi Treatment': rec.layanan.length,
+    }));
+
+    const fileName = `Laporan_Rekam_Medis_${new Date().toISOString().slice(0, 10)}`;
+    await exportToXLSX({ data: exportData, fileName });
+  };
+
+  const printMenuItemsTrx = [
+    {
+      label: 'Cetak / Format PDF',
+      icon: 'pi pi-file-pdf text-red-600',
+      command: () => handleCetakLaporanTrx(),
+    },
+    {
+      label: 'Export Excel (.xlsx)',
+      icon: 'pi pi-file-excel text-emerald-600',
+      command: () => handleExportExcelTrx(),
+    },
+  ];
+
+  const printMenuItemsRM = [
+    {
+      label: 'Cetak / Format PDF',
+      icon: 'pi pi-file-pdf text-red-600',
+      command: () => handleCetakLaporanRM(),
+    },
+    {
+      label: 'Export Excel (.xlsx)',
+      icon: 'pi pi-file-excel text-emerald-600',
+      command: () => handleExportExcelRM(),
+    },
+  ];
 
   const toggleExpand = (kode_kunjungan: string) => {
     setExpandedVisits((prev) => ({
@@ -422,374 +831,802 @@ const RekamMedisPage = () => {
     }));
   };
 
+  const toggleExpandTrx = (kode_transaksi: string) => {
+    setExpandedTrx((prev) => ({
+      ...prev,
+      [kode_transaksi]: !prev[kode_transaksi],
+    }));
+  };
+
+  const totalHargaBruto = trxRecords.reduce((acc, curr) => acc + (curr.total_harga || 0), 0);
+  const totalPotonganDiskon = trxRecords.reduce((acc, curr) => acc + (curr.total_diskon || 0), 0);
+  const grandTotalBersih = trxRecords.reduce((acc, curr) => acc + (curr.total_bayar || 0), 0);
+
+  const trxFooterGroup = (
+    <ColumnGroup>
+      <Row>
+        <Column footer="Grand Total (Semua Halaman):" colSpan={5} footerStyle={{ textAlign: 'right', fontWeight: 'bold' }} />
+        <Column footer={formatRupiah(totalHargaBruto)} footerStyle={{ fontWeight: 'bold', textAlign: 'right' }} />
+        <Column footer={totalPotonganDiskon > 0 ? `- ${formatRupiah(totalPotonganDiskon)}` : 'Rp 0'} footerStyle={{ fontWeight: 'bold', textAlign: 'right', color: '#dc2626' }} />
+        <Column footer={formatRupiah(grandTotalBersih)} footerStyle={{ fontWeight: 'bold', textAlign: 'right', color: '#047857' }} />
+        <Column footer="" colSpan={1} />
+      </Row>
+    </ColumnGroup>
+  );
+
   return (
     <>
       <Toast ref={toast} position="top-right" />
 
-      {/* PAGE HEADER */}
-      <div className="card p-0 mb-3 border-round-xl surface-border shadow-1 overflow-hidden">
-        <div className="p-4 bg-teal-50 border-bottom-1 surface-border">
-          <h2 className="text-2xl font-bold flex align-items-center gap-2 mb-1 text-teal-900">
-            <i className="pi pi-folder-open text-teal-600 text-2xl" />
-            Riwayat Rekam Medis Pasien
-          </h2>
-          <p className="text-color-secondary m-0 text-sm">
-            Timeline rekam medis pasien, anamnesa/SOAP dokter penanggung jawab, dan sesi treatment per ruangan.
+      {/* 1. TOP HEADER PAGE */}
+      <div className="flex justify-content-between items-start mb-4">
+        <div className="flex flex-column">
+          <h3 className="text-2xl font-semibold flex align-items-center gap-2 m-0">
+            <i className={activeTab === 'rekam_medis' ? 'pi pi-folder-open text-blue-600 text-3xl' : 'pi pi-credit-card text-blue-600 text-3xl'} />
+            {activeTab === 'rekam_medis' ? 'Laporan Rekam Medis' : 'Laporan Transaksi Pembayaran'}
+          </h3>
+          <p className="text-gray-500 text-sm m-0 mt-1">
+            {activeTab === 'rekam_medis'
+              ? 'Timeline rekam medis pasien, anamnesa/SOAP dokter penanggung jawab, dan sesi treatment per ruangan.'
+              : 'Daftar log transaksi pembayaran pasien, metode bayar, dan rincian transaksi dari database real-time.'}
           </p>
         </div>
       </div>
 
-      {/* SEARCH & FILTER BAR */}
-      <div className="surface-card p-3 border-round-xl border-1 surface-border shadow-1 mb-3 flex flex-column gap-3">
-        <div className="grid formgrid p-fluid align-items-end">
-          {/* Select Pasien Dropdown */}
-          <div className="col-12 md:col-5">
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">
-              Pilih Pasien (Nama / No. RM)
-            </label>
-            <Dropdown
-              value={selectedPasien}
-              options={pasienList}
-              onChange={(e) => handleSelectPasien(e.value)}
-              optionLabel="nama"
-              placeholder="Cari & Pilih Pasien..."
-              filter
-              filterBy="nama,no_rm,nik,no_hp"
-              filterPlaceholder="Cari Nama / No. RM..."
-              showClear
-              loading={loadingPasien}
-              className="p-inputtext-sm border-round-lg text-xs"
-              valueTemplate={(opt: PasienOption) => (
-                opt ? (
-                  <div className="flex align-items-center justify-content-between w-full py-0.5">
-                    <span className="font-bold text-xs text-slate-900">{opt.nama}</span>
-                    <span className="text-[11px] text-teal-700 font-semibold bg-teal-50 px-2 py-0.5 border-round-md">
-                      RM: {opt.no_rm}
-                    </span>
-                  </div>
-                ) : null
-              )}
-              itemTemplate={(opt: PasienOption) => (
-                <div className="flex align-items-center justify-content-between w-full py-1">
-                  <div>
-                    <div className="font-bold text-xs text-slate-900 mb-0.5">{opt.nama}</div>
-                    <div className="text-[11px] text-slate-500">NIK: {opt.nik || '-'} | HP: {opt.no_hp || '-'}</div>
-                  </div>
-                  <span className="text-[11px] text-teal-700 font-semibold bg-teal-50 px-2 py-0.5 border-round-md">
-                    RM: {opt.no_rm}
+      {/* 2. TAB SELECTION BUTTONS (PERSIS SEPERTI GAMBAR CONTOH MUTASI STOCK) */}
+      <div
+        className="flex gap-1 mb-4 p-1.5 border-round-xl w-fit align-items-center"
+        style={{ backgroundColor: '#f1f5f9' }}
+      >
+        <button
+          type="button"
+          onClick={() => setActiveTab('rekam_medis')}
+          className="font-bold px-4 py-2 border-round-lg flex align-items-center gap-2 border-none cursor-pointer text-sm transition-all"
+          style={
+            activeTab === 'rekam_medis'
+              ? { backgroundColor: '#10b981', color: '#ffffff', boxShadow: '0 2px 4px rgba(0,0,0,0.08)' }
+              : { backgroundColor: 'transparent', color: '#1e293b' }
+          }
+        >
+          <i className="pi pi-folder-open text-base" style={{ color: activeTab === 'rekam_medis' ? '#ffffff' : '#1e293b' }} />
+          <span>Rekam Medis</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('transaksi')}
+          className="font-bold px-4 py-2 border-round-lg flex align-items-center gap-2 border-none cursor-pointer text-sm transition-all"
+          style={
+            activeTab === 'transaksi'
+              ? { backgroundColor: '#10b981', color: '#ffffff', boxShadow: '0 2px 4px rgba(0,0,0,0.08)' }
+              : { backgroundColor: 'transparent', color: '#1e293b' }
+          }
+        >
+          <i className="pi pi-box text-base" style={{ color: activeTab === 'transaksi' ? '#ffffff' : '#1e293b' }} />
+          <span>Transaksi</span>
+        </button>
+      </div>
+
+      {/* ─── TAB 1: REKAM MEDIS ─── */}
+      {activeTab === 'rekam_medis' && (
+        <>
+          {/* CARD UTAMA: ACTION BUTTONS, KETERANGAN STATUS & FILTER BAR */}
+          <div className="card mb-4">
+            <div className="flex flex-row flex-wrap align-items-center gap-2 mb-4">
+              <Button
+                size="small"
+                label="Refresh"
+                icon="pi pi-refresh"
+                outlined
+                severity="success"
+                className="border-round-lg"
+                loading={loadingRecords}
+                onClick={() => fetchRekamMedis(1, searchVal)}
+              />
+              <Menu model={printMenuItemsRM} popup ref={printMenuRMRef} />
+              <Button
+                type="button"
+                size="small"
+                label="Cetak Laporan"
+                icon="pi pi-print"
+                outlined
+                severity="success"
+                className="border-round-lg"
+                onClick={(e) => printMenuRMRef.current?.toggle(e)}
+              />
+            </div>
+
+            {/* Legend Box Status Kunjungan */}
+            <div className="flex flex-wrap align-items-center gap-4 mb-4 p-3 surface-50 border-round-xl border-1 surface-border">
+              <span className="flex align-items-center text-xs font-bold text-500 uppercase tracking-wider mr-2">
+                <i className="pi pi-info-circle mr-2" /> KETERANGAN STATUS:
+              </span>
+              <div className="flex align-items-center gap-2">
+                <span className="block bg-yellow-500 border-round-sm" style={{ width: '12px', height: '12px' }} />
+                <span className="text-xs font-semibold text-700">Menunggu</span>
+              </div>
+              <div className="flex align-items-center gap-2">
+                <span className="block bg-blue-500 border-round-sm" style={{ width: '12px', height: '12px' }} />
+                <span className="text-xs font-semibold text-700">Berlangsung / Dipanggil</span>
+              </div>
+              <div className="flex align-items-center gap-2">
+                <span className="block bg-teal-500 border-round-sm" style={{ width: '12px', height: '12px' }} />
+                <span className="text-xs font-semibold text-700">Selesai</span>
+              </div>
+              <div className="flex align-items-center gap-2">
+                <span className="block bg-red-500 border-round-sm" style={{ width: '12px', height: '12px' }} />
+                <span className="text-xs font-semibold text-700">Batal</span>
+              </div>
+            </div>
+
+            {/* Filter Bar */}
+            <div className="flex flex-wrap align-items-center justify-content-between gap-3">
+              <div className="flex align-items-center flex-wrap gap-2">
+                <div className="flex align-items-center gap-2">
+                  <Calendar
+                    value={tanggalDari}
+                    onChange={(e) => setTanggalDari(e.value as Date)}
+                    dateFormat="yy-mm-dd"
+                    showIcon
+                    placeholder="Mulai"
+                    className="w-11rem text-sm"
+                  />
+                  <span className="text-xs text-500 font-bold">s.d</span>
+                  <Calendar
+                    value={tanggalSampai}
+                    onChange={(e) => setTanggalSampai(e.value as Date)}
+                    dateFormat="yy-mm-dd"
+                    showIcon
+                    placeholder="Selesai"
+                    className="w-11rem text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="flex align-items-center gap-2 ml-auto w-full md:w-auto">
+                <Button
+                  type="button"
+                  icon="pi pi-filter"
+                  label="Filter"
+                  outlined
+                  severity="success"
+                  onClick={() => fetchRekamMedis(1, searchVal)}
+                  loading={loadingRecords}
+                  className="border-round-lg"
+                />
+
+                <span className="p-input-icon-left w-full md:w-20rem">
+                  <IconField iconPosition="left">
+                    <InputIcon className="pi pi-search" />
+                    <InputText
+                      value={searchVal}
+                      className="w-full text-sm"
+                      placeholder="Cari Pasien, RM, Diagnosa..."
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setSearchVal(value);
+
+                        if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+                        searchTimeoutRef.current = setTimeout(() => {
+                          fetchRekamMedis(1, value);
+                        }, 400);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+                          fetchRekamMedis(1, searchVal);
+                        }
+                      }}
+                    />
+                  </IconField>
+                </span>
+
+                <Button
+                  type="button"
+                  icon="pi pi-filter-slash"
+                  outlined
+                  severity="danger"
+                  tooltip="Reset Semua Filter"
+                  tooltipOptions={{ position: 'bottom' }}
+                  onClick={handleResetFilterRM}
+                  className="border-round-lg"
+                />
+              </div>
+            </div>
+
+            {/* REKAM MEDIS DATATABLE */}
+          <DataTable
+            value={records}
+            loading={loadingRecords}
+            className="p-datatable-sm text-xs"
+            responsiveLayout="scroll"
+            stripedRows
+            showGridlines
+            emptyMessage="Data riwayat rekam medis tidak ditemukan pada filter ini."
+            expandedRows={expandedRMRows}
+            onRowToggle={(e) => setExpandedRMRows(e.data)}
+            rowExpansionTemplate={(record: KunjunganRecord) => (
+              <div className="p-3 bg-gray-50/80 border-round-lg">
+                <div className="flex align-items-center justify-content-between mb-3 pb-2 border-bottom-1 surface-border">
+                  <span className="text-xs font-bold text-gray-700 uppercase tracking-wider flex align-items-center gap-2">
+                    <i className="pi pi-folder-open text-emerald-600 text-sm" />
+                    RINCIAN SOAP &amp; SESI TREATMENT (KUNJUNGAN: {record.kode_kunjungan})
                   </span>
                 </div>
-              )}
-            />
-          </div>
 
-          {/* Date Filter: Dari */}
-          <div className="col-6 md:col-3">
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">
-              Tanggal Dari
-            </label>
-            <Calendar
-              value={tanggalDari}
-              onChange={(e) => setTanggalDari(e.value as Date)}
-              dateFormat="yy-mm-dd"
-              showIcon
-              placeholder="YYYY-MM-DD"
-              className="p-inputtext-sm border-round-lg text-xs"
-            />
-          </div>
-
-          {/* Date Filter: Sampai */}
-          <div className="col-6 md:col-3">
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">
-              Tanggal Sampai
-            </label>
-            <Calendar
-              value={tanggalSampai}
-              onChange={(e) => setTanggalSampai(e.value as Date)}
-              dateFormat="yy-mm-dd"
-              showIcon
-              placeholder="YYYY-MM-DD"
-              className="p-inputtext-sm border-round-lg text-xs"
-            />
-          </div>
-
-          {/* Action Buttons */}
-          <div className="col-12 md:col-1 flex gap-2 justify-content-end">
-            <Button
-              icon="pi pi-filter"
-              severity="success"
-              onClick={() => fetchRekamMedis(undefined, 1)}
-              disabled={!selectedPasien}
-              tooltip="Filter Data"
-              className="bg-teal-600 border-none border-round-lg shadow-1"
-            />
-            <Button
-              icon="pi pi-refresh"
-              severity="secondary"
-              outlined
-              onClick={handleResetFilter}
-              tooltip="Reset Filter"
-              className="border-round-lg"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* SELECTED PASIEN SUMMARY CARD */}
-      {selectedPasien && (
-        <div className="surface-card p-3 border-round-xl border-1 surface-border shadow-1 mb-3 flex flex-wrap align-items-center justify-content-between gap-3 bg-teal-50/40">
-          <div className="flex align-items-center gap-3">
-            <div className="w-3rem h-3rem border-circle bg-teal-600 text-white font-black text-xl flex align-items-center justify-content-center shadow-1">
-              {selectedPasien.nama ? selectedPasien.nama.charAt(0).toUpperCase() : 'P'}
-            </div>
-            <div>
-              <div className="flex align-items-center gap-2">
-                <span className="font-extrabold text-base text-slate-900">{selectedPasien.nama}</span>
-                <span className="text-xs font-bold text-teal-800 bg-teal-100 px-2 py-0.5 border-round-md">
-                  RM: {selectedPasien.no_rm}
-                </span>
-              </div>
-              <div className="text-xs text-slate-500 flex flex-wrap gap-3 mt-1">
-                <span>NIK: {selectedPasien.nik || '-'}</span>
-                <span>Gender: {selectedPasien.jenis_kelamin || '-'}</span>
-                <span>Tgl Lahir: {selectedPasien.tanggal_lahir ? formatDateIndo(selectedPasien.tanggal_lahir) : '-'}</span>
-                <span>No. HP: {selectedPasien.no_hp || '-'}</span>
-              </div>
-            </div>
-          </div>
-
-          {selectedPasien.alergi && (
-            <div className="bg-rose-50 border-1 border-rose-200 text-rose-800 px-3 py-1.5 border-round-lg text-xs font-semibold flex align-items-center gap-1.5">
-              <i className="pi pi-exclamation-triangle text-rose-600" />
-              <span>Alergi: {selectedPasien.alergi}</span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* VISITS TIMELINE CONTENT */}
-      {loadingRecords ? (
-        <div className="flex flex-column align-items-center justify-content-center py-6 surface-card border-round-xl border-1 surface-border">
-          <ProgressSpinner style={{ width: '36px', height: '36px' }} />
-          <span className="text-xs text-slate-500 font-medium mt-2">Memuat riwayat rekam medis...</span>
-        </div>
-      ) : records.length === 0 ? (
-        <div className="surface-card border-round-xl border-1 surface-border p-6 text-center">
-          <i className="pi pi-inbox text-4xl text-300 mb-2" />
-          <div className="font-bold text-slate-700 text-sm">Tidak Ada Riwayat Kunjungan</div>
-          <p className="text-xs text-slate-400 m-0 mt-1">
-            {selectedPasien
-              ? `Pasien ${selectedPasien.nama} (${selectedPasien.no_rm}) belum memiliki catatan rekam medis pada filter tanggal ini.`
-              : 'Silakan pilih pasien di atas untuk melihat riwayat rekam medis.'}
-          </p>
-        </div>
-      ) : (
-        <div className="flex flex-column gap-3">
-          {records.map((record) => {
-            const isExpanded = Boolean(expandedVisits[record.kode_kunjungan]);
-
-            return (
-              <div
-                key={record.kode_kunjungan}
-                className="surface-card border-round-xl border-1 surface-border shadow-1 hover:shadow-2 transition-all overflow-hidden"
-              >
-                {/* VISIT HEADER */}
-                <div
-                  onClick={() => toggleExpand(record.kode_kunjungan)}
-                  className="p-3 bg-white border-bottom-1 surface-border cursor-pointer flex align-items-center justify-content-between gap-3 user-select-none hover:bg-slate-50 transition-all"
-                >
-                  <div className="flex align-items-center gap-3 flex-wrap">
-                    {record.nama_pasien && (
-                      <div className="flex align-items-center gap-1.5 font-bold text-xs text-slate-800 bg-teal-50 border-1 border-teal-200 px-2.5 py-1 border-round-lg">
-                        <i className="pi pi-user text-teal-600 text-xs" />
-                        <span>{record.nama_pasien}</span>
-                        <span className="text-[10px] text-teal-800 font-bold bg-teal-100 px-1.5 py-0.25 border-round-md">
-                          RM: {record.no_rm}
-                        </span>
-                      </div>
-                    )}
-
-                    <div className="flex align-items-center gap-1.5">
-                      <i className="pi pi-calendar text-teal-600 text-sm" />
-                      <span className="font-extrabold text-sm text-slate-900">
-                        {formatDateIndo(record.tanggal_kunjungan)}
-                      </span>
-                    </div>
-
-                    <div className="flex align-items-center gap-1 text-xs text-slate-500 font-medium">
-                      <i className="pi pi-clock text-slate-400" />
-                      <span>{record.jam_datang} WIB</span>
-                    </div>
-
-                    <span className="text-xs font-mono font-bold text-slate-600 bg-slate-100 px-2 py-0.5 border-round-md">
-                      {record.kode_kunjungan}
-                    </span>
-
-                    <Tag
-                      value={record.status_kunjungan.toUpperCase()}
-                      severity={getStatusKunjunganSeverity(record.status_kunjungan)}
-                      className="text-[10px] font-extrabold px-2 py-0.5"
-                    />
+                {record.layanan.length === 0 ? (
+                  <div className="text-xs text-gray-400 italic py-2 text-center">
+                    Tidak ada catatan treatment pada kunjungan ini.
                   </div>
-
-                  <div className="flex align-items-center gap-2 flex-shrink-0">
-                    <span className="text-xs text-slate-400 font-medium hidden md:inline">
-                      {record.layanan.length} Treatment
-                    </span>
-                    <Button
-                      icon={isExpanded ? 'pi pi-chevron-up' : 'pi pi-chevron-down'}
-                      rounded
-                      text
-                      severity="secondary"
-                      className="w-2rem h-2rem"
-                    />
-                  </div>
-                </div>
-
-                {/* EXPANDED CONTENT */}
-                {isExpanded && (
-                  <div className="p-3 flex flex-column gap-3 bg-slate-50/50">
-                    {record.layanan.length === 0 ? (
-                      <div className="text-xs text-slate-400 italic py-2 text-center">
-                        Tidak ada catatan treatment pada kunjungan ini.
-                      </div>
-                    ) : (
-                      record.layanan.map((item, lIdx) => {
-                        const rm = item.rekam_medis;
-                        const dpjpOrPetugas = rm?.dokter_penanggung_jawab || item.petugas;
-                        return (
-                          <div key={lIdx} className="surface-card p-0 border-round-xl border-1 surface-border shadow-1 overflow-hidden">
-                            {/* SESI HEADER */}
-                            <div className="bg-teal-50 p-3 border-bottom-1 surface-border flex align-items-center justify-content-between flex-wrap gap-2">
-                              <div>
-                                <div className="flex align-items-center gap-2 mb-1">
-                                  <i className="pi pi-building text-teal-600" />
-                                  <span className="font-extrabold text-sm text-slate-900">{item.nama_ruangan}</span>
-                                  <Tag
-                                    value={item.status.toUpperCase()}
-                                    severity={getStatusAntrianSeverity(item.status)}
-                                    className="text-[9px] font-extrabold px-1.5 py-0.5 ml-2"
-                                  />
-                                </div>
-                                <div className="text-xs text-slate-600 font-medium">
-                                  <span className="font-bold">Layanan:</span> {item.nama_layanan}
-                                </div>
-                              </div>
-                              <div className="text-right">
-                                {dpjpOrPetugas ? (
-                                  <div className="flex align-items-center gap-1.5 justify-content-end">
-                                    <span className="text-xs text-slate-500 font-medium">Dokter / Petugas:</span>
-                                    <span className={getJabatanBadge(dpjpOrPetugas.jabatan)}>
-                                      {dpjpOrPetugas.nama}
-                                    </span>
-                                  </div>
-                                ) : (
-                                  <div className="text-xs text-slate-400 italic">Dokter / Petugas: -</div>
-                                )}
-                                {item.selesai_at && (
-                                  <div className="text-[11px] text-slate-400 font-medium mt-1">
-                                    Selesai: {String(item.selesai_at).slice(11, 16)}
-                                  </div>
-                                )}
-                              </div>
+                ) : (
+                  record.layanan.map((item, lIdx) => {
+                    const rm = item.rekam_medis;
+                    const dpjpOrPetugas = rm?.dokter_penanggung_jawab || item.petugas;
+                    return (
+                      <div key={lIdx} className="surface-card p-0 border-round-lg border-1 surface-border shadow-2xs overflow-hidden mb-3">
+                        <div className="bg-emerald-50/60 p-3 border-bottom-1 surface-border flex align-items-center justify-content-between flex-wrap gap-2">
+                          <div>
+                            <div className="flex align-items-center gap-2 mb-1">
+                              <i className="pi pi-building text-emerald-600" />
+                              <span className="font-bold text-sm text-gray-800">{item.nama_ruangan}</span>
+                              <Tag
+                                value={item.status.toUpperCase()}
+                                severity={getStatusAntrianSeverity(item.status)}
+                                rounded
+                                className="text-[9px] font-bold px-2 py-0.5 ml-2"
+                              />
                             </div>
-                            
-                            {/* SOAP NOTE */}
-                            <div className="p-3 flex flex-column gap-3">
-                              <div className="flex align-items-center justify-content-between flex-wrap gap-2 pb-2 border-bottom-1 surface-border">
-                                <div className="flex align-items-center gap-2">
-                                  <i className="pi pi-file-edit text-purple-600 text-base" />
-                                  <span className="font-extrabold text-xs text-slate-800 uppercase tracking-wide">
-                                    Catatan Rekam Medis (SOAP)
-                                  </span>
-                                </div>
-                              </div>
-
-                              {rm && (
-                                rm.kode_rekam_medis ||
-                                (rm.keluhan && rm.keluhan !== '-') ||
-                                (rm.diagnosa && rm.diagnosa !== '-') ||
-                                (rm.tindakan && rm.tindakan !== '-') ||
-                                (rm.catatan && rm.catatan !== '-')
-                              ) ? (
-                                <div className="grid text-xs">
-                                  {/* Keluhan */}
-                                  <div className="col-12 md:col-6 mb-2">
-                                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                                      Keluhan / Anamnesa
-                                    </label>
-                                    <div className="bg-slate-50 p-2.5 border-round-lg border-1 surface-border text-slate-800 font-medium">
-                                      {renderFormattedContent(rm.keluhan)}
-                                    </div>
-                                  </div>
-
-                                  {/* Diagnosa */}
-                                  <div className="col-12 md:col-6 mb-2">
-                                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                                      Diagnosa / Problem
-                                    </label>
-                                    <div className="bg-slate-50 p-2.5 border-round-lg border-1 surface-border text-slate-800 font-medium">
-                                      {renderFormattedContent(rm.diagnosa)}
-                                    </div>
-                                  </div>
-
-                                  {/* Tindakan */}
-                                  <div className="col-12 md:col-6 mb-2">
-                                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                                      Tindakan / Resep
-                                    </label>
-                                    <div className="bg-slate-50 p-2.5 border-round-lg border-1 surface-border text-slate-800 font-medium">
-                                      {renderFormattedContent(rm.tindakan)}
-                                    </div>
-                                  </div>
-
-                                  {/* Catatan Dokter */}
-                                  <div className="col-12 md:col-6 mb-2">
-                                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                                      Catatan Evaluasi / Edukasi / Ruangan
-                                    </label>
-                                    <div className="bg-slate-50 p-2.5 border-round-lg border-1 surface-border text-slate-800 font-medium">
-                                      {renderFormattedContent(rm.catatan)}
-                                    </div>
-                                  </div>
-                                </div>
-                              ) : (
-                                !((rm?.formatted_data_form && rm.formatted_data_form.length > 0) || item.catatan_tindakan || item.catatan_petugas || item.catatan_hasil_treatment || (rm?.fotos && rm.fotos.length > 0)) && (
-                                  <div className="text-xs text-teal-800 font-medium bg-teal-50/60 p-2.5 border-round-lg border-1 border-teal-100 flex align-items-center gap-2 mb-1">
-                                    <i className="pi pi-info-circle text-teal-600" />
-                                    <span>Penanganan &amp; pemeriksaan pasien tercatat pada Form Pelayanan Ruangan.</span>
-                                  </div>
-                                )
-                              )}
-
-                              {renderDataFormDinamis(rm, item)}
+                            <div className="text-xs text-gray-600 font-medium">
+                              <span className="font-semibold text-gray-500 uppercase text-[10px]">Layanan:</span> {item.nama_layanan}
                             </div>
                           </div>
-                        );
-                      })
-                    )}
-                  </div>
+                          <div className="text-right">
+                            {dpjpOrPetugas ? (
+                              <div className="flex align-items-center gap-1.5 justify-content-end">
+                                <span className="text-xs text-gray-500 font-medium">Dokter / Petugas:</span>
+                                <span className={getJabatanBadge(dpjpOrPetugas.jabatan)}>
+                                  {dpjpOrPetugas.nama}
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="text-xs text-gray-400 italic">Dokter / Petugas: -</div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="p-3 flex flex-column gap-3">
+                          {rm && (
+                            rm.kode_rekam_medis ||
+                            (rm.keluhan && rm.keluhan !== '-') ||
+                            (rm.diagnosa && rm.diagnosa !== '-') ||
+                            (rm.tindakan && rm.tindakan !== '-') ||
+                            (rm.catatan && rm.catatan !== '-')
+                          ) ? (
+                            <div className="grid text-xs">
+                              <div className="col-12 md:col-6 mb-3">
+                                <div className="h-full bg-blue-50/30 border-1 border-blue-100 border-left-4 border-blue-500 p-3 border-round-lg">
+                                  <label className="block text-xs font-bold text-blue-700 uppercase tracking-wider mb-2 flex align-items-center gap-1.5">
+                                    <i className="pi pi-comments text-blue-600 text-sm" />
+                                    S - KELUHAN / ANAMNESA
+                                  </label>
+                                  <div className="text-gray-800 font-medium leading-normal">
+                                    {renderFormattedContent(rm.keluhan)}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="col-12 md:col-6 mb-3">
+                                <div className="h-full bg-amber-50/30 border-1 border-amber-100 border-left-4 border-amber-500 p-3 border-round-lg">
+                                  <label className="block text-xs font-bold text-amber-700 uppercase tracking-wider mb-2 flex align-items-center gap-1.5">
+                                    <i className="pi pi-stethoscope text-amber-600 text-sm" />
+                                    O/A - DIAGNOSA / PROBLEM
+                                  </label>
+                                  <div className="text-gray-800 font-medium leading-normal">
+                                    {renderFormattedContent(rm.diagnosa)}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="col-12 md:col-6 mb-3">
+                                <div className="h-full bg-emerald-50/30 border-1 border-emerald-100 border-left-4 border-emerald-500 p-3 border-round-lg">
+                                  <label className="block text-xs font-bold text-emerald-700 uppercase tracking-wider mb-2 flex align-items-center gap-1.5">
+                                    <i className="pi pi-check-square text-emerald-600 text-sm" />
+                                    P - TINDAKAN / RESEP
+                                  </label>
+                                  <div className="text-gray-800 font-medium leading-normal">
+                                    {renderFormattedContent(rm.tindakan)}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="col-12 md:col-6 mb-3">
+                                <div className="h-full bg-indigo-50/30 border-1 border-indigo-100 border-left-4 border-indigo-500 p-3 border-round-lg">
+                                  <label className="block text-xs font-bold text-indigo-700 uppercase tracking-wider mb-2 flex align-items-center gap-1.5">
+                                    <i className="pi pi-book text-indigo-600 text-sm" />
+                                    E - CATATAN EVALUASI &amp; EDUKASI
+                                  </label>
+                                  <div className="text-gray-800 font-medium leading-normal">
+                                    {renderFormattedContent(rm.catatan)}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ) : null}
+
+                          {renderDataFormDinamis(rm, item)}
+                        </div>
+                      </div>
+                    );
+                  })
                 )}
               </div>
-            );
-          })}
+            )}
+            dataKey="kode_kunjungan"
+          >
+            <Column expander style={{ width: '3rem' }} />
+            <Column
+              header="#"
+              body={(_, options) => (page - 1) * perPage + options.rowIndex + 1}
+              style={{ width: '3rem', textAlign: 'center' }}
+            />
+            <Column
+              field="tanggal_kunjungan"
+              header="TANGGAL &amp; JAM"
+              sortable
+              body={(rec: KunjunganRecord) => (
+                <div className="flex flex-column gap-0.5 text-xs text-gray-700 font-medium">
+                  <div className="flex align-items-center gap-1.5">
+                    <i className="pi pi-calendar text-emerald-600" />
+                    <span>{formatDateIndo(rec.tanggal_kunjungan)}</span>
+                  </div>
+                  <div className="flex align-items-center gap-1 text-[11px] text-gray-400">
+                    <i className="pi pi-clock" />
+                    <span>{rec.jam_datang} WIB</span>
+                  </div>
+                </div>
+              )}
+            />
+            <Column
+              field="nama_pasien"
+              header="NAMA PASIEN"
+              sortable
+              body={(rec: KunjunganRecord) => (
+                <span className="font-bold text-xs text-gray-800">{rec.nama_pasien || '-'}</span>
+              )}
+            />
+            <Column
+              header="DOKTER PENANGGUNG JAWAB"
+              body={(rec: KunjunganRecord) => {
+                const dokter = rec.layanan.find((l) => l.rekam_medis?.dokter_penanggung_jawab)?.rekam_medis?.dokter_penanggung_jawab;
+                if (!dokter) return <span className="text-xs text-gray-400 italic">-</span>;
+                return (
+                  <span className={getJabatanBadge(dokter.jabatan)}>
+                    {dokter.nama}
+                  </span>
+                );
+              }}
+            />
+            <Column
+              header="ANAMNESA / KELUHAN"
+              body={(rec: KunjunganRecord) => {
+                const keluhan = rec.layanan.find((l) => l.rekam_medis?.keluhan)?.rekam_medis?.keluhan;
+                if (!keluhan || keluhan === '-') return <span className="text-xs text-gray-400 italic">-</span>;
+                return <span className="text-xs font-medium text-gray-700 line-clamp-2">{keluhan}</span>;
+              }}
+              style={{ minWidth: '150px' }}
+            />
+            <Column
+              header="DIAGNOSA"
+              body={(rec: KunjunganRecord) => {
+                const diagnosa = rec.layanan.find((l) => l.rekam_medis?.diagnosa)?.rekam_medis?.diagnosa;
+                if (!diagnosa || diagnosa === '-') return <span className="text-xs text-gray-400 italic">-</span>;
+                return <span className="text-xs font-medium text-gray-700 line-clamp-2">{diagnosa}</span>;
+              }}
+              style={{ minWidth: '150px' }}
+            />
+            <Column
+              header="FOTO (BEFORE / AFTER)"
+              body={(rec: KunjunganRecord) => {
+                const allFotos = rec.layanan.flatMap((l) => l.rekam_medis?.fotos || []);
+                if (allFotos.length === 0) {
+                  return <span className="text-xs text-gray-400 italic py-1">Tanpa Foto</span>;
+                }
+                return (
+                  <div className="flex align-items-center gap-1.5 flex-wrap">
+                    {allFotos.map((f, idx) => {
+                      const jenisFoto = String(f.tipe || f.jenis_foto || 'foto').toLowerCase();
+                      return (
+                        <div key={idx} className="relative group">
+                          <Image
+                            src={getImgSrc(f.url_foto)}
+                            alt={jenisFoto || 'Foto RM'}
+                            width="45"
+                            height="45"
+                            preview
+                            className="border-round-md overflow-hidden border-1 surface-border shadow-2xs hover:scale-105 transition-all"
+                            imageClassName="w-full h-full object-cover border-round-md"
+                          />
+                          <span
+                            className={
+                              jenisFoto === 'before'
+                                ? 'absolute -bottom-1 left-0 right-0 bg-gray-900/80 text-white text-[8px] font-bold text-center border-round-bottom-md py-0.2'
+                                : 'absolute -bottom-1 left-0 right-0 bg-emerald-700/90 text-white text-[8px] font-bold text-center border-round-bottom-md py-0.2'
+                            }
+                          >
+                            {jenisFoto.toUpperCase()}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              }}
+              style={{ minWidth: '150px' }}
+            />
+            <Column
+              field="status_kunjungan"
+              header="STATUS"
+              sortable
+              body={(rec: KunjunganRecord) => (
+                <Tag
+                  value={String(rec.status_kunjungan || '').toUpperCase()}
+                  severity={getStatusKunjunganSeverity(rec.status_kunjungan)}
+                  rounded
+                  className="text-[10px] font-bold px-2.5 py-0.5"
+                />
+              )}
+            />
+          </DataTable>
 
-          {/* PAGINATION BAR */}
           {totalRecords > perPage && (
-            <div className="surface-card border-round-xl border-1 surface-border p-2 mt-2 shadow-1">
+            <div className="mt-3 pt-2 border-top-1 surface-border">
               <Paginator
                 first={(page - 1) * perPage}
                 rows={perPage}
                 totalRecords={totalRecords}
-                onPageChange={(e) => fetchRekamMedis(undefined, e.page + 1)}
+                onPageChange={(e) => fetchRekamMedis(e.page + 1, searchVal)}
                 className="p-paginator-sm"
               />
             </div>
           )}
         </div>
+      </>
+    )}
+
+      {/* ─── TAB 2: TRANSAKSI (SAMA PERSIS DENGAN CONTOH LAPORAN) ─── */}
+      {activeTab === 'transaksi' && (
+        <>
+          {/* Widget Ringkasan Finansial Modern (4 Stat Cards Top Bar) */}
+          <div className="grid mb-4">
+            <div className="col-12 sm:col-6 lg:col-3">
+              <div className="surface-card border-round-xl border-1 surface-border p-3 flex align-items-center justify-content-between h-full hover:shadow-2 transition-duration-150">
+                <div className="flex flex-column gap-1">
+                  <span className="text-xs font-bold text-500 uppercase tracking-wider">Total Transaksi</span>
+                  <span className="text-xl font-black text-blue-700">{trxTotalRecords} Data</span>
+                </div>
+                <div className="p-3 bg-blue-50 border-round-lg">
+                  <i className="pi pi-shopping-cart text-blue-600 text-xl" />
+                </div>
+              </div>
+            </div>
+
+            <div className="col-12 sm:col-6 lg:col-3">
+              <div className="surface-card border-round-xl border-1 surface-border p-3 flex align-items-center justify-content-between h-full hover:shadow-2 transition-duration-150">
+                <div className="flex flex-column gap-1">
+                  <span className="text-xs font-bold text-500 uppercase tracking-wider">Total Subtotal</span>
+                  <span className="text-xl font-black text-purple-700">{formatRupiah(totalHargaBruto)}</span>
+                </div>
+                <div className="p-3 bg-purple-50 border-round-lg">
+                  <i className="pi pi-wallet text-purple-600 text-xl" />
+                </div>
+              </div>
+            </div>
+
+            <div className="col-12 sm:col-6 lg:col-3">
+              <div className="surface-card border-round-xl border-1 surface-border p-3 flex align-items-center justify-content-between h-full hover:shadow-2 transition-duration-150">
+                <div className="flex flex-column gap-1">
+                  <span className="text-xs font-bold text-500 uppercase tracking-wider">Total Potongan Diskon</span>
+                  <span className="text-xl font-black text-red-600">{formatRupiah(totalPotonganDiskon)}</span>
+                </div>
+                <div className="p-3 bg-red-50 border-round-lg">
+                  <i className="pi pi-percentage text-red-600 text-xl" />
+                </div>
+              </div>
+            </div>
+
+            <div className="col-12 sm:col-6 lg:col-3">
+              <div className="surface-card border-round-xl border-1 surface-border p-3 flex align-items-center justify-content-between h-full hover:shadow-2 transition-duration-150">
+                <div className="flex flex-column gap-1">
+                  <span className="text-xs font-bold text-500 uppercase tracking-wider">Grand Total Bersih</span>
+                  <span className="text-xl font-black text-green-600">{formatRupiah(grandTotalBersih)}</span>
+                </div>
+                <div className="p-3 bg-green-50 border-round-lg">
+                  <i className="pi pi-check-circle text-green-600 text-xl" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* CARD UTAMA: ACTION BUTTONS, KETERANGAN STATUS, FILTER BAR & DATATABLE */}
+          <div className="card mb-4">
+            <div className="flex flex-row flex-wrap align-items-center gap-2 mb-4">
+              <Button
+                size="small"
+                label="Refresh"
+                icon="pi pi-refresh"
+                outlined
+                severity="success"
+                className="border-round-lg"
+                loading={loadingTrx}
+                onClick={() => fetchTransaksi(1, trxSearchVal)}
+              />
+              <Menu model={printMenuItemsTrx} popup ref={printMenuTrxRef} />
+              <Button
+                type="button"
+                size="small"
+                label="Cetak Laporan"
+                icon="pi pi-print"
+                outlined
+                severity="success"
+                className="border-round-lg"
+                onClick={(e) => printMenuTrxRef.current?.toggle(e)}
+              />
+            </div>
+
+            {/* Legend Box Status Transaksi */}
+            <div className="flex flex-wrap align-items-center gap-4 mb-4 p-3 surface-50 border-round-xl border-1 surface-border">
+              <span className="flex align-items-center text-xs font-bold text-500 uppercase tracking-wider mr-2">
+                <i className="pi pi-info-circle mr-2" /> KETERANGAN STATUS PEMBAYARAN:
+              </span>
+              <div className="flex align-items-center gap-2">
+                <span className="block bg-teal-500 border-round-sm" style={{ width: '12px', height: '12px' }} />
+                <span className="text-xs font-semibold text-700">Lunas / Berhasil</span>
+              </div>
+              <div className="flex align-items-center gap-2">
+                <span className="block bg-yellow-500 border-round-sm" style={{ width: '12px', height: '12px' }} />
+                <span className="text-xs font-semibold text-700">Draft / Menunggu</span>
+              </div>
+              <div className="flex align-items-center gap-2">
+                <span className="block bg-red-500 border-round-sm" style={{ width: '12px', height: '12px' }} />
+                <span className="text-xs font-semibold text-700">Batal / Cancelled</span>
+              </div>
+            </div>
+
+            {/* Filter Bar */}
+            <div className="flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+              <div className="flex align-items-center flex-wrap gap-2">
+                <div className="flex align-items-center gap-2">
+                  <Calendar
+                    value={trxTanggalDari}
+                    onChange={(e) => setTrxTanggalDari(e.value as Date)}
+                    dateFormat="yy-mm-dd"
+                    showIcon
+                    placeholder="Mulai"
+                    className="w-11rem text-sm"
+                  />
+                  <span className="text-xs text-500 font-bold">s.d</span>
+                  <Calendar
+                    value={trxTanggalSampai}
+                    onChange={(e) => setTrxTanggalSampai(e.value as Date)}
+                    dateFormat="yy-mm-dd"
+                    showIcon
+                    placeholder="Selesai"
+                    className="w-11rem text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="flex align-items-center gap-2 ml-auto w-full md:w-auto">
+                <Button
+                  type="button"
+                  icon="pi pi-filter"
+                  label="Filter"
+                  outlined
+                  severity="success"
+                  onClick={() => fetchTransaksi(1, trxSearchVal)}
+                  loading={loadingTrx}
+                  className="border-round-lg"
+                />
+
+                <span className="p-input-icon-left w-full md:w-20rem">
+                  <IconField iconPosition="left">
+                    <InputIcon className="pi pi-search" />
+                    <InputText
+                      value={trxSearchVal}
+                      className="w-full text-sm"
+                      placeholder="Cari Kode Transaksi, RM, Pasien..."
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setTrxSearchVal(value);
+
+                        if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+                        searchTimeoutRef.current = setTimeout(() => {
+                          fetchTransaksi(1, value);
+                        }, 400);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+                          fetchTransaksi(1, trxSearchVal);
+                        }
+                      }}
+                    />
+                  </IconField>
+                </span>
+
+                <Button
+                  type="button"
+                  icon="pi pi-filter-slash"
+                  outlined
+                  severity="danger"
+                  tooltip="Reset Semua Filter"
+                  tooltipOptions={{ position: 'bottom' }}
+                  onClick={handleResetFilterTrx}
+                  className="border-round-lg"
+                />
+              </div>
+            </div>
+
+            {/* TRANSAKSI DATATABLE */}
+            <DataTable
+              value={trxRecords}
+              loading={loadingTrx}
+              className="p-datatable-sm text-xs"
+              responsiveLayout="scroll"
+              stripedRows
+              showGridlines
+              emptyMessage="Data transaksi pembayaran tidak ditemukan pada filter ini."
+              footerColumnGroup={trxFooterGroup}
+              expandedRows={expandedTrxRows}
+              onRowToggle={(e) => setExpandedTrxRows(e.data)}
+              rowExpansionTemplate={(tr: TransaksiRecord) => (
+                <div className="p-3 bg-gray-50/80 border-round-lg">
+                  <div className="flex align-items-center justify-content-between mb-2 pb-1 border-bottom-1 surface-border">
+                    <span className="text-xs font-bold text-gray-700 uppercase tracking-wider flex align-items-center gap-2">
+                      <i className="pi pi-list text-emerald-600 text-sm" />
+                      RINCIAN ITEM TRANSAKSI ({tr.details.length} ITEM)
+                    </span>
+                  </div>
+                  {tr.details.length === 0 ? (
+                    <div className="text-xs text-gray-400 italic py-1">Tidak ada rincian item.</div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs text-left border-collapse bg-white border-round-lg overflow-hidden border-1 surface-border">
+                        <thead>
+                          <tr className="bg-gray-100 text-gray-600 font-bold uppercase text-[10px]">
+                            <th className="p-2">#</th>
+                            <th className="p-2">Kode Item</th>
+                            <th className="p-2">Nama Layanan / Produk</th>
+                            <th className="p-2 text-center">Jenis</th>
+                            <th className="p-2 text-center">Qty</th>
+                            <th className="p-2 text-right">Harga Satuan</th>
+                            <th className="p-2 text-right">Subtotal</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {tr.details.map((dItem, dIdx) => (
+                            <tr key={dIdx} className="border-bottom-1 surface-border hover:bg-gray-50">
+                              <td className="p-2 text-gray-500 font-medium">{dIdx + 1}</td>
+                              <td className="p-2 font-mono text-gray-600 font-semibold">{dItem.kode || '-'}</td>
+                              <td className="p-2 font-bold text-gray-800">{dItem.nama}</td>
+                              <td className="p-2 text-center">
+                                <span className={dItem.jenis === 'layanan' ? 'bg-blue-50 text-blue-700 border-1 border-blue-200 text-[10px] font-bold px-2 py-0.5 border-round-pill' : 'bg-amber-50 text-amber-700 border-1 border-amber-200 text-[10px] font-bold px-2 py-0.5 border-round-pill'}>
+                                  {dItem.jenis.toUpperCase()}
+                                </span>
+                              </td>
+                              <td className="p-2 text-center font-bold text-gray-800">{dItem.qty} {dItem.satuan}</td>
+                              <td className="p-2 text-right text-gray-700">{formatRupiah(dItem.harga_satuan)}</td>
+                              <td className="p-2 text-right font-bold text-emerald-700">{formatRupiah(dItem.subtotal)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+              dataKey="kode_transaksi"
+            >
+              <Column expander style={{ width: '3rem' }} />
+              <Column
+                header="#"
+                body={(_, options) => (trxPage - 1) * trxPerPage + options.rowIndex + 1}
+                style={{ width: '3rem', textAlign: 'center' }}
+              />
+              <Column
+                field="tanggal_transaksi"
+                header="TANGGAL"
+                sortable
+                body={(tr: TransaksiRecord) => (
+                  <div className="flex align-items-center gap-1.5 text-xs text-gray-700 font-medium">
+                    <i className="pi pi-calendar text-emerald-600" />
+                    <span>{formatDateIndo(tr.tanggal_transaksi)}</span>
+                  </div>
+                )}
+              />
+              <Column
+                field="nama_pasien"
+                header="NAMA PASIEN"
+                sortable
+                body={(tr: TransaksiRecord) =>
+                  tr.nama_pasien ? (
+                    <span className="font-bold text-xs text-gray-800">{tr.nama_pasien}</span>
+                  ) : (
+                    <span className="text-xs text-gray-400 italic">Umum / Tanpa Pasien</span>
+                  )
+                }
+              />
+              <Column
+                field="metode_bayar"
+                header="METODE BAYAR"
+                body={(tr: TransaksiRecord) => (
+                  <Tag
+                    value={String(tr.metode_bayar || 'TUNAI').toUpperCase()}
+                    severity="info"
+                    className="text-[10px] font-bold px-2 py-0.5"
+                  />
+                )}
+              />
+              <Column
+                field="total_harga"
+                header="TOTAL HARGA"
+                sortable
+                body={(tr: TransaksiRecord) => (
+                  <span className="text-xs font-medium text-gray-700">{formatRupiah(tr.total_harga)}</span>
+                )}
+                className="text-right"
+              />
+              <Column
+                field="total_diskon"
+                header="TOTAL DISKON"
+                sortable
+                body={(tr: TransaksiRecord) => (
+                  <span className="text-xs font-medium text-red-600">
+                    {tr.total_diskon > 0 ? `- ${formatRupiah(tr.total_diskon)}` : 'Rp 0'}
+                  </span>
+                )}
+                className="text-right"
+              />
+              <Column
+                field="total_bayar"
+                header="TOTAL BAYAR"
+                sortable
+                body={(tr: TransaksiRecord) => (
+                  <span className="text-xs font-bold text-emerald-700">{formatRupiah(tr.total_bayar)}</span>
+                )}
+                className="text-right"
+              />
+              <Column
+                field="status"
+                header="STATUS"
+                sortable
+                body={(tr: TransaksiRecord) => (
+                  <Tag
+                    value={String(tr.status || '').toUpperCase()}
+                    severity={getStatusTransaksiSeverity(tr.status)}
+                    rounded
+                    className="text-[10px] font-bold px-2.5 py-0.5"
+                  />
+                )}
+              />
+            </DataTable>
+
+            {trxTotalRecords > trxPerPage && (
+              <div className="mt-3 pt-2 border-top-1 surface-border">
+                <Paginator
+                  first={(trxPage - 1) * trxPerPage}
+                  rows={trxPerPage}
+                  totalRecords={trxTotalRecords}
+                  onPageChange={(e) => fetchTransaksi(e.page + 1, trxSearchVal)}
+                  className="p-paginator-sm"
+                />
+              </div>
+            )}
+          </div>
+        </>
       )}
     </>
   );
 };
 
-export default RekamMedisPage;
+export default LaporanPage;

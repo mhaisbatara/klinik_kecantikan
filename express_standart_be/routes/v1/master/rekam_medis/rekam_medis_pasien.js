@@ -67,6 +67,8 @@ const handleGetRekamMedis = async (req, res) => {
     // 2. Count total kunjungan pasien (driving table trx_kunjungan)
     const countQuery = DB("trx_kunjungan as k")
       .leftJoin("mst_pasien as p", "k.no_rm", "p.no_rm")
+      .leftJoin("trx_rekam_medis as rm", "k.kode_kunjungan", "rm.kode_kunjungan")
+      .leftJoin("trx_rekam_medis_ruangan as rmr", "k.kode_kunjungan", "rmr.kode_kunjungan")
       .modify((qb) => {
         if (no_rm) qb.where("k.no_rm", no_rm);
         if (tanggal_dari) {
@@ -81,7 +83,16 @@ const handleGetRekamMedis = async (req, res) => {
             this.whereRaw("LOWER(k.kode_kunjungan) LIKE ?", [`%${lower}%`])
               .orWhereRaw("LOWER(k.no_rm) LIKE ?", [`%${lower}%`])
               .orWhereRaw("LOWER(p.nama) LIKE ?", [`%${lower}%`])
-              .orWhereRaw("LOWER(p.nik) LIKE ?", [`%${lower}%`]);
+              .orWhereRaw("LOWER(p.nik) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(p.no_hp) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(rm.diagnosa) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(rm.keluhan) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(rm.tindakan) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(rm.catatan) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(rmr.nama_ruangan) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(rmr.catatan_tindakan) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(rmr.catatan_petugas) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(rmr.catatan_hasil_treatment) LIKE ?", [`%${lower}%`]);
           });
         }
       })
@@ -94,6 +105,8 @@ const handleGetRekamMedis = async (req, res) => {
     // 3. Ambil list kunjungan
     const vaKunjungan = await DB("trx_kunjungan as k")
       .leftJoin("mst_pasien as p", "k.no_rm", "p.no_rm")
+      .leftJoin("trx_rekam_medis as rm", "k.kode_kunjungan", "rm.kode_kunjungan")
+      .leftJoin("trx_rekam_medis_ruangan as rmr", "k.kode_kunjungan", "rmr.kode_kunjungan")
       .groupBy("k.id", "p.id")
       .modify((qb) => {
         if (no_rm) qb.where("k.no_rm", no_rm);
@@ -109,7 +122,16 @@ const handleGetRekamMedis = async (req, res) => {
             this.whereRaw("LOWER(k.kode_kunjungan) LIKE ?", [`%${lower}%`])
               .orWhereRaw("LOWER(k.no_rm) LIKE ?", [`%${lower}%`])
               .orWhereRaw("LOWER(p.nama) LIKE ?", [`%${lower}%`])
-              .orWhereRaw("LOWER(p.nik) LIKE ?", [`%${lower}%`]);
+              .orWhereRaw("LOWER(p.nik) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(p.no_hp) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(rm.diagnosa) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(rm.keluhan) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(rm.tindakan) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(rm.catatan) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(rmr.nama_ruangan) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(rmr.catatan_tindakan) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(rmr.catatan_petugas) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(rmr.catatan_hasil_treatment) LIKE ?", [`%${lower}%`]);
           });
         }
       })

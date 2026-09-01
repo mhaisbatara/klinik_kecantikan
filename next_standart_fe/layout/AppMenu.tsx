@@ -323,9 +323,9 @@ const AppMenu = () => {
                                     </ul>
                                 </li>
 
-                                {/* ── RIWAYAT ── */}
+                                {/* ── RIWAYAT / LAPORAN ── */}
                                 <li className="layout-root-menuitem" key="riwayat-section">
-                                    <div className="layout-menuitem-root-text">RIWAYAT</div>
+                                    <div className="layout-menuitem-root-text">LAPORAN</div>
                                     <ul>
                                         <li className={pathname === '/riwayat/rekam-medis' ? 'active-menuitem' : ''}>
                                             <Link
@@ -344,7 +344,7 @@ const AppMenu = () => {
                                                         color: pathname === '/riwayat/rekam-medis' ? 'var(--primary-color)' : undefined,
                                                     }}
                                                 >
-                                                    Rekam Medis
+                                                    Laporan
                                                 </span>
                                             </Link>
                                         </li>
