@@ -32,6 +32,12 @@ const Page = () => {
     const [selectedRows, setSelectedRows] = useState<any[]>([]);
     const [expandedRows, setExpandedRows] = useState<any>(null);
 
+    const tipeOptions = [
+        { label: 'MEDICAL TREATMENT (Wajib Konsul)', value: 'MEDICAL TREATMENT' },
+        { label: 'BEAUTY TREATMENT (Opsional)', value: 'BEAUTY TREATMENT' },
+        { label: 'SERVICE TREATMENT (Tidak Perlu Konsul)', value: 'SERVICE TREATMENT' }
+    ];
+
     const [dialogVisible, setDialogVisible] = useState<boolean>(false);
     const [isEdit, setIsEdit] = useState<boolean>(false);
     const [submitted, setSubmitted] = useState<boolean>(false);
@@ -39,14 +45,20 @@ const Page = () => {
         kode_paket_layanan: '',
         kode_ruangan: '',
         nama: '',
+        tipe: 'BEAUTY TREATMENT',
         harga_paket: 0,
         masa_berlaku_hari: 365,
+        is_selamanya: false,
         tanggal_mulai: '',
         tanggal_selesai: '',
         status: 'aktif',
         details: []
     });
     const [saving, setSaving] = useState<boolean>(false);
+
+    const formatRupiah = (val: number) => {
+        return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val || 0);
+    };
 
     const loadData = async () => {
         setLoading(true);
@@ -67,17 +79,18 @@ const Page = () => {
             const list = (res.data.data || []).map((l: any) => {
                 const tipeVal = l.tipe || 'BEAUTY TREATMENT';
                 let labelExtra = '';
-                if (tipeVal === 'MEDICAL TREATMENT') labelExtra = ' [MEDICAL - Wajib Konsul]';
-                else if (tipeVal === 'BEAUTY TREATMENT') labelExtra = ' [BEAUTY - Opsional]';
-                else if (tipeVal === 'SERVICE TREATMENT') labelExtra = ' [SERVICE - Tanpa Konsul]';
+                if (tipeVal === 'MEDICAL TREATMENT') labelExtra = ' [MEDICAL]';
+                else if (tipeVal === 'BEAUTY TREATMENT') labelExtra = ' [BEAUTY]';
+                else if (tipeVal === 'SERVICE TREATMENT') labelExtra = ' [SERVICE]';
 
                 return {
-                    label: `${l.nama} (${l.kode_layanan})${labelExtra}`,
+                    label: `${l.nama} (${l.kode_layanan})${labelExtra} - ${formatRupiah(l.harga || 0)}`,
                     value: l.kode_layanan,
                     nama: l.nama,
                     kode_ruangan: l.kode_ruangan,
                     nama_ruangan: l.nama_ruangan,
-                    tipe: tipeVal
+                    tipe: tipeVal,
+                    harga: Number(l.harga) || 0
                 };
             });
             setLayananOptions(list);
@@ -123,45 +136,44 @@ const Page = () => {
         }
     };
 
-    const getPackageLockedTipe = () => {
-        if (!formData.details || formData.details.length === 0) return null;
-        const firstSelectedKode = formData.details[0]?.kode_layanan;
-        if (!firstSelectedKode) return null;
-        const found = layananOptions.find((l: any) => l.value === firstSelectedKode);
-        return found?.tipe || null;
-    };
-
     const getFilteredLayananOptions = (kodeRuangan?: string) => {
-        const targetRuangan = kodeRuangan !== undefined ? kodeRuangan : formData.kode_ruangan;
+        const rCode = kodeRuangan !== undefined ? kodeRuangan : formData.kode_ruangan;
         let list = layananOptions;
-        if (targetRuangan) {
-            list = list.filter((l: any) => l.kode_ruangan === targetRuangan);
-        }
-        const lockedTipe = getPackageLockedTipe();
-        if (lockedTipe) {
-            list = list.filter((l: any) => l.tipe === lockedTipe);
+        if (rCode) {
+            list = list.filter((l: any) => l.kode_ruangan === rCode);
         }
         return list;
+    };
+
+    const calculateNormalTotal = (detailsList: any[]) => {
+        return (detailsList || []).reduce((acc: number, det: any) => {
+            const found = layananOptions.find((l: any) => l.value === det.kode_layanan);
+            const itemHarga = found?.harga !== undefined ? found.harga : (det.harga_layanan || 0);
+            return acc + (itemHarga * (det.jumlah_sesi || 1));
+        }, 0);
     };
 
     const handleOpenCreate = () => {
         setIsEdit(false);
         setSubmitted(false);
         const initialRuangan = ruanganList[0]?.value || '';
-        const initialAvailable = initialRuangan
-            ? layananOptions.filter((l: any) => l.kode_ruangan === initialRuangan)
-            : layananOptions;
+        const initialAvailable = getFilteredLayananOptions(initialRuangan);
+
+        const initialDetails = initialAvailable.length > 0 ? [{ kode_layanan: initialAvailable[0].value, jumlah_sesi: 1 }] : [];
+        const initialPrice = calculateNormalTotal(initialDetails);
 
         setFormData({
             kode_paket_layanan: '',
             kode_ruangan: initialRuangan,
             nama: '',
-            harga_paket: 0,
+            tipe: 'BEAUTY TREATMENT',
+            harga_paket: initialPrice,
             masa_berlaku_hari: 365,
+            is_selamanya: false,
             tanggal_mulai: '',
             tanggal_selesai: '',
             status: 'aktif',
-            details: initialAvailable.length > 0 ? [{ kode_layanan: initialAvailable[0].value, jumlah_sesi: 1 }] : []
+            details: initialDetails
         });
         setDialogVisible(true);
     };
@@ -171,12 +183,15 @@ const Page = () => {
         setSubmitted(false);
         setFormData({
             ...rowData,
+            tipe: rowData.tipe || 'BEAUTY TREATMENT',
             kode_ruangan: rowData.kode_ruangan || '',
+            is_selamanya: Boolean(rowData.is_selamanya),
             tanggal_mulai: formatYmd(rowData.tanggal_mulai),
             tanggal_selesai: formatYmd(rowData.tanggal_selesai),
             details: (rowData.details || []).map((d: any) => ({
                 kode_layanan: d.kode_layanan,
-                jumlah_sesi: d.jumlah_sesi
+                jumlah_sesi: d.jumlah_sesi,
+                harga_layanan: d.harga_layanan || 0
             }))
         });
         setDialogVisible(true);
@@ -195,19 +210,25 @@ const Page = () => {
     const handleAddDetail = () => {
         const available = getFilteredLayananOptions();
         if (available.length === 0) {
-            showError(toast, 'Tidak ada layanan yang tersedia untuk ruangan ini!');
+            showError(toast, 'Tidak ada layanan yang tersedia!');
             return;
         }
+        const newDetails = [...formData.details, { kode_layanan: available[0].value, jumlah_sesi: 1 }];
+        const newPrice = calculateNormalTotal(newDetails);
         setFormData((prev: any) => ({
             ...prev,
-            details: [...prev.details, { kode_layanan: available[0].value, jumlah_sesi: 1 }]
+            details: newDetails,
+            harga_paket: newPrice
         }));
     };
 
     const handleRemoveDetail = (index: number) => {
+        const newDetails = formData.details.filter((_: any, i: number) => i !== index);
+        const newPrice = calculateNormalTotal(newDetails);
         setFormData((prev: any) => ({
             ...prev,
-            details: prev.details.filter((_: any, i: number) => i !== index)
+            details: newDetails,
+            harga_paket: newPrice
         }));
     };
 
@@ -215,7 +236,12 @@ const Page = () => {
         setFormData((prev: any) => {
             const updated = [...prev.details];
             updated[index] = { ...updated[index], [field]: val };
-            return { ...prev, details: updated };
+            const newPrice = calculateNormalTotal(updated);
+            return {
+                ...prev,
+                details: updated,
+                harga_paket: newPrice
+            };
         });
     };
 
@@ -223,6 +249,10 @@ const Page = () => {
         setSubmitted(true);
         if (!formData.nama || !formData.nama.trim()) {
             showError(toast, 'Nama Paket wajib diisi!');
+            return;
+        }
+        if (!formData.tipe) {
+            showError(toast, 'Tipe Paket wajib dipilih!');
             return;
         }
         if (!formData.details || formData.details.length === 0) {
@@ -264,10 +294,6 @@ const Page = () => {
         });
     };
 
-    const formatRupiah = (val: number) => {
-        return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val || 0);
-    };
-
     const rowExpansionTemplate = (data: any) => {
         return (
             <div className="p-3 surface-50 border-round border-1 surface-border my-2">
@@ -286,24 +312,32 @@ const Page = () => {
                                 <th className="p-2 border-bottom-1 surface-border">Kode Layanan</th>
                                 <th className="p-2 border-bottom-1 surface-border">Nama Layanan</th>
                                 <th className="p-2 border-bottom-1 surface-border">Tipe Layanan</th>
+                                <th className="p-2 border-bottom-1 surface-border text-right">Harga Satuan</th>
                                 <th className="p-2 border-bottom-1 surface-border text-right" style={{ width: '120px' }}>Jumlah Sesi</th>
                             </tr>
                         </thead>
                         <tbody>
                             {(data.details || []).map((item: any, idx: number) => {
                                 const tipeVal = item.tipe_layanan || 'BEAUTY TREATMENT';
+                                const isItemInactive = item.status_layanan === 'nonaktif';
                                 let severity: 'danger' | 'info' | 'success' | 'warning' = 'info';
                                 if (tipeVal === 'MEDICAL TREATMENT') severity = 'danger';
                                 else if (tipeVal === 'SERVICE TREATMENT') severity = 'success';
 
                                 return (
-                                    <tr key={idx} className="border-bottom-1 surface-border text-sm hover:surface-100">
+                                    <tr key={idx} className={`border-bottom-1 surface-border text-sm ${isItemInactive ? 'bg-red-50' : 'hover:surface-100'}`}>
                                         <td className="p-2 text-500">{idx + 1}</td>
                                         <td className="p-2 text-primary font-medium">{item.kode_layanan}</td>
-                                        <td className="p-2 font-medium">{item.nama_layanan || item.kode_layanan}</td>
+                                        <td className="p-2 font-medium">
+                                            {item.nama_layanan || item.kode_layanan}
+                                            {isItemInactive && (
+                                                <Tag value="LAYANAN NONAKTIF" severity="danger" className="text-[10px] px-2 py-0.5 ml-2 font-bold" />
+                                            )}
+                                        </td>
                                         <td className="p-2">
                                             <Tag value={tipeVal} severity={severity} className="text-xs px-2 py-0.5" />
                                         </td>
+                                        <td className="p-2 text-right font-medium text-600">{formatRupiah(item.harga_layanan || 0)}</td>
                                         <td className="p-2 text-right">
                                             <Tag value={`${item.jumlah_sesi} Sesi`} severity="info" />
                                         </td>
@@ -312,7 +346,7 @@ const Page = () => {
                             })}
                             {(!data.details || data.details.length === 0) && (
                                 <tr>
-                                    <td colSpan={5} className="p-3 text-center text-500 text-sm">Tidak ada detail layanan.</td>
+                                    <td colSpan={6} className="p-3 text-center text-500 text-sm">Tidak ada detail layanan.</td>
                                 </tr>
                             )}
                         </tbody>
@@ -321,6 +355,8 @@ const Page = () => {
             </div>
         );
     };
+
+    const normalTotal = calculateNormalTotal(formData.details || []);
 
     return (
         <div className="p-4">
@@ -382,8 +418,6 @@ const Page = () => {
                         onClick={loadData}
                     />
                 </div>
-
-
 
                 <DataTable
                     value={data}
@@ -459,12 +493,25 @@ const Page = () => {
                                     backgroundColor: r.status === 'aktif' ? '#22c55e' : '#ef4444',
                                     boxShadow: r.status === 'aktif' ? '0 1px 3px #22c55e55' : '0 1px 3px #ef444455'
                                 }}
-                                title={r.status === 'aktif' ? 'Status: Aktif' : 'Status: Tidak Aktif'}
+                                title={r.status === 'aktif' ? 'Status: Aktif' : 'Status: Tidak Aktif (Layanan Non-aktif / Expired)'}
                             />
                         )}
                     ></Column>
                     <Column field="kode_paket_layanan" header="Kode" sortable headerStyle={{ fontWeight: 'bold' }}></Column>
                     <Column field="nama" header="Nama Paket" sortable headerStyle={{ fontWeight: 'bold' }}></Column>
+                    <Column
+                        field="tipe"
+                        header="Tipe Paket"
+                        sortable
+                        headerStyle={{ fontWeight: 'bold' }}
+                        body={(r) => {
+                            const val = r.tipe || 'BEAUTY TREATMENT';
+                            let severity: 'danger' | 'info' | 'success' | 'warning' = 'info';
+                            if (val === 'MEDICAL TREATMENT') severity = 'danger';
+                            else if (val === 'SERVICE TREATMENT') severity = 'success';
+                            return <Tag value={val} severity={severity} className="text-xs px-2 py-1" />;
+                        }}
+                    ></Column>
                     <Column field="nama_ruangan" header="Ruangan" body={(r) => r.nama_ruangan ? `${r.kode_ruangan ? r.kode_ruangan + ' - ' : ''}${r.nama_ruangan}` : (r.kode_ruangan || '-')}></Column>
                     <Column
                         header="Detail Layanan"
@@ -480,10 +527,35 @@ const Page = () => {
                         )}
                     ></Column>
                     <Column field="harga_paket" header="Harga Paket" body={(r) => <span className="font-semibold text-green-600">{formatRupiah(r.harga_paket)}</span>}></Column>
-                    <Column field="masa_berlaku_hari" header="Masa Berlaku" body={(r) => `${r.masa_berlaku_hari} Hari`}></Column>
+                    <Column
+                        field="masa_berlaku_hari"
+                        header="Masa Berlaku"
+                        body={(r) => Boolean(r.is_selamanya) ? (
+                            <Tag value="Selamanya" severity="success" icon="pi pi-infinity" className="text-xs" />
+                        ) : `${r.masa_berlaku_hari || 0} Hari`}
+                    ></Column>
                     <Column
                         header="Periode Aktif Paket"
                         body={(r) => {
+                            if (r.has_inactive_layanan) {
+                                return (
+                                    <div className="flex flex-column gap-1 text-xs">
+                                        <Tag severity="danger" value="Nonaktif (Layanan Non-aktif)" className="text-[10px] py-1 px-2 font-bold" style={{ width: 'fit-content' }} />
+                                        <span className="text-red-500 text-[11px] font-medium" title={(r.inactive_layanan_names || []).join(', ')}>
+                                            Ada layanan nonaktif
+                                        </span>
+                                    </div>
+                                );
+                            }
+
+                            if (Boolean(r.is_selamanya)) {
+                                return (
+                                    <div className="flex flex-column gap-1 text-xs">
+                                        <Tag severity="success" value="Aktif Selamanya" icon="pi pi-infinity" className="text-[11px] py-1 px-2 font-bold" style={{ width: 'fit-content' }} />
+                                    </div>
+                                );
+                            }
+
                             const start = formatYmd(r.tanggal_mulai);
                             const end = formatYmd(r.tanggal_selesai);
                             const sisa = r.sisa_hari !== undefined ? parseInt(r.sisa_hari, 10) : 0;
@@ -532,7 +604,7 @@ const Page = () => {
             </div>
 
             {/* Modal Create/Edit */}
-            <Dialog header={isEdit ? 'Edit Paket Layanan' : 'Tambah Paket Layanan'} visible={dialogVisible} style={{ width: '600px' }} modal onHide={() => setDialogVisible(false)}>
+            <Dialog header={isEdit ? 'Edit Paket Layanan' : 'Tambah Paket Layanan'} visible={dialogVisible} style={{ width: '620px' }} modal onHide={() => setDialogVisible(false)}>
                 <div className="flex flex-column gap-3 pt-2">
                     {isEdit && (
                         <div>
@@ -552,6 +624,18 @@ const Page = () => {
                             <small className="p-error text-red-500 text-xs block mt-1">Nama paket wajib diisi.</small>
                         )}
                     </div>
+
+                    <div>
+                        <label className="block text-sm font-semibold mb-1">Tipe Paket *</label>
+                        <Dropdown
+                            value={formData.tipe}
+                            options={tipeOptions}
+                            onChange={(e) => setFormData({ ...formData, tipe: e.value })}
+                            placeholder="Pilih Tipe Paket..."
+                            className="w-full text-sm border-round-md"
+                        />
+                    </div>
+
                     <div>
                         <label className="block text-sm font-semibold mb-1">Ruangan</label>
                         <Dropdown
@@ -559,9 +643,7 @@ const Page = () => {
                             options={ruanganList}
                             onChange={(e) => {
                                 const newRuangan = e.value;
-                                const filteredLayanan = newRuangan
-                                    ? layananOptions.filter((l: any) => l.kode_ruangan === newRuangan)
-                                    : layananOptions;
+                                const filteredLayanan = getFilteredLayananOptions(newRuangan);
 
                                 const validDetails = (formData.details || []).filter((d: any) =>
                                     !newRuangan || filteredLayanan.some((fl: any) => fl.value === d.kode_layanan)
@@ -571,10 +653,12 @@ const Page = () => {
                                     validDetails.push({ kode_layanan: filteredLayanan[0].value, jumlah_sesi: 1 });
                                 }
 
+                                const newPrice = calculateNormalTotal(validDetails);
                                 setFormData({
                                     ...formData,
                                     kode_ruangan: newRuangan,
-                                    details: validDetails
+                                    details: validDetails,
+                                    harga_paket: newPrice
                                 });
                             }}
                             placeholder="Pilih Ruangan..."
@@ -591,38 +675,87 @@ const Page = () => {
                             </small>
                         )}
                     </div>
+
                     <div className="grid">
-                        <div className="col-6">
+                        <div className="col-12">
                             <label className="block text-sm font-semibold mb-1">Harga Paket (Rp) *</label>
-                            <InputNumber value={formData.harga_paket} onValueChange={(e) => setFormData({ ...formData, harga_paket: e.value })} mode="currency" currency="IDR" locale="id-ID" className="w-full text-sm border-round-md" />
-                        </div>
-                        <div className="col-6">
-                            <label className="block text-sm font-semibold mb-1">Masa Berlaku Sesi (Hari) *</label>
-                            <InputNumber value={formData.masa_berlaku_hari} onValueChange={(e) => setFormData({ ...formData, masa_berlaku_hari: e.value })} suffix=" hari" className="w-full text-sm border-round-md" />
+                            <InputNumber
+                                value={formData.harga_paket}
+                                onValueChange={(e) => setFormData({ ...formData, harga_paket: e.value || 0 })}
+                                mode="currency"
+                                currency="IDR"
+                                locale="id-ID"
+                                className="w-full text-sm border-round-md"
+                            />
+                            <div className="flex align-items-center justify-content-between text-xs mt-1">
+                                <span className="text-600">
+                                    Total Normal Layanan: <strong className="text-purple-700">{formatRupiah(normalTotal)}</strong>
+                                </span>
+                                {normalTotal > 0 && formData.harga_paket < normalTotal && (
+                                    <span className="text-green-600 font-bold">
+                                        (Hemat Diskon: {formatRupiah(normalTotal - formData.harga_paket)})
+                                    </span>
+                                )}
+                            </div>
                         </div>
                     </div>
 
-                    <div className="grid">
-                        <div className="col-6">
-                            <label className="block text-sm font-semibold mb-1">Tanggal Mulai Aktif</label>
-                            <InputText
-                                type="date"
-                                value={formData.tanggal_mulai || ''}
-                                onChange={(e) => setFormData({ ...formData, tanggal_mulai: e.target.value })}
-                                className="w-full text-sm border-round-md"
-                            />
-                            <small className="text-400 text-xs block mt-1">Kosongkan untuk otomatis tanggal hari ini</small>
+                    <div className="surface-50 p-3 border-round-md border-1 surface-border">
+                        <div className="flex align-items-center justify-content-between mb-2">
+                            <span className="font-bold text-sm text-900 flex align-items-center gap-2">
+                                <i className="pi pi-infinity text-purple-600" />
+                                Masa Berlaku Paket
+                            </span>
+                            <div className="flex align-items-center gap-2">
+                                <span className="text-xs font-semibold text-700">Aktif Selamanya</span>
+                                <InputSwitch
+                                    checked={Boolean(formData.is_selamanya)}
+                                    onChange={(e) => setFormData({ ...formData, is_selamanya: e.value })}
+                                />
+                            </div>
                         </div>
-                        <div className="col-6">
-                            <label className="block text-sm font-semibold mb-1">Tanggal Selesai Aktif (Kustom)</label>
-                            <InputText
-                                type="date"
-                                value={formData.tanggal_selesai || ''}
-                                onChange={(e) => setFormData({ ...formData, tanggal_selesai: e.target.value })}
-                                className="w-full text-sm border-round-md"
-                            />
-                            <small className="text-400 text-xs block mt-1">Otomatis dihitung dari masa berlaku jika kosong</small>
-                        </div>
+
+                        {formData.is_selamanya ? (
+                            <div className="text-xs text-green-700 bg-green-50 p-2 border-round-md border-1 border-green-200 mt-1 flex align-items-center gap-2">
+                                <i className="pi pi-check-circle text-green-600 text-sm" />
+                                <span>
+                                    Paket ini diset <strong>Aktif Selamanya</strong> dan tidak akan pernah kadaluwarsa.
+                                </span>
+                            </div>
+                        ) : (
+                            <div className="grid pt-2">
+                                <div className="col-12">
+                                    <label className="block text-xs font-semibold mb-1">Masa Berlaku Sesi (Hari) *</label>
+                                    <InputNumber
+                                        value={formData.masa_berlaku_hari}
+                                        onValueChange={(e) => setFormData({ ...formData, masa_berlaku_hari: e.value })}
+                                        suffix=" hari"
+                                        min={1}
+                                        className="w-full text-sm border-round-md"
+                                    />
+                                </div>
+                                <div className="col-6">
+                                    <label className="block text-xs font-semibold mb-1">Tanggal Mulai Aktif</label>
+                                    <InputText
+                                        type="date"
+                                        value={formData.tanggal_mulai || ''}
+                                        onChange={(e) => setFormData({ ...formData, tanggal_mulai: e.target.value })}
+                                        className="w-full text-sm border-round-md"
+                                    />
+                                    <small className="text-400 text-[11px] block mt-1">Kosongkan untuk tanggal hari ini</small>
+                                </div>
+                                <div className="col-6">
+                                    <label className="block text-xs font-semibold mb-1">Tanggal Selesai (Kustom)</label>
+                                    <InputText
+                                        type="date"
+                                        value={formData.tanggal_selesai || ''}
+                                        onChange={(e) => setFormData({ ...formData, tanggal_selesai: e.target.value })}
+                                        className="w-full text-sm border-round-md"
+                                    />
+                                    <small className="text-400 text-[11px] block mt-1">Otomatis dihitung dari masa berlaku jika kosong</small>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     <div className="surface-50 p-3 border-round-md border-1 surface-border">
@@ -636,10 +769,6 @@ const Page = () => {
                         <span className="text-xs text-600 block">
                             <strong>Status: {formData.status === 'aktif' ? 'Aktif' : 'Non-aktif'}</strong>. {formData.status === 'aktif' ? 'Paket aktif dan dapat digunakan dalam transaksi.' : 'Paket dinonaktifkan.'}
                         </span>
-                        <div className="text-xs text-purple-700 bg-purple-50 p-2 border-round-md border-1 border-purple-200 mt-2">
-                            <i className="pi pi-clock mr-1" />
-                            <strong>Hitungan Mundur Masa Aktif:</strong> Periode aktif dihitung mundur dari total <strong>{formData.masa_berlaku_hari || 0} Hari</strong> sejak tanggal pembuatan/mulai. Paket akan otomatis <strong>Non-aktif</strong> begitu sisa hari mencapai 0.
-                        </div>
                     </div>
 
                     <div className="mt-2 border-top-1 surface-border pt-3">
@@ -647,21 +776,12 @@ const Page = () => {
                             <label className="font-bold text-sm text-900">Detail Layanan Dalam Paket *</label>
                             <Button label="Tambah Layanan" icon="pi pi-plus" text size="small" onClick={handleAddDetail} />
                         </div>
-                        {getPackageLockedTipe() ? (
-                            <div className="text-xs text-purple-700 bg-purple-50 p-2 border-round-md border-1 border-purple-200 mb-2 flex align-items-center gap-2">
-                                <i className="pi pi-shield text-purple-600 text-sm" />
-                                <span>
-                                    Tipe Paket Dikunci: <strong>{getPackageLockedTipe()}</strong>. Pilihan layanan berikutnya secara otomatis disaring hanya untuk tipe ini.
-                                </span>
-                            </div>
-                        ) : (
-                            <div className="text-xs text-500 bg-surface-100 p-2 border-round-md border-1 surface-border mb-2 flex align-items-center gap-2">
-                                <i className="pi pi-info-circle text-500 text-sm" />
-                                <span>
-                                    Pilih layanan pertama untuk menentukan Tipe Layanan Paket ini.
-                                </span>
-                            </div>
-                        )}
+                        <div className="text-xs text-blue-700 bg-blue-50 p-2 border-round-md border-1 border-blue-200 mb-2 flex align-items-center gap-2">
+                            <i className="pi pi-info-circle text-blue-600 text-sm" />
+                            <span>
+                                Bebas memilih layanan dengan tipe berbeda (Medical, Beauty, Service) untuk digabungkan ke dalam paket.
+                            </span>
+                        </div>
                         {submitted && (!formData.details || formData.details.length === 0) && (
                             <small className="p-error text-red-500 text-xs block mb-2">Minimal tambahkan 1 detail layanan dalam paket.</small>
                         )}
@@ -682,7 +802,7 @@ const Page = () => {
                                             onChange={(e) => handleDetailChange(idx, 'kode_layanan', e.value)}
                                             placeholder="Pilih Layanan..."
                                             filter
-                                            emptyMessage={formData.kode_ruangan ? "Tidak ada layanan di ruangan ini" : "Tidak ada layanan"}
+                                            emptyMessage="Tidak ada layanan yang tersedia"
                                             className="w-full text-sm"
                                         />
                                     </div>
