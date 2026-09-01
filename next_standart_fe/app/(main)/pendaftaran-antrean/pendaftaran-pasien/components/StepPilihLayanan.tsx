@@ -29,6 +29,7 @@ interface ServiceItem {
   masa_berlaku_hari?: number;
   kode_ruangan?: string;
   nama_ruangan?: string;
+  is_konsultasi?: number;
 }
 
 interface RuanganGroup {
@@ -395,7 +396,7 @@ export const StepPilihLayanan: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* OPTIONS CONTAINER */}
+      {/* OPTIONS CONTAINER — KELOMPOK PER RUANGAN */}
       <div className="col-12 mb-8">
         {loading ? (
           <div className="flex flex-column align-items-center justify-content-center p-5 surface-card border-round-xl">
@@ -412,7 +413,7 @@ export const StepPilihLayanan: React.FC<Props> = ({
                 (item) => !!selectedMap[`${item.jenis}_${item.kode_layanan}`]
               ).length;
               const roomTitle = ruang.nama_ruangan
-                ? `${ruang.nama_ruangan} (${ruang.kode_ruangan})`
+                ? `${ruang.nama_ruangan}`
                 : `Ruangan ${ruang.kode_ruangan}`;
               const countSuffix = ruangSelectedCount > 0 ? ` (${ruangSelectedCount})` : '';
               const tabHeaderString = `${roomTitle}${countSuffix}`;

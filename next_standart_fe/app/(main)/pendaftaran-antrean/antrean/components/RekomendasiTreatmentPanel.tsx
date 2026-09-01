@@ -182,7 +182,7 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
 
   return (
     <div
-      className="p-3 border-round-2xl surface-card select-none"
+      className="p-3.5 border-round-2xl surface-card select-none"
       style={{
         border: '1.5px solid #e2e8f0',
         boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
@@ -191,37 +191,37 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
       }}
     >
       {/* ── HEADER ── */}
-      <div className="flex align-items-center justify-content-between mb-3 pb-2 border-bottom-1 surface-border">
+      <div className="flex flex-column sm:flex-row sm:align-items-center justify-content-between mb-3 pb-2.5 border-bottom-1 surface-border gap-2">
         <div className="flex align-items-center gap-2.5">
           <div
             className="flex align-items-center justify-content-center border-round-xl"
             style={{
-              width: '36px',
-              height: '36px',
+              width: '38px',
+              height: '38px',
               background: 'linear-gradient(135deg, #0d9488, #059669)',
-              boxShadow: '0 2px 8px rgba(13, 148, 136, 0.25)',
+              boxShadow: '0 3px 10px rgba(13, 148, 136, 0.25)',
             }}
           >
             <i className="pi pi-sparkles text-white text-base" />
           </div>
           <div>
-            <span style={{ fontSize: '13.5px', fontWeight: 800, color: '#0f172a', display: 'block', lineHeight: 1.2 }}>
+            <span style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a', display: 'block', lineHeight: 1.2 }}>
               Treatment &amp; Produk Rekomendasi
             </span>
             <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>
-              Pilih tindakan lanjut &amp; produk untuk pasien ini
+              Pilih tindakan lanjut &amp; produk rekomendasi untuk pasien ini
             </span>
           </div>
         </div>
 
-        <div className="flex align-items-center gap-2">
+        <div className="flex align-items-center gap-2 flex-wrap">
           {totalPromoItemsCount > 0 && (
             <span
-              className="inline-flex align-items-center gap-1.5 text-xs font-bold px-2.5 py-1 border-round-pill cursor-pointer"
+              className="inline-flex align-items-center gap-1.5 text-xs font-bold px-3 py-1.5 border-round-pill cursor-pointer transition-all"
               style={{
                 background: showOnlyPromo ? 'linear-gradient(135deg, #ef4444, #f97316)' : '#fff1f2',
                 color: showOnlyPromo ? '#ffffff' : '#e11d48',
-                border: '1px solid #fecdd3',
+                border: '1.5px solid #fecdd3',
                 boxShadow: showOnlyPromo ? '0 2px 8px rgba(239,68,68,0.3)' : 'none',
               }}
               onClick={() => setShowOnlyPromo(!showOnlyPromo)}
@@ -232,8 +232,8 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
           )}
           {countLayanan > 0 && (
             <span
-              className="inline-flex align-items-center gap-1.5 text-xs font-bold px-2.5 py-1 border-round-pill"
-              style={{ background: '#ccfbf1', color: '#0f766e', border: '1px solid #99f6e4' }}
+              className="inline-flex align-items-center gap-1.5 text-xs font-bold px-3 py-1.5 border-round-pill"
+              style={{ background: '#ccfbf1', color: '#0f766e', border: '1.5px solid #99f6e4' }}
             >
               <i className="pi pi-ticket text-xs" />
               {countLayanan} Antrean
@@ -241,8 +241,8 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
           )}
           {countProduk > 0 && (
             <span
-              className="inline-flex align-items-center gap-1.5 text-xs font-bold px-2.5 py-1 border-round-pill"
-              style={{ background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a' }}
+              className="inline-flex align-items-center gap-1.5 text-xs font-bold px-3 py-1.5 border-round-pill"
+              style={{ background: '#fef3c7', color: '#b45309', border: '1.5px solid #fde68a' }}
             >
               <i className="pi pi-shopping-bag text-xs" />
               {countProduk} Produk
@@ -252,30 +252,25 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
       </div>
 
       {/* ── SEARCH & PROMO FILTER TOGGLE ── */}
-      <div className="flex gap-2 mb-3">
+      <div className="flex flex-column sm:flex-row gap-2 mb-3">
         <div className="p-inputgroup flex-1">
-          <span className="p-inputgroup-addon" style={{ background: '#f8fafc', border: '1.5px solid #cbd5e1', borderRight: 'none', borderRadius: '12px 0 0 12px' }}>
-            <i className="pi pi-search text-gray-400 text-xs" />
+          <span className="p-inputgroup-addon surface-50 border-1 border-300 border-right-none border-round-left-xl">
+            <i className="pi pi-search text-500 text-xs" />
           </span>
           <InputText
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Cari layanan, paket, produk, atau nama promo..."
+            className="p-inputtext-sm text-xs border-1 border-300 shadow-none focus:border-teal-500"
             style={{
-              fontSize: '13px',
-              border: '1.5px solid #cbd5e1',
-              borderLeft: 'none',
-              borderRight: searchQuery ? 'none' : '1.5px solid #cbd5e1',
               borderRadius: searchQuery ? '0' : '0 12px 12px 0',
-              boxShadow: 'none',
             }}
           />
           {searchQuery && (
             <Button
               icon="pi pi-times"
-              className="p-button-text p-button-secondary p-button-sm"
+              className="p-button-text p-button-secondary p-button-sm border-1 border-300 border-left-none border-round-right-xl"
               onClick={() => setSearchQuery('')}
-              style={{ border: '1.5px solid #cbd5e1', borderLeft: 'none', borderRadius: '0 12px 12px 0' }}
             />
           )}
         </div>
@@ -283,23 +278,14 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
         <button
           type="button"
           onClick={() => setShowOnlyPromo(!showOnlyPromo)}
+          className="px-3 py-2 border-round-xl text-xs font-extrabold border-1 cursor-pointer flex align-items-center justify-content-center gap-2 transition-all flex-shrink-0"
           style={{
-            padding: '0 14px',
-            borderRadius: '12px',
-            fontSize: '12px',
-            fontWeight: 700,
-            border: showOnlyPromo ? '1.5px solid #ef4444' : '1.5px solid #cbd5e1',
+            borderColor: showOnlyPromo ? '#ef4444' : '#cbd5e1',
             background: showOnlyPromo ? 'linear-gradient(135deg, #ef4444, #f97316)' : '#ffffff',
             color: showOnlyPromo ? '#ffffff' : '#e11d48',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            transition: 'all 0.18s ease',
-            whiteSpace: 'nowrap',
           }}
         >
-          <i className="pi pi-percentage" style={{ fontSize: '11px' }} />
+          <i className="pi pi-percentage text-xs" />
           Hanya Promo 🔥
         </button>
       </div>
@@ -310,16 +296,16 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
           className="flex align-items-center gap-2 mb-3 px-3 py-2 border-round-xl text-xs font-medium"
           style={{ background: 'linear-gradient(90deg, #f0fdfa, #ecfdf5)', border: '1.5px solid #6ee7b7', color: '#065f46' }}
         >
-          <i className="pi pi-lock" style={{ color: '#059669', fontSize: '12px' }} />
+          <i className="pi pi-lock text-emerald-600 text-xs" />
           <span>
             Ruangan Aktif: <strong>{activeTreatmentRoom.nama_ruangan}</strong>
-            <span className="ml-2 font-normal text-gray-500">— Layanan dari ruangan lain terkunci</span>
+            <span className="ml-2 font-normal text-500">— Layanan dari ruangan lain terkunci</span>
           </span>
         </div>
       )}
 
-      {/* ── CUSTOM TABS ── */}
-      <div className="flex gap-1.5 mb-3 p-1 border-round-xl overflow-x-auto" style={{ background: '#f1f5f9', border: '1px solid #e2e8f0' }}>
+      {/* ── SEGMENTED CONTROL TABS ── */}
+      <div className="flex gap-1.5 mb-3 p-1.5 border-round-xl overflow-x-auto surface-100 border-1 surface-border">
         {TABS.map((tab) => {
           const count = filterItems(options[tab.key], tab.key === 'layanan' || tab.key === 'paket_layanan').length;
           const isActive = activeTab === tab.key;
@@ -331,61 +317,36 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                 setActiveTab(tab.key);
                 setSelectedRoomFilter('ALL');
               }}
+              className="flex-1 border-none py-2 px-3 border-round-lg cursor-pointer transition-all flex align-items-center justify-content-center gap-2 shadow-1"
               style={{
-                flex: 1,
-                minWidth: '110px',
-                padding: '8px 10px',
-                borderRadius: '10px',
+                minWidth: '120px',
                 border: isActive ? `1.5px solid ${tab.accent}` : '1.5px solid transparent',
                 background: isActive ? '#ffffff' : 'transparent',
-                cursor: 'pointer',
-                transition: 'all 0.18s ease',
-                boxShadow: isActive ? '0 2px 8px rgba(0, 0, 0, 0.06)' : 'none',
-                userSelect: 'none',
+                boxShadow: isActive ? '0 2px 8px rgba(0, 0, 0, 0.08)' : 'none',
               }}
             >
-              <div className="flex align-items-center justify-content-center gap-1.5">
-                <i
-                  className={`pi ${tab.icon}`}
-                  style={{ fontSize: '13px', color: isActive ? tab.accent : '#94a3b8' }}
-                />
+              <i className={`pi ${tab.icon}`} style={{ fontSize: '13px', color: isActive ? tab.accent : '#94a3b8' }} />
+              <span style={{ fontSize: '12px', fontWeight: isActive ? 800 : 600, color: isActive ? tab.accent : '#64748b', whiteSpace: 'nowrap' }}>
+                {tab.label}
+              </span>
+              {count > 0 && (
                 <span
-                  style={{
-                    fontSize: '12px',
-                    fontWeight: isActive ? 700 : 600,
-                    color: isActive ? tab.accent : '#64748b',
-                    whiteSpace: 'nowrap',
-                  }}
+                  className="text-[10px] font-extrabold px-2 py-0.5 border-round-pill text-white"
+                  style={{ background: isActive ? tab.accent : '#94a3b8' }}
                 >
-                  {tab.label}
+                  {count}
                 </span>
-                {count > 0 && (
-                  <span
-                    style={{
-                      fontSize: '10px',
-                      fontWeight: 800,
-                      padding: '1px 6px',
-                      borderRadius: '999px',
-                      background: isActive ? tab.accent : '#cbd5e1',
-                      color: '#ffffff',
-                      lineHeight: 1.3,
-                      marginLeft: '2px',
-                    }}
-                  >
-                    {count}
-                  </span>
-                )}
-              </div>
+              )}
             </button>
           );
         })}
       </div>
 
-      {/* ── ROOM FILTER PILLS (only for service tabs) ── */}
+      {/* ── ROOM FILTER CHIPS (ONLY FOR SERVICE TABS) ── */}
       {isServiceTab && roomList.length > 0 && (
-        <div className="flex align-items-center gap-1.5 flex-wrap mb-3">
-          <span className="text-xs font-bold text-gray-500 mr-1 flex align-items-center gap-1">
-            <i className="pi pi-filter text-xs" />
+        <div className="flex align-items-center gap-1.5 flex-wrap mb-3 p-2 surface-50 border-round-xl border-1 surface-border">
+          <span className="text-xs font-extrabold text-500 mr-1 flex align-items-center gap-1 uppercase tracking-wider">
+            <i className="pi pi-filter text-xs text-teal-600" />
             Ruangan:
           </span>
           {[{ kode: 'ALL', nama: 'Semua' }, ...roomList].map((r) => {
@@ -396,24 +357,15 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                 key={r.kode}
                 type="button"
                 onClick={() => setSelectedRoomFilter(r.kode)}
+                className="px-3 py-1 text-xs font-bold border-round-pill border-1 cursor-pointer transition-all flex align-items-center gap-1"
                 style={{
-                  padding: '4px 12px',
-                  fontSize: '11.5px',
-                  fontWeight: 600,
-                  borderRadius: '999px',
-                  border: isActive ? `1.5px solid ${currentTab.accent}` : '1.5px solid #cbd5e1',
+                  borderColor: isActive ? currentTab.accent : '#cbd5e1',
                   background: isActive ? currentTab.accent : isLocked ? '#f8fafc' : '#ffffff',
                   color: isActive ? '#ffffff' : isLocked ? '#94a3b8' : '#334155',
-                  cursor: 'pointer',
                   opacity: isLocked ? 0.6 : 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  transition: 'all 0.15s ease',
-                  userSelect: 'none',
                 }}
               >
-                {isLocked && <i className="pi pi-lock" style={{ fontSize: '9px' }} />}
+                {isLocked && <i className="pi pi-lock text-[9px]" />}
                 {r.nama}
               </button>
             );
@@ -421,24 +373,23 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
         </div>
       )}
 
-      {/* ── ITEMS GRID ── */}
+      {/* ── CATALOG ITEMS GRID ── */}
       {loading ? (
         <div className="flex align-items-center justify-content-center py-5">
           <ProgressSpinner style={{ width: '28px', height: '28px' }} />
-          <span className="ml-2 text-xs font-semibold text-gray-400">Memuat katalog...</span>
+          <span className="ml-2 text-xs font-semibold text-gray-500">Memuat katalog rekomendasi...</span>
         </div>
       ) : displayItems.length === 0 ? (
         <div
-          className="flex flex-column align-items-center justify-content-center py-5 border-round-xl text-center"
-          style={{ background: '#f8fafc', border: '1.5px dashed #cbd5e1' }}
+          className="flex flex-column align-items-center justify-content-center py-5 border-round-2xl text-center surface-50 border-1 border-dashed surface-border"
         >
-          <i className="pi pi-inbox text-3xl mb-2" style={{ color: '#cbd5e1' }} />
-          <span className="text-xs font-semibold text-gray-400">
+          <i className="pi pi-inbox text-4xl mb-2 text-400" />
+          <span className="text-xs font-bold text-600">
             {showOnlyPromo ? 'Tidak ada promo aktif untuk kategori ini' : `Tidak ada ${currentTab.label.toLowerCase()} ditemukan`}
           </span>
         </div>
       ) : (
-        <div className="grid formgrid overflow-y-auto pr-1" style={{ maxHeight: '22rem' }}>
+        <div className="grid formgrid overflow-y-auto pr-1" style={{ maxHeight: '24rem' }}>
           {displayItems.map((item) => {
             const selected = isItemSelected(item);
             const selectedObj = selectedItems.find((s) => s.jenis === item.jenis && s.kode === item.kode);
@@ -453,8 +404,8 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
               <div key={item.kode} className="col-12 sm:col-6 md:col-4 mb-2 p-1">
                 <div
                   onClick={() => !isLocked && handleToggleSelect(item)}
+                  className="p-3 border-round-xl cursor-pointer transition-all flex flex-column justify-content-between relative surface-card hover:shadow-2"
                   style={{
-                    borderRadius: '12px',
                     border: selected
                       ? `2px solid ${item.is_promo ? '#ef4444' : currentTab.accent}`
                       : isLocked
@@ -463,118 +414,56 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                       ? '1.5px solid #fca5a5'
                       : '1.5px solid #e2e8f0',
                     background: selected ? currentTab.bgActive : isLocked ? '#f8fafc' : item.is_promo ? '#fff1f2' : '#ffffff',
-                    padding: '12px 14px',
-                    cursor: isLocked ? 'not-allowed' : 'pointer',
                     opacity: isLocked ? 0.55 : 1,
                     boxShadow: selected ? `0 4px 14px -2px ${currentTab.accent}30` : '0 1px 3px rgba(0, 0, 0, 0.03)',
-                    transition: 'all 0.15s ease',
-                    height: '100%',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'space-between',
-                    position: 'relative',
-                    userSelect: 'none',
+                    minHeight: '135px',
                   }}
                 >
                   {/* Selected checkmark badge */}
                   {selected && (
                     <span
+                      className="absolute border-circle flex align-items-center justify-content-center text-white shadow-1"
                       style={{
-                        position: 'absolute',
                         top: '10px',
                         right: '10px',
-                        width: '20px',
-                        height: '20px',
-                        borderRadius: '50%',
+                        width: '22px',
+                        height: '22px',
                         background: item.is_promo ? '#ef4444' : currentTab.accent,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        boxShadow: `0 2px 6px ${item.is_promo ? '#ef4444' : currentTab.accent}40`,
                       }}
                     >
-                      <i className="pi pi-check text-white" style={{ fontSize: '10px', fontWeight: 900 }} />
+                      <i className="pi pi-check text-xs font-black" />
                     </span>
                   )}
 
                   {/* Locked badge */}
                   {isLocked && (
-                    <span
-                      style={{
-                        position: 'absolute',
-                        top: '10px',
-                        right: '10px',
-                        background: '#f1f5f9',
-                        borderRadius: '6px',
-                        padding: '2px 6px',
-                        fontSize: '9px',
-                        color: '#94a3b8',
-                        fontWeight: 700,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '3px',
-                      }}
-                    >
-                      <i className="pi pi-lock" style={{ fontSize: '9px' }} />
+                    <span className="absolute bg-slate-100 text-slate-400 border-round px-2 py-0.5 text-[9px] font-extrabold flex align-items-center gap-1" style={{ top: '10px', right: '10px' }}>
+                      <i className="pi pi-lock text-[9px]" />
                       TERKUNCI
                     </span>
                   )}
 
                   {/* ITEM INFO */}
-                  <div style={{ paddingRight: selected || isLocked ? '26px' : '0' }}>
-                    {item.is_promo && (
-                      <span
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '3px',
-                          fontSize: '9.5px',
-                          fontWeight: 800,
-                          padding: '2px 7px',
-                          borderRadius: '6px',
-                          marginBottom: '4px',
-                          marginRight: '4px',
-                          background: 'linear-gradient(135deg, #ef4444, #f97316)',
-                          color: '#ffffff',
-                          boxShadow: '0 2px 6px rgba(239, 68, 68, 0.25)',
-                          letterSpacing: '0.02em',
-                        }}
-                      >
-                        <i className="pi pi-percentage text-white" style={{ fontSize: '9px' }} />
-                        PROMO {item.jenis_diskon === 'persen' ? `-${item.nilai_diskon}%` : ''}
-                      </span>
-                    )}
+                  <div className="pr-4">
+                    <div className="flex gap-1 flex-wrap mb-1">
+                      {item.is_promo && (
+                        <span className="inline-flex align-items-center gap-1 text-[9px] font-extrabold px-2 py-0.5 border-round-md bg-gradient-to-r text-white shadow-1" style={{ background: 'linear-gradient(135deg, #ef4444, #f97316)' }}>
+                          <i className="pi pi-percentage text-[8px]" />
+                          PROMO {item.jenis_diskon === 'persen' ? `-${item.nilai_diskon}%` : ''}
+                        </span>
+                      )}
 
-                    {(activeTab === 'paket_layanan' || activeTab === 'paket_produk') && (
-                      <span
-                        style={{
-                          display: 'inline-block',
-                          fontSize: '9.5px',
-                          fontWeight: 800,
-                          padding: '2px 7px',
-                          borderRadius: '6px',
-                          marginBottom: '4px',
-                          background: `${currentTab.accent}18`,
-                          color: currentTab.accent,
-                          letterSpacing: '0.03em',
-                        }}
-                      >
-                        {activeTab === 'paket_layanan' ? 'PAKET LAYANAN' : 'PAKET PRODUK'}
-                      </span>
-                    )}
+                      {(activeTab === 'paket_layanan' || activeTab === 'paket_produk') && (
+                        <span className="inline-block text-[9px] font-extrabold px-2 py-0.5 border-round-md" style={{ background: `${currentTab.accent}18`, color: currentTab.accent }}>
+                          {activeTab === 'paket_layanan' ? 'PAKET LAYANAN' : 'PAKET PRODUK'}
+                        </span>
+                      )}
+                    </div>
 
-                    <div
-                      style={{
-                        fontSize: '13px',
-                        fontWeight: 700,
-                        color: '#0f172a',
-                        lineHeight: 1.35,
-                        marginBottom: '3px',
-                      }}
-                    >
+                    <div className="text-sm font-extrabold text-900 line-height-2 mb-1" style={{ letterSpacing: '-0.2px' }}>
                       {item.nama}
                     </div>
-                    <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>
+                    <div className="text-xs text-500 font-medium">
                       {item.nama_promo ? `${item.nama_promo} • ` : ''}
                       {item.nama_kategori || currentTab.label}
                       {isProduk && item.satuan ? ` • ${item.satuan}` : ''}
@@ -582,64 +471,29 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                   </div>
 
                   {/* FOOTER */}
-                  <div
-                    style={{
-                      marginTop: '10px',
-                      paddingTop: '8px',
-                      borderTop: '1px solid #f1f5f9',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: '6px',
-                    }}
-                  >
-                    <div>
+                  <div className="mt-2 pt-2 border-top-1 surface-border flex align-items-center justify-content-between gap-2">
+                    <div className="flex align-items-center gap-1 flex-wrap">
                       {item.is_promo && item.harga_asal && item.harga_asal > item.harga && (
-                        <span
-                          style={{
-                            fontSize: '11px',
-                            color: '#94a3b8',
-                            textDecoration: 'line-through',
-                            marginRight: '5px',
-                            fontWeight: 600,
-                          }}
-                        >
+                        <span className="text-xs text-400 line-through font-semibold">
                           {formatRupiah(item.harga_asal)}
                         </span>
                       )}
-                      <span
-                        style={{
-                          fontSize: '13px',
-                          fontWeight: 800,
-                          color: item.is_promo ? '#e11d48' : currentTab.accent,
-                        }}
-                      >
+                      <span className="text-xs font-black" style={{ color: item.is_promo ? '#e11d48' : currentTab.accent }}>
                         {formatRupiah(item.harga)}
                       </span>
                     </div>
 
                     {isServiceTab && (
                       <span
+                        className="text-[10px] font-bold px-2 py-1 border-round-pill flex align-items-center gap-1 flex-shrink-0"
                         style={{
-                          fontSize: '10px',
-                          fontWeight: 600,
-                          padding: '2px 8px',
-                          borderRadius: '999px',
                           background: selected ? currentTab.accent : `${currentTab.accent}15`,
                           color: selected ? '#ffffff' : currentTab.accent,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          maxWidth: '120px',
-                          overflow: 'hidden',
-                          whiteSpace: 'nowrap',
                         }}
                         title={item.nama_ruangan || 'Ruangan'}
                       >
-                        <i className="pi pi-building flex-shrink-0" style={{ fontSize: '9px' }} />
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {item.nama_ruangan || 'Ruangan'}
-                        </span>
+                        <i className="pi pi-building text-[9px]" />
+                        <span>{item.nama_ruangan || 'Ruangan'}</span>
                       </span>
                     )}
 
@@ -648,51 +502,18 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                         <button
                           type="button"
                           onClick={() => handleQtyChange(item, (selectedObj?.qty || 1) - 1)}
-                          style={{
-                            width: '22px',
-                            height: '22px',
-                            borderRadius: '6px',
-                            border: '1.5px solid #cbd5e1',
-                            background: '#f8fafc',
-                            cursor: 'pointer',
-                            fontSize: '12px',
-                            fontWeight: 700,
-                            color: '#334155',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                          }}
+                          className="w-1.5rem h-1.5rem border-round-md border-1 border-300 surface-50 cursor-pointer font-bold text-xs flex align-items-center justify-content-center text-700"
                         >
                           −
                         </button>
-                        <span
-                          style={{
-                            minWidth: '24px',
-                            textAlign: 'center',
-                            fontSize: '12px',
-                            fontWeight: 800,
-                            color: currentTab.accent,
-                          }}
-                        >
+                        <span className="min-w-1.5rem text-center text-xs font-extrabold" style={{ color: currentTab.accent }}>
                           {selectedObj?.qty || 1}
                         </span>
                         <button
                           type="button"
                           onClick={() => handleQtyChange(item, (selectedObj?.qty || 1) + 1)}
-                          style={{
-                            width: '22px',
-                            height: '22px',
-                            borderRadius: '6px',
-                            border: `1.5px solid ${currentTab.accent}`,
-                            background: currentTab.accent,
-                            cursor: 'pointer',
-                            fontSize: '12px',
-                            fontWeight: 700,
-                            color: '#ffffff',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                          }}
+                          className="w-1.5rem h-1.5rem border-round-md border-none text-white cursor-pointer font-bold text-xs flex align-items-center justify-content-center shadow-1"
+                          style={{ background: currentTab.accent }}
                         >
                           +
                         </button>
@@ -706,140 +527,52 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
         </div>
       )}
 
-      {/* ── SELECTED SUMMARY BAR ── */}
+      {/* ── SELECTED SUMMARY DRAWER BAR ── */}
       {selectedItems.length > 0 && (
         <div
-          className="mt-3 select-none"
+          className="mt-3 p-3 border-round-2xl flex flex-column sm:flex-row align-items-start sm:align-items-center justify-content-between gap-3 shadow-2"
           style={{
-            background: 'linear-gradient(135deg, #f8fafc, #f0fdfa)',
-            border: '1.5px solid #99f6e4',
-            borderRadius: '14px',
-            padding: '12px 14px',
+            background: 'linear-gradient(135deg, #f0fdfa, #e6fffa)',
+            border: '1.5px solid #5eead4',
           }}
         >
-          <div className="flex align-items-center justify-content-between mb-2">
-            <div className="flex align-items-center gap-2">
-              <span
-                style={{
-                  width: '22px',
-                  height: '22px',
-                  borderRadius: '7px',
-                  background: '#0d9488',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <i className="pi pi-check text-white text-xs" />
+          <div className="flex align-items-center gap-3">
+            <div className="w-2.5rem h-2.5rem border-round-xl bg-teal-600 text-white flex align-items-center justify-content-center font-bold text-base shadow-1 flex-shrink-0">
+              ✓
+            </div>
+            <div>
+              <span className="text-xs font-black text-teal-950 block">
+                {selectedItems.length} ITEM TERPILIH UNTUK REKOMENDASI
               </span>
-              <div>
-                <span style={{ fontSize: '12px', fontWeight: 800, color: '#0f766e' }}>
-                  {selectedItems.length} Item Terpilih
-                </span>
-                <span style={{ fontSize: '12px', color: '#475569', marginLeft: '6px' }}>
-                  • Total: <strong style={{ color: '#0d9488' }}>{formatRupiah(totalHargaSelected)}</strong>
-                </span>
+              <div className="flex align-items-center gap-2 mt-1 flex-wrap">
+                {selectedItems.map((item, idx) => (
+                  <span key={idx} className="inline-flex align-items-center gap-1 bg-white text-teal-900 border-1 border-teal-200 px-2 py-0.5 border-round-md text-xs font-semibold">
+                    {item.nama} {item.qty ? `(${item.qty}x)` : ''}
+                    <i
+                      className="pi pi-times text-[9px] text-red-500 cursor-pointer ml-1 hover:text-red-700"
+                      onClick={() => onChangeSelectedItems(selectedItems.filter((_, i) => i !== idx))}
+                    />
+                  </span>
+                ))}
               </div>
             </div>
-            <button
-              type="button"
+          </div>
+
+          <div className="flex align-items-center gap-3 w-full sm:w-auto justify-content-between sm:justify-content-end border-top-1 sm:border-top-none pt-2 sm:pt-0 surface-border">
+            <div className="text-right">
+              <span className="text-[10px] text-teal-700 block font-bold uppercase">Total Estimasi</span>
+              <span className="text-base font-black text-teal-900">{formatRupiah(totalHargaSelected)}</span>
+            </div>
+
+            <Button
+              label="Hapus Semua"
+              icon="pi pi-trash"
+              outlined
+              severity="danger"
+              size="small"
+              className="font-bold text-xs border-round-lg"
               onClick={() => onChangeSelectedItems([])}
-              style={{
-                fontSize: '11px',
-                fontWeight: 700,
-                color: '#ef4444',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-              }}
-            >
-              <i className="pi pi-trash" style={{ fontSize: '11px' }} />
-              Reset
-            </button>
-          </div>
-
-          <div className="flex flex-wrap gap-1.5">
-            {selectedItems.map((item) => {
-              const isLayanan = ['layanan', 'paket_layanan'].includes(item.jenis);
-              return (
-                <span
-                  key={`${item.jenis}_${item.kode}`}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    padding: '4px 10px',
-                    borderRadius: '999px',
-                    background: isLayanan ? '#ccfbf1' : '#fef3c7',
-                    border: isLayanan ? '1.5px solid #5eead4' : '1.5px solid #fcd34d',
-                    color: isLayanan ? '#134e4a' : '#78350f',
-                  }}
-                >
-                  <i
-                    className={`pi ${isLayanan ? 'pi-ticket' : 'pi-shopping-bag'}`}
-                    style={{ fontSize: '10px', color: isLayanan ? '#0d9488' : '#d97706' }}
-                  />
-                  {item.nama}
-                  {item.is_promo && (
-                    <span
-                      style={{
-                        background: '#ef4444',
-                        color: '#ffffff',
-                        borderRadius: '999px',
-                        padding: '1px 5px',
-                        fontSize: '9px',
-                        fontWeight: 800,
-                      }}
-                    >
-                      PROMO
-                    </span>
-                  )}
-                  {item.qty && item.qty > 1 && (
-                    <span
-                      style={{
-                        background: '#d97706',
-                        color: '#ffffff',
-                        borderRadius: '999px',
-                        padding: '1px 5px',
-                        fontSize: '10px',
-                        fontWeight: 800,
-                      }}
-                    >
-                      x{item.qty}
-                    </span>
-                  )}
-                  <span style={{ fontWeight: 800 }}>{formatRupiah(item.harga * (item.qty || 1))}</span>
-                  <i
-                    className="pi pi-times"
-                    onClick={() => handleToggleSelect(item)}
-                    style={{ fontSize: '10px', color: '#ef4444', cursor: 'pointer', marginLeft: '2px' }}
-                  />
-                </span>
-              );
-            })}
-          </div>
-
-          <div
-            className="flex flex-column sm:flex-row gap-2 mt-2 pt-2"
-            style={{ borderTop: '1px solid #99f6e4', fontSize: '11px', color: '#475569' }}
-          >
-            {countLayanan > 0 && (
-              <span style={{ color: '#065f46', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 500 }}>
-                <i className="pi pi-ticket" style={{ color: '#0d9488', fontSize: '11px' }} />
-                {countLayanan} tindakan → <strong>Nomor Antrean ({activeTreatmentRoom?.nama_ruangan})</strong>
-              </span>
-            )}
-            {countProduk > 0 && (
-              <span style={{ color: '#78350f', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 500 }}>
-                <i className="pi pi-shopping-bag" style={{ color: '#d97706', fontSize: '11px' }} />
-                {countProduk} produk → <strong>Draf Transaksi Kasir</strong>
-              </span>
-            )}
+            />
           </div>
         </div>
       )}

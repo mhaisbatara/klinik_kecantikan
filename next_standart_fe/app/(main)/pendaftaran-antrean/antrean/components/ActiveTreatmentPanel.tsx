@@ -25,6 +25,7 @@ interface ActiveTreatmentPanelProps {
     kodeRuangan: string;
     namaRuangan: string;
     isKonsultasi?: boolean;
+    petugasJagaList?: any[];
     toast: React.RefObject<Toast>;
     getGridData: () => void;
     handleAksi: (item: AntrianLayananData, customAksi?: string) => void;
@@ -39,6 +40,7 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
     kodeRuangan,
     namaRuangan,
     isKonsultasi = false,
+    petugasJagaList = [],
     toast,
     getGridData,
     handleAksi,
@@ -52,6 +54,17 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
     const [catatanPetugas, setCatatanPetugas] = useState<string>('');
     const [rekomendasiItems, setRekomendasiItems] = useState<RekomendasiItem[]>([]);
     const [saving, setSaving] = useState<boolean>(false);
+
+    // State Dokter / Petugas Jaga
+    const [dokterBertugas, setDokterBertugas] = useState<string>('');
+
+    useEffect(() => {
+        if (petugasJagaList && petugasJagaList.length > 0) {
+            const initialName = petugasJagaList[0].nama_karyawan;
+            setDokterBertugas(initialName);
+            setFormData((prev) => ({ ...prev, 'Dokter / Petugas Jaga': initialName }));
+        }
+    }, [petugasJagaList]);
 
     // Step state: 'form' (Form Penanganan) vs 'hasil' (Hasil Treatment & Produk Kasir)
     const [activeStep, setActiveStep] = useState<'form' | 'hasil'>('form');
@@ -373,17 +386,49 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                             <ProgressSpinner style={{ width: '30px', height: '30px' }} />
                             <span className="ml-2 text-xs text-500">Memuat format form ruangan...</span>
                         </div>
-                    ) : fields.length > 0 && (
+                    ) : (
                         <div className="surface-card p-3 border-round-xl border-1 surface-border shadow-1">
                             <div className="flex align-items-center justify-content-between mb-3 pb-2 border-bottom-1 surface-border">
                                 <label className="text-xs font-extrabold text-teal-800 uppercase tracking-wider flex align-items-center gap-2 m-0">
                                     <i className="pi pi-file-edit text-teal-600 text-sm" />
                                     ISIAN KHUSUS FORM RUANGAN ({namaRuangan})
                                 </label>
-                                <Tag value={`${fields.length} Field`} severity="info" className="text-[10px] font-bold" />
+                                <Tag value={`${fields.length + 1} Field`} severity="info" className="text-[10px] font-bold" />
                             </div>
 
                             <div className="grid formgrid p-fluid">
+                                {/* DOKTER / PETUGAS JAGA HARI INI (DITARUH PALING ATAS SEBELUM KELUHAN UTAMA) */}
+                                <div className="col-12 mb-3">
+                                    <label className="block text-xs font-bold text-700 mb-2 flex align-items-center justify-content-between">
+                                        <span className="flex align-items-center gap-1.5 text-teal-900 font-extrabold">
+                                            <i className="pi pi-user-edit text-teal-600 font-bold" />
+                                            Dokter / Petugas Jaga Hari Ini <span className="text-red-500 font-bold">*</span>
+                                        </span>
+                                    </label>
+                                    {petugasJagaList && petugasJagaList.length > 0 ? (
+                                        <Dropdown
+                                            value={dokterBertugas || (petugasJagaList[0] ? petugasJagaList[0].nama_karyawan : '')}
+                                            options={petugasJagaList.map((p) => ({
+                                                label: `👨‍⚕️ ${p.nama_karyawan} (${(p.jabatan || 'DOKTER').toUpperCase()} • Jam ${p.jam_mulai} - ${p.jam_selesai})`,
+                                                value: p.nama_karyawan,
+                                            }))}
+                                            onChange={(e) => {
+                                                setDokterBertugas(e.value);
+                                                handleFieldChange('Dokter / Petugas Jaga', e.value);
+                                            }}
+                                            placeholder="-- Pilih Dokter / Petugas Jaga --"
+                                            disabled={isFormSaved}
+                                            className="w-full text-sm font-bold border-round-md shadow-1 bg-white border-teal-300 text-teal-900"
+                                        />
+                                    ) : (
+                                        <InputText
+                                            value="Tidak ada jadwal dokter/petugas aktif di ruangan ini"
+                                            disabled
+                                            className="w-full text-sm border-round-md shadow-1 bg-amber-50 text-amber-900 border-amber-200"
+                                        />
+                                    )}
+                                </div>
+
                                 {fields.map((f, i) => {
                                     const val = formData[f.label_field];
                                     const isReq = Boolean(f.is_required);
@@ -543,59 +588,113 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
             <Dialog
                 visible={showConfirmModal && !showHasilModal}
                 onHide={() => setShowConfirmModal(false)}
-                header="Konfirmasi Penanganan & Rekomendasi"
-                style={{ width: '480px' }}
+                header={
+                    <div className="flex align-items-center gap-3">
+                        <div
+                            className="flex align-items-center justify-content-center border-round-xl"
+                            style={{
+                                width: '40px',
+                                height: '40px',
+                                background: 'linear-gradient(135deg, #0d9488, #059669)',
+                                boxShadow: '0 4px 12px rgba(13, 148, 136, 0.3)',
+                            }}
+                        >
+                            <i className="pi pi-shield text-white text-xl" />
+                        </div>
+                        <div>
+                            <span className="text-lg font-black text-900 block" style={{ lineHeight: 1.2 }}>
+                                Persetujuan &amp; Konfirmasi Penanganan Pasien
+                            </span>
+                            <span className="text-xs text-500 font-medium">
+                                Konfirmasi data form penanganan dan rekomendasi produk kasir
+                            </span>
+                        </div>
+                    </div>
+                }
+                style={{ width: '540px' }}
                 modal
                 className="p-fluid"
                 footer={
-                    <div className="flex justify-content-end gap-2">
+                    <div className="flex align-items-center justify-content-end gap-2 pt-2 border-top-1 surface-border">
                         <Button
                             label="Batal"
                             icon="pi pi-times"
-                            className="p-button-outlined p-button-secondary text-xs"
+                            outlined
+                            severity="secondary"
+                            className="font-bold text-xs border-round-lg px-3 py-2"
                             onClick={() => setShowConfirmModal(false)}
                         />
                         <Button
-                            label="Ya, Simpan & Terbitkan"
-                            icon="pi pi-check"
-                            className="p-button-success font-bold text-xs"
+                            label="✓ Setujui &amp; Simpan Penanganan"
+                            icon="pi pi-check-circle"
+                            severity="success"
+                            className="font-extrabold text-xs border-round-lg px-4 py-2 shadow-2 bg-teal-600 border-none hover:bg-teal-700"
                             onClick={handleConfirmAccept}
                         />
                     </div>
                 }
             >
-                <div className="flex flex-column gap-3 py-1 text-left">
-                    <div className="p-3 border-round-xl" style={{ background: '#f0fdfa', border: '1.5px solid #99f6e4' }}>
-                        <span className="text-[10px] font-bold uppercase block" style={{ color: '#0d9488' }}>Pasien Aktif</span>
-                        <span className="font-extrabold text-sm block" style={{ color: '#134e4a' }}>{activePatient?.nama_pasien || hasilPasienNama || 'Pasien'}</span>
-                        <span className="text-xs" style={{ color: '#0f766e' }}>No. RM: {activePatient?.no_rm || hasilNoRm} | Ruangan: {namaRuangan}</span>
+                <div className="flex flex-column gap-3 py-2 text-left">
+                    <div
+                        className="p-3 border-round-2xl relative overflow-hidden"
+                        style={{
+                            background: 'linear-gradient(135deg, #f0fdfa, #ccfbf1)',
+                            border: '1.5px solid #99f6e4',
+                        }}
+                    >
+                        <div className="flex align-items-center justify-content-between">
+                            <div>
+                                <span className="text-[10px] font-extrabold uppercase tracking-wider block text-teal-700 mb-0.5">
+                                    PASIEN AKTIF TINDAKAN
+                                </span>
+                                <span className="font-black text-base text-teal-950 block">
+                                    {activePatient?.nama_pasien || hasilPasienNama || 'Pasien'}
+                                </span>
+                                <span className="text-xs text-teal-800 font-medium">
+                                    No. RM: <strong>{activePatient?.no_rm || hasilNoRm}</strong> | Ruangan: <strong>{namaRuangan}</strong>
+                                </span>
+                            </div>
+                            <Tag value={`No. #${activePatient?.nomor_antrian || '-'}`} severity="success" className="text-sm font-extrabold px-3 py-1.5 border-round-xl shadow-1" />
+                        </div>
                     </div>
 
-                    <div className="flex flex-column gap-2">
-                        {rekomendasiItems.filter((i) => ['layanan', 'paket_layanan'].includes(i.jenis)).length > 0 && (
-                            <div className="p-3 border-round-xl text-xs" style={{ background: '#f0fdfa', border: '1.5px solid #5eead4' }}>
-                                <span className="font-bold block mb-1" style={{ color: '#0f766e' }}>
-                                    <i className="pi pi-ticket mr-1" />
-                                    Menerbitkan {rekomendasiItems.filter((i) => ['layanan', 'paket_layanan'].includes(i.jenis)).length} Nomor Antrean Layanan:
-                                </span>
-                                <span className="font-semibold" style={{ color: '#115e59' }}>{rekomendasiItems.filter((i) => ['layanan', 'paket_layanan'].includes(i.jenis)).map((l) => l.nama).join(', ')}</span>
-                            </div>
-                        )}
+                    <div className="surface-card p-3 border-round-2xl border-1 surface-border shadow-1 flex flex-column gap-2">
+                        <span className="text-xs font-extrabold text-700 uppercase tracking-wider block border-bottom-1 surface-border pb-2">
+                            📋 Ringkasan Data Ditambahkan
+                        </span>
 
-                        {rekomendasiItems.filter((i) => ['produk', 'paket_produk'].includes(i.jenis)).length > 0 && (
-                            <div className="p-3 border-round-xl text-xs" style={{ background: '#fffbeb', border: '1.5px solid #fcd34d' }}>
-                                <span className="font-bold block mb-1" style={{ color: '#b45309' }}>
-                                    <i className="pi pi-shopping-bag mr-1" />
-                                    Memasukkan {rekomendasiItems.filter((i) => ['produk', 'paket_produk'].includes(i.jenis)).length} Produk ke Draf Transaksi Kasir:
+                        {rekomendasiItems.filter((i) => ['produk', 'paket_produk'].includes(i.jenis)).length > 0 ? (
+                            <div className="p-2.5 border-round-xl text-xs surface-50 flex flex-column gap-1">
+                                <span className="font-bold text-amber-700 flex align-items-center gap-1.5">
+                                    <i className="pi pi-shopping-bag text-amber-600" />
+                                    {rekomendasiItems.filter((i) => ['produk', 'paket_produk'].includes(i.jenis)).length} Produk Rekomendasi Kasir:
                                 </span>
-                                <span className="font-semibold" style={{ color: '#78350f' }}>{rekomendasiItems.filter((i) => ['produk', 'paket_produk'].includes(i.jenis)).map((p) => `${p.nama} (${p.qty || 1}x)`).join(', ')}</span>
+                                <span className="font-semibold text-800 pl-4">
+                                    {rekomendasiItems.filter((i) => ['produk', 'paket_produk'].includes(i.jenis)).map((p) => `${p.nama} (${p.qty || 1}x)`).join(', ')}
+                                </span>
                             </div>
+                        ) : (
+                            <span className="text-xs text-500 italic p-1">Tanpa produk tambahan yang dimasukkan.</span>
                         )}
                     </div>
 
-                    <p className="text-xs text-gray-700 m-0">
-                        Apakah Anda yakin ingin menyimpan hasil penanganan &amp; menerbitkan nomor antrean/transaksi untuk pasien ini?
-                    </p>
+                    <div
+                        className="p-3 border-round-2xl flex align-items-start gap-3"
+                        style={{
+                            background: '#f0fdfa',
+                            border: '1.5px solid #99f6e4',
+                        }}
+                    >
+                        <i className="pi pi-check-circle text-teal-600 text-2xl mt-0.5 flex-shrink-0" />
+                        <div>
+                            <span className="font-extrabold text-xs text-teal-950 block mb-1">
+                                Persetujuan Tindakan Pasien (Informed Consent)
+                            </span>
+                            <p className="text-xs text-teal-800 m-0 leading-relaxed font-medium">
+                                Apakah Anda yakin data penanganan dan rekomendasi produk untuk pasien ini sudah sesuai dan disetujui pasien?
+                            </p>
+                        </div>
+                    </div>
                 </div>
             </Dialog>
 

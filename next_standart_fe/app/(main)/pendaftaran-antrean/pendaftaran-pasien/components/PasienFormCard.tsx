@@ -81,7 +81,8 @@ export const PasienFormCard: React.FC<Props> = ({
   const [formData, setFormData] = useState<PasienFormData>(defaultFormData);
   const [loading, setLoading] = useState(false);
   const [activeFormTab, setActiveFormTab] = useState(0);
-  const [submitted, setSubmitted] = useState(false);
+  // submittedTabs: Set indeks tab yang sudah pernah divalidasi
+  const [submittedTabs, setSubmittedTabs] = useState<Set<number>>(new Set());
 
   // Region cascading codes
   const [kodeProvinsi, setKodeProvinsi] = useState<string>('');
@@ -329,8 +330,31 @@ export const PasienFormCard: React.FC<Props> = ({
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+  /** Logika yang dijalankan saat menekan Enter atau tombol Selanjutnya/Submit */
+  const handleNextOrSubmit = () => {
+    // Tandai tab aktif saat ini sudah divalidasi
+    setSubmittedTabs((prev) => new Set(prev).add(activeFormTab));
+    if (activeFormTab < 3) {
+      // Validasi per-tab sebelum lanjut
+      if (activeFormTab === 0 && (!formData.nama.trim() || !formData.tanggal_lahir)) {
+        if (!formData.nama.trim()) showError(toast, 'Nama Pasien wajib diisi');
+        else if (!formData.tanggal_lahir) showError(toast, 'Tanggal Lahir wajib diisi');
+        return;
+      }
+      if (activeFormTab === 2 && !formData.no_hp.trim()) {
+        showError(toast, 'Nomor HP (WhatsApp) wajib diisi');
+        return;
+      }
+      setActiveFormTab((prev) => Math.min(3, prev + 1));
+    } else {
+      // Tab terakhir: submit
+      handleSubmit(true);
+    }
+  };
+
   const handleSubmit = async (proceedToLayanan: boolean = true) => {
-    setSubmitted(true);
+    // Tandai semua tab sudah divalidasi
+    setSubmittedTabs(new Set([0, 1, 2, 3]));
     if (!formData.nama.trim()) {
       showError(toast, 'Nama pasien wajib diisi');
       setActiveFormTab(0);
@@ -440,8 +464,26 @@ export const PasienFormCard: React.FC<Props> = ({
     { label: 'Lainnya', value: 'Lainnya' },
   ];
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    // Hanya aktifkan Enter dari elemen input text biasa (bukan Dropdown/Calendar/Textarea)
+    const target = e.target as HTMLElement;
+    const tag = target.tagName.toLowerCase();
+    if (
+      e.key === 'Enter' &&
+      tag === 'input' &&
+      !target.closest('.p-calendar') &&
+      !target.closest('.p-dropdown')
+    ) {
+      e.preventDefault();
+      handleNextOrSubmit();
+    }
+  };
+
   return (
-    <div className="surface-card p-4 border-round-xl border-1 surface-border shadow-1 mb-4">
+    <div
+      className="surface-card p-4 border-round-xl border-1 surface-border shadow-1 mb-4"
+      onKeyDown={handleKeyDown}
+    >
       {/* FORM CARD HEADER */}
       <div className="flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <div>
@@ -469,10 +511,10 @@ export const PasienFormCard: React.FC<Props> = ({
                 value={formData.nama}
                 onChange={(e) => handleChange('nama', e.target.value)}
                 placeholder="Masukkan nama lengkap pasien"
-                invalid={submitted && !formData.nama.trim()}
-                className={submitted && !formData.nama.trim() ? 'p-invalid border-1 border-red-500 w-full' : 'w-full'}
+                invalid={submittedTabs.has(0) && !formData.nama.trim()}
+                className={submittedTabs.has(0) && !formData.nama.trim() ? 'p-invalid border-1 border-red-500 w-full' : 'w-full'}
               />
-              {submitted && !formData.nama.trim() && (
+              {submittedTabs.has(0) && !formData.nama.trim() && (
                 <small className="p-error text-red-500 font-semibold block mt-1">Nama lengkap wajib diisi.</small>
               )}
             </div>
@@ -483,10 +525,10 @@ export const PasienFormCard: React.FC<Props> = ({
                 onChange={(e) => handleChange('nik', e.target.value)}
                 placeholder="3515xxxxxxxxxxxx"
                 maxLength={16}
-                invalid={submitted && Boolean(formData.nik && formData.nik.trim().length !== 16)}
-                className={submitted && formData.nik && formData.nik.trim().length !== 16 ? 'p-invalid border-1 border-red-500 w-full' : 'w-full'}
+                invalid={submittedTabs.has(0) && Boolean(formData.nik && formData.nik.trim().length !== 16)}
+                className={submittedTabs.has(0) && formData.nik && formData.nik.trim().length !== 16 ? 'p-invalid border-1 border-red-500 w-full' : 'w-full'}
               />
-              {submitted && formData.nik && formData.nik.trim().length !== 16 && (
+              {submittedTabs.has(0) && formData.nik && formData.nik.trim().length !== 16 && (
                 <small className="p-error text-red-500 font-semibold block mt-1">NIK harus 16 digit angka.</small>
               )}
             </div>
@@ -508,10 +550,10 @@ export const PasienFormCard: React.FC<Props> = ({
                 maxDate={new Date()}
                 showIcon
                 placeholder="YYYY-MM-DD"
-                invalid={submitted && !formData.tanggal_lahir}
-                className={submitted && !formData.tanggal_lahir ? 'p-invalid border-1 border-red-500 border-round w-full' : 'w-full'}
+                invalid={submittedTabs.has(0) && !formData.tanggal_lahir}
+                className={submittedTabs.has(0) && !formData.tanggal_lahir ? 'p-invalid border-1 border-red-500 border-round w-full' : 'w-full'}
               />
-              {submitted && !formData.tanggal_lahir && (
+              {submittedTabs.has(0) && !formData.tanggal_lahir && (
                 <small className="p-error text-red-500 font-semibold block mt-1">Tanggal lahir wajib diisi.</small>
               )}
             </div>
@@ -681,10 +723,10 @@ export const PasienFormCard: React.FC<Props> = ({
                 value={formData.no_hp}
                 onChange={(e) => handleChange('no_hp', e.target.value)}
                 placeholder="081234567890"
-                invalid={submitted && !formData.no_hp.trim()}
-                className={submitted && !formData.no_hp.trim() ? 'p-invalid border-1 border-red-500 w-full' : 'w-full'}
+                invalid={submittedTabs.has(2) && !formData.no_hp.trim()}
+                className={submittedTabs.has(2) && !formData.no_hp.trim() ? 'p-invalid border-1 border-red-500 w-full' : 'w-full'}
               />
-              {submitted && !formData.no_hp.trim() && (
+              {submittedTabs.has(2) && !formData.no_hp.trim() && (
                 <small className="p-error text-red-500 font-semibold block mt-1">Nomor HP wajib diisi.</small>
               )}
             </div>
@@ -776,19 +818,7 @@ export const PasienFormCard: React.FC<Props> = ({
               icon="pi pi-arrow-right"
               iconPos="right"
               className="p-button-primary border-round-lg font-bold"
-              onClick={() => {
-                setSubmitted(true);
-                if (activeFormTab === 0 && (!formData.nama.trim() || !formData.tanggal_lahir)) {
-                  if (!formData.nama.trim()) showError(toast, 'Nama Pasien wajib diisi');
-                  else if (!formData.tanggal_lahir) showError(toast, 'Tanggal Lahir wajib diisi');
-                  return;
-                }
-                if (activeFormTab === 2 && !formData.no_hp.trim()) {
-                  showError(toast, 'Nomor HP (WhatsApp) wajib diisi');
-                  return;
-                }
-                setActiveFormTab((prev) => Math.min(3, prev + 1));
-              }}
+              onClick={handleNextOrSubmit}
               type="button"
             />
           ) : formData.no_rm ? (
@@ -800,7 +830,7 @@ export const PasienFormCard: React.FC<Props> = ({
                 severity="info"
                 className="border-round-lg font-bold"
                 onClick={() => {
-                  setSubmitted(true);
+                  setSubmittedTabs(new Set([0, 1, 2, 3]));
                   handleSubmit(false);
                 }}
                 loading={loading}
@@ -812,7 +842,7 @@ export const PasienFormCard: React.FC<Props> = ({
                 severity="success"
                 className="border-round-lg font-bold"
                 onClick={() => {
-                  setSubmitted(true);
+                  setSubmittedTabs(new Set([0, 1, 2, 3]));
                   handleSubmit(true);
                 }}
                 loading={loading}
@@ -825,7 +855,7 @@ export const PasienFormCard: React.FC<Props> = ({
               icon="pi pi-check"
               className="p-button-success border-round-lg font-bold"
               onClick={() => {
-                setSubmitted(true);
+                setSubmittedTabs(new Set([0, 1, 2, 3]));
                 handleSubmit(true);
               }}
               loading={loading}

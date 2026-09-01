@@ -257,56 +257,69 @@ const AppMenu = () => {
                             <>
                                 {topItems.map((item, i) => renderItem(item, i))}
 
-                                {/* ── LAYANAN PER RUANGAN ── */}
+                                {/* ── LAYANAN & KONSUL SIDEBAR MENU ── */}
                                 <li className="layout-root-menuitem" key="layanan-ruangan-section">
                                     <div className="layout-menuitem-root-text">LAYANAN</div>
                                     <ul>
-                                        {loadRuangan ? (
-                                            [1, 2, 3].map((_, i) => (
-                                                <li key={i} className="my-2">
-                                                    <Skeleton className="py-3" />
-                                                </li>
-                                            ))
-                                        ) : ruanganList.length === 0 ? (
-                                            <li className="px-3 py-2">
-                                                <span className="text-xs text-color-secondary">Belum ada ruangan</span>
-                                            </li>
-                                        ) : (
-                                            ruanganList.map((ruang) => {
-                                                const href = `/pendaftaran-antrean/antrean?ruangan=${ruang.kode_ruangan}`;
-                                                const isActive =
-                                                    pathname === '/pendaftaran-antrean/antrean' &&
-                                                    activeRuangan === ruang.kode_ruangan;
+                                        {(() => {
+                                            const typeParam = searchParams.get('type') || '';
+                                            const isLayananActive =
+                                                pathname === '/pendaftaran-antrean/antrean' &&
+                                                (typeParam === 'layanan' || !typeParam);
+                                            const isKonsulActive =
+                                                pathname === '/pendaftaran-antrean/antrean' &&
+                                                typeParam === 'konsul';
 
-                                                return (
-                                                    <li key={ruang.kode_ruangan} className={isActive ? 'active-menuitem' : ''}>
+                                            return (
+                                                <>
+                                                    {/* 1. SIDEBAR TINDAKAN */}
+                                                    <li className={isLayananActive ? 'active-menuitem' : ''}>
                                                         <Link
-                                                            href={href}
-                                                            className={`p-ripple flex align-items-center gap-2${isActive ? ' active-route' : ''}`}
+                                                            href="/pendaftaran-antrean/antrean?type=layanan"
+                                                            className={`p-ripple flex align-items-center gap-2${isLayananActive ? ' active-route' : ''}`}
                                                             style={{ padding: '0.75rem 1.25rem', borderRadius: '6px', transition: 'background 0.2s' }}
                                                         >
                                                             <i
-                                                                className="layout-menuitem-icon pi pi-home"
-                                                                style={{ color: isActive ? 'var(--primary-color)' : undefined }}
+                                                                className="layout-menuitem-icon pi pi-sparkles"
+                                                                style={{ color: isLayananActive ? 'var(--primary-color)' : undefined }}
                                                             />
                                                             <span
                                                                 className="layout-menuitem-text"
                                                                 style={{
-                                                                    overflow: 'hidden',
-                                                                    whiteSpace: 'nowrap',
-                                                                    textOverflow: 'ellipsis',
-                                                                    fontWeight: isActive ? 700 : undefined,
-                                                                    color: isActive ? 'var(--primary-color)' : undefined,
+                                                                    fontWeight: isLayananActive ? 700 : undefined,
+                                                                    color: isLayananActive ? 'var(--primary-color)' : undefined,
                                                                 }}
-                                                                title={ruang.nama_ruangan}
                                                             >
-                                                                {ruang.nama_ruangan}
+                                                                Tindakan
                                                             </span>
                                                         </Link>
                                                     </li>
-                                                );
-                                            })
-                                        )}
+
+                                                    {/* 2. SIDEBAR KONSULTASI */}
+                                                    <li className={isKonsulActive ? 'active-menuitem' : ''}>
+                                                        <Link
+                                                            href="/pendaftaran-antrean/antrean?type=konsul"
+                                                            className={`p-ripple flex align-items-center gap-2${isKonsulActive ? ' active-route' : ''}`}
+                                                            style={{ padding: '0.75rem 1.25rem', borderRadius: '6px', transition: 'background 0.2s' }}
+                                                        >
+                                                            <i
+                                                                className="layout-menuitem-icon pi pi-comments"
+                                                                style={{ color: isKonsulActive ? 'var(--primary-color)' : undefined }}
+                                                            />
+                                                            <span
+                                                                className="layout-menuitem-text"
+                                                                style={{
+                                                                    fontWeight: isKonsulActive ? 700 : undefined,
+                                                                    color: isKonsulActive ? 'var(--primary-color)' : undefined,
+                                                                }}
+                                                            >
+                                                                Konsultasi
+                                                            </span>
+                                                        </Link>
+                                                    </li>
+                                                </>
+                                            );
+                                        })()}
                                     </ul>
                                 </li>
 

@@ -24,7 +24,7 @@ const handleGetOptions = async (req, res) => {
     // 1. Fetch ALL ruangan aktif from DB
     const vaRuangan = await DB("mst_ruangan")
       .where("status", "aktif")
-      .select("kode_ruangan", "nama_ruangan")
+      .select("kode_ruangan", "nama_ruangan", "is_konsultasi")
       .orderBy("id", "asc");
 
     // 2. Fetch layanan aktif
@@ -40,7 +40,8 @@ const handleGetOptions = async (req, res) => {
         "l.harga",
         "l.durasi_menit",
         "l.kode_ruangan",
-        "r.nama_ruangan as nama_ruangan"
+        "r.nama_ruangan as nama_ruangan",
+        "r.is_konsultasi as is_konsultasi"
       )
       .orderBy("l.id", "asc");
 
@@ -59,7 +60,7 @@ const handleGetOptions = async (req, res) => {
     const vaPaket = await DB("mst_paket_layanan as p")
       .leftJoin("mst_ruangan as r", "p.kode_ruangan", "r.kode_ruangan")
       .where("p.status", "aktif")
-      .select("p.kode_paket_layanan", "p.nama", "p.harga_paket", "p.masa_berlaku_hari", "p.tanggal_mulai", "p.tanggal_selesai", "p.kode_ruangan", "r.nama_ruangan as nama_ruangan")
+      .select("p.kode_paket_layanan", "p.nama", "p.harga_paket", "p.masa_berlaku_hari", "p.tanggal_mulai", "p.tanggal_selesai", "p.kode_ruangan", "r.nama_ruangan as nama_ruangan", "r.is_konsultasi as is_konsultasi")
       .orderBy("p.id", "asc");
 
     // Map layanan & paket grouped by ruangan (initialized with ALL DB rooms)
@@ -162,6 +163,7 @@ const handleGetOptions = async (req, res) => {
         durasi_menit: parseInt(lay.durasi_menit || 30, 10),
         kode_ruangan: lay.kode_ruangan || "",
         nama_ruangan: lay.nama_ruangan || lay.kode_ruangan || "Ruang Treatment",
+        is_konsultasi: Number(lay.is_konsultasi || 0),
       };
 
       const itemData = applyPromo(rawItem);
@@ -191,6 +193,7 @@ const handleGetOptions = async (req, res) => {
         masa_berlaku_hari: pkt.masa_berlaku_hari,
         kode_ruangan: pkt.kode_ruangan || "",
         nama_ruangan: pkt.nama_ruangan || pkt.kode_ruangan || "Ruang Treatment",
+        is_konsultasi: Number(pkt.is_konsultasi || 0),
       };
 
       const itemData = applyPromo(rawItem);

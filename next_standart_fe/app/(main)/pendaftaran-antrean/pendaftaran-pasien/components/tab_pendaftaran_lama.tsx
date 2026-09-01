@@ -46,9 +46,17 @@ interface Props {
   toast: React.RefObject<Toast>;
   onRefreshVisits?: () => void;
   onEditPasien?: (pasien: Pasien) => void;
+  externalKeyword?: string;
+  refreshTrigger?: number;
 }
 
-export const TabPendaftaranLama: React.FC<Props> = ({ toast, onRefreshVisits, onEditPasien }) => {
+export const TabPendaftaranLama: React.FC<Props> = ({
+  toast,
+  onRefreshVisits,
+  onEditPasien,
+  externalKeyword,
+  refreshTrigger,
+}) => {
   // Step state: 1 = Cari & Pilih Pasien, 2 = Pilih Layanan & Paket Treatment
   const [step, setStep] = useState<number>(1);
   const [selectedPasien, setSelectedPasien] = useState<Pasien | null>(null);
@@ -63,9 +71,19 @@ export const TabPendaftaranLama: React.FC<Props> = ({ toast, onRefreshVisits, on
   const [page, setPage] = useState(1);
   const [rows, setRows] = useState(10);
   const [first, setFirst] = useState(0);
-  const [searchVal, setSearchVal] = useState('');
-  const [keyword, setKeyword] = useState('');
+  const [searchVal, setSearchVal] = useState(externalKeyword || '');
+  const [keyword, setKeyword] = useState(externalKeyword || '');
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Sync externalKeyword from parent search card
+  useEffect(() => {
+    if (externalKeyword !== undefined && externalKeyword !== keyword) {
+      setKeyword(externalKeyword);
+      setSearchVal(externalKeyword);
+      setPage(1);
+      setFirst(0);
+    }
+  }, [externalKeyword]);
 
   // Success Modals
   const [karcisVisible, setKarcisVisible] = useState(false);
@@ -99,7 +117,7 @@ export const TabPendaftaranLama: React.FC<Props> = ({ toast, onRefreshVisits, on
   useEffect(() => {
     fetchPasienData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, rows, keyword]);
+  }, [page, rows, keyword, refreshTrigger]);
 
   const onPageChange = (event: DataTableStateEvent) => {
     setFirst(event.first);
@@ -152,57 +170,36 @@ export const TabPendaftaranLama: React.FC<Props> = ({ toast, onRefreshVisits, on
 
   const actionBodyTemplate = (rowData: Pasien) => {
     return (
-      <Button
-        label="Lihat"
-        icon="pi pi-eye"
-        size="small"
-        severity="info"
-        outlined
-        className="border-round-md font-medium text-xs px-3"
-        onClick={() => setDetailPasien(rowData)}
-      />
+      <div className="flex align-items-center justify-content-center gap-1">
+        <Button
+          label="Pilih"
+          icon="pi pi-arrow-right"
+          iconPos="right"
+          size="small"
+          severity="success"
+          className="border-round-md font-bold text-xs px-2 py-1"
+          onClick={() => handleSelectPasien(rowData)}
+          tooltip="Pilih pasien untuk daftarkan layanan / antrean"
+          tooltipOptions={{ position: 'top' }}
+        />
+        <Button
+          label="Detail"
+          icon="pi pi-eye"
+          size="small"
+          severity="info"
+          outlined
+          className="border-round-md font-medium text-xs px-2 py-1"
+          onClick={() => setDetailPasien(rowData)}
+          tooltip="Lihat detail & edit profil pasien"
+          tooltipOptions={{ position: 'top' }}
+        />
+      </div>
     );
   };
 
   const headerTemplate = (
-    <div className="flex flex-wrap align-items-center justify-content-between gap-2">
-      <span className="text-xl font-bold text-900">Cari Pasien Terdaftar</span>
-      <div className="flex align-items-center gap-2 ml-auto w-full md:w-auto">
-        <span className="p-input-icon-left w-full md:w-22rem">
-          <IconField iconPosition="left">
-            <InputIcon className="pi pi-search" />
-            <InputText
-              value={searchVal}
-              className="w-full text-sm"
-              placeholder="Cari Nama Pasien / No. RM / NIK..."
-              onChange={(e) => {
-                const value = e.target.value;
-                setSearchVal(value);
-                if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
-                searchTimeoutRef.current = setTimeout(() => {
-                  setKeyword(value);
-                  setPage(1);
-                  setFirst(0);
-                }, 400);
-              }}
-            />
-          </IconField>
-        </span>
-        <Button
-          type="button"
-          icon="pi pi-filter-slash"
-          outlined
-          severity="danger"
-          tooltip="Reset Filter"
-          tooltipOptions={{ position: 'bottom' }}
-          onClick={() => {
-            setSearchVal('');
-            setKeyword('');
-            setPage(1);
-            setFirst(0);
-          }}
-        />
-      </div>
+    <div className="flex align-items-center justify-content-between">
+      <span className="text-xl font-bold text-900">Data Pasien Terdaftar</span>
     </div>
   );
 
@@ -236,47 +233,35 @@ export const TabPendaftaranLama: React.FC<Props> = ({ toast, onRefreshVisits, on
 
   return (
     <>
-      <div className="card border-round-xl p-4 shadow-1 surface-card mb-4">
-        {/* SUBHEADER TITLE */}
-        <div className="mb-4">
-          <h3 className="text-2xl font-bold text-900 flex align-items-center gap-2 mb-1">
-            <i className="pi pi-users text-teal-600 text-2xl" />
-            Pendaftaran Pasien Lama
-          </h3>
-          <p className="text-500 text-sm m-0">
-            Cari nama atau No. RM pasien terdaftar di klinik, klik <strong>Lihat</strong> untuk cek detail, lalu pilih layanan/paket treatment.
-          </p>
-        </div>
-
-        {/* DATA TABLE PASIEN LAMA UNTUK PENDAFTARAN */}
-        <DataTable
-          value={data}
-          scrollable
-          lazy
-          paginator
-          first={first}
-          rows={rows}
-          totalRecords={totalRecords}
-          onPage={onPageChange}
-          header={headerTemplate}
-          loading={loading}
-          dataKey="no_rm"
-          emptyMessage="Data Pasien Tidak Ditemukan"
-          rowsPerPageOptions={[10, 25, 50]}
-          className="p-datatable-sm p-datatable-gridlines"
-          paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
-          currentPageReportTemplate="Menampilkan {first} - {last} dari {totalRecords} data pasien"
-        >
-          <Column field="no_rm" header="No. RM" body={noRmBodyTemplate} align="center" sortable style={{ minWidth: '8rem' }} />
-          <Column field="nama" header="Nama Pasien" className="font-bold text-900" sortable style={{ minWidth: '13rem' }} />
-          <Column field="nik" header="NIK" align="center" style={{ minWidth: '10rem' }} body={(r: Pasien) => r.nik || '-'} />
-          <Column field="no_hp" header="No. HP" align="center" style={{ minWidth: '10rem' }} body={(r: Pasien) => r.no_hp || '-'} />
-          <Column field="tanggal_lahir" header="Tgl Lahir" align="center" style={{ minWidth: '8rem' }} body={(r: Pasien) => r.tanggal_lahir || '-'} />
-          <Column header="L/P" body={jenisKelaminBodyTemplate} align="center" style={{ minWidth: '7rem' }} />
-          <Column field="kota_kabupaten" header="Kota / Alamat" style={{ minWidth: '12rem' }} body={(r: Pasien) => r.kota_kabupaten || r.provinsi || '-'} />
-          <Column header="Aksi" body={actionBodyTemplate} align="center" frozen alignFrozen="right" style={{ minWidth: '8rem' }} />
-        </DataTable>
-      </div>
+      {/* DATA TABLE PASIEN LAMA UNTUK PENDAFTARAN */}
+      <DataTable
+        value={data}
+        scrollable
+        lazy
+        paginator
+        first={first}
+        rows={rows}
+        totalRecords={totalRecords}
+        onPage={onPageChange}
+        header={headerTemplate}
+        loading={loading}
+        dataKey="no_rm"
+        emptyMessage="Data Pasien Tidak Ditemukan"
+        rowsPerPageOptions={[10, 25, 50]}
+        rowHover
+        onRowClick={(e) => setDetailPasien(e.data as Pasien)}
+        style={{ cursor: 'pointer' }}
+        paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
+        currentPageReportTemplate="Menampilkan {first} - {last} dari {totalRecords} data pasien"
+      >
+        <Column field="no_rm" header="No. RM" body={noRmBodyTemplate} align="center" sortable style={{ minWidth: '8rem' }} />
+        <Column field="nama" header="Nama Pasien" className="font-bold text-900" sortable style={{ minWidth: '13rem' }} />
+        <Column field="nik" header="NIK" align="center" style={{ minWidth: '10rem' }} body={(r: Pasien) => r.nik || '-'} />
+        <Column field="no_hp" header="No. HP" align="center" style={{ minWidth: '10rem' }} body={(r: Pasien) => r.no_hp || '-'} />
+        <Column field="tanggal_lahir" header="Tgl Lahir" align="center" style={{ minWidth: '8rem' }} body={(r: Pasien) => r.tanggal_lahir || '-'} />
+        <Column header="L/P" body={jenisKelaminBodyTemplate} align="center" style={{ minWidth: '7rem' }} />
+        <Column field="kota_kabupaten" header="Kota / Alamat" style={{ minWidth: '12rem' }} body={(r: Pasien) => r.kota_kabupaten || r.provinsi || '-'} />
+      </DataTable>
 
       {/* DIALOG DETAIL PASIEN */}
       <Dialog

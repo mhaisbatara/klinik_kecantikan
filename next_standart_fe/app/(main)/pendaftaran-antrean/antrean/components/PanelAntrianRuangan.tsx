@@ -1,10 +1,13 @@
-'use client';
-
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Button } from 'primereact/button';
 import { confirmDialog, ConfirmDialog } from 'primereact/confirmdialog';
 import { Tag } from 'primereact/tag';
 import { Dropdown } from 'primereact/dropdown';
+import { InputText } from 'primereact/inputtext';
+import { IconField } from 'primereact/iconfield';
+import { InputIcon } from 'primereact/inputicon';
+import { Paginator, PaginatorPageChangeEvent } from 'primereact/paginator';
 import { ProgressSpinner } from 'primereact/progressspinner';
 import { Toast } from 'primereact/toast';
 import { AntrianLayananData, State } from './interfaces';
@@ -136,7 +139,16 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
     const [selectedRuangan, setSelectedRuangan] = useState<string>('');
     const [loadingRuangan, setLoadingRuangan] = useState<boolean>(true);
     const [statusFilter, setStatusFilter] = useState<string>('');
+    const [queueSearch, setQueueSearch] = useState<string>('');
+    const [cardFirst, setCardFirst] = useState<number>(0);
+    const [cardRows, setCardRows] = useState<number>(12);
     const [petugasJaga, setPetugasJaga] = useState<any[]>([]);
+
+    useEffect(() => {
+        setCardFirst(0);
+    }, [selectedRuangan, statusFilter, queueSearch]);
+
+    const [selectedPetugasJaga, setSelectedPetugasJaga] = useState<string>('');
 
     const loadPetugasJaga = async (kodeRuangan: string) => {
         try {
@@ -147,9 +159,16 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
                 hari: todayStr,
                 status: 'aktif',
             });
-            setPetugasJaga(res.data.data || []);
+            const list = res.data?.data || [];
+            setPetugasJaga(list);
+            if (list.length > 0) {
+                setSelectedPetugasJaga(list[0].nama_karyawan);
+            } else {
+                setSelectedPetugasJaga('');
+            }
         } catch (_) {
             setPetugasJaga([]);
+            setSelectedPetugasJaga('');
         }
     };
 
@@ -164,21 +183,35 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
     const [isiFormVisible, setIsiFormVisible] = useState<boolean>(false);
     const [selectedAntrianForForm, setSelectedAntrianForForm] = useState<AntrianLayananData | null>(null);
 
+    const searchParams = useSearchParams();
+    const typeParam = searchParams.get('type') || '';
+
     useEffect(() => {
         loadRuangan();
-    }, [initialRuangan]);
+    }, [initialRuangan, typeParam]);
 
     const loadRuangan = async () => {
         setLoadingRuangan(true);
         try {
             const res = await postData('/master/ruangan-dropdown', {});
-            const list: RuanganItem[] = res.data.data || [];
+            const rawList: RuanganItem[] = res.data.data || [];
+
+            let list = rawList;
+            if (typeParam === 'konsul') {
+                list = rawList.filter(
+                    (r) => r.is_konsultasi === 1 || (r.nama_ruangan && r.nama_ruangan.toLowerCase().includes('konsul'))
+                );
+            } else if (typeParam === 'layanan') {
+                list = rawList.filter((r) => !r.is_konsultasi || r.is_konsultasi === 0);
+            }
+
             setRuanganList(list);
-            // Jika ada initialRuangan dari URL, gunakan itu; jika tidak, gunakan ruangan pertama
             if (initialRuangan && list.some((r) => r.kode_ruangan === initialRuangan)) {
                 setSelectedRuangan(initialRuangan);
             } else if (list.length > 0) {
                 setSelectedRuangan(list[0].kode_ruangan);
+            } else {
+                setSelectedRuangan('');
             }
         } catch (error) {
             showError(toast, 'Gagal memuat daftar ruangan');
@@ -226,6 +259,8 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
         });
     };
 
+    const [currentIndex, setCurrentIndex] = useState<number>(0);
+
     // Filter gridData based on selected room and status filter
     const allGridData = state.gridData || [];
     const activeRoomObj = ruanganList.find((r) => r.kode_ruangan === selectedRuangan);
@@ -235,8 +270,48 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
             ? (item.kode_ruangan === selectedRuangan || (!item.kode_ruangan && selectedRuangan === ruanganList[0]?.kode_ruangan))
             : true;
         const matchStatus = statusFilter ? item.status === statusFilter : true;
-        return matchRoom && matchStatus;
+        const matchSearch = queueSearch
+            ? (item.nama_pasien?.toLowerCase().includes(queueSearch.toLowerCase()) ||
+               item.nomor_antrian?.toLowerCase().includes(queueSearch.toLowerCase()) ||
+               item.no_rm?.toLowerCase().includes(queueSearch.toLowerCase()))
+            : true;
+        return matchRoom && matchStatus && matchSearch;
     });
+
+    // Otomatis arahkan ke antrean pertama yang belum selesai (menunggu / dipanggil)
+    useEffect(() => {
+        if (roomFilteredItems.length > 0) {
+            const firstUnfinishedIdx = roomFilteredItems.findIndex(
+                (item) => item.status !== 'selesai' && item.status !== 'batal'
+            );
+            if (firstUnfinishedIdx !== -1) {
+                setCurrentIndex(firstUnfinishedIdx);
+            } else {
+                setCurrentIndex(0);
+            }
+        } else {
+            setCurrentIndex(0);
+        }
+    }, [selectedRuangan, statusFilter, queueSearch, state.gridData?.length]);
+
+    const currentItem = roomFilteredItems[currentIndex] || roomFilteredItems[0] || null;
+
+    const handleNextPatient = () => {
+        if (currentIndex < roomFilteredItems.length - 1) {
+            const nextIdx = currentIndex + 1;
+            setCurrentIndex(nextIdx);
+            const nextItem = roomFilteredItems[nextIdx];
+            if (nextItem && nextItem.status === 'menunggu') {
+                handleAksi(nextItem, 'dipanggil');
+            }
+        }
+    };
+
+    const handlePrevPatient = () => {
+        if (currentIndex > 0) {
+            setCurrentIndex(currentIndex - 1);
+        }
+    };
 
     // Patient currently called ('dipanggil') in room or selected for inspection
     const activeDipanggilPatient = roomFilteredItems.find((i) => i.status === 'dipanggil')
@@ -350,15 +425,6 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
 
                                 <div className="flex align-items-center gap-2">
                                     <Button
-                                        label="Pengaturan Form Ruangan"
-                                        icon="pi pi-cog"
-                                        outlined
-                                        size="small"
-                                        severity="help"
-                                        className="font-bold text-xs border-round-lg"
-                                        onClick={() => setManageFormVisible(true)}
-                                    />
-                                    <Button
                                         label="Refresh Data"
                                         icon="pi pi-refresh"
                                         outlined
@@ -371,42 +437,33 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
                                 </div>
                             </div>
 
-                            {/* BANNER DOKTER / STAF JAGA HARI INI SECARA OTOMATIS */}
-                            {petugasJaga.length > 0 ? (
-                                <div className="flex align-items-center gap-2 px-3 py-2 border-round-lg bg-teal-50 border-1 border-teal-200 text-teal-900 text-xs font-semibold">
-                                    <i className="pi pi-user text-teal-600 text-sm" />
-                                    <span>
-                                        <strong>Dokter / Petugas Jaga Hari Ini:</strong>{' '}
-                                        {petugasJaga
-                                            .map(
-                                                (p) =>
-                                                    `${p.nama_karyawan} (${(p.jabatan || 'DOKTER').toUpperCase()} • Jam ${p.jam_mulai} - ${p.jam_selesai})`
-                                            )
-                                            .join(' | ')}
-                                    </span>
-                                </div>
-                            ) : (
-                                <div className="flex align-items-center gap-2 px-3 py-2 border-round-lg bg-amber-50 border-1 border-amber-200 text-amber-900 text-xs font-medium">
-                                    <i className="pi pi-exclamation-circle text-amber-600 text-sm" />
-                                    <span>Tidak ada jadwal dokter/petugas aktif di ruangan ini untuk hari ini.</span>
-                                </div>
-                            )}
-
-                            {/* ROW 2: FILTER DROPDOWN & STATUS BADGES */}
+                            {/* ROW 2: FILTER DROPDOWN, SEARCH & STATUS BADGES */}
                             <div className="flex flex-column lg:flex-row align-items-start lg:align-items-center justify-content-between gap-3 pt-1">
-                                <Dropdown
-                                    value={statusFilter}
-                                    options={[
-                                        { label: 'Semua Status', value: '' },
-                                        { label: '⏳ Menunggu', value: 'menunggu' },
-                                        { label: '📢 Dipanggil', value: 'dipanggil' },
-                                        { label: '✅ Selesai', value: 'selesai' },
-                                        { label: '❌ Batal', value: 'batal' },
-                                    ]}
-                                    onChange={(e) => setStatusFilter(e.value)}
-                                    placeholder="Filter Status"
-                                    className="p-inputtext-sm w-full sm:w-14rem border-round-lg"
-                                />
+                                <div className="flex flex-column sm:flex-row align-items-stretch sm:align-items-center gap-2 w-full lg:w-auto">
+                                    <Dropdown
+                                        value={statusFilter}
+                                        options={[
+                                            { label: 'Semua Status', value: '' },
+                                            { label: '⏳ Menunggu', value: 'menunggu' },
+                                            { label: '📢 Dipanggil', value: 'dipanggil' },
+                                            { label: '✅ Selesai', value: 'selesai' },
+                                            { label: '❌ Batal', value: 'batal' },
+                                        ]}
+                                        onChange={(e) => setStatusFilter(e.value)}
+                                        placeholder="Filter Status"
+                                        className="p-inputtext-sm w-full sm:w-12rem border-round-lg"
+                                    />
+
+                                    <IconField iconPosition="left" className="w-full sm:w-16rem">
+                                        <InputIcon className="pi pi-search" />
+                                        <InputText
+                                            value={queueSearch}
+                                            onChange={(e) => setQueueSearch(e.target.value)}
+                                            placeholder="Cari pasien / no. antrean..."
+                                            className="p-inputtext-sm w-full border-round-lg"
+                                        />
+                                    </IconField>
+                                </div>
 
                                 <div className="flex gap-2 flex-wrap align-items-center">
                                     {[
@@ -466,134 +523,152 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
                             </div>
                         </div>
 
-                        {roomFilteredItems.length === 0 ? (
+                        {/* ── TAMPILAN SINGLE ANTREAN SPOTLIGHT (HANYA 1 KARTU + NAVIGATION NEXT/PREV) ── */}
+                        {!currentItem ? (
                             <div className="text-center py-6 text-500 border-1 border-dashed border-round-xl surface-50">
                                 <i className="pi pi-inbox text-5xl mb-3 text-400 block" />
                                 <p className="font-bold text-base m-0 text-700">Belum Ada Nomor Antrean pada Ruangan Ini</p>
-                                <p className="text-xs text-500 m-0 mt-1">Nomor antrean yang didaftarkan ke ruangan ini akan muncul di sini secara otomatis.</p>
+                                <p className="text-xs text-500 m-0 mt-1">Nomor antrean yang didaftarkan akan muncul di sini secara otomatis.</p>
                             </div>
-                        ) : (
-                            <div
-                                style={{
-                                    display: 'grid',
-                                    gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))',
-                                    gap: '14px',
-                                }}
-                            >
-                                {roomFilteredItems.map((item) => {
-                                    const cfg = STATUS_CONFIG[item.status] || STATUS_CONFIG.menunggu;
-                                    const isDipanggil = item.status === 'dipanggil';
-                                    const isPaket = item.jenis_layanan === 'paket';
+                        ) : (() => {
+                            const cfg = STATUS_CONFIG[currentItem.status] || STATUS_CONFIG.menunggu;
+                            const isDipanggil = currentItem.status === 'dipanggil';
+                            const isPaket = currentItem.jenis_layanan === 'paket';
 
-                                    return (
-                                        <div key={item.kode_antrian_layanan} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                            <button
-                                                onClick={() => {
-                                                    if (item.status === 'menunggu') {
-                                                        handleAksi(item, 'dipanggil');
-                                                    } else {
-                                                        setSelectedAntrianForForm(item);
-                                                    }
-                                                }}
-                                                title={`No. ${item.nomor_antrian} — ${item.nama_pasien} (${item.nama_layanan})`}
+                            return (
+                                <div className="flex flex-column align-items-center text-center p-4 border-round-2xl surface-50 border-1 surface-border shadow-1 relative">
+                                    <style>{`
+                                        @keyframes switchCardAnim {
+                                            0% {
+                                                opacity: 0.1;
+                                                transform: scale(0.88) translateY(14px);
+                                            }
+                                            60% {
+                                                transform: scale(1.03) translateY(-4px);
+                                            }
+                                            100% {
+                                                opacity: 1;
+                                                transform: scale(1) translateY(0);
+                                            }
+                                        }
+                                        .card-switch-animation {
+                                            animation: switchCardAnim 0.38s cubic-bezier(0.34, 1.56, 0.64, 1);
+                                        }
+                                    `}</style>
+
+                                    {/* INDIKATOR POSISI ANTREAN */}
+                                    <div className="flex flex-column sm:flex-row align-items-center justify-content-between w-full gap-2 mb-3">
+                                        <Tag
+                                            value={`Antrean Ke-${currentIndex + 1} dari ${roomFilteredItems.length}`}
+                                            severity="secondary"
+                                            className="text-xs font-extrabold px-3 py-2 border-round-md"
+                                        />
+                                        <div className="flex gap-2 flex-wrap justify-content-center">
+                                            <Tag value={`Menunggu: ${mCount}`} severity="warning" className="text-xs font-bold px-2 py-1" />
+                                            <Tag value={`Dipanggil: ${pCount}`} severity="info" className="text-xs font-bold px-2 py-1" />
+                                            <Tag value={`Selesai: ${sCount}`} severity="success" className="text-xs font-bold px-2 py-1" />
+                                        </div>
+                                    </div>
+
+                                    {/* KARTU SINGLE ANTREAN UTAMA (NOMOR BESAR & DETAIL PASIEN DENGAN ANIMASI) */}
+                                    <div
+                                        key={`${currentItem.kode_antrian_layanan}_${currentIndex}`}
+                                        className="w-full max-w-30rem p-4 border-round-2xl border-3 shadow-3 my-2 card-switch-animation"
+                                        style={{
+                                            background: cfg.bg,
+                                            borderColor: cfg.border,
+                                            color: cfg.color,
+                                        }}
+                                    >
+                                        <div className="text-xs font-extrabold uppercase tracking-widest mb-1 opacity-80">
+                                            NOMOR ANTREAN AKTIF
+                                        </div>
+                                        <div className="text-6xl sm:text-7xl font-black my-2" style={{ lineHeight: 1, letterSpacing: '-1px' }}>
+                                            {currentItem.nomor_antrian}
+                                        </div>
+
+                                        <div className="text-xl font-extrabold text-truncate px-2 mb-2" title={currentItem.nama_pasien}>
+                                            {currentItem.nama_pasien || '-'}
+                                        </div>
+
+                                        <div
+                                            className="inline-block text-xs font-bold px-3 py-1 border-round-lg mb-2"
+                                            style={{
+                                                background: 'rgba(255,255,255,0.9)',
+                                                color: cfg.color,
+                                                border: `1px solid ${cfg.border}44`,
+                                            }}
+                                        >
+                                            {isPaket ? '📦 Paket: ' : '💆 Layanan: '} {currentItem.nama_layanan || '-'}
+                                        </div>
+
+                                        <div className="mt-1">
+                                            <span
+                                                className="inline-block text-xs font-extrabold px-3 py-1 border-round-xl uppercase"
                                                 style={{
-                                                    minHeight: '140px',
-                                                    borderRadius: '14px',
-                                                    border: `2px solid ${cfg.border}`,
-                                                    background: cfg.bg,
+                                                    background: 'rgba(255,255,255,0.85)',
                                                     color: cfg.color,
-                                                    cursor: 'pointer',
-                                                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                                                    boxShadow: cfg.shadow,
-                                                    display: 'flex',
-                                                    flexDirection: 'column',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    padding: '12px 10px',
-                                                    textAlign: 'center',
-                                                    width: '100%',
-                                                    position: 'relative',
-                                                    overflow: 'hidden',
-                                                }}
-                                                onMouseEnter={(e) => {
-                                                    (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-4px)';
-                                                }}
-                                                onMouseLeave={(e) => {
-                                                    (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)';
+                                                    border: `1px solid ${cfg.border}44`,
                                                 }}
                                             >
-                                                <div className="text-3xl font-black mb-1" style={{ lineHeight: 1 }}>
-                                                    {item.nomor_antrian}
-                                                </div>
-                                                <div className="text-xs font-bold text-truncate w-full px-1 mb-1" title={item.nama_pasien}>
-                                                    {item.nama_pasien || '-'}
-                                                </div>
-
-                                                <div
-                                                    className="text-xs font-semibold px-2 py-1 border-round-md mb-1 text-truncate w-full"
-                                                    style={{
-                                                        background: 'rgba(255,255,255,0.85)',
-                                                        color: cfg.color,
-                                                        border: `1px solid ${cfg.border}44`,
-                                                    }}
-                                                    title={item.nama_layanan}
-                                                >
-                                                    {isPaket ? '📦 ' : '💆 '} {item.nama_layanan || '-'}
-                                                </div>
-
-                                                <div className="mt-1">
-                                                    <span
-                                                        style={{
-                                                            fontSize: '0.7rem',
-                                                            fontWeight: 'bold',
-                                                            padding: '2px 8px',
-                                                            borderRadius: '10px',
-                                                            background: 'rgba(255,255,255,0.75)',
-                                                            color: cfg.color,
-                                                            border: `1px solid ${cfg.border}44`,
-                                                        }}
-                                                    >
-                                                        {cfg.label}
-                                                    </span>
-                                                </div>
-                                            </button>
-
-                                            {isDipanggil && (
-                                                <button
-                                                    onClick={() => {
-                                                        playChime();
-                                                        speakNomorLayanan(item.nomor_antrian, item.nama_pasien, item.nama_ruangan || item.nama_layanan);
-                                                    }}
-                                                    title={`Panggil ulang antrean ${item.nomor_antrian}`}
-                                                    style={{
-                                                        padding: '6px 0',
-                                                        fontSize: '0.75rem',
-                                                        fontWeight: '700',
-                                                        borderRadius: '8px',
-                                                        border: '1.5px solid #2563eb',
-                                                        background: '#eff6ff',
-                                                        color: '#1d4ed8',
-                                                        cursor: 'pointer',
-                                                        transition: 'all 0.15s ease',
-                                                        width: '100%',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        gap: '4px',
-                                                    }}
-                                                >
-                                                    🔁 Panggil Ulang Suara
-                                                </button>
-                                            )}
+                                                {cfg.label}
+                                            </span>
                                         </div>
-                                    );
-                                })}
-                            </div>
-                        )}
+                                    </div>
+
+                                    {/* TOMBOL KONTROL NAVIGASI (PREV, PANGGIL/AKSI, NEXT) */}
+                                    <div className="flex flex-column sm:flex-row align-items-center justify-content-center gap-3 w-full max-w-30rem mt-4">
+                                        <Button
+                                            label="Prev"
+                                            icon="pi pi-chevron-left"
+                                            outlined
+                                            severity="secondary"
+                                            disabled={currentIndex === 0}
+                                            onClick={handlePrevPatient}
+                                            className="font-bold border-round-lg px-4 py-2"
+                                        />
+
+                                        {currentItem.status === 'menunggu' ? (
+                                            <Button
+                                                label="📢 Panggil Pasien Ini"
+                                                icon="pi pi-megaphone"
+                                                severity="primary"
+                                                size="large"
+                                                className="font-bold border-round-lg flex-1 shadow-2 text-base py-3"
+                                                onClick={() => handleAksi(currentItem, 'dipanggil')}
+                                            />
+                                        ) : isDipanggil ? (
+                                            <Button
+                                                label="🔁 Panggil Ulang Suara"
+                                                icon="pi pi-volume-up"
+                                                severity="info"
+                                                size="large"
+                                                className="font-bold border-round-lg flex-1 shadow-2 text-base py-3"
+                                                onClick={() => {
+                                                    playChime();
+                                                    speakNomorLayanan(currentItem.nomor_antrian, currentItem.nama_pasien, currentItem.nama_ruangan || currentItem.nama_layanan);
+                                                }}
+                                            />
+                                        ) : (
+                                            <Tag value={cfg.label} severity={currentItem.status === 'selesai' ? 'success' : 'danger'} className="text-sm font-bold py-2 px-4 flex-1" />
+                                        )}
+
+                                        <Button
+                                            label="Next ➔"
+                                            iconPos="right"
+                                            severity="success"
+                                            disabled={currentIndex >= roomFilteredItems.length - 1}
+                                            onClick={handleNextPatient}
+                                            className="font-bold border-round-lg px-4 py-2"
+                                        />
+                                    </div>
+                                </div>
+                            );
+                        })()}
                     </div>
 
-                    {/* 2. PANEL PENANGANAN PASIEN AKTIF & FORM ISIAN (HANYA DITAMPILKAN DI MENU PANEL LAYANAN RUANGAN) */}
-                    {Boolean(initialRuangan) && (() => {
+                    {/* 2. PANEL PENANGANAN PASIEN AKTIF & FORM ISIAN */}
+                    {Boolean(selectedRuangan) && (() => {
                         const selectedRuanganObj = ruanganList.find(r => r.kode_ruangan === selectedRuangan);
                         const isKonsultasi = Boolean(selectedRuanganObj?.is_konsultasi);
                         return (
@@ -603,6 +678,7 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
                                 kodeRuangan={selectedRuangan}
                                 namaRuangan={activeRoomObj?.nama_ruangan || selectedRuangan}
                                 isKonsultasi={isKonsultasi}
+                                petugasJagaList={petugasJaga}
                                 toast={toast}
                                 getGridData={getGridData}
                                 handleAksi={handleAksi}

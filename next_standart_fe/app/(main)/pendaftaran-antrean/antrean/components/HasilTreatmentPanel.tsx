@@ -566,59 +566,146 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                 </div>
             </div>
 
-            {/* MODAL KONFIRMASI SIMPAN & PERSETUJUAN */}
+            {/* MODAL KONFIRMASI SIMPAN & PERSETUJUAN TINDAKAN */}
             <Dialog
                 visible={showConfirmModal}
                 onHide={() => setShowConfirmModal(false)}
-                header="Konfirmasi Persetujuan Pasien & Simpan Hasil Treatment"
-                style={{ width: '480px' }}
+                header={
+                    <div className="flex align-items-center gap-3">
+                        <div
+                            className="flex align-items-center justify-content-center border-round-xl"
+                            style={{
+                                width: '40px',
+                                height: '40px',
+                                background: 'linear-gradient(135deg, #0d9488, #059669)',
+                                boxShadow: '0 4px 12px rgba(13, 148, 136, 0.3)',
+                            }}
+                        >
+                            <i className="pi pi-shield text-white text-xl" />
+                        </div>
+                        <div>
+                            <span className="text-lg font-black text-900 block" style={{ lineHeight: 1.2 }}>
+                                Persetujuan &amp; Konfirmasi Hasil Tindakan
+                            </span>
+                            <span className="text-xs text-500 font-medium">
+                                Verifikasi rincian hasil treatment pasien sebelum disimpan ke Kasir
+                            </span>
+                        </div>
+                    </div>
+                }
+                style={{ width: '560px' }}
                 modal
                 className="p-fluid"
                 footer={
-                    <div className="flex justify-content-end gap-2">
+                    <div className="flex align-items-center justify-content-end gap-2 pt-2 border-top-1 surface-border">
                         <Button
                             label="Batal"
                             icon="pi pi-times"
-                            className="p-button-outlined p-button-secondary text-xs"
+                            outlined
+                            severity="secondary"
+                            className="font-bold text-xs border-round-lg px-3 py-2"
                             onClick={() => setShowConfirmModal(false)}
                         />
                         <Button
-                            label="Ya, Simpan & Setujui"
+                            label="✓ Setujui &amp; Simpan ke Kasir"
                             icon="pi pi-check-circle"
-                            className="p-button-success font-bold text-xs bg-teal-600 border-none"
+                            severity="success"
+                            className="font-extrabold text-xs border-round-lg px-4 py-2 shadow-2 bg-teal-600 border-none hover:bg-teal-700"
                             onClick={handleConfirmSubmit}
                             loading={submitting}
                         />
                     </div>
                 }
             >
-                <div className="flex flex-column gap-3 py-1 text-left">
-                    <div className="p-3 border-round-xl" style={{ background: '#f0fdfa', border: '1.5px solid #99f6e4' }}>
-                        <span className="text-[10px] font-bold uppercase block" style={{ color: '#0d9488' }}>
-                            Pasien Aktif
-                        </span>
-                        <span className="font-extrabold text-sm block" style={{ color: '#134e4a' }}>
-                            {activePatient?.nama_pasien || 'Pasien'}
-                        </span>
-                        <span className="text-xs" style={{ color: '#0f766e' }}>
-                            No. RM: {activePatient?.no_rm} | Ruangan: {namaRuangan}
-                        </span>
+                <div className="flex flex-column gap-3 py-2 text-left">
+                    {/* PASIEN BANNER CARD */}
+                    <div
+                        className="p-3 border-round-2xl relative overflow-hidden"
+                        style={{
+                            background: 'linear-gradient(135deg, #f0fdfa, #ccfbf1)',
+                            border: '1.5px solid #99f6e4',
+                        }}
+                    >
+                        <div className="flex align-items-center justify-content-between">
+                            <div>
+                                <span className="text-[10px] font-extrabold uppercase tracking-wider block text-teal-700 mb-0.5">
+                                    PASIEN AKTIF TINDAKAN
+                                </span>
+                                <span className="font-black text-base text-teal-950 block">
+                                    {activePatient?.nama_pasien || 'Pasien'}
+                                </span>
+                                <span className="text-xs text-teal-800 font-medium">
+                                    No. RM: <strong>{activePatient?.no_rm}</strong> | Ruangan: <strong>{namaRuangan}</strong>
+                                </span>
+                            </div>
+                            <Tag value={`No. #${activePatient?.nomor_antrian}`} severity="success" className="text-sm font-extrabold px-3 py-1.5 border-round-xl shadow-1" />
+                        </div>
                     </div>
 
-                    <div className="text-xs text-gray-700">
-                        <p className="m-0 mb-2 font-semibold">Rincian yang akan disimpan:</p>
-                        <ul className="m-0 pl-3 flex flex-column gap-1">
-                            <li>Foto After Treatment: {fotoAfterUrl ? '✅ Terunggah' : '❌ Tidak ada foto'}</li>
-                            <li>
-                                Produk Terpilih: {selectedProdukList.length} item ({formatRupiah(grandTotal)})
-                            </li>
-                            {catatan && <li>Catatan: &quot;{catatan}&quot;</li>}
-                        </ul>
+                    {/* RINCIAN HASIL & PRODUK CARD */}
+                    <div className="surface-card p-3 border-round-2xl border-1 surface-border shadow-1 flex flex-column gap-3">
+                        <span className="text-xs font-extrabold text-700 uppercase tracking-wider block border-bottom-1 surface-border pb-2">
+                            📋 Rincian Hasil &amp; Produk Yang Disimpan
+                        </span>
+
+                        <div className="flex align-items-center justify-content-between text-xs p-2.5 surface-50 border-round-xl">
+                            <span className="font-bold text-700 flex align-items-center gap-2">
+                                <i className="pi pi-camera text-teal-600" />
+                                Foto After Treatment
+                            </span>
+                            {fotoAfterUrl ? (
+                                <Tag value="✓ Foto Terunggah" severity="success" className="text-xs font-bold" />
+                            ) : (
+                                <Tag value="Tanpa Foto After" severity="secondary" className="text-xs font-bold" />
+                            )}
+                        </div>
+
+                        {selectedProdukList.length > 0 && (
+                            <div className="flex flex-column gap-2">
+                                <div className="flex align-items-center justify-content-between text-xs">
+                                    <span className="font-bold text-700 flex align-items-center gap-2">
+                                        <i className="pi pi-shopping-bag text-amber-600" />
+                                        Produk Tambahan ({selectedProdukList.length} Item)
+                                    </span>
+                                    <span className="font-extrabold text-teal-700">{formatRupiah(grandTotal)}</span>
+                                </div>
+                                <div className="flex flex-column gap-1 max-h-8rem overflow-y-auto pr-1">
+                                    {selectedProdukList.map((p, idx) => (
+                                        <div key={idx} className="flex align-items-center justify-content-between text-xs p-2 surface-100 border-round-lg">
+                                            <span className="font-semibold text-800">{p.nama} <span className="text-teal-600">({p.qty}x)</span></span>
+                                            <span className="font-bold text-700">{formatRupiah(p.harga_jual * p.qty)}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {catatan && (
+                            <div className="p-2.5 surface-50 border-round-xl text-xs">
+                                <span className="font-bold text-700 block mb-1">Catatan Observasi:</span>
+                                <span className="text-600 italic block border-left-3 border-teal-500 pl-2 py-0.5">&quot;{catatan}&quot;</span>
+                            </div>
+                        )}
                     </div>
 
-                    <p className="text-xs text-teal-800 bg-teal-50 p-2.5 border-round-md m-0 font-medium border-1 border-teal-200">
-                        ✓ Pasien telah menyetujui hasil tindakan secara lisan. Transaksi draft akan dibuat di Kasir.
-                    </p>
+                    {/* PERNYATAAN INFORMED CONSENT / PERSETUJUAN */}
+                    <div
+                        className="p-3 border-round-2xl flex align-items-start gap-3"
+                        style={{
+                            background: '#f0fdfa',
+                            border: '1.5px solid #99f6e4',
+                        }}
+                    >
+                        <i className="pi pi-check-circle text-teal-600 text-2xl mt-0.5 flex-shrink-0" />
+                        <div>
+                            <span className="font-extrabold text-xs text-teal-950 block mb-1">
+                                Pernyataan Persetujuan Pasien (Verbal Consent)
+                            </span>
+                            <p className="text-xs text-teal-800 m-0 leading-relaxed font-medium">
+                                Pasien/Wali telah menyetujui hasil tindakan serta daftar rincian produk yang akan diteruskan sebagai draf transaksi di Kasir.
+                            </p>
+                        </div>
+                    </div>
                 </div>
             </Dialog>
         </div>
