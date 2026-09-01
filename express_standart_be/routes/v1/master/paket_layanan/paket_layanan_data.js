@@ -24,18 +24,42 @@ router.post("/", async (req, res) => {
       });
     }
 
-    // Auto nonaktifkan paket yang sudah melewati masa berlaku (sisa hari <= 0)
-    const todayStr = formatDateSystem(new Date(), "yyyy-MM-dd");
-    await DB("mst_paket_layanan")
-      .where("status", "aktif")
-      .whereRaw(
-        "DATE(COALESCE(tanggal_selesai, DATE_ADD(COALESCE(tanggal_mulai, created_at), INTERVAL masa_berlaku_hari DAY))) < ?",
-        [todayStr]
-      )
-      .update({
-        status: "nonaktif",
-        updated_at: formatDateSystem(),
+    const hasIsSelamanya = await DB.schema.hasColumn("mst_paket_layanan", "is_selamanya");
+    if (!hasIsSelamanya) {
+      await DB.schema.table("mst_paket_layanan", (table) => {
+        table.boolean("is_selamanya").defaultTo(false);
       });
+    }
+
+    const hasPaketTipe = await DB.schema.hasColumn("mst_paket_layanan", "tipe");
+    if (!hasPaketTipe) {
+      await DB.schema.table("mst_paket_layanan", (table) => {
+        table.string("tipe", 50).defaultTo("BEAUTY TREATMENT").nullable();
+      });
+    }
+
+    const todayStr = formatDateSystem(new Date(), "yyyy-MM-dd");
+
+    // Auto-sync status semua paket berdasarkan status layanannya & tanggal expired
+    const allPakets = await DB("mst_paket_layanan").select("kode_paket_layanan", "status", "tanggal_selesai", "is_selamanya");
+    for (const pkt of allPakets) {
+      const inactiveCount = await DB("mst_detail_paket_layanan as d")
+        .leftJoin("mst_layanan as l", "d.kode_layanan", "l.kode_layanan")
+        .where("d.kode_paket_layanan", pkt.kode_paket_layanan)
+        .where("l.status", "nonaktif")
+        .count("d.kode_detail_paket_layanan as cnt")
+        .first();
+
+      const hasInactive = parseInt(inactiveCount?.cnt || 0) > 0;
+      const isExpired = !Boolean(pkt.is_selamanya) && pkt.tanggal_selesai && pkt.tanggal_selesai < todayStr;
+      const targetStatus = (hasInactive || isExpired) ? "nonaktif" : "aktif";
+
+      if (pkt.status !== targetStatus) {
+        await DB("mst_paket_layanan")
+          .where("kode_paket_layanan", pkt.kode_paket_layanan)
+          .update({ status: targetStatus, updated_at: formatDateSystem() });
+      }
+    }
 
     const baseQuery = DB("mst_paket_layanan as p")
       .leftJoin("mst_ruangan as r", "p.kode_ruangan", "r.kode_ruangan")
@@ -54,8 +78,10 @@ router.post("/", async (req, res) => {
     const selectFields = [
       "p.kode_paket_layanan",
       "p.nama",
+      "p.tipe",
       "p.harga_paket",
       "p.masa_berlaku_hari",
+      "p.is_selamanya",
       DB.raw("COALESCE(DATE_FORMAT(p.tanggal_mulai, '%Y-%m-%d'), DATE_FORMAT(p.created_at, '%Y-%m-%d')) as tanggal_mulai"),
       DB.raw("COALESCE(DATE_FORMAT(p.tanggal_selesai, '%Y-%m-%d'), DATE_FORMAT(DATE_ADD(COALESCE(p.tanggal_mulai, p.created_at), INTERVAL p.masa_berlaku_hari DAY), '%Y-%m-%d')) as tanggal_selesai"),
       DB.raw("GREATEST(0, DATEDIFF(COALESCE(p.tanggal_selesai, DATE_ADD(COALESCE(p.tanggal_mulai, p.created_at), INTERVAL p.masa_berlaku_hari DAY)), CURDATE())) as sisa_hari"),
@@ -80,13 +106,29 @@ router.post("/", async (req, res) => {
       totalRecords = vaData.length;
     }
 
-    // Load detail items for each paket
+    // Load detail items for each paket & attach status info
     for (const item of vaData) {
       const details = await DB("mst_detail_paket_layanan as d")
         .leftJoin("mst_layanan as l", "d.kode_layanan", "l.kode_layanan")
         .where("d.kode_paket_layanan", item.kode_paket_layanan)
-        .select("d.kode_detail_paket_layanan", "d.kode_layanan", "l.nama as nama_layanan", "l.tipe as tipe_layanan", "d.jumlah_sesi");
+        .select(
+          "d.kode_detail_paket_layanan",
+          "d.kode_layanan",
+          "l.nama as nama_layanan",
+          "l.tipe as tipe_layanan",
+          "l.harga as harga_layanan",
+          "l.status as status_layanan",
+          "d.jumlah_sesi"
+        );
       item.details = details;
+
+      const inactiveDetails = details.filter((d) => d.status_layanan === "nonaktif");
+      item.has_inactive_layanan = inactiveDetails.length > 0;
+      item.inactive_layanan_names = inactiveDetails.map((d) => d.nama_layanan || d.kode_layanan);
+
+      if (!item.tipe) {
+        item.tipe = details.length > 0 ? (details[0].tipe_layanan || "BEAUTY TREATMENT") : "BEAUTY TREATMENT";
+      }
     }
 
     return res.status(200).json({ status: status.SUKSES, message: "Data ditemukan", datetime: formatDateSystem(), data: vaData, total_data: totalRecords });

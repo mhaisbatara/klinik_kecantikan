@@ -17,8 +17,10 @@ router.post("/", async (req, res) => {
         kode_paket_layanan: Joi.string().required().label("Kode Paket"),
         nama: Joi.string().max(100).required().label("Nama Paket"),
         kode_ruangan: Joi.string().optional().allow("", null).label("Ruangan"),
+        tipe: Joi.string().valid("MEDICAL TREATMENT", "BEAUTY TREATMENT", "SERVICE TREATMENT").optional().allow("", null).label("Tipe Paket"),
         harga_paket: Joi.number().min(0).required().label("Harga Paket"),
-        masa_berlaku_hari: Joi.number().integer().min(1).required().label("Masa Berlaku (Hari)"),
+        masa_berlaku_hari: Joi.number().integer().min(0).optional().allow(null).label("Masa Berlaku (Hari)"),
+        is_selamanya: Joi.boolean().optional().allow(null).label("Aktif Selamanya"),
         tanggal_mulai: Joi.string().optional().allow("", null).label("Tanggal Mulai"),
         tanggal_selesai: Joi.string().optional().allow("", null).label("Tanggal Selesai"),
         status: Joi.string().valid("aktif", "nonaktif").required().label("Status"),
@@ -33,31 +35,20 @@ router.post("/", async (req, res) => {
     );
     if (cValidation) return res.status(422).json({ status: status.BAD_REQUEST, message: cValidation, datetime: formatDateSystem() });
 
-    // Validasi: Pastikan semua layanan dalam paket memiliki tipe yang sama
-    const kodesLayanan = (oPayload.details || []).map((d) => d.kode_layanan);
-    if (kodesLayanan.length > 0) {
-      const vaLayanan = await DB("mst_layanan").whereIn("kode_layanan", kodesLayanan).select("kode_layanan", "tipe");
-      const tipeSet = new Set(vaLayanan.map((l) => l.tipe || "BEAUTY TREATMENT"));
-      if (tipeSet.size > 1) {
-        return res.status(422).json({
-          status: status.BAD_REQUEST,
-          message: "Layanan yang dikombinasikan dalam paket harus memiliki tipe yang sama (Medical, Beauty, atau Service Treatment)",
-          datetime: formatDateSystem()
-        });
-      }
-    }
+    const selectedTipe = oPayload.tipe || "BEAUTY TREATMENT";
 
+    const isSelamanya = Boolean(oPayload.is_selamanya);
     const todayStr = formatDateSystem(new Date(), "yyyy-MM-dd");
     const tglMulai = oPayload.tanggal_mulai || todayStr;
-    let tglSelesai = oPayload.tanggal_selesai;
-    if (!tglSelesai && oPayload.masa_berlaku_hari) {
+    let tglSelesai = isSelamanya ? null : oPayload.tanggal_selesai;
+    if (!isSelamanya && !tglSelesai && oPayload.masa_berlaku_hari) {
       const d = new Date(tglMulai);
       d.setDate(d.getDate() + parseInt(oPayload.masa_berlaku_hari, 10));
       tglSelesai = formatDateSystem(d, "yyyy-MM-dd");
     }
 
     let finalStatus = oPayload.status;
-    if (tglSelesai && tglSelesai < todayStr) {
+    if (!isSelamanya && tglSelesai && tglSelesai < todayStr) {
       finalStatus = "nonaktif";
     }
 
@@ -68,8 +59,10 @@ router.post("/", async (req, res) => {
       const oData = {
         nama: oPayload.nama,
         kode_ruangan: oPayload.kode_ruangan || null,
+        tipe: selectedTipe,
         harga_paket: oPayload.harga_paket,
-        masa_berlaku_hari: oPayload.masa_berlaku_hari,
+        masa_berlaku_hari: isSelamanya ? 0 : (oPayload.masa_berlaku_hari || 365),
+        is_selamanya: isSelamanya ? 1 : 0,
         tanggal_mulai: tglMulai,
         tanggal_selesai: tglSelesai,
         status: finalStatus,
