@@ -85,7 +85,7 @@ router.post("/", async (req, res) => {
       const details = await DB("mst_detail_paket_layanan as d")
         .leftJoin("mst_layanan as l", "d.kode_layanan", "l.kode_layanan")
         .where("d.kode_paket_layanan", item.kode_paket_layanan)
-        .select("d.kode_detail_paket_layanan", "d.kode_layanan", "l.nama as nama_layanan", "d.jumlah_sesi");
+        .select("d.kode_detail_paket_layanan", "d.kode_layanan", "l.nama as nama_layanan", "l.tipe as tipe_layanan", "d.jumlah_sesi");
       item.details = details;
     }
 

@@ -12,7 +12,6 @@ import { Dialog } from 'primereact/dialog';
 import { Tag } from 'primereact/tag';
 import { Dropdown } from 'primereact/dropdown';
 import { Divider } from 'primereact/divider';
-import { InputSwitch } from 'primereact/inputswitch';
 import { confirmDialog, ConfirmDialog } from 'primereact/confirmdialog';
 import { IconField } from 'primereact/iconfield';
 import { InputIcon } from 'primereact/inputicon';
@@ -31,6 +30,12 @@ const Page = () => {
     const [keyword, setKeyword] = useState<string>('');
     const [selectedRows, setSelectedRows] = useState<any[]>([]);
 
+    const tipeOptions = [
+        { label: 'MEDICAL TREATMENT (Wajib Konsul)', value: 'MEDICAL TREATMENT' },
+        { label: 'BEAUTY TREATMENT (Opsional)', value: 'BEAUTY TREATMENT' },
+        { label: 'SERVICE TREATMENT (Tidak Perlu Konsul)', value: 'SERVICE TREATMENT' }
+    ];
+
     const [dialogVisible, setDialogVisible] = useState<boolean>(false);
     const [isEdit, setIsEdit] = useState<boolean>(false);
     const [formData, setFormData] = useState<any>({
@@ -38,6 +43,7 @@ const Page = () => {
         kode_kategori_layanan: '',
         kode_ruangan: '',
         nama: '',
+        tipe: 'BEAUTY TREATMENT',
         harga: 0,
         durasi_menit: 30,
         status: 'aktif',
@@ -90,7 +96,7 @@ const Page = () => {
     const handleOpenCreate = () => {
         setIsEdit(false);
         setSubmitted(false);
-        setFormData({ kode_layanan: '', kode_kategori_layanan: kategoriList[0]?.value || '', kode_ruangan: ruanganList[0]?.value || '', nama: '', harga: 0, durasi_menit: 30, status: 'aktif' });
+        setFormData({ kode_layanan: '', kode_kategori_layanan: kategoriList[0]?.value || '', kode_ruangan: ruanganList[0]?.value || '', nama: '', tipe: 'BEAUTY TREATMENT', harga: 0, durasi_menit: 30, status: 'aktif' });
         setDialogVisible(true);
     };
 
@@ -100,6 +106,7 @@ const Page = () => {
         setFormData({
             ...rowData,
             kode_ruangan: rowData.kode_ruangan || '',
+            tipe: rowData.tipe || 'BEAUTY TREATMENT',
         });
         setDialogVisible(true);
     };
@@ -165,7 +172,6 @@ const Page = () => {
                     </p>
                 </div>
 
-
                 <div className="flex flex-row flex-wrap align-items-center gap-2 mb-4">
                     <Button
                         size="small"
@@ -208,8 +214,6 @@ const Page = () => {
                         onClick={loadData}
                     />
                 </div>
-
-
 
                 <DataTable
                     value={data}
@@ -287,6 +291,25 @@ const Page = () => {
                     ></Column>
                     <Column field="kode_layanan" header="Kode" sortable headerStyle={{ fontWeight: 'bold' }}></Column>
                     <Column field="nama" header="Nama Layanan" sortable headerStyle={{ fontWeight: 'bold' }}></Column>
+                    <Column
+                        field="tipe"
+                        header="Tipe Layanan"
+                        sortable
+                        headerStyle={{ fontWeight: 'bold' }}
+                        body={(r) => {
+                            const val = r.tipe || 'BEAUTY TREATMENT';
+                            let severity: 'danger' | 'info' | 'success' | 'warning' = 'info';
+                            let text = 'BEAUTY TREATMENT (Opsional)';
+                            if (val === 'MEDICAL TREATMENT') {
+                                severity = 'danger';
+                                text = 'MEDICAL TREATMENT (Wajib Konsul)';
+                            } else if (val === 'SERVICE TREATMENT') {
+                                severity = 'success';
+                                text = 'SERVICE TREATMENT (Tidak Perlu Konsul)';
+                            }
+                            return <Tag value={text} severity={severity} className="text-xs px-2 py-1" />;
+                        }}
+                    ></Column>
                     <Column field="nama_kategori" header="Kategori" body={(r) => r.nama_kategori || r.kode_kategori_layanan || '-'}></Column>
                     <Column field="nama_ruangan" header="Ruangan" body={(r) => r.nama_ruangan ? `${r.kode_ruangan ? r.kode_ruangan + ' - ' : ''}${r.nama_ruangan}` : (r.kode_ruangan || '-')}></Column>
                     <Column field="harga" header="Harga" body={(r) => <span className="font-semibold text-green-600">{formatRupiah(r.harga)}</span>}></Column>
@@ -316,6 +339,16 @@ const Page = () => {
                     <div>
                         <label className="block text-sm font-semibold mb-1">Nama Layanan *</label>
                         <InputText value={formData.nama} onChange={(e) => setFormData({ ...formData, nama: e.target.value })} placeholder="Masukkan nama layanan" className="w-full text-sm" />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-semibold mb-1">Tipe Layanan *</label>
+                        <Dropdown
+                            value={formData.tipe}
+                            options={tipeOptions}
+                            onChange={(e) => setFormData({ ...formData, tipe: e.value })}
+                            placeholder="Pilih Tipe Layanan"
+                            className="w-full text-sm"
+                        />
                     </div>
                     <div>
                         <label className="block text-sm font-semibold mb-1">Kategori Layanan *</label>

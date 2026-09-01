@@ -33,6 +33,20 @@ router.post("/", async (req, res) => {
     );
     if (cValidation) return res.status(422).json({ status: status.BAD_REQUEST, message: cValidation, datetime: formatDateSystem() });
 
+    // Validasi: Pastikan semua layanan dalam paket memiliki tipe yang sama
+    const kodesLayanan = (oPayload.details || []).map((d) => d.kode_layanan);
+    if (kodesLayanan.length > 0) {
+      const vaLayanan = await DB("mst_layanan").whereIn("kode_layanan", kodesLayanan).select("kode_layanan", "tipe");
+      const tipeSet = new Set(vaLayanan.map((l) => l.tipe || "BEAUTY TREATMENT"));
+      if (tipeSet.size > 1) {
+        return res.status(422).json({
+          status: status.BAD_REQUEST,
+          message: "Layanan yang dikombinasikan dalam paket harus memiliki tipe yang sama (Medical, Beauty, atau Service Treatment)",
+          datetime: formatDateSystem()
+        });
+      }
+    }
+
     const todayStr = formatDateSystem(new Date(), "yyyy-MM-dd");
     const tglMulai = oPayload.tanggal_mulai || todayStr;
     let tglSelesai = oPayload.tanggal_selesai;

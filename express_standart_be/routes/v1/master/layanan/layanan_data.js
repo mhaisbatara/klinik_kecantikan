@@ -19,11 +19,19 @@ router.post("/", async (req, res) => {
   const keyword = oPayload.keyword || "";
   const filterStatus = oPayload.status || null;
   const filterKategori = oPayload.kode_kategori_layanan || null;
+  const filterTipe = oPayload.tipe || null;
   const page = parseInt(oPayload.page) || 1;
   const perPage = parseInt(oPayload.perPage) || 10;
   const hasPagination = oPayload.page !== undefined || oPayload.perPage !== undefined;
 
   try {
+    const hasTipe = await DB.schema.hasColumn("mst_layanan", "tipe");
+    if (!hasTipe) {
+      await DB.schema.table("mst_layanan", (table) => {
+        table.string("tipe", 50).defaultTo("BEAUTY TREATMENT").nullable();
+      });
+    }
+
     const baseQuery = DB("mst_layanan as l")
       .leftJoin("mst_kategori_layanan as k", "l.kode_kategori_layanan", "k.kode_kategori_layanan")
       .leftJoin("mst_ruangan as r", "l.kode_ruangan", "r.kode_ruangan")
@@ -43,6 +51,9 @@ router.post("/", async (req, res) => {
         if (filterKategori) {
           qb.where("l.kode_kategori_layanan", filterKategori);
         }
+        if (filterTipe) {
+          qb.where("l.tipe", filterTipe);
+        }
       });
 
     const selectFields = [
@@ -54,6 +65,7 @@ router.post("/", async (req, res) => {
       "l.nama",
       "l.harga",
       "l.durasi_menit",
+      "l.tipe",
       "l.status",
       "l.created_by",
       "l.created_at",
