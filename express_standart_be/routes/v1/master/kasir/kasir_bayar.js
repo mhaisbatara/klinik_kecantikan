@@ -54,6 +54,14 @@ router.post("/", async (req, res) => {
       updated_at: DB.fn.now(),
     });
 
+    if (existing.kode_kunjungan) {
+      await DB("trx_kunjungan").where("kode_kunjungan", existing.kode_kunjungan).update({
+        status: "selesai",
+        updated_by: username,
+        updated_at: DB.fn.now(),
+      });
+    }
+
     return res.status(200).json({
       status: status.SUKSES,
       message: "Pembayaran berhasil",

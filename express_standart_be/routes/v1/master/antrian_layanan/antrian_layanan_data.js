@@ -35,7 +35,10 @@ const handleGetData = async (req, res) => {
       .leftJoin("mst_pasien as p", "k.no_rm", "p.no_rm")
       .leftJoin("trx_detail_antrian_layanan as dal", "al.kode_antrian_layanan", "dal.kode_antrian_layanan")
       .leftJoin("mst_ruangan as ral", "al.kode_ruangan", "ral.kode_ruangan")
-      .groupBy("al.id", "k.id", "p.id", "ral.id")
+      .leftJoin("mst_karyawan as kar", function () {
+        this.on("al.kode_karyawan", "=", "kar.no_sip").orOn("al.kode_karyawan", "=", "kar.kode_user");
+      })
+      .groupBy("al.id", "k.id", "p.id", "ral.id", "kar.id")
       .modify((qb) => {
         if (filterTanggal) {
           qb.whereRaw("DATE(al.created_at) = ?", [filterTanggal]);
@@ -54,6 +57,7 @@ const handleGetData = async (req, res) => {
               .orWhereRaw("LOWER(al.kode_kunjungan) LIKE ?", [`%${lower}%`])
               .orWhereRaw("LOWER(k.no_rm) LIKE ?", [`%${lower}%`])
               .orWhereRaw("LOWER(p.nama) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(kar.nama) LIKE ?", [`%${lower}%`])
               .orWhereRaw("LOWER(dal.nama_layanan) LIKE ?", [`%${lower}%`]);
           });
         }
@@ -68,6 +72,11 @@ const handleGetData = async (req, res) => {
       "al.kode_kunjungan",
       "al.nomor_antrian",
       "al.status",
+      "al.kode_karyawan",
+      "al.hasil_form",
+      "al.catatan_petugas",
+      "kar.nama as nama_petugas",
+      "kar.jabatan as jabatan_petugas",
       "al.dipanggil_at",
       "al.selesai_at",
       "al.created_at",

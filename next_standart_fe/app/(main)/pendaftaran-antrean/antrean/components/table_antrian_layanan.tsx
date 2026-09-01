@@ -35,6 +35,12 @@ export const TableAntrianLayanan = ({
     }, [state.autoRefresh, getData, getGridData]);
 
     const handleUbahStatus = (row: AntrianLayananData, aksi: string, label: string) => {
+        // Validation: Block completing status if Form Penanganan Pasien has not been saved
+        if (aksi === 'selesai' && !row.hasil_form) {
+            showError(toast, 'Selesaikan Tindakan tidak dapat diklik! Harap isi dan simpan Form Penanganan Pasien serta Hasil Treatment terlebih dahulu.');
+            return;
+        }
+
         confirmDialog({
             message: `Apakah Anda yakin ingin mengubah status antrean ${row.nomor_antrian} (${row.nama_pasien}) menjadi '${label}'?`,
             header: 'Konfirmasi Perubahan Status',
@@ -216,6 +222,7 @@ export const TableAntrianLayanan = ({
                 <Column field="nama_pasien" header="Nama Pasien" sortable body={(r) => <strong>{r.nama_pasien || '-'}</strong>} />
                 <Column field="nama_layanan" header="Layanan / Treatment" sortable body={(r) => <span className="text-blue-800 font-semibold">{r.nama_layanan || '-'}</span>} />
                 <Column field="nama_ruangan" header="Ruangan" body={(r) => <Tag value={r.nama_ruangan ? `${r.kode_ruangan ? r.kode_ruangan + ' - ' : ''}${r.nama_ruangan}` : (r.kode_ruangan || '-')} severity="success" className="text-xs font-semibold" />} />
+                <Column field="nama_petugas" header="Petugas Examiner" sortable body={(r) => r.nama_petugas ? <span className="font-semibold text-teal-800">{r.nama_petugas}</span> : <span className="text-400 italic">-</span>} />
                 <Column field="jam_datang" header="Jam Datang" sortable style={{ width: '120px' }} />
                 <Column field="status" header="Status" sortable style={{ width: '130px' }} body={statusBodyTemplate} />
                 <Column header="Aksi" style={{ width: '180px' }} body={actionBodyTemplate} />

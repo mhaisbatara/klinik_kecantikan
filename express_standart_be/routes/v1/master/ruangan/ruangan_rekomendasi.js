@@ -13,7 +13,7 @@ import DB from "../../../../core/config/knex.js";
 import { formatDateSystem } from "../../components/tools/date_tools.js";
 import { Logging, ChangesLog } from "../../components/tools/servertool.js";
 import { status } from "../../components/tools/general.js";
-import { syncRekamMedisPerKunjungan } from "./rekam_medis_service.js";
+import { syncRekamMedisPerAntrian } from "./rekam_medis_service.js";
 
 const router = express.Router();
 
@@ -146,7 +146,7 @@ const handleGetRekomendasiOptions = async (req, res) => {
           jenis_diskon: promo.jenis_diskon,
           nilai_diskon: diskonNilai,
           harga_asal: item.harga,
-          harga: item.harga,
+          harga: hargaDiskon,
         };
       }
 
@@ -304,6 +304,9 @@ router.post("/antrian-layanan-simpan-rekomendasi", async (req, res) => {
         updated_by: username,
         updated_at: formatDateSystem(),
       };
+      if (oPayload.kode_karyawan || oPayload.no_sip) {
+        updateObj.kode_karyawan = oPayload.kode_karyawan || oPayload.no_sip;
+      }
       if (status_tindakan && ["menunggu", "dipanggil", "selesai", "batal"].includes(status_tindakan)) {
         updateObj.status = status_tindakan;
         if (status_tindakan === "selesai") {
@@ -359,73 +362,58 @@ router.post("/antrian-layanan-simpan-rekomendasi", async (req, res) => {
           const group = groupsByRuangan[key];
           const groupItems = group.items;
 
-          // Cek apakah antrean layanan aktif sudah ada untuk kunjungan ini di ruangan ini
-          let existingRoomAntrian = await trx("trx_antrian_layanan")
-            .where("kode_kunjungan", kodeKunjungan)
-            .where("kode_ruangan", group.kode_ruangan)
-            .whereIn("status", ["menunggu", "dipanggil"])
+          // Sequential kode_antrian_layanan global
+          const lastAntrianLayanan = await trx("trx_antrian_layanan")
+            .where("kode_antrian_layanan", "like", `${prefixAntrianLayanan}%`)
+            .orderBy("id", "desc")
             .first();
 
-          let cKodeAntrianLayanan = "";
           let nextSeq = 1;
-
-          if (existingRoomAntrian) {
-            cKodeAntrianLayanan = existingRoomAntrian.kode_antrian_layanan;
-            // Hapus detail antrean lama di ruangan ini agar tidak terduplikasi
-            await trx("trx_detail_antrian_layanan")
-              .where("kode_antrian_layanan", cKodeAntrianLayanan)
-              .delete();
-          } else {
-            // Sequential kode_antrian_layanan global
-            const lastAntrianLayanan = await trx("trx_antrian_layanan")
-              .where("kode_antrian_layanan", "like", `${prefixAntrianLayanan}%`)
-              .orderBy("id", "desc")
-              .first();
-
-            if (lastAntrianLayanan && lastAntrianLayanan.kode_antrian_layanan) {
-              const parts = lastAntrianLayanan.kode_antrian_layanan.split("-");
-              const num = parseInt(parts[parts.length - 1], 10);
-              if (!isNaN(num)) nextSeq = num + 1;
-            }
-            cKodeAntrianLayanan = `${prefixAntrianLayanan}${String(nextSeq).padStart(3, "0")}`;
-
-            // Nomor antrian KHUSUS PER RUANGAN HARI INI
-            let lastNoQuery = trx("trx_antrian_layanan")
-              .where("created_at", ">=", todayYmd + " 00:00:00");
-
-            if (group.kode_ruangan) {
-              lastNoQuery = lastNoQuery.where("kode_ruangan", group.kode_ruangan);
-            } else {
-              lastNoQuery = lastNoQuery.where(function () {
-                this.whereNull("kode_ruangan").orWhere("kode_ruangan", "");
-              });
-            }
-
-            const lastNoAntrian = await lastNoQuery.orderBy("id", "desc").first();
-            let nextNo = 1;
-            if (lastNoAntrian && lastNoAntrian.nomor_antrian) {
-              const num = parseInt(lastNoAntrian.nomor_antrian, 10);
-              if (!isNaN(num)) nextNo = num + 1;
-            }
-            const cNomorAntrianSesi = String(nextNo).padStart(2, "0");
-
-            const oInsertLayanan = {
-              kode_antrian_layanan: cKodeAntrianLayanan,
-              kode_kunjungan: kodeKunjungan,
-              nomor_antrian: cNomorAntrianSesi,
-              kode_ruangan: group.kode_ruangan,
-              nama_ruangan: group.nama_ruangan,
-              status: "menunggu",
-              tz: currentAntrian.tz || "Asia/Jakarta",
-              created_by: username,
-              created_at: formatDateSystem(),
-              updated_by: username,
-              updated_at: formatDateSystem(),
-            };
-
-            await trx("trx_antrian_layanan").insert(oInsertLayanan);
-            existingRoomAntrian = oInsertLayanan;
+          if (lastAntrianLayanan && lastAntrianLayanan.kode_antrian_layanan) {
+            const parts = lastAntrianLayanan.kode_antrian_layanan.split("-");
+            const num = parseInt(parts[parts.length - 1], 10);
+            if (!isNaN(num)) nextSeq = num + 1;
           }
+          const cKodeAntrianLayanan = `${prefixAntrianLayanan}${String(nextSeq).padStart(3, "0")}`;
+
+          // Nomor antrian KHUSUS PER RUANGAN HARI INI
+          let lastNoQuery = trx("trx_antrian_layanan")
+            .where("created_at", ">=", todayYmd + " 00:00:00");
+
+          if (group.kode_ruangan) {
+            lastNoQuery = lastNoQuery.where("kode_ruangan", group.kode_ruangan);
+          } else {
+            lastNoQuery = lastNoQuery.where(function () {
+              this.whereNull("kode_ruangan").orWhere("kode_ruangan", "");
+            });
+          }
+
+          const lastNoAntrian = await lastNoQuery.orderBy("id", "desc").first();
+          let nextNo = 1;
+          if (lastNoAntrian && lastNoAntrian.nomor_antrian) {
+            const num = parseInt(lastNoAntrian.nomor_antrian, 10);
+            if (!isNaN(num)) nextNo = num + 1;
+          }
+          const cNomorAntrianSesi = String(nextNo).padStart(2, "0");
+
+          const combinedNamaLayanan = groupItems.map((d) => d.nama).join(", ");
+          const combinedKodeLayanan = groupItems.map((d) => d.kode || d.kode_layanan).join(", ");
+
+          const oInsertLayanan = {
+            kode_antrian_layanan: cKodeAntrianLayanan,
+            kode_kunjungan: kodeKunjungan,
+            nomor_antrian: cNomorAntrianSesi,
+            kode_ruangan: group.kode_ruangan,
+            nama_ruangan: group.nama_ruangan,
+            status: "menunggu",
+            tz: currentAntrian.tz || "Asia/Jakarta",
+            created_by: username,
+            created_at: formatDateSystem(),
+            updated_by: username,
+            updated_at: formatDateSystem(),
+          };
+
+          await trx("trx_antrian_layanan").insert(oInsertLayanan);
 
           // Insert detail rows into trx_detail_antrian_layanan
           let dSeq = 1;
@@ -455,24 +443,20 @@ router.post("/antrian-layanan-simpan-rekomendasi", async (req, res) => {
           }
 
           createdAntrianLayanan.push({
-            ...existingRoomAntrian,
+            ...oInsertLayanan,
             details: vaInsertDetail,
           });
         }
       }
 
-      // ─── D. PROSES REKOMENDASI PRODUK → HANYA LANGSUNG KE KASIR JIKA CUMA PRODUK SAJA ───
-      // Jika ADA Layanan, transaksi ke kasir BELUM diterbitkan dulu (diterbitkan nanti dari Ruang Treatment)
-      const isOnlyProduk = layananItems.length === 0 && produkItems.length > 0;
-
-      if (isOnlyProduk && kodeKunjungan && kunjungan) {
+      // ─── D. PROSES REKOMENDASI PRODUK → MASUK KE DRAF TRANSAKSI PENJUALAN ───
+      if (produkItems.length > 0 && kodeKunjungan && kunjungan) {
         const prefixTrx = `TRX-${todayStr}-`;
 
-        // Cek apakah transaksi draft khusus produk sudah ada untuk kunjungan ini
+        // Cek apakah transaksi draft sudah ada untuk kunjungan ini
         let existingTrx = await trx("trx_transaksi")
           .where("kode_kunjungan", kodeKunjungan)
           .where("status", "draft")
-          .where("is_product_only", 1)
           .first();
 
         let kodeTransaksi = "";
@@ -503,7 +487,6 @@ router.post("/antrian-layanan-simpan-rekomendasi", async (req, res) => {
             total_bayar: 0,
             metode_bayar: "tunai",
             status: "draft",
-            is_product_only: 1,
             tz: kunjungan.tz || "Asia/Jakarta",
             created_by: username,
             created_at: formatDateSystem(),
@@ -515,41 +498,7 @@ router.post("/antrian-layanan-simpan-rekomendasi", async (req, res) => {
           existingTrx = newTrx;
         }
 
-        // Hapus detail produk lama di trx_detail_transaksi agar tidak duplikat saat rekomendasi disimpan ulang
-        await trx("trx_detail_transaksi")
-          .where("kode_transaksi", kodeTransaksi)
-          .whereNotNull("kode_produk")
-          .delete();
-
-        // Aggregate produkItems berdasarkan kode_produk
-        const aggregatedProdukMap = {};
-        for (const prd of produkItems) {
-          const k = prd.kode || prd.kode_produk;
-          if (k) {
-            const q = Math.max(1, parseInt(prd.qty || 1, 10));
-            const h = parseFloat(prd.harga || prd.harga_jual || 0);
-            if (!aggregatedProdukMap[k]) {
-              aggregatedProdukMap[k] = { kode_produk: k, qty: q, harga: h };
-            } else {
-              aggregatedProdukMap[k].qty += q;
-            }
-          }
-        }
-        const aggregatedProdukList = Object.values(aggregatedProdukMap);
-
-        // Fetch harga produk terkini dari mst_produk
-        const kodeProdukList = aggregatedProdukList.map((i) => i.kode_produk);
-        let produkPriceMap = {};
-        if (kodeProdukList.length > 0) {
-          const mstProdukList = await trx("mst_produk")
-            .whereIn("kode_produk", kodeProdukList)
-            .select("kode_produk", "harga_jual");
-          mstProdukList.forEach((p) => {
-            produkPriceMap[p.kode_produk] = parseFloat(p.harga_jual || 0);
-          });
-        }
-
-        // Generate prefix & sequence kode detail
+        // Generate detail transaksi
         const prefixDetail = `DT-${todayStr}-`;
         const lastDetail = await trx("trx_detail_transaksi")
           .where("kode_detail_transaksi", "like", `${prefixDetail}%`)
@@ -564,14 +513,12 @@ router.post("/antrian-layanan-simpan-rekomendasi", async (req, res) => {
         }
 
         let tambahanTotal = 0;
-        for (const prd of aggregatedProdukList) {
+        for (const prd of produkItems) {
           const cKodeDetail = `${prefixDetail}${String(nextDetailSeq).padStart(3, "0")}`;
           nextDetailSeq++;
 
-          const qty = prd.qty;
-          const hargaSatuan = produkPriceMap[prd.kode_produk] !== undefined && produkPriceMap[prd.kode_produk] > 0
-            ? produkPriceMap[prd.kode_produk]
-            : prd.harga;
+          const qty = Math.max(1, parseInt(prd.qty || 1, 10));
+          const hargaSatuan = parseFloat(prd.harga || 0);
           const subtotal = qty * hargaSatuan;
           tambahanTotal += subtotal;
 
@@ -579,7 +526,7 @@ router.post("/antrian-layanan-simpan-rekomendasi", async (req, res) => {
             kode_detail_transaksi: cKodeDetail,
             kode_transaksi: kodeTransaksi,
             kode_layanan: null,
-            kode_produk: prd.kode_produk,
+            kode_produk: prd.kode || prd.kode_produk,
             qty: qty,
             harga_satuan: hargaSatuan,
             subtotal: subtotal,
@@ -633,17 +580,14 @@ router.post("/antrian-layanan-simpan-rekomendasi", async (req, res) => {
           .filter(Boolean)
           .join("\n\n---\n");
 
-        const mergedHasilForm = {
-          ...(typeof hasil_form === "object" ? hasil_form : {}),
-          rekomendasi_items: items,
-        };
-
-        await syncRekamMedisPerKunjungan({
+        await syncRekamMedisPerAntrian({
           kode_kunjungan: kodeKunjungan,
+          kode_antrian_layanan: kode_antrian_layanan,
           kode_ruangan: currentAntrian.kode_ruangan,
           nama_ruangan: currentAntrian.nama_ruangan,
-          hasil_form: mergedHasilForm,
+          hasil_form: hasil_form,
           catatan_petugas: combinedCatatan,
+          kode_karyawan: updateObj.kode_karyawan || currentAntrian.kode_karyawan,
           username: username,
         });
       }
@@ -682,109 +626,6 @@ router.post("/antrian-layanan-simpan-rekomendasi", async (req, res) => {
       message: error.message || "Gagal menyimpan rekomendasi & penanganan pasien",
       datetime: formatDateSystem(),
     });
-  }
-});
-
-/**
- * ─── 3. FETCH PRODUK REKOMENDASI DRAFT PER KUNJUNGAN ───
- */
-router.post("/kunjungan-produk-rekomendasi", async (req, res) => {
-  const { kode_kunjungan } = req.body || {};
-  if (!kode_kunjungan) {
-    return res.status(200).json({ status: status.SUKSES, data: [], datetime: formatDateSystem() });
-  }
-
-  try {
-    // 1. Cek dari draf transaksi kasir jika sudah ada
-    const trxDraft = await DB("trx_transaksi")
-      .where("kode_kunjungan", kode_kunjungan)
-      .where("status", "draft")
-      .first();
-
-    if (trxDraft) {
-      const products = await DB("trx_detail_transaksi as dt")
-        .join("mst_produk as p", "dt.kode_produk", "p.kode_produk")
-        .where("dt.kode_transaksi", trxDraft.kode_transaksi)
-        .whereNotNull("dt.kode_produk")
-        .groupBy("dt.kode_produk", "p.nama", "p.satuan")
-        .select(
-          "dt.kode_produk",
-          "p.nama",
-          DB.raw("MAX(COALESCE(dt.harga_satuan, p.harga_jual, 0)) as harga_jual"),
-          DB.raw("COALESCE(p.satuan, 'pcs') as satuan"),
-          DB.raw("SUM(dt.qty) as qty")
-        );
-      if (products && products.length > 0) {
-        return res.status(200).json({ status: status.SUKSES, data: products, datetime: formatDateSystem() });
-      }
-    }
-
-    // 2. Jika belum ada di draf kasir (karena ada layanan, sehingga draf kasir belum dikirim), ambil dari rekam medis rekomendasi dokter
-    const rm = await DB("trx_rekam_medis")
-      .where("kode_kunjungan", kode_kunjungan)
-      .first();
-
-    if (rm && rm.detail_layanan_ruangan) {
-      try {
-        const detailRuangan = typeof rm.detail_layanan_ruangan === "string"
-          ? JSON.parse(rm.detail_layanan_ruangan)
-          : rm.detail_layanan_ruangan;
-
-        let produkList = [];
-        Object.values(detailRuangan).forEach((roomObj) => {
-          if (!roomObj) return;
-          let recItems = [];
-          if (Array.isArray(roomObj.rekomendasi_items)) {
-            recItems = roomObj.rekomendasi_items;
-          } else if (roomObj.hasil_form) {
-            let hForm = roomObj.hasil_form;
-            if (typeof hForm === "string") {
-              try { hForm = JSON.parse(hForm); } catch (_) {}
-            }
-            if (hForm && Array.isArray(hForm.rekomendasi_items)) {
-              recItems = hForm.rekomendasi_items;
-            }
-          }
-
-          recItems.forEach((item) => {
-            const j = (item.jenis || item.tipe || "").toLowerCase();
-            if (["produk", "paket_produk"].includes(j) || item.kode_produk) {
-              produkList.push({
-                kode_produk: item.kode || item.kode_produk,
-                nama: item.nama || item.nama_produk,
-                harga_jual: parseFloat(item.harga || item.harga_jual || 0),
-                satuan: item.satuan || "pcs",
-                qty: parseInt(item.qty || 1, 10),
-              });
-            }
-          });
-        });
-
-        // Deduplicate produkList
-        const mergedMap = {};
-        produkList.forEach((p) => {
-          if (p.kode_produk) {
-            mergedMap[p.kode_produk] = {
-              ...p,
-              qty: Math.max(1, parseInt(p.qty || 1, 10)),
-            };
-          }
-        });
-
-        const resultList = Object.values(mergedMap);
-        if (resultList.length > 0) {
-          return res.status(200).json({
-            status: status.SUKSES,
-            data: resultList,
-            datetime: formatDateSystem(),
-          });
-        }
-      } catch (_) {}
-    }
-
-    return res.status(200).json({ status: status.SUKSES, data: [], datetime: formatDateSystem() });
-  } catch (error) {
-    return res.status(200).json({ status: status.SUKSES, data: [], datetime: formatDateSystem() });
   }
 });
 
