@@ -44,13 +44,13 @@ router.post("/", async (req, res) => {
     if (trx.kode_kunjungan && trx.status === "draft") {
       let antrianItems = await DB("trx_detail_antrian_layanan as dal")
         .join("trx_antrian_layanan as al", "dal.kode_antrian_layanan", "al.kode_antrian_layanan")
-        .where("dal.kode_kunjungan", trx.kode_kunjungan)
+        .where("al.kode_kunjungan", trx.kode_kunjungan)
         .whereNull("al.kode_antrian_asal")
         .groupBy("dal.kode_layanan")
         .select(
           "dal.kode_layanan",
           DB.raw("MAX(dal.nama_layanan) as nama_layanan"),
-          DB.raw("MAX(dal.harga) as harga"),
+          DB.raw("MIN(dal.harga) as harga"),  // MIN agar klaim_paket (Rp 0) diutamakan
           DB.raw("MAX(dal.kode_promo) as kode_promo"),
           DB.raw("MAX(dal.nama_promo) as nama_promo"),
           DB.raw("MAX(dal.jenis_diskon) as jenis_diskon"),
@@ -64,7 +64,7 @@ router.post("/", async (req, res) => {
           .select(
             "dal.kode_layanan",
             DB.raw("MAX(dal.nama_layanan) as nama_layanan"),
-            DB.raw("MAX(dal.harga) as harga"),
+            DB.raw("MIN(dal.harga) as harga"),  // MIN agar klaim_paket (Rp 0) diutamakan
             DB.raw("MAX(dal.kode_promo) as kode_promo"),
             DB.raw("MAX(dal.nama_promo) as nama_promo"),
             DB.raw("MAX(dal.jenis_diskon) as jenis_diskon"),

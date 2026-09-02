@@ -36,40 +36,69 @@ router.post("/", async (req, res) => {
     const kodeKunjunganList = vaKunjungan.map((k) => k.kode_kunjungan).filter(Boolean);
     let vaLayananPendaftaran = [];
     if (kodeKunjunganList.length > 0) {
+      // Ambil hanya dari antrian ASAL (kode_antrian_asal IS NULL) dan GROUP BY kode_layanan
+      // Gunakan MIN(harga) agar klaim_paket (harga=0) selalu diprioritaskan
       vaLayananPendaftaran = await DB("trx_detail_antrian_layanan as dal")
-        .whereIn("dal.kode_kunjungan", kodeKunjunganList)
+        .join("trx_antrian_layanan as al", "dal.kode_antrian_layanan", "al.kode_antrian_layanan")
+        .whereIn("al.kode_kunjungan", kodeKunjunganList)
+        .whereNull("al.kode_antrian_asal")
+        .groupBy("al.kode_kunjungan", "dal.kode_layanan")
         .select(
-          "dal.kode_kunjungan",
-          "dal.jenis_layanan",
+          "al.kode_kunjungan",
+          DB.raw("MIN(dal.jenis_layanan) as jenis_layanan"),
           "dal.kode_layanan",
-          "dal.nama_layanan",
-          "dal.harga",
-          "dal.kode_promo",
-          "dal.nama_promo",
-          "dal.jenis_diskon",
-          "dal.nilai_diskon"
+          DB.raw("MAX(dal.nama_layanan) as nama_layanan"),
+          DB.raw("MIN(dal.harga) as harga"),  // MIN agar klaim_paket (Rp 0) diutamakan
+          DB.raw("MAX(dal.kode_promo) as kode_promo"),
+          DB.raw("MAX(dal.nama_promo) as nama_promo"),
+          DB.raw("MAX(dal.jenis_diskon) as jenis_diskon"),
+          DB.raw("MAX(dal.nilai_diskon) as nilai_diskon")
         );
+
+      // Fallback jika semua antrian sudah punya asal (forwarded)
+      if (vaLayananPendaftaran.length === 0) {
+        vaLayananPendaftaran = await DB("trx_detail_antrian_layanan as dal")
+          .join("trx_antrian_layanan as al", "dal.kode_antrian_layanan", "al.kode_antrian_layanan")
+          .whereIn("al.kode_kunjungan", kodeKunjunganList)
+          .groupBy("al.kode_kunjungan", "dal.kode_layanan")
+          .select(
+            "al.kode_kunjungan",
+            DB.raw("MIN(dal.jenis_layanan) as jenis_layanan"),
+            "dal.kode_layanan",
+            DB.raw("MAX(dal.nama_layanan) as nama_layanan"),
+            DB.raw("MIN(dal.harga) as harga"),
+            DB.raw("MAX(dal.kode_promo) as kode_promo"),
+            DB.raw("MAX(dal.nama_promo) as nama_promo"),
+            DB.raw("MAX(dal.jenis_diskon) as jenis_diskon"),
+            DB.raw("MAX(dal.nilai_diskon) as nilai_diskon")
+          );
+      }
     }
 
     const kunjunganMapped = vaKunjungan.map((k) => {
       const roomItems = vaLayananPendaftaran.filter((l) => l.kode_kunjungan === k.kode_kunjungan);
       const uniqueItemsMap = {};
       roomItems.forEach((l) => {
-        if (l.kode_layanan && !uniqueItemsMap[l.kode_layanan]) {
-          uniqueItemsMap[l.kode_layanan] = {
-            jenis: "layanan",
-            kode: l.kode_layanan,
-            nama: l.nama_layanan,
-            satuan: "tindakan",
-            qty: 1,
-            harga_satuan: parseFloat(l.harga || 0),
-            subtotal: parseFloat(l.harga || 0),
-            is_from_pendaftaran: true,
-            kode_promo: l.kode_promo || null,
-            nama_promo: l.nama_promo || null,
-            jenis_diskon: l.jenis_diskon || null,
-            nilai_diskon: l.nilai_diskon ? parseFloat(l.nilai_diskon) : null,
-          };
+        const isKlaim = (l.jenis_layanan || '').toLowerCase() === 'klaim_paket';
+        if (l.kode_layanan) {
+          // Untuk klaim_paket, selalu override dengan harga=0 (prioritas tertinggi)
+          if (!uniqueItemsMap[l.kode_layanan] || isKlaim) {
+            uniqueItemsMap[l.kode_layanan] = {
+              jenis: isKlaim ? 'klaim_paket' : 'layanan',
+              kode: l.kode_layanan,
+              nama: l.nama_layanan,
+              satuan: "tindakan",
+              qty: 1,
+              harga_satuan: isKlaim ? 0 : parseFloat(l.harga || 0),
+              subtotal: isKlaim ? 0 : parseFloat(l.harga || 0),
+              is_from_pendaftaran: true,
+              is_klaim_paket: isKlaim,
+              kode_promo: l.kode_promo || null,
+              nama_promo: l.nama_promo || null,
+              jenis_diskon: l.jenis_diskon || null,
+              nilai_diskon: l.nilai_diskon ? parseFloat(l.nilai_diskon) : null,
+            };
+          }
         }
       });
       return {

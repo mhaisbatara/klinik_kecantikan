@@ -105,13 +105,13 @@ const handleHasilTreatmentSave = async (req, res) => {
       // Ambil hanya dari antrian asal (kode_antrian_asal IS NULL) dan deduplicate per kode_layanan
       let layananPendaftaran = await trx("trx_detail_antrian_layanan as dal")
         .join("trx_antrian_layanan as al", "dal.kode_antrian_layanan", "al.kode_antrian_layanan")
-        .where("dal.kode_kunjungan", kode_kunjungan)
+        .where("al.kode_kunjungan", kode_kunjungan)
         .whereNull("al.kode_antrian_asal")
         .groupBy("dal.kode_layanan")
         .select(
           "dal.kode_layanan",
           trx.raw("MAX(dal.nama_layanan) as nama_layanan"),
-          trx.raw("MAX(dal.harga) as harga"),
+          trx.raw("MIN(dal.harga) as harga"),  // MIN agar klaim_paket (Rp 0) diutamakan
           trx.raw("MAX(dal.jenis_layanan) as jenis_layanan")
         );
 
@@ -123,7 +123,7 @@ const handleHasilTreatmentSave = async (req, res) => {
           .select(
             "dal.kode_layanan",
             trx.raw("MAX(dal.nama_layanan) as nama_layanan"),
-            trx.raw("MAX(dal.harga) as harga"),
+            trx.raw("MIN(dal.harga) as harga"),  // MIN agar klaim_paket (Rp 0) diutamakan
             trx.raw("MAX(dal.jenis_layanan) as jenis_layanan")
           );
       }
