@@ -554,7 +554,11 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                                         </div>
                                     </div>
                                 )}
-                                    {/* SECTION FOTO BEFORE (SEBELUM TREATMENT) & REKAM MEDIS */}
+                            />
+                        </div>
+                    </div>
+
+                    {/* SECTION FOTO BEFORE (SEBELUM TREATMENT) & REKAM MEDIS */}
                     <div className="surface-card p-4 border-round-xl border-1 surface-border shadow-1 flex flex-column gap-4">
                         {/* FOTO BEFORE UPLOADER BOX */}
                         <div className="p-3 surface-50 border-round-xl border-1 surface-border">
@@ -600,10 +604,6 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                                     onChange={handleBeforePhotoUpload}
                                     disabled={isFormSaved || uploadingBefore}
                                 />
-                            </div>
-                        </div>d || uploadingBefore}
-                                />
->>>>>>> origin/main
                             </div>
                         </div>
 
@@ -1099,7 +1099,6 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                     )}
                 </div>
             )}
->>>>>>> origin/main
 
             {/* CONFIRM DIALOG & HASIL MODAL */}
             <Dialog
