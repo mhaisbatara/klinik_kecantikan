@@ -78,36 +78,39 @@ export const StepPilihLayanan: React.FC<Props> = ({
   // Kode ruangan yang sedang aktif dipilih (null = belum ada yang dipilih)
   const [activeRuangan, setActiveRuangan] = useState<string | null>(null);
 
+  const [activeTabIndex, setActiveTabIndex] = useState<number>(0);
+
   useEffect(() => {
-    fetchOptions();
-    if (pasienData?.no_rm) {
-      fetchOwnedPackages();
-    }
+    fetchAllData();
   }, [pasienData?.no_rm]);
 
-  const fetchOptions = async () => {
+  const fetchAllData = async () => {
     setLoading(true);
+    setActiveTabIndex(0);
     try {
-      const res = await postData(apiPasienLayananOptions);
-      if (['00', '0000'].includes(res.data.status)) {
-        setRuangans(res.data.data.ruangan_layanan || res.data.data.kategori_layanan || []);
+      const promises: Promise<any>[] = [postData(apiPasienLayananOptions)];
+      if (pasienData?.no_rm) {
+        promises.push(postData(apiPasienKepemilikanPaket, { no_rm: pasienData.no_rm }));
+      }
+
+      const [resOptions, resPackages] = await Promise.all(promises);
+
+      if (['00', '0000'].includes(resOptions?.data?.status)) {
+        setRuangans(resOptions.data.data.ruangan_layanan || resOptions.data.data.kategori_layanan || []);
       } else {
-        showError(toast, res.data.message || 'Gagal memuat pilihan layanan');
+        showError(toast, resOptions?.data?.message || 'Gagal memuat pilihan layanan');
+      }
+
+      if (resPackages && ['00', '0000'].includes(resPackages?.data?.status)) {
+        setOwnedPackages(resPackages.data.data || []);
+      } else {
+        setOwnedPackages([]);
       }
     } catch (error: any) {
       showError(toast, 'Terjadi kesalahan saat memuat daftar layanan');
     } finally {
       setLoading(false);
     }
-  };
-
-  const fetchOwnedPackages = async () => {
-    try {
-      const res = await postData(apiPasienKepemilikanPaket, { no_rm: pasienData.no_rm });
-      if (['00', '0000'].includes(res.data?.status)) {
-        setOwnedPackages(res.data.data || []);
-      }
-    } catch (_) {}
   };
 
   const handleToggleItem = (item: ServiceItem) => {
@@ -486,7 +489,11 @@ export const StepPilihLayanan: React.FC<Props> = ({
               <span className="text-500 text-sm mt-3 font-medium">Memuat opsi layanan &amp; paket...</span>
             </div>
           ) : (
-            <TabView className="p-tabview-custom">
+            <TabView
+              className="p-tabview-custom"
+              activeIndex={activeTabIndex}
+              onTabChange={(e) => setActiveTabIndex(e.index)}
+            >
               {/* TAB KHUSUS: PAKET DIMILIKI PASIEN (KLAIM SESI) */}
               {ownedPackages && ownedPackages.length > 0 && (
                 <TabPanel
