@@ -41,6 +41,8 @@ const handleGetOptions = async (req, res) => {
         "l.durasi_menit",
         "l.tipe",
         "l.kode_ruangan",
+        "l.wajib_konsultasi",
+        "l.kode_ruangan_konsultasi",
         "r.nama_ruangan as nama_ruangan",
         "r.is_konsultasi as is_konsultasi"
       )
@@ -165,6 +167,8 @@ const handleGetOptions = async (req, res) => {
         tipe: (lay.tipe || "BEAUTY TREATMENT").toString().trim().toUpperCase(),
         kode_ruangan: lay.kode_ruangan || "",
         nama_ruangan: lay.nama_ruangan || lay.kode_ruangan || "Ruang Treatment",
+        wajib_konsultasi: lay.wajib_konsultasi || "tidak",
+        kode_ruangan_konsultasi: lay.kode_ruangan_konsultasi || "",
         is_konsultasi: Number(lay.is_konsultasi || 0),
       };
 

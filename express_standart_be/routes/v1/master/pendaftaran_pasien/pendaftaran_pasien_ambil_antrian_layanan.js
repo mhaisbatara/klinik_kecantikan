@@ -289,12 +289,11 @@ router.post("/", async (req, res) => {
             tipeLayanan = (lay?.tipe || "BEAUTY TREATMENT").toUpperCase();
             kodeRuanganTarget = lay?.kode_ruangan || pktAsal?.kode_ruangan || "RNG-001";
             namaRuanganTarget = lay?.nama_ruangan || pktAsal?.nama_ruangan || "Ruang Treatment";
-          } else if (jenis === "layanan") {
             const lay = await trx("mst_layanan as l")
               .leftJoin("mst_ruangan as r", "l.kode_ruangan", "r.kode_ruangan")
               .where("l.kode_layanan", kodeLayanan)
               .where("l.status", "aktif")
-              .select("l.nama", "l.harga", "l.tipe", "l.kode_ruangan", "r.nama_ruangan as nama_ruangan")
+              .select("l.nama", "l.harga", "l.tipe", "l.kode_ruangan", "l.wajib_konsultasi", "l.kode_ruangan_konsultasi", "r.nama_ruangan as nama_ruangan")
               .first();
 
             if (!lay) {

@@ -1,5 +1,12 @@
 import DB from "../../../../core/config/knex.js";
 import { formatDateSystem } from "../../components/tools/date_tools.js";
+import {
+  mapAcneToEnum,
+  mapInflammationToEnum,
+  mapSkinTypeToEnum,
+  mapPigmentationToEnum,
+  mapSensitivityToEnum,
+} from "./rekam_medis_enum_helper.js";
 
 /**
  * Sync rekam medis per ruangan untuk kunjungan pasien (kode_kunjungan & kode_ruangan).
@@ -14,6 +21,8 @@ export async function syncRekamMedisPerAntrian({
   kode_ruangan,
   nama_ruangan,
   hasil_form,
+  header_data,
+  skin_analysis,
   catatan_petugas,
   catatan_tindakan,
   catatan_hasil_treatment,
@@ -58,8 +67,8 @@ export async function syncRekamMedisPerAntrian({
       }
     }
 
+    const now = formatDateSystem();
     if (!existingHeaderRM) {
-      const now = formatDateSystem();
       const [insertedHeaderId] = await db("trx_rekam_medis").insert({
         kode_rekam_medis: `RKM-${Date.now()}`,
         kode_kunjungan,
@@ -79,6 +88,68 @@ export async function syncRekamMedisPerAntrian({
       throw new Error("Gagal memperoleh id_rekam_medis header");
     }
 
+    // Update fields header trx_rekam_medis jika dikirim
+    const headerUpdate = {
+      updated_by: username,
+      updated_at: new Date(),
+    };
+    if (resolvedKodeKaryawan) headerUpdate.kode_karyawan = resolvedKodeKaryawan;
+    if (resolvedNoSip !== "-") headerUpdate.no_sip = resolvedNoSip;
+
+    const headerFields = [
+      "keluhan", "durasi_keluhan", "riwayat_alergi", "riwayat_treatment",
+      "pemeriksaan_acne", "pemeriksaan_inflammation", "pemeriksaan_skin_type", "pemeriksaan_pigmentation", "pemeriksaan_sensitivity",
+      "diagnosis", "subjective", "objective", "assessment", "plan", "foto_before"
+    ];
+    let hasHeaderFields = false;
+    headerFields.forEach((f) => {
+      let val = header_data?.[f] !== undefined ? header_data[f] : hasil_form?.[f];
+      if (val !== undefined) {
+        if (f === "pemeriksaan_acne") val = mapAcneToEnum(val);
+        else if (f === "pemeriksaan_inflammation") val = mapInflammationToEnum(val);
+        else if (f === "pemeriksaan_skin_type") val = mapSkinTypeToEnum(val);
+        else if (f === "pemeriksaan_pigmentation") val = mapPigmentationToEnum(val);
+        else if (f === "pemeriksaan_sensitivity") val = mapSensitivityToEnum(val);
+
+        headerUpdate[f] = val;
+        hasHeaderFields = true;
+      }
+    });
+
+    if (hasHeaderFields || resolvedKodeKaryawan) {
+      await db("trx_rekam_medis").where("id", id_rekam_medis).update(headerUpdate);
+    }
+
+    // Sync trx_skin_analysis jika dikirim
+    const skinData = skin_analysis || hasil_form?.skin_analysis;
+    if (skinData && typeof skinData === "object") {
+      const existingSa = await db("trx_skin_analysis").where("id_rekam_medis", id_rekam_medis).first();
+      const saObj = {
+        id_rekam_medis,
+        kode_kunjungan,
+        skin_type: skinData.skin_type ?? null,
+        hydration: skinData.hydration ?? null,
+        oil_level: skinData.oil_level ?? null,
+        acne: skinData.acne ?? null,
+        pigmentation: skinData.pigmentation ?? null,
+        pore: skinData.pore ?? null,
+        sensitivity: skinData.sensitivity ?? null,
+        skin_score: skinData.skin_score ?? null,
+        catatan: skinData.catatan || null,
+        tz: "Asia/Jakarta",
+        updated_by: username,
+        updated_at: new Date(),
+      };
+      if (existingSa) {
+        await db("trx_skin_analysis").where("id", existingSa.id).update(saObj);
+      } else {
+        saObj.kode_skin_analysis = `SA-${kode_kunjungan}-${Date.now().toString().slice(-4)}`;
+        saObj.created_by = username;
+        saObj.created_at = new Date();
+        await db("trx_skin_analysis").insert(saObj);
+      }
+    }
+
     // Resolve nama_ruangan jika tidak terisi
     let resolvedNamaRuangan = nama_ruangan;
     if (!resolvedNamaRuangan && kode_ruangan) {
@@ -90,6 +161,10 @@ export async function syncRekamMedisPerAntrian({
     // 2. Extract foto (before/after) & pisahkan field non-foto untuk data_form
     let extractedFotos = [];
     let cleanDataForm = {};
+
+    if (header_data?.foto_before) {
+      extractedFotos.push({ tipe: "before", url_foto: header_data.foto_before });
+    }
 
     if (hasil_form && typeof hasil_form === "object") {
       Object.entries(hasil_form).forEach(([key, val]) => {
@@ -148,21 +223,38 @@ export async function syncRekamMedisPerAntrian({
       ? catatan_hasil_treatment
       : (existingRoomRM?.catatan_hasil_treatment || null);
 
+    const areaYangDitangani = cleanDataForm.area_yang_ditangani || existingRoomRM?.area_yang_ditangani || null;
+    const kondisiKulit = cleanDataForm.kondisi_kulit || existingRoomRM?.kondisi_kulit || null;
+    const produkBahanDigunakan = cleanDataForm.produk_bahan_digunakan || existingRoomRM?.produk_bahan_digunakan || null;
+    const jumlahSatuan = cleanDataForm.jumlah_satuan || existingRoomRM?.jumlah_satuan || null;
+    const kondisiSetelahTindakan = cleanDataForm.kondisi_setelah_tindakan || existingRoomRM?.kondisi_setelah_tindakan || null;
+    const persetujuanTindakan = cleanDataForm.persetujuan_tindakan !== undefined
+      ? (cleanDataForm.persetujuan_tindakan ? 1 : 0)
+      : (existingRoomRM?.persetujuan_tindakan ?? 0);
+
+    const roomColsData = {
+      kode_antrian_layanan: kode_antrian_layanan || existingRoomRM?.kode_antrian_layanan || null,
+      nama_ruangan: resolvedNamaRuangan,
+      kode_karyawan: kode_karyawan || existingRoomRM?.kode_karyawan || null,
+      area_yang_ditangani: areaYangDitangani,
+      kondisi_kulit: kondisiKulit,
+      produk_bahan_digunakan: produkBahanDigunakan,
+      jumlah_satuan: jumlahSatuan,
+      catatan_tindakan: resolvedCatatanTindakan,
+      catatan_petugas: resolvedCatatanPetugas,
+      catatan_hasil_treatment: resolvedCatatanHasil,
+      kondisi_setelah_tindakan: kondisiSetelahTindakan,
+      persetujuan_tindakan: persetujuanTindakan,
+      data_form: JSON.stringify(mergedDataForm),
+      updated_by: username,
+      updated_at: new Date(),
+    };
+
     if (existingRoomRM) {
-      // UPDATE baris ruangan yang sudah ada (OVERWRITE, bukan concat)
+      // UPDATE baris ruangan yang sudah ada
       await db("trx_rekam_medis_ruangan")
         .where("id", existingRoomRM.id)
-        .update({
-          kode_antrian_layanan: kode_antrian_layanan || existingRoomRM.kode_antrian_layanan,
-          nama_ruangan: resolvedNamaRuangan,
-          kode_karyawan: kode_karyawan || existingRoomRM.kode_karyawan,
-          data_form: JSON.stringify(mergedDataForm),
-          catatan_tindakan: resolvedCatatanTindakan,
-          catatan_petugas: resolvedCatatanPetugas,
-          catatan_hasil_treatment: resolvedCatatanHasil,
-          updated_by: username,
-          updated_at: new Date(),
-        });
+        .update(roomColsData);
     } else {
       // INSERT baris ruangan baru
       const kodeRMR = `RMR-${kode_kunjungan}-${roomCodeParam}-${Date.now().toString().slice(-4)}`;
@@ -170,19 +262,11 @@ export async function syncRekamMedisPerAntrian({
         kode_rekam_medis_ruangan: kodeRMR,
         id_rekam_medis: id_rekam_medis,
         kode_kunjungan: kode_kunjungan,
-        kode_antrian_layanan: kode_antrian_layanan || null,
         kode_ruangan: roomCodeParam,
-        nama_ruangan: resolvedNamaRuangan,
-        kode_karyawan: kode_karyawan || null,
-        data_form: JSON.stringify(mergedDataForm),
-        catatan_tindakan: resolvedCatatanTindakan,
-        catatan_petugas: resolvedCatatanPetugas,
-        catatan_hasil_treatment: resolvedCatatanHasil,
         status: "berlangsung",
         created_by: username,
         created_at: new Date(),
-        updated_by: username,
-        updated_at: new Date(),
+        ...roomColsData,
       });
       id_rekam_medis_ruangan = insertedRoomId;
     }

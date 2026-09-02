@@ -30,6 +30,8 @@ interface ServiceItem {
   total_sesi?: number;
   kode_ruangan?: string;
   nama_ruangan?: string;
+  wajib_konsultasi?: 'tidak' | 'opsional' | 'wajib';
+  kode_ruangan_konsultasi?: string;
   is_konsultasi?: number;
   tipe?: 'MEDICAL TREATMENT' | 'BEAUTY TREATMENT' | 'SERVICE TREATMENT' | string;
   kode_kepemilikan_paket_layanan?: string;
@@ -101,57 +103,47 @@ export const StepPilihLayanan: React.FC<Props> = ({
 
   const fetchOwnedPackages = async () => {
     try {
-      const res = await postData(apiPasienKepemilikanPaket, {
-        no_rm: pasienData.no_rm,
-        status: 'aktif',
-      });
-      if (['00', '0000'].includes(res.data.status)) {
+      const res = await postData(apiPasienKepemilikanPaket, { no_rm: pasienData.no_rm });
+      if (['00', '0000'].includes(res.data?.status)) {
         setOwnedPackages(res.data.data || []);
       }
-    } catch (e) {
-      console.error('Failed to load owned packages for patient');
-    }
+    } catch (_) {}
   };
 
-  /**
-   * Toggle pilih/batal item layanan atau paket.
-   */
   const handleToggleItem = (item: ServiceItem) => {
     const key = `${item.jenis}_${item.kode_layanan}`;
-    const targetRoomCode = item.kode_ruangan || 'LAINNYA';
+    const isCurrentlySelected = !!selectedMap[key];
 
-    setSelectedMap((prev) => {
-      const next = { ...prev };
+    if (isCurrentlySelected) {
+      const newMap = { ...selectedMap };
+      delete newMap[key];
+      setSelectedMap(newMap);
 
-      if (next[key]) {
-        delete next[key];
-        if (Object.keys(next).length === 0) {
-          setActiveRuangan(null);
-        }
-        return next;
+      const remainingItems = Object.values(newMap);
+      if (remainingItems.length === 0) {
+        setActiveRuangan(null);
       }
-
-      if (activeRuangan !== null && activeRuangan !== targetRoomCode) {
-        const activeRoomName = Object.values(prev)[0]?.nama_ruangan || activeRuangan;
+    } else {
+      if (activeRuangan !== null && activeRuangan !== item.kode_ruangan) {
+        const currentSelectedRoom = Object.values(selectedMap)[0]?.nama_ruangan || activeRuangan;
         showError(
           toast,
-          `Tidak bisa pilih layanan/paket dari ruangan berbeda. Saat ini aktif: ruangan "${activeRoomName}". Batalkan pilihan terlebih dahulu jika ingin berpindah ruangan.`
+          `Anda hanya dapat memilih layanan/paket dalam 1 ruangan yang sama per antrean kunjungan. Saat ini ruangan yang dipilih: ${currentSelectedRoom}. Batalkan pilihan sebelumnya jika ingin berganti ruangan.`
         );
-        return prev;
+        return;
       }
 
-      next[key] = item;
-      setActiveRuangan(targetRoomCode);
+      const newMap = {
+        ...selectedMap,
+        [key]: item,
+      };
+      setSelectedMap(newMap);
+      setActiveRuangan(item.kode_ruangan || null);
 
-      setConsultChoiceMap((cPrev) => {
-        if (cPrev[key] === undefined) {
-          return { ...cPrev, [key]: true };
-        }
-        return cPrev;
-      });
-
-      return next;
-    });
+      if (consultChoiceMap[key] === undefined) {
+        setConsultChoiceMap((prev) => ({ ...prev, [key]: true }));
+      }
+    }
   };
 
   const handleClearSelection = () => {
@@ -161,11 +153,15 @@ export const StepPilihLayanan: React.FC<Props> = ({
   };
 
   const selectedList = Object.values(selectedMap);
-  const totalHarga = selectedList.reduce((sum, i) => sum + (i.harga_asal ?? i.harga), 0);
-  const totalDurasi = selectedList.reduce((sum, i) => sum + i.durasi_menit, 0);
+  const totalHarga = selectedList.reduce((acc, curr) => acc + (curr.jenis === 'klaim_paket' ? 0 : (curr.harga_asal ?? curr.harga)), 0);
+  const totalDurasi = selectedList.reduce((acc, curr) => acc + (curr.durasi_menit || 0), 0);
 
   const formatRupiah = (val: number) => {
-    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0,
+    }).format(val);
   };
 
   const getItemConsultType = (item: ServiceItem) => {
@@ -173,8 +169,8 @@ export const StepPilihLayanan: React.FC<Props> = ({
       return { isWajib: false, isService: true, isOpsional: false };
     }
     const rawTipe = (item.tipe || '').toString().trim().toUpperCase();
-    const isWajib = rawTipe === 'MEDICAL TREATMENT' || rawTipe.includes('MEDICAL') || rawTipe.includes('WAJIB');
-    const isService = rawTipe === 'SERVICE TREATMENT' || rawTipe.includes('SERVICE') || rawTipe.includes('TIDAK');
+    const isWajib = rawTipe === 'MEDICAL TREATMENT' || rawTipe.includes('MEDICAL') || rawTipe.includes('WAJIB') || item.wajib_konsultasi === 'wajib';
+    const isService = rawTipe === 'SERVICE TREATMENT' || rawTipe.includes('SERVICE') || rawTipe.includes('TIDAK') || item.wajib_konsultasi === 'tidak';
     const isOpsional = !isWajib && !isService;
     return { isWajib, isService, isOpsional };
   };
@@ -203,6 +199,8 @@ export const StepPilihLayanan: React.FC<Props> = ({
           kode_ruangan: item.kode_ruangan,
           nama_ruangan: item.nama_ruangan,
           butuh_konsul: chooseConsult,
+          wajib_konsultasi: item.wajib_konsultasi || (isWajib ? 'wajib' : isService ? 'tidak' : 'opsional'),
+          lewat_konsultasi: chooseConsult,
           kode_kepemilikan_paket_layanan: item.kode_kepemilikan_paket_layanan,
         };
       });
@@ -227,73 +225,79 @@ export const StepPilihLayanan: React.FC<Props> = ({
   };
 
   const confirmTakeQueue = (customItems?: ServiceItem[]) => {
-    const itemsToSubmit = customItems !== undefined ? customItems : selectedList;
-
-    if (itemsToSubmit.length === 0) {
-      confirmDialog({
-        message: (
-          <div className="flex flex-column align-items-center text-center gap-2 py-2">
-            <i className="pi pi-question-circle text-blue-500 text-4xl mb-1" />
-            <span className="font-bold text-lg text-900">Pendaftaran Kunjungan Tanpa Layanan?</span>
-            <span className="text-sm text-600 max-w-24rem">
-              Anda tidak memilih layanan/paket treatment. Pasien <strong>{pasienData.nama}</strong> ({pasienData.no_rm}) akan didaftarkan antrean kunjungan ke <strong>Ruang Konsultasi Dokter</strong>.
-            </span>
-          </div>
-        ),
-        header: 'Konfirmasi Pendaftaran Kunjungan',
-        icon: 'pi pi-info-circle',
-        acceptLabel: 'Ya, Terbitkan Antrean Konsul',
-        rejectLabel: 'Batal',
-        acceptClassName: 'p-button-primary font-bold px-4',
-        rejectClassName: 'p-button-outlined p-button-secondary',
-        accept: () => handleProcessSubmit([]),
-      });
+    const itemsToConfirm = customItems !== undefined ? customItems : selectedList;
+    if (itemsToConfirm.length === 0) {
+      showError(toast, 'Silakan pilih minimal satu layanan atau paket terlebih dahulu!');
       return;
     }
 
-    const firstItem = itemsToSubmit[0];
-    const roomName = firstItem.nama_ruangan || 'Ruang Treatment';
+    const firstItem = itemsToConfirm[0];
+    const roomName = firstItem.nama_ruangan || activeRuangan;
+
+    const listHtml = itemsToConfirm
+      .map((it) => {
+        const key = `${it.jenis}_${it.kode_layanan}`;
+        const { isWajib, isService, isOpsional } = getItemConsultType(it);
+
+        let badgeRoute = '';
+        if (it.jenis === 'klaim_paket') {
+          badgeRoute = `<span class="bg-amber-100 text-amber-800 text-[10px] px-2 py-0.5 border-round font-bold">🎁 KLAIM PAKET (Langsung ke ${it.nama_ruangan || 'Ruangan'})</span>`;
+        } else if (isWajib) {
+          badgeRoute = `<span class="bg-red-100 text-red-700 text-[10px] px-2 py-0.5 border-round font-bold">🩺 WAJIB KONSULTASI (Ke Ruang Konsul Dulu)</span>`;
+        } else if (isService) {
+          badgeRoute = `<span class="bg-green-100 text-green-700 text-[10px] px-2 py-0.5 border-round font-bold">⚡ LANGSUNG TINDAKAN (Ke ${it.nama_ruangan || 'Ruangan'})</span>`;
+        } else if (isOpsional) {
+          const chooseCons = consultChoiceMap[key] !== false;
+          badgeRoute = chooseCons
+            ? `<span class="bg-amber-100 text-amber-800 text-[10px] px-2 py-0.5 border-round font-bold">🩺 KE RUANG KONSUL DULU</span>`
+            : `<span class="bg-blue-100 text-blue-700 text-[10px] px-2 py-0.5 border-round font-bold">⚡ LANGSUNG KE RUANGAN</span>`;
+        }
+
+        const priceText = it.jenis === 'klaim_paket' ? 'Rp 0 (Klaim)' : formatRupiah(it.harga_asal ?? it.harga);
+
+        return `
+          <li class="flex flex-column gap-1 py-2 border-bottom-1 surface-border">
+            <div class="flex align-items-center justify-content-between">
+              <span class="font-bold text-900">${it.nama}</span>
+              <span class="text-blue-600 font-bold">${priceText}</span>
+            </div>
+            <div>${badgeRoute}</div>
+          </li>
+        `;
+      })
+      .join('');
 
     confirmDialog({
+      header: 'Konfirmasi Terbitkan Antrean Kunjungan',
       message: (
-        <div className="flex flex-column gap-3 py-1">
-          <div className="text-center pb-2 border-bottom-1 surface-border">
-            <i className="pi pi-[#3b82f6] pi-ticket text-blue-500 text-4xl mb-2" />
-            <h4 className="font-extrabold text-xl text-900 m-0">Terbitkan Nomor Antrean Kunjungan?</h4>
-            <p className="text-sm text-500 m-0 mt-1">
-              Pasien <strong>{pasienData.nama}</strong> ({pasienData.no_rm})
-            </p>
+        <div className="p-1 text-sm text-700">
+          <div className="p-3 bg-blue-50 border-round-lg border-1 border-blue-200 mb-3">
+            <div className="font-bold text-blue-900 text-base mb-1">{pasienData.nama}</div>
+            <div className="text-xs text-blue-700">No. Rekam Medis: <strong>{pasienData.no_rm}</strong></div>
+            <div className="text-xs text-blue-700 mt-1">Tujuan Ruangan: <strong>{roomName}</strong></div>
           </div>
 
-          <div className="surface-100 p-3 border-round-xl">
-            <span className="text-xs text-500 block mb-2 font-bold uppercase">Daftar Layanan Dipilih:</span>
-            {itemsToSubmit.map((item, idx) => {
-              const key = `${item.jenis}_${item.kode_layanan}`;
-              const { isWajib, isService } = getItemConsultType(item);
-              let statusText = 'Konsultasi Dokter Dahulu';
-              if (isService) statusText = 'Langsung Treatment';
-              else if (!isWajib && consultChoiceMap[key] === false) statusText = 'Langsung Treatment (Tanpa Konsul)';
+          <p className="font-semibold text-900 mb-2">Rincian Layanan &amp; Antrean Kunjungan:</p>
+          <ul
+            className="list-none p-0 m-0 mb-3 max-h-12rem overflow-y-auto"
+            dangerouslySetInnerHTML={{ __html: listHtml }}
+          />
 
-              return (
-                <div key={idx} className="flex align-items-center justify-content-between py-1 text-sm border-bottom-1 border-200 last:border-none">
-                  <div>
-                    <span className="font-bold text-900">{item.nama}</span>
-                    {item.jenis === 'klaim_paket' && <Tag value="KLAIM PAKET" severity="warning" className="ml-2 text-[10px]" />}
-                    <span className="text-xs text-blue-600 block">{statusText}</span>
-                  </div>
-                  <span className="font-extrabold text-slate-800">{formatRupiah(item.harga)}</span>
-                </div>
-              );
-            })}
+          <div className="flex align-items-center justify-content-between font-extrabold text-base pt-2 border-top-2 surface-border text-900">
+            <span>Total Estimasi Biaya:</span>
+            <span className="text-blue-600">{formatRupiah(totalHarga)}</span>
           </div>
+          <p className="text-xs text-500 mt-3 m-0">
+            Nomor antrean dan nomor kunjungan baru akan otomatis diterbitkan ke sistem.
+          </p>
         </div>
       ),
-      header: 'Konfirmasi Pendaftaran',
-      acceptLabel: 'Ya, Terbitkan Antrean Now',
+      icon: 'pi pi-question-circle text-blue-600 text-2xl',
+      acceptLabel: 'Ya, Terbitkan Antrean',
       rejectLabel: 'Batal',
-      acceptClassName: 'p-button-success font-bold px-4',
-      rejectClassName: 'p-button-outlined p-button-secondary',
-      accept: () => handleProcessSubmit(itemsToSubmit),
+      acceptClassName: 'p-button-success font-bold text-sm px-3',
+      rejectClassName: 'p-button-secondary p-button-outlined text-sm px-3',
+      accept: () => handleProcessSubmit(itemsToConfirm),
     });
   };
 
@@ -302,9 +306,7 @@ export const StepPilihLayanan: React.FC<Props> = ({
     const isSelected = !!selectedMap[key];
     const isPaket = item.jenis === 'paket';
     const isKlaim = item.jenis === 'klaim_paket';
-    const targetRoomCode = item.kode_ruangan || 'LAINNYA';
-    const isDisabled = activeRuangan !== null && activeRuangan !== targetRoomCode && !isSelected;
-
+    const isDisabled = activeRuangan !== null && activeRuangan !== item.kode_ruangan;
     const { isWajib, isService, isOpsional } = getItemConsultType(item);
 
     return (

@@ -85,10 +85,9 @@ const handleGetRekamMedis = async (req, res) => {
               .orWhereRaw("LOWER(p.nama) LIKE ?", [`%${lower}%`])
               .orWhereRaw("LOWER(p.nik) LIKE ?", [`%${lower}%`])
               .orWhereRaw("LOWER(p.no_hp) LIKE ?", [`%${lower}%`])
-              .orWhereRaw("LOWER(rm.diagnosa) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(rm.diagnosis) LIKE ?", [`%${lower}%`])
               .orWhereRaw("LOWER(rm.keluhan) LIKE ?", [`%${lower}%`])
-              .orWhereRaw("LOWER(rm.tindakan) LIKE ?", [`%${lower}%`])
-              .orWhereRaw("LOWER(rm.catatan) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(rm.riwayat_alergi) LIKE ?", [`%${lower}%`])
               .orWhereRaw("LOWER(rmr.nama_ruangan) LIKE ?", [`%${lower}%`])
               .orWhereRaw("LOWER(rmr.catatan_tindakan) LIKE ?", [`%${lower}%`])
               .orWhereRaw("LOWER(rmr.catatan_petugas) LIKE ?", [`%${lower}%`])
@@ -124,10 +123,9 @@ const handleGetRekamMedis = async (req, res) => {
               .orWhereRaw("LOWER(p.nama) LIKE ?", [`%${lower}%`])
               .orWhereRaw("LOWER(p.nik) LIKE ?", [`%${lower}%`])
               .orWhereRaw("LOWER(p.no_hp) LIKE ?", [`%${lower}%`])
-              .orWhereRaw("LOWER(rm.diagnosa) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(rm.diagnosis) LIKE ?", [`%${lower}%`])
               .orWhereRaw("LOWER(rm.keluhan) LIKE ?", [`%${lower}%`])
-              .orWhereRaw("LOWER(rm.tindakan) LIKE ?", [`%${lower}%`])
-              .orWhereRaw("LOWER(rm.catatan) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(rm.riwayat_alergi) LIKE ?", [`%${lower}%`])
               .orWhereRaw("LOWER(rmr.nama_ruangan) LIKE ?", [`%${lower}%`])
               .orWhereRaw("LOWER(rmr.catatan_tindakan) LIKE ?", [`%${lower}%`])
               .orWhereRaw("LOWER(rmr.catatan_petugas) LIKE ?", [`%${lower}%`])
@@ -176,9 +174,19 @@ const handleGetRekamMedis = async (req, res) => {
           "rm.no_rm",
           "rm.no_sip",
           "rm.keluhan",
-          "rm.diagnosa",
-          "rm.tindakan",
-          "rm.catatan",
+          "rm.durasi_keluhan",
+          "rm.riwayat_alergi",
+          "rm.riwayat_treatment",
+          "rm.pemeriksaan_acne",
+          "rm.pemeriksaan_inflammation",
+          "rm.pemeriksaan_skin_type",
+          "rm.pemeriksaan_pigmentation",
+          "rm.pemeriksaan_sensitivity",
+          "rm.diagnosis",
+          "rm.subjective",
+          "rm.objective",
+          "rm.assessment",
+          "rm.plan",
           "rm.kode_karyawan",
           "d.nama as dokter_nama",
           "d.jabatan as dokter_jabatan"
@@ -306,9 +314,19 @@ const handleGetRekamMedis = async (req, res) => {
               kode_rekam_medis: headerRM.kode_rekam_medis || `RM-${headerRM.header_rm_id || item.rmr_id}`,
               no_sip: headerRM.no_sip || null,
               keluhan: headerRM.keluhan || "-",
-              diagnosa: headerRM.diagnosa || "-",
-              tindakan: item.catatan_tindakan || headerRM.tindakan || item.nama_layanan || "-",
-              catatan: item.catatan_petugas || item.catatan_hasil_treatment || headerRM.catatan || "-",
+              durasi_keluhan: headerRM.durasi_keluhan || null,
+              riwayat_alergi: headerRM.riwayat_alergi || null,
+              riwayat_treatment: headerRM.riwayat_treatment || null,
+              pemeriksaan_acne: headerRM.pemeriksaan_acne || null,
+              pemeriksaan_inflammation: headerRM.pemeriksaan_inflammation || null,
+              pemeriksaan_skin_type: headerRM.pemeriksaan_skin_type || null,
+              pemeriksaan_pigmentation: headerRM.pemeriksaan_pigmentation || null,
+              pemeriksaan_sensitivity: headerRM.pemeriksaan_sensitivity || null,
+              diagnosis: headerRM.diagnosis || "-",
+              subjective: headerRM.subjective || null,
+              objective: headerRM.objective || null,
+              assessment: headerRM.assessment || null,
+              plan: headerRM.plan || null,
               data_form: parsedDataForm,
               formatted_data_form: formattedForm,
               fotos: fotosRoom,
@@ -328,6 +346,7 @@ const handleGetRekamMedis = async (req, res) => {
     // 6. Assemble Kunjungan Records
     const kunjunganMap = {};
     vaKunjungan.forEach((k) => {
+      const headerRM = headerRmMap[k.kode_kunjungan] || {};
       kunjunganMap[k.kode_kunjungan] = {
         kode_kunjungan: k.kode_kunjungan,
         no_rm: k.no_rm,
@@ -340,6 +359,7 @@ const handleGetRekamMedis = async (req, res) => {
         tanggal_kunjungan: k.tanggal_kunjungan,
         jam_datang: k.jam_datang ? String(k.jam_datang).slice(0, 5) : "-",
         status_kunjungan: k.status_kunjungan || "selesai",
+        header_rekam_medis: headerRM,
         layanan: mapLayanan[k.kode_kunjungan] ? Object.values(mapLayanan[k.kode_kunjungan]) : [],
       };
     });

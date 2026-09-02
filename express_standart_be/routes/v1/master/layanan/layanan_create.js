@@ -22,6 +22,8 @@ router.post("/", async (req, res) => {
         nama: Joi.string().max(100).required().label("Nama Layanan"),
         kode_kategori_layanan: Joi.string().required().label("Kategori Layanan"),
         kode_ruangan: Joi.string().optional().allow("", null).label("Ruangan"),
+        wajib_konsultasi: Joi.string().valid("tidak", "opsional", "wajib").optional().default("tidak").label("Wajib Konsultasi"),
+        kode_ruangan_konsultasi: Joi.string().optional().allow("", null).label("Ruangan Konsultasi"),
         tipe: Joi.string().valid("MEDICAL TREATMENT", "BEAUTY TREATMENT", "SERVICE TREATMENT").required().label("Tipe Layanan"),
         harga: Joi.number().min(0).required().label("Harga"),
         durasi_menit: Joi.number().integer().min(1).required().label("Durasi (Menit)"),
@@ -43,10 +45,13 @@ router.post("/", async (req, res) => {
       }
       kodeLayanan = `LAY-${String(nextSeq).padStart(3, "0")}`;
 
+      const wajibKonsul = oPayload.wajib_konsultasi || "tidak";
       const oData = {
         kode_layanan: kodeLayanan,
         kode_kategori_layanan: oPayload.kode_kategori_layanan,
         kode_ruangan: oPayload.kode_ruangan || null,
+        wajib_konsultasi: wajibKonsul,
+        kode_ruangan_konsultasi: wajibKonsul !== "tidak" ? (oPayload.kode_ruangan_konsultasi || null) : null,
         nama: oPayload.nama,
         tipe: oPayload.tipe || "BEAUTY TREATMENT",
         harga: oPayload.harga,

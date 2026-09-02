@@ -30,9 +30,22 @@ interface RekamMedisDetail {
   kode_rekam_medis: string | null;
   no_sip: string | null;
   keluhan: string;
-  diagnosa: string;
-  tindakan: string;
-  catatan: string;
+  durasi_keluhan?: string | null;
+  riwayat_alergi?: string | null;
+  riwayat_treatment?: string | null;
+  pemeriksaan_acne?: string | null;
+  pemeriksaan_inflammation?: string | null;
+  pemeriksaan_skin_type?: string | null;
+  pemeriksaan_pigmentation?: string | null;
+  pemeriksaan_sensitivity?: string | null;
+  diagnosis?: string | null;
+  diagnosa?: string | null;
+  subjective?: string | null;
+  objective?: string | null;
+  assessment?: string | null;
+  plan?: string | null;
+  tindakan?: string;
+  catatan?: string;
   dokter_penanggung_jawab: KaryawanInfo | null;
   data_form?: any;
   formatted_data_form?: Array<{ key: string; label: string; value: any }>;
@@ -1098,55 +1111,73 @@ const LaporanPage = () => {
                           {rm && (
                             rm.kode_rekam_medis ||
                             (rm.keluhan && rm.keluhan !== '-') ||
-                            (rm.diagnosa && rm.diagnosa !== '-') ||
-                            (rm.tindakan && rm.tindakan !== '-') ||
-                            (rm.catatan && rm.catatan !== '-')
+                            (rm.diagnosis && rm.diagnosis !== '-') ||
+                            rm.subjective ||
+                            rm.objective ||
+                            rm.assessment ||
+                            rm.plan
                           ) ? (
                             <div className="grid text-xs">
+                              {/* S - ANAMNESIS */}
                               <div className="col-12 md:col-6 mb-3">
                                 <div className="h-full bg-blue-50/30 border-1 border-blue-100 border-left-4 border-blue-500 p-3 border-round-lg">
                                   <label className="block text-xs font-bold text-blue-700 uppercase tracking-wider mb-2 flex align-items-center gap-1.5">
                                     <i className="pi pi-comments text-blue-600 text-sm" />
-                                    S - KELUHAN / ANAMNESA
+                                    ANAMNESIS &amp; KELUHAN
                                   </label>
-                                  <div className="text-gray-800 font-medium leading-normal">
-                                    {renderFormattedContent(rm.keluhan)}
+                                  <div className="text-gray-800 font-medium leading-normal flex flex-column gap-1">
+                                    <div><span className="font-semibold text-color-secondary">Keluhan: </span>{renderFormattedContent(rm.keluhan)}</div>
+                                    {rm.durasi_keluhan && <div><span className="font-semibold text-color-secondary">Durasi: </span>{rm.durasi_keluhan}</div>}
+                                    {rm.riwayat_alergi && <div><span className="font-semibold text-red-600">Riwayat Alergi: </span>{rm.riwayat_alergi}</div>}
+                                    {rm.riwayat_treatment && <div><span className="font-semibold text-color-secondary">Riwayat Treatment: </span>{rm.riwayat_treatment}</div>}
                                   </div>
                                 </div>
                               </div>
 
+                              {/* O - PEMERIKSAAN KATEGORIKAL */}
                               <div className="col-12 md:col-6 mb-3">
-                                <div className="h-full bg-amber-50/30 border-1 border-amber-100 border-left-4 border-amber-500 p-3 border-round-lg">
-                                  <label className="block text-xs font-bold text-amber-700 uppercase tracking-wider mb-2 flex align-items-center gap-1.5">
-                                    <i className="pi pi-stethoscope text-amber-600 text-sm" />
-                                    O/A - DIAGNOSA / PROBLEM
+                                <div className="h-full bg-teal-50/30 border-1 border-teal-100 border-left-4 border-teal-500 p-3 border-round-lg">
+                                  <label className="block text-xs font-bold text-teal-700 uppercase tracking-wider mb-2 flex align-items-center gap-1.5">
+                                    <i className="pi pi-eye text-teal-600 text-sm" />
+                                    PEMERIKSAAN KULIT &amp; DIAGNOSIS
                                   </label>
-                                  <div className="text-gray-800 font-medium leading-normal">
-                                    {renderFormattedContent(rm.diagnosa)}
+                                  <div className="text-gray-800 font-medium leading-normal flex flex-column gap-1">
+                                    <div><span className="font-bold text-teal-900">Diagnosis: </span>{rm.diagnosis || '-'}</div>
+                                    <div className="grid text-[11px] mt-1 pt-1 border-top-1 surface-border">
+                                      <div className="col-6">Acne: <strong>{rm.pemeriksaan_acne || '-'}</strong></div>
+                                      <div className="col-6">Inflammation: <strong>{rm.pemeriksaan_inflammation || '-'}</strong></div>
+                                      <div className="col-6">Tipe Kulit: <strong>{rm.pemeriksaan_skin_type || '-'}</strong></div>
+                                      <div className="col-6">Pigmentasi: <strong>{rm.pemeriksaan_pigmentation || '-'}</strong></div>
+                                      <div className="col-12">Sensitivitas: <strong>{rm.pemeriksaan_sensitivity || '-'}</strong></div>
+                                    </div>
                                   </div>
                                 </div>
                               </div>
 
-                              <div className="col-12 md:col-6 mb-3">
-                                <div className="h-full bg-emerald-50/30 border-1 border-emerald-100 border-left-4 border-emerald-500 p-3 border-round-lg">
-                                  <label className="block text-xs font-bold text-emerald-700 uppercase tracking-wider mb-2 flex align-items-center gap-1.5">
-                                    <i className="pi pi-check-square text-emerald-600 text-sm" />
-                                    P - TINDAKAN / RESEP
+                              {/* A / P - SOAP DETAIL */}
+                              <div className="col-12 mb-2">
+                                <div className="bg-purple-50/30 border-1 border-purple-100 border-left-4 border-purple-500 p-3 border-round-lg text-xs">
+                                  <label className="block text-xs font-bold text-purple-700 uppercase tracking-wider mb-2 flex align-items-center gap-1.5">
+                                    <i className="pi pi-stethoscope text-purple-600 text-sm" />
+                                    SOAP DOKTER (SUBJECTIVE, OBJECTIVE, ASSESSMENT, PLAN)
                                   </label>
-                                  <div className="text-gray-800 font-medium leading-normal">
-                                    {renderFormattedContent(rm.tindakan)}
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="col-12 md:col-6 mb-3">
-                                <div className="h-full bg-indigo-50/30 border-1 border-indigo-100 border-left-4 border-indigo-500 p-3 border-round-lg">
-                                  <label className="block text-xs font-bold text-indigo-700 uppercase tracking-wider mb-2 flex align-items-center gap-1.5">
-                                    <i className="pi pi-book text-indigo-600 text-sm" />
-                                    E - CATATAN EVALUASI &amp; EDUKASI
-                                  </label>
-                                  <div className="text-gray-800 font-medium leading-normal">
-                                    {renderFormattedContent(rm.catatan)}
+                                  <div className="grid">
+                                    <div className="col-12 md:col-6 mb-1">
+                                      <span className="font-bold text-purple-900 block">S (Subjective):</span>
+                                      <span>{rm.subjective || rm.keluhan || '-'}</span>
+                                    </div>
+                                    <div className="col-12 md:col-6 mb-1">
+                                      <span className="font-bold text-purple-900 block">O (Objective):</span>
+                                      <span>{rm.objective || '-'}</span>
+                                    </div>
+                                    <div className="col-12 md:col-6 mb-1">
+                                      <span className="font-bold text-purple-900 block">A (Assessment):</span>
+                                      <span>{rm.assessment || rm.diagnosis || '-'}</span>
+                                    </div>
+                                    <div className="col-12 md:col-6 mb-1">
+                                      <span className="font-bold text-purple-900 block">P (Plan):</span>
+                                      <span>{rm.plan || '-'}</span>
+                                    </div>
                                   </div>
                                 </div>
                               </div>

@@ -307,12 +307,21 @@ router.post("/antrian-layanan-simpan-rekomendasi", async (req, res) => {
       if (oPayload.kode_karyawan || oPayload.no_sip) {
         updateObj.kode_karyawan = oPayload.kode_karyawan || oPayload.no_sip;
       }
+      if (hasil_form) {
+        updateObj.hasil_form = typeof hasil_form === "object" ? JSON.stringify(hasil_form) : hasil_form;
+      }
+      if (catatan_petugas) {
+        updateObj.catatan_petugas = catatan_petugas;
+      }
       if (status_tindakan && ["menunggu", "dipanggil", "selesai", "batal"].includes(status_tindakan)) {
         updateObj.status = status_tindakan;
         if (status_tindakan === "selesai") {
           updateObj.selesai_at = formatDateSystem();
         }
       }
+      const isLanjut = oPayload.lanjut_ke_tindakan !== undefined ? (oPayload.lanjut_ke_tindakan ? 1 : 0) : 1;
+      updateObj.lanjut_ke_tindakan = isLanjut;
+
       await trx("trx_antrian_layanan")
         .where("kode_antrian_layanan", kode_antrian_layanan)
         .update(updateObj);
@@ -331,8 +340,33 @@ router.post("/antrian-layanan-simpan-rekomendasi", async (req, res) => {
         }
       });
 
+      // Jika lanjut_ke_tindakan == 1 dan tidak ada rekomendasi layanan baru yang dipilih,
+      // cari layanan pendaftaran asli yang punya kode_ruangan tindakan
+      if (isLanjut === 1 && layananItems.length === 0 && kodeKunjungan) {
+        const detailAsal = await trx("trx_detail_antrian_layanan as dal")
+          .leftJoin("mst_layanan as l", "dal.kode_layanan", "l.kode_layanan")
+          .leftJoin("mst_ruangan as r", "l.kode_ruangan", "r.kode_ruangan")
+          .where("dal.kode_kunjungan", kodeKunjungan)
+          .where(function() {
+            this.whereNull("r.is_konsultasi").orWhere("r.is_konsultasi", 0);
+          })
+          .select("dal.*", "l.kode_ruangan", "r.nama_ruangan")
+          .first();
+
+        if (detailAsal && detailAsal.kode_ruangan) {
+          layananItems.push({
+            jenis: detailAsal.jenis_layanan || "layanan",
+            kode: detailAsal.kode_layanan,
+            nama: detailAsal.nama_layanan,
+            harga: detailAsal.harga,
+            kode_ruangan: detailAsal.kode_ruangan,
+            nama_ruangan: detailAsal.nama_ruangan || "Ruang Treatment",
+          });
+        }
+      }
+
       // ─── C. PROSES REKOMENDASI LAYANAN → TERBITKAN NOMOR ANTREAN KHUSUS PER RUANGAN ───
-      if (layananItems.length > 0 && kodeKunjungan) {
+      if (isLanjut === 1 && layananItems.length > 0 && kodeKunjungan) {
         const prefixAntrianLayanan = `AL-${todayStr}-`;
         const groupsByRuangan = {};
 
@@ -402,6 +436,7 @@ router.post("/antrian-layanan-simpan-rekomendasi", async (req, res) => {
           const oInsertLayanan = {
             kode_antrian_layanan: cKodeAntrianLayanan,
             kode_kunjungan: kodeKunjungan,
+            kode_antrian_asal: currentAntrian.kode_antrian_layanan,
             nomor_antrian: cNomorAntrianSesi,
             kode_ruangan: group.kode_ruangan,
             nama_ruangan: group.nama_ruangan,
@@ -586,6 +621,7 @@ router.post("/antrian-layanan-simpan-rekomendasi", async (req, res) => {
           kode_ruangan: currentAntrian.kode_ruangan,
           nama_ruangan: currentAntrian.nama_ruangan,
           hasil_form: hasil_form,
+          header_data: oPayload.header_data,
           catatan_petugas: combinedCatatan,
           kode_karyawan: updateObj.kode_karyawan || currentAntrian.kode_karyawan,
           username: username,
