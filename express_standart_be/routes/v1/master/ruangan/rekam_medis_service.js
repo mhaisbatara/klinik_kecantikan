@@ -6,6 +6,7 @@ import {
   mapSkinTypeToEnum,
   mapPigmentationToEnum,
   mapSensitivityToEnum,
+  mapKondisiKulitRuanganToEnum,
 } from "./rekam_medis_enum_helper.js";
 
 /**
@@ -224,9 +225,9 @@ export async function syncRekamMedisPerAntrian({
       : (existingRoomRM?.catatan_hasil_treatment || null);
 
     const areaYangDitangani = cleanDataForm.area_yang_ditangani || existingRoomRM?.area_yang_ditangani || null;
-    const kondisiKulit = cleanDataForm.kondisi_kulit || existingRoomRM?.kondisi_kulit || null;
+    const kondisiKulit = cleanDataForm.kondisi_kulit ? mapKondisiKulitRuanganToEnum(cleanDataForm.kondisi_kulit) : (existingRoomRM?.kondisi_kulit || null);
     const produkBahanDigunakan = cleanDataForm.produk_bahan_digunakan || existingRoomRM?.produk_bahan_digunakan || null;
-    const jumlahSatuan = cleanDataForm.jumlah_satuan || existingRoomRM?.jumlah_satuan || null;
+    const jumlahSatuan = cleanDataForm.jumlah_satuan ? (parseInt(cleanDataForm.jumlah_satuan, 10) || null) : (existingRoomRM?.jumlah_satuan || null);
     const kondisiSetelahTindakan = cleanDataForm.kondisi_setelah_tindakan || existingRoomRM?.kondisi_setelah_tindakan || null;
     const persetujuanTindakan = cleanDataForm.persetujuan_tindakan !== undefined
       ? (cleanDataForm.persetujuan_tindakan ? 1 : 0)
