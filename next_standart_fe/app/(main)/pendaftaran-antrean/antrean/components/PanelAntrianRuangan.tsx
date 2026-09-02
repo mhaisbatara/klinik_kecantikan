@@ -638,7 +638,7 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
                                             <Button
                                                 label="📢 Panggil Pasien Ini"
                                                 icon="pi pi-megaphone"
-                                                severity="primary"
+                                                severity="info"
                                                 size="large"
                                                 className="font-bold border-round-lg flex-1 shadow-2 text-base py-3"
                                                 onClick={() => handleAksi(currentItem, 'dipanggil')}
@@ -684,27 +684,16 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
                                 kodeRuangan={selectedRuangan}
                                 namaRuangan={activeRoomObj?.nama_ruangan || selectedRuangan}
                                 isKonsultasi={isKonsultasi}
-                                petugasJagaList={petugasJaga}
                                 toast={toast}
                                 getGridData={getGridData}
                                 handleAksi={handleAksi}
                                 playChime={playChime}
                                 speakNomorLayanan={speakNomorLayanan}
-                                onManageFormClick={() => setManageFormVisible(true)}
                             />
                         );
                     })()}
                 </div>
             )}
-
-            {/* DIALOG PENGATURAN FORM CUSTOM RUANGAN */}
-            <DialogManageFormRuangan
-                visible={manageFormVisible}
-                onHide={() => setManageFormVisible(false)}
-                kodeRuangan={selectedRuangan}
-                namaRuangan={activeRoomObj?.nama_ruangan || selectedRuangan}
-                toast={toast}
-            />
 
             {/* DIALOG ISIAN FORM PENANGANAN PASIEN & CATATAN */}
             <DialogIsiFormPenanganan

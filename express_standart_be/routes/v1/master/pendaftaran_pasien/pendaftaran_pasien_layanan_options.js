@@ -40,6 +40,8 @@ const handleGetOptions = async (req, res) => {
         "l.harga",
         "l.durasi_menit",
         "l.kode_ruangan",
+        "l.wajib_konsultasi",
+        "l.kode_ruangan_konsultasi",
         "r.nama_ruangan as nama_ruangan",
         "r.is_konsultasi as is_konsultasi"
       )
@@ -163,6 +165,8 @@ const handleGetOptions = async (req, res) => {
         durasi_menit: parseInt(lay.durasi_menit || 30, 10),
         kode_ruangan: lay.kode_ruangan || "",
         nama_ruangan: lay.nama_ruangan || lay.kode_ruangan || "Ruang Treatment",
+        wajib_konsultasi: lay.wajib_konsultasi || "tidak",
+        kode_ruangan_konsultasi: lay.kode_ruangan_konsultasi || "",
         is_konsultasi: Number(lay.is_konsultasi || 0),
       };
 

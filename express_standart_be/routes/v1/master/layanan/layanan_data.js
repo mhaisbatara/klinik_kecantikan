@@ -35,6 +35,7 @@ router.post("/", async (req, res) => {
     const baseQuery = DB("mst_layanan as l")
       .leftJoin("mst_kategori_layanan as k", "l.kode_kategori_layanan", "k.kode_kategori_layanan")
       .leftJoin("mst_ruangan as r", "l.kode_ruangan", "r.kode_ruangan")
+      .leftJoin("mst_ruangan as r_konsul", "l.kode_ruangan_konsultasi", "r_konsul.kode_ruangan")
       .modify((qb) => {
         if (keyword) {
           const lower = keyword.toLowerCase();
@@ -62,6 +63,9 @@ router.post("/", async (req, res) => {
       "k.nama as nama_kategori",
       "l.kode_ruangan",
       "r.nama_ruangan as nama_ruangan",
+      "l.wajib_konsultasi",
+      "l.kode_ruangan_konsultasi",
+      "r_konsul.nama_ruangan as nama_ruangan_konsultasi",
       "l.nama",
       "l.harga",
       "l.durasi_menit",

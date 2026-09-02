@@ -33,12 +33,15 @@ const handleGetData = async (req, res) => {
     const baseQuery = DB("trx_antrian_layanan as al")
       .leftJoin("trx_kunjungan as k", "al.kode_kunjungan", "k.kode_kunjungan")
       .leftJoin("mst_pasien as p", "k.no_rm", "p.no_rm")
+      .leftJoin("trx_rekam_medis as rm_asal", "al.kode_kunjungan", "rm_asal.kode_kunjungan")
+      .leftJoin("trx_antrian_layanan as al_asal", "al.kode_antrian_asal", "al_asal.kode_antrian_layanan")
       .leftJoin("trx_detail_antrian_layanan as dal", "al.kode_antrian_layanan", "dal.kode_antrian_layanan")
       .leftJoin("mst_ruangan as ral", "al.kode_ruangan", "ral.kode_ruangan")
+      .leftJoin("mst_layanan as ml", "dal.kode_layanan", "ml.kode_layanan")
       .leftJoin("mst_karyawan as kar", function () {
         this.on("al.kode_karyawan", "=", "kar.no_sip").orOn("al.kode_karyawan", "=", "kar.kode_user");
       })
-      .groupBy("al.id", "k.id", "p.id", "ral.id", "kar.id")
+      .groupBy("al.id", "k.id", "p.id", "rm_asal.id", "al_asal.id", "ral.id", "kar.id")
       .modify((qb) => {
         if (filterTanggal) {
           qb.whereRaw("DATE(al.created_at) = ?", [filterTanggal]);
@@ -69,6 +72,8 @@ const handleGetData = async (req, res) => {
     const selectFields = [
       "al.id",
       "al.kode_antrian_layanan",
+      "al.kode_antrian_asal",
+      "al.lanjut_ke_tindakan",
       "al.kode_kunjungan",
       "al.nomor_antrian",
       "al.status",
@@ -84,11 +89,29 @@ const handleGetData = async (req, res) => {
       "k.jam_datang",
       "p.nama as nama_pasien",
       "p.no_hp",
+      "rm_asal.keluhan as data_konsultasi_keluhan",
+      "rm_asal.durasi_keluhan as data_konsultasi_durasi_keluhan",
+      "rm_asal.riwayat_alergi as data_konsultasi_riwayat_alergi",
+      "rm_asal.riwayat_treatment as data_konsultasi_riwayat_treatment",
+      "rm_asal.pemeriksaan_acne as data_konsultasi_acne",
+      "rm_asal.pemeriksaan_inflammation as data_konsultasi_inflammation",
+      "rm_asal.pemeriksaan_skin_type as data_konsultasi_skin_type",
+      "rm_asal.pemeriksaan_pigmentation as data_konsultasi_pigmentation",
+      "rm_asal.pemeriksaan_sensitivity as data_konsultasi_sensitivity",
+      "rm_asal.diagnosis as data_konsultasi_diagnosis",
+      "rm_asal.subjective as data_konsultasi_subjective",
+      "rm_asal.objective as data_konsultasi_objective",
+      "rm_asal.assessment as data_konsultasi_assessment",
+      "rm_asal.plan as data_konsultasi_plan",
+      "rm_asal.foto_before as data_konsultasi_foto_before",
+      "al_asal.hasil_form as data_konsultasi_hasil_form",
+      "al_asal.catatan_petugas as data_konsultasi_catatan_petugas",
       DB.raw("COALESCE(al.kode_ruangan, 'RG-01') as kode_ruangan"),
       DB.raw("COALESCE(ral.nama_ruangan, al.nama_ruangan, 'Ruang Treatment') as nama_ruangan"),
       DB.raw("GROUP_CONCAT(DISTINCT dal.jenis_layanan ORDER BY dal.id ASC SEPARATOR ', ') as jenis_layanan"),
       DB.raw("GROUP_CONCAT(DISTINCT dal.kode_layanan ORDER BY dal.id ASC SEPARATOR ', ') as kode_layanan"),
       DB.raw("GROUP_CONCAT(DISTINCT dal.nama_layanan ORDER BY dal.id ASC SEPARATOR ', ') as nama_layanan"),
+      DB.raw("COALESCE(MAX(ml.wajib_konsultasi), 'tidak') as wajib_konsultasi"),
     ];
 
     if (hasPagination) {
