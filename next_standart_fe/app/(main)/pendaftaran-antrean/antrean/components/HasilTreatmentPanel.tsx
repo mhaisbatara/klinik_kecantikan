@@ -38,6 +38,7 @@ interface HasilTreatmentPanelProps {
     savedFormData?: Record<string, any>;
     savedCatatanPetugas?: string;
     savedPetugasNama?: string;
+    selectedPetugas?: string;
     onHasilSavedChange?: (saved: boolean) => void;
 }
 
@@ -53,6 +54,7 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
     savedFormData,
     savedCatatanPetugas,
     savedPetugasNama,
+    selectedPetugas,
     onHasilSavedChange,
 }) => {
     // Foto After state
@@ -229,10 +231,14 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                 kode_kunjungan: activePatient.kode_kunjungan,
                 no_rm: activePatient.no_rm,
                 kode_rekam_medis: activePatient.kode_antrian_layanan,
+                kode_antrian_layanan: activePatient.kode_antrian_layanan,
                 kode_ruangan: kodeRuangan,
                 nama_ruangan: namaRuangan,
                 foto_after: fotoAfterUrl,
                 catatan: catatan,
+                catatan_petugas: savedCatatanPetugas,
+                hasil_form: savedFormData,
+                kode_karyawan: selectedPetugas || activePatient.kode_karyawan,
                 produk_items: selectedProdukList.map((p) => ({
                     kode_produk: p.kode_produk,
                     qty: p.qty,

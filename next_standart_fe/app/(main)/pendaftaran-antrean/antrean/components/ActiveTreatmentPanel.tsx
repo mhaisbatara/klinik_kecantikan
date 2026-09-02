@@ -1054,31 +1054,23 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                                 />
                             </div>
 
-                            {/* SAVE ACTION FOOTER BAR */}
+                            {/* ACTION FOOTER BAR: LANJUT KE STEP 2 */}
                             <div className="flex align-items-center justify-content-end gap-3 mt-2 pt-3 border-top-1 surface-border">
-                                {isFormSaved ? (
-                                    <div className="flex align-items-center gap-3 flex-wrap">
-                                        <Tag value="✅ Form Penanganan Telah Disimpan & Dikunci" severity="success" className="px-3 py-2 text-xs font-bold" />
-                                        <Button
-                                            label="Lanjut ke Hasil Treatment →"
-                                            severity="success"
-                                            size="small"
-                                            onClick={() => setActiveStep('hasil')}
-                                            className="font-bold text-xs bg-teal-600 border-none border-round-lg px-4 text-white shadow-2"
-                                        />
-                                    </div>
-                                ) : (
-                                    <Button
-                                        label="Simpan Form Penanganan & Lanjut ke Hasil Treatment"
-                                        icon="pi pi-arrow-right"
-                                        iconPos="right"
-                                        severity="success"
-                                        size="small"
-                                        loading={saving}
-                                        onClick={() => handleSaveForm()}
-                                        className="font-bold text-xs bg-teal-600 border-none border-round-lg px-4 text-white shadow-2"
-                                    />
-                                )}
+                                <Button
+                                    label="Selanjutnya →"
+                                    icon="pi pi-arrow-right"
+                                    iconPos="right"
+                                    severity="success"
+                                    size="small"
+                                    onClick={() => {
+                                        if (!selectedPetugas) {
+                                            showError(toast, 'Petugas / Dokter Penanggung Jawab wajib dipilih!');
+                                            return;
+                                        }
+                                        setActiveStep('hasil');
+                                    }}
+                                    className="font-bold text-xs bg-teal-600 border-none border-round-lg px-4 text-white shadow-2"
+                                />
                             </div>
                         </div>
                     ) : (
@@ -1093,6 +1085,7 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                                 savedFormData={formData}
                                 savedCatatanPetugas={catatanPetugas}
                                 savedPetugasNama={karyawanOptions.find((k) => k.value === selectedPetugas)?.nama}
+                                selectedPetugas={selectedPetugas}
                                 onHasilSavedChange={(saved) => setIsHasilSaved(saved)}
                             />
                         </div>
