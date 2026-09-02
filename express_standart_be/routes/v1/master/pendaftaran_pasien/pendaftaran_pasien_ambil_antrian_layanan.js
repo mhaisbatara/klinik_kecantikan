@@ -203,7 +203,7 @@ router.post("/", async (req, res) => {
               .leftJoin("mst_ruangan as r", "l.kode_ruangan", "r.kode_ruangan")
               .where("l.kode_layanan", kodeLayanan)
               .where("l.status", "aktif")
-              .select("l.nama", "l.harga", "l.kode_ruangan", "r.nama_ruangan as nama_ruangan")
+              .select("l.nama", "l.harga", "l.kode_ruangan", "l.wajib_konsultasi", "l.kode_ruangan_konsultasi", "r.nama_ruangan as nama_ruangan")
               .first();
 
             if (!lay) {
@@ -213,8 +213,26 @@ router.post("/", async (req, res) => {
             }
             namaLayanan = lay.nama;
             hargaLayanan = parseFloat(lay.harga || 0); // harga ASLI
-            kodeRuangan = lay.kode_ruangan || "";
-            namaRuangan = lay.nama_ruangan || lay.kode_ruangan || "Ruang Treatment";
+
+            const wajibKonsul = lay.wajib_konsultasi || "tidak";
+            const lewatKonsul = wajibKonsul === "wajib" || (wajibKonsul === "opsional" && (item.lewat_konsultasi === true || item.pilihan_konsultasi === "konsultasi"));
+
+            if (lewatKonsul) {
+              // Route queue to consultation room ONLY
+              let roomKonsul = null;
+              if (lay.kode_ruangan_konsultasi) {
+                roomKonsul = await trx("mst_ruangan").where("kode_ruangan", lay.kode_ruangan_konsultasi).first();
+              }
+              if (!roomKonsul) {
+                roomKonsul = await trx("mst_ruangan").where("is_konsultasi", 1).first();
+              }
+
+              kodeRuangan = roomKonsul?.kode_ruangan || lay.kode_ruangan_konsultasi || "RNG-KONSUL";
+              namaRuangan = roomKonsul?.nama_ruangan || "Ruang Konsultasi";
+            } else {
+              kodeRuangan = lay.kode_ruangan || "";
+              namaRuangan = lay.nama_ruangan || lay.kode_ruangan || "Ruang Treatment";
+            }
           } else {
             const pkt = await trx("mst_paket_layanan as p")
               .leftJoin("mst_ruangan as r", "p.kode_ruangan", "r.kode_ruangan")

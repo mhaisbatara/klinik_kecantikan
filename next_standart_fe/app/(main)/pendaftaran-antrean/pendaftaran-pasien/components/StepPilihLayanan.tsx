@@ -29,6 +29,8 @@ interface ServiceItem {
   masa_berlaku_hari?: number;
   kode_ruangan?: string;
   nama_ruangan?: string;
+  wajib_konsultasi?: 'tidak' | 'opsional' | 'wajib';
+  kode_ruangan_konsultasi?: string;
   is_konsultasi?: number;
 }
 
@@ -64,6 +66,8 @@ export const StepPilihLayanan: React.FC<Props> = ({
   const [ruangans, setRuangans] = useState<RuanganGroup[]>([]);
   // Map item yang dipilih: key = `${jenis}_${kode_layanan}`
   const [selectedMap, setSelectedMap] = useState<{ [key: string]: ServiceItem }>({});
+  // Map toggle lewat konsultasi untuk item opsional: key = `${jenis}_${kode_layanan}`
+  const [lewatKonsulMap, setLewatKonsulMap] = useState<{ [key: string]: boolean }>({});
   // Kode ruangan yang sedang aktif dipilih (null = belum ada yang dipilih)
   const [activeRuangan, setActiveRuangan] = useState<string | null>(null);
 
@@ -147,12 +151,18 @@ export const StepPilihLayanan: React.FC<Props> = ({
 
     setSubmitting(true);
     try {
-      const itemsPayload = itemsToSubmit.map((item) => ({
-        jenis_layanan: item.jenis,
-        kode_layanan: item.kode_layanan,
-        kode_ruangan: item.kode_ruangan,
-        nama_ruangan: item.nama_ruangan,
-      }));
+      const itemsPayload = itemsToSubmit.map((item) => {
+        const itemKey = `${item.jenis}_${item.kode_layanan}`;
+        const isLewatKonsul = item.wajib_konsultasi === 'wajib' || (item.wajib_konsultasi === 'opsional' && !!lewatKonsulMap[itemKey]);
+        return {
+          jenis_layanan: item.jenis,
+          kode_layanan: item.kode_layanan,
+          kode_ruangan: item.kode_ruangan,
+          nama_ruangan: item.nama_ruangan,
+          wajib_konsultasi: item.wajib_konsultasi || 'tidak',
+          lewat_konsultasi: isLewatKonsul,
+        };
+      });
 
       const res = await postData(apiPasienAmbilAntrianLayanan, {
         no_rm: pasienData.no_rm,
@@ -286,6 +296,12 @@ export const StepPilihLayanan: React.FC<Props> = ({
                   {item.is_promo && (
                     <Tag value={`🔥 PROMO ${item.jenis_diskon === 'persen' ? `-${item.nilai_diskon}%` : ''}`} severity="danger" className="text-xs font-bold" />
                   )}
+                  {item.wajib_konsultasi === 'wajib' && (
+                    <Tag value="Wajib Konsul" severity="danger" className="text-xs font-bold" />
+                  )}
+                  {item.wajib_konsultasi === 'opsional' && (
+                    <Tag value="Opsional Konsul" severity="warning" className="text-xs font-bold" />
+                  )}
                   {isPaket ? (
                     <Tag value="PAKET LAYANAN" severity="warning" className="text-xs font-bold" />
                   ) : (
@@ -321,6 +337,19 @@ export const StepPilihLayanan: React.FC<Props> = ({
                   {formatRupiah(item.harga_asal ?? item.harga)}
                 </span>
               </div>
+
+              {item.wajib_konsultasi === 'opsional' && isSelected && (
+                <div className="mt-2 pt-2 border-top-1 surface-border flex align-items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                  <Checkbox
+                    inputId={`konsul_${key}`}
+                    checked={!!lewatKonsulMap[key]}
+                    onChange={(e) => setLewatKonsulMap((prev) => ({ ...prev, [key]: !!e.checked }))}
+                  />
+                  <label htmlFor={`konsul_${key}`} className="text-xs font-semibold text-color cursor-pointer">
+                    Lewat Konsultasi Dulu
+                  </label>
+                </div>
+              )}
 
               {isDisabled && (
                 <div className="text-xs text-red-400 mt-1 flex align-items-center gap-1">

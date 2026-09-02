@@ -19,6 +19,8 @@ export interface AntrianLayananData {
     nama_layanan: string;
     kode_ruangan?: string;
     nama_ruangan?: string;
+    kode_antrian_asal?: string | null;
+    lanjut_ke_tindakan?: number | boolean | null;
     jumlah_sesi_paket?: number | null;
     hasil_form?: string | null;
     catatan_petugas?: string | null;

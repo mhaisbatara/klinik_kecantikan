@@ -42,6 +42,8 @@ const Page = () => {
         kode_layanan: '',
         kode_kategori_layanan: '',
         kode_ruangan: '',
+        wajib_konsultasi: 'tidak',
+        kode_ruangan_konsultasi: '',
         nama: '',
         tipe: 'BEAUTY TREATMENT',
         harga: 0,
@@ -50,6 +52,12 @@ const Page = () => {
     });
     const [saving, setSaving] = useState<boolean>(false);
     const [submitted, setSubmitted] = useState<boolean>(false);
+
+    const wajibKonsultasiOptions = [
+        { label: 'Tidak (Langsung Tindakan)', value: 'tidak' },
+        { label: 'Opsional (Bisa Konsultasi / Langsung Tindakan)', value: 'opsional' },
+        { label: 'Wajib (Masuk Ruang Konsultasi Dulu)', value: 'wajib' }
+    ];
 
     const loadData = async () => {
         setLoading(true);
@@ -96,7 +104,18 @@ const Page = () => {
     const handleOpenCreate = () => {
         setIsEdit(false);
         setSubmitted(false);
-        setFormData({ kode_layanan: '', kode_kategori_layanan: kategoriList[0]?.value || '', kode_ruangan: ruanganList[0]?.value || '', nama: '', tipe: 'BEAUTY TREATMENT', harga: 0, durasi_menit: 30, status: 'aktif' });
+        setFormData({
+            kode_layanan: '',
+            kode_kategori_layanan: kategoriList[0]?.value || '',
+            kode_ruangan: ruanganList[0]?.value || '',
+            wajib_konsultasi: 'tidak',
+            kode_ruangan_konsultasi: '',
+            nama: '',
+            tipe: 'BEAUTY TREATMENT',
+            harga: 0,
+            durasi_menit: 30,
+            status: 'aktif'
+        });
         setDialogVisible(true);
     };
 
@@ -106,6 +125,8 @@ const Page = () => {
         setFormData({
             ...rowData,
             kode_ruangan: rowData.kode_ruangan || '',
+            wajib_konsultasi: rowData.wajib_konsultasi || 'tidak',
+            kode_ruangan_konsultasi: rowData.kode_ruangan_konsultasi || '',
             tipe: rowData.tipe || 'BEAUTY TREATMENT',
         });
         setDialogVisible(true);
@@ -312,6 +333,23 @@ const Page = () => {
                     ></Column>
                     <Column field="nama_kategori" header="Kategori" body={(r) => r.nama_kategori || r.kode_kategori_layanan || '-'}></Column>
                     <Column field="nama_ruangan" header="Ruangan" body={(r) => r.nama_ruangan ? `${r.kode_ruangan ? r.kode_ruangan + ' - ' : ''}${r.nama_ruangan}` : (r.kode_ruangan || '-')}></Column>
+                    <Column
+                        field="wajib_konsultasi"
+                        header="Status Konsultasi"
+                        body={(r) => {
+                            const val = r.wajib_konsultasi || 'tidak';
+                            let severity: 'danger' | 'info' | 'warning' = 'info';
+                            let text = 'Tidak';
+                            if (val === 'wajib') {
+                                severity = 'danger';
+                                text = `Wajib${r.nama_ruangan_konsultasi ? ` (${r.nama_ruangan_konsultasi})` : ''}`;
+                            } else if (val === 'opsional') {
+                                severity = 'warning';
+                                text = `Opsional${r.nama_ruangan_konsultasi ? ` (${r.nama_ruangan_konsultasi})` : ''}`;
+                            }
+                            return <Tag value={text} severity={severity} className="text-xs px-2 py-1" />;
+                        }}
+                    ></Column>
                     <Column field="harga" header="Harga" body={(r) => <span className="font-semibold text-green-600">{formatRupiah(r.harga)}</span>}></Column>
                     <Column field="durasi_menit" header="Durasi" body={(r) => `${r.durasi_menit} Menit`}></Column>
                     <Column
@@ -328,7 +366,7 @@ const Page = () => {
                 </DataTable>
             </div>
 
-            <Dialog header={isEdit ? 'Edit Data Layanan' : 'Tambah Data Layanan'} visible={dialogVisible} style={{ width: '500px' }} modal onHide={() => setDialogVisible(false)}>
+            <Dialog header={isEdit ? 'Edit Data Layanan' : 'Tambah Data Layanan'} visible={dialogVisible} style={{ width: '550px' }} modal onHide={() => setDialogVisible(false)}>
                 <div className="flex flex-column gap-3 pt-2">
                     {isEdit && (
                         <div>
@@ -361,16 +399,39 @@ const Page = () => {
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-semibold mb-1">Ruangan</label>
+                        <label className="block text-sm font-semibold mb-1">Ruangan Tindakan Utama</label>
                         <Dropdown
                             value={formData.kode_ruangan}
                             options={ruanganList}
                             onChange={(e) => setFormData({ ...formData, kode_ruangan: e.value })}
-                            placeholder="Pilih Ruangan"
+                            placeholder="Pilih Ruangan Tindakan"
                             showClear
                             className="w-full text-sm"
                         />
                     </div>
+                    <div>
+                        <label className="block text-sm font-semibold mb-1">Status Wajib Konsultasi *</label>
+                        <Dropdown
+                            value={formData.wajib_konsultasi}
+                            options={wajibKonsultasiOptions}
+                            onChange={(e) => setFormData({ ...formData, wajib_konsultasi: e.value, kode_ruangan_konsultasi: e.value === 'tidak' ? '' : formData.kode_ruangan_konsultasi })}
+                            placeholder="Pilih Status Konsultasi"
+                            className="w-full text-sm"
+                        />
+                    </div>
+                    {formData.wajib_konsultasi && formData.wajib_konsultasi !== 'tidak' && (
+                        <div>
+                            <label className="block text-sm font-semibold mb-1">Ruangan Konsultasi *</label>
+                            <Dropdown
+                                value={formData.kode_ruangan_konsultasi}
+                                options={ruanganList}
+                                onChange={(e) => setFormData({ ...formData, kode_ruangan_konsultasi: e.value })}
+                                placeholder="Pilih Ruangan Konsultasi"
+                                showClear
+                                className="w-full text-sm"
+                            />
+                        </div>
+                    )}
                     <div className="grid">
                         <div className="col-6">
                             <label className="block text-sm font-semibold mb-1">Harga (Rp) *</label>
