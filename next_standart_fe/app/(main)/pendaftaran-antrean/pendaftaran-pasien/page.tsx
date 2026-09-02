@@ -8,14 +8,17 @@ import { IconField } from 'primereact/iconfield';
 import { InputIcon } from 'primereact/inputicon';
 import { Dialog } from 'primereact/dialog';
 import { Divider } from 'primereact/divider';
+import { TabView, TabPanel } from 'primereact/tabview';
 import { TabPendaftaran } from './components/tab_pendaftaran';
 import { TabPendaftaranLama } from './components/tab_pendaftaran_lama';
+import { TabKepemilikanPaket } from './components/TabKepemilikanPaket';
 import { StepPilihLayanan } from './components/StepPilihLayanan';
 import { KarcisAntrianModal } from './components/dialogs/KarcisAntrianModal';
 import { KarcisAntrianLayananModal } from './components/dialogs/KarcisAntrianLayananModal';
 
 const PendaftaranPasienPage = () => {
   const toast = useRef<Toast>(null);
+  const [activeTab, setActiveTab] = useState<number>(0);
 
   // Search Pasien Lama state (Separated & Large with Live Real-time Search)
   const [searchVal, setSearchVal] = useState('');
@@ -152,95 +155,118 @@ const PendaftaranPasienPage = () => {
     <>
       <Toast ref={toast} position="top-right" />
 
-      {/* 1. SEPARATED LARGE SEARCH CARD & PAGE HEADER */}
-      <div className="card p-4 mb-4 border-round-xl surface-card shadow-1">
-        <div className="mb-4 pb-3 border-bottom-1 surface-border">
-          <h2 className="text-2xl font-bold flex align-items-center gap-2 mb-1 text-900">
-            <i className="pi pi-id-card text-blue-600 text-3xl" />
-            Pendaftaran Pasien
-          </h2>
-          <p className="text-color-secondary m-0 text-sm">
-            Cari data pasien terdaftar (Pasien Lama) atau buka registrasi rekam medis untuk Pasien Baru.
-          </p>
-        </div>
-
-        {/* COMPONENT CARI PASIEN LAMA DIPISAH & BESAR */}
-        <div className="surface-50 p-4 border-round-xl border-1 surface-border">
-          <label className="block text-base font-bold text-900 mb-2 flex align-items-center gap-2">
-            <i className="pi pi-search text-blue-600 text-xl" />
-            Cari Pasien Lama (RM / NIK / Nama / No. HP)
-          </label>
-          <form onSubmit={handleSearchSubmit} className="flex flex-column sm:flex-row gap-2 w-full">
-            <div className="flex-1">
-              <IconField iconPosition="left" className="w-full">
-                <InputIcon className="pi pi-search text-lg" />
-                <InputText
-                  value={searchVal}
-                  onChange={(e) => handleSearchChange(e.target.value)}
-                  placeholder="Masukkan No. RM, NIK, Nama Pasien, atau No. HP..."
-                  className="w-full text-base p-inputtext-lg border-round-lg"
-                />
-              </IconField>
+      {/* TAB NAVIGATION: PENDAFTARAN PASIEN & KEPEMILIKAN PAKET PASIEN */}
+      <TabView activeIndex={activeTab} onTabChange={(e) => setActiveTab(e.index)} className="custom-pendaftaran-tabview">
+        <TabPanel
+          header={
+            <span className="flex align-items-center gap-2 font-bold px-1">
+              <i className="pi pi-id-card text-lg" />
+              Pendaftaran Kunjungan Pasien
+            </span>
+          }
+        >
+          {/* 1. SEPARATED LARGE SEARCH CARD & PAGE HEADER */}
+          <div className="card p-4 mb-4 border-round-xl surface-card shadow-1 mt-3">
+            <div className="mb-4 pb-3 border-bottom-1 surface-border">
+              <h2 className="text-2xl font-bold flex align-items-center gap-2 mb-1 text-900">
+                <i className="pi pi-id-card text-blue-600 text-3xl" />
+                Pendaftaran Pasien
+              </h2>
+              <p className="text-color-secondary m-0 text-sm">
+                Cari data pasien terdaftar (Pasien Lama) atau buka registrasi rekam medis untuk Pasien Baru.
+              </p>
             </div>
-            <div className="flex gap-2">
+
+            {/* COMPONENT CARI PASIEN LAMA DIPISAH & BESAR */}
+            <div className="surface-50 p-4 border-round-xl border-1 surface-border">
+              <label className="block text-base font-bold text-900 mb-2 flex align-items-center gap-2">
+                <i className="pi pi-search text-blue-600 text-xl" />
+                Cari Pasien Lama (RM / NIK / Nama / No. HP)
+              </label>
+              <form onSubmit={handleSearchSubmit} className="flex flex-column sm:flex-row gap-2 w-full">
+                <div className="flex-1">
+                  <IconField iconPosition="left" className="w-full">
+                    <InputIcon className="pi pi-search text-lg" />
+                    <InputText
+                      value={searchVal}
+                      onChange={(e) => handleSearchChange(e.target.value)}
+                      placeholder="Masukkan No. RM, NIK, Nama Pasien, atau No. HP..."
+                      className="w-full text-base p-inputtext-lg border-round-lg"
+                    />
+                  </IconField>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    type="submit"
+                    label="Cari"
+                    icon="pi pi-search"
+                    severity="info"
+                    size="large"
+                    className="font-bold border-round-lg px-4 flex-1 sm:flex-initial text-base"
+                  />
+                  {searchVal && (
+                    <Button
+                      type="button"
+                      icon="pi pi-times"
+                      severity="secondary"
+                      outlined
+                      size="large"
+                      tooltip="Reset Pencarian"
+                      className="border-round-lg"
+                      onClick={handleClearSearch}
+                    />
+                  )}
+                </div>
+              </form>
+            </div>
+          </div>
+
+          {/* 2. TABEL PASIEN LAMA DENGAN FORMAT MASTER DATA */}
+          <div className="card border-round-xl p-4 shadow-1 surface-card mb-4">
+            {/* TOOLBAR KIRI ATAS TABEL */}
+            <div className="flex flex-row flex-wrap align-items-center gap-2 mb-4">
               <Button
-                type="submit"
-                label="Cari"
-                icon="pi pi-search"
-                severity="info"
-                size="large"
-                className="font-bold border-round-lg px-4 flex-1 sm:flex-initial text-base"
+                size="small"
+                label="Pasien Baru"
+                icon="pi pi-plus"
+                outlined
+                severity="success"
+                className="border-round-md font-medium px-3"
+                onClick={handleOpenPasienBaru}
               />
-              {searchVal && (
-                <Button
-                  type="button"
-                  icon="pi pi-times"
-                  severity="secondary"
-                  outlined
-                  size="large"
-                  tooltip="Reset Pencarian"
-                  className="border-round-lg"
-                  onClick={handleClearSearch}
-                />
-              )}
+              <Divider layout="vertical" className="m-0 h-2rem" />
+              <Button
+                size="small"
+                label="Refresh"
+                icon="pi pi-refresh"
+                outlined
+                severity="success"
+                className="border-round-md font-medium px-3"
+                onClick={() => setRefreshTrigger((prev) => prev + 1)}
+              />
             </div>
-          </form>
-        </div>
-      </div>
 
-      {/* 2. TABEL PASIEN LAMA DENGAN FORMAT MASTER DATA */}
-      <div className="card border-round-xl p-4 shadow-1 surface-card mb-4">
-        {/* TOOLBAR KIRI ATAS TABEL */}
-        <div className="flex flex-row flex-wrap align-items-center gap-2 mb-4">
-          <Button
-            size="small"
-            label="Pasien Baru"
-            icon="pi pi-plus"
-            outlined
-            severity="success"
-            className="border-round-md font-medium px-3"
-            onClick={handleOpenPasienBaru}
-          />
-          <Divider layout="vertical" className="m-0 h-2rem" />
-          <Button
-            size="small"
-            label="Refresh"
-            icon="pi pi-refresh"
-            outlined
-            severity="success"
-            className="border-round-md font-medium px-3"
-            onClick={() => setRefreshTrigger((prev) => prev + 1)}
-          />
-        </div>
+            {/* DATATABLE PASIEN LAMA */}
+            <TabPendaftaranLama
+              toast={toast}
+              onEditPasien={handleEditPasien}
+              externalKeyword={appliedKeyword}
+              refreshTrigger={refreshTrigger}
+            />
+          </div>
+        </TabPanel>
 
-        {/* DATATABLE PASIEN LAMA */}
-        <TabPendaftaranLama
-          toast={toast}
-          onEditPasien={handleEditPasien}
-          externalKeyword={appliedKeyword}
-          refreshTrigger={refreshTrigger}
-        />
-      </div>
+        <TabPanel
+          header={
+            <span className="flex align-items-center gap-2 font-bold px-1">
+              <i className="pi pi-box text-lg text-amber-600" />
+              Data Kepemilikan Paket Pasien
+            </span>
+          }
+        >
+          <TabKepemilikanPaket toast={toast} refreshTrigger={refreshTrigger} />
+        </TabPanel>
+      </TabView>
 
       {/* 3. DIALOG POPUP FORM PASIEN BARU — setelah sukses, step pilih layanan inline */}
       <Dialog

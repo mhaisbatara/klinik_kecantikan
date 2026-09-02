@@ -638,7 +638,7 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
                                             <Button
                                                 label="📢 Panggil Pasien Ini"
                                                 icon="pi pi-megaphone"
-                                                severity="primary"
+                                                severity="info"
                                                 size="large"
                                                 className="font-bold border-round-lg flex-1 shadow-2 text-base py-3"
                                                 onClick={() => handleAksi(currentItem, 'dipanggil')}

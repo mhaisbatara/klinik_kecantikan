@@ -19,18 +19,21 @@ export async function syncRekamMedisPerAntrian({
   catatan_hasil_treatment,
   kode_karyawan,
   username = "system",
+  trx,
 }) {
   if (!kode_kunjungan) return null;
 
+  const db = trx || DB;
+
   try {
     // 1. Pastikan Header Record di `trx_rekam_medis` ADA (sebagai parent FK id_rekam_medis)
-    const kunjungan = await DB("trx_kunjungan")
+    const kunjungan = await db("trx_kunjungan")
       .where("kode_kunjungan", kode_kunjungan)
       .first();
 
     const no_rm = kunjungan ? kunjungan.no_rm : null;
 
-    let existingHeaderRM = await DB("trx_rekam_medis")
+    let existingHeaderRM = await db("trx_rekam_medis")
       .where("kode_kunjungan", kode_kunjungan)
       .first();
 
@@ -41,7 +44,7 @@ export async function syncRekamMedisPerAntrian({
 
     const targetKaryawanParam = kode_karyawan || existingHeaderRM?.kode_karyawan;
     if (targetKaryawanParam) {
-      const karyawanRec = await DB("mst_karyawan")
+      const karyawanRec = await db("mst_karyawan")
         .where("kode_karyawan", targetKaryawanParam)
         .orWhere("no_sip", targetKaryawanParam)
         .orWhere("kode_user", targetKaryawanParam)
@@ -57,7 +60,7 @@ export async function syncRekamMedisPerAntrian({
 
     if (!existingHeaderRM) {
       const now = formatDateSystem();
-      const [insertedHeaderId] = await DB("trx_rekam_medis").insert({
+      const [insertedHeaderId] = await db("trx_rekam_medis").insert({
         kode_rekam_medis: `RKM-${Date.now()}`,
         kode_kunjungan,
         kode_antrian_layanan: kode_antrian_layanan || null,
@@ -79,7 +82,7 @@ export async function syncRekamMedisPerAntrian({
     // Resolve nama_ruangan jika tidak terisi
     let resolvedNamaRuangan = nama_ruangan;
     if (!resolvedNamaRuangan && kode_ruangan) {
-      const masterRoom = await DB("mst_ruangan").where("kode_ruangan", kode_ruangan).first();
+      const masterRoom = await db("mst_ruangan").where("kode_ruangan", kode_ruangan).first();
       if (masterRoom) resolvedNamaRuangan = masterRoom.nama_ruangan;
     }
     resolvedNamaRuangan = resolvedNamaRuangan || "Ruangan Treatment";
@@ -106,13 +109,13 @@ export async function syncRekamMedisPerAntrian({
     // 3. Cek apakah sudah ada baris `trx_rekam_medis_ruangan` untuk (id_rekam_medis, kode_ruangan)
     const roomCodeParam = kode_ruangan || "RNG-000";
 
-    let existingRoomRM = await DB("trx_rekam_medis_ruangan")
+    let existingRoomRM = await db("trx_rekam_medis_ruangan")
       .where("id_rekam_medis", id_rekam_medis)
       .where("kode_ruangan", roomCodeParam)
       .first();
 
     if (!existingRoomRM && kode_antrian_layanan) {
-      existingRoomRM = await DB("trx_rekam_medis_ruangan")
+      existingRoomRM = await db("trx_rekam_medis_ruangan")
         .where("kode_antrian_layanan", kode_antrian_layanan)
         .first();
     }
@@ -147,7 +150,7 @@ export async function syncRekamMedisPerAntrian({
 
     if (existingRoomRM) {
       // UPDATE baris ruangan yang sudah ada (OVERWRITE, bukan concat)
-      await DB("trx_rekam_medis_ruangan")
+      await db("trx_rekam_medis_ruangan")
         .where("id", existingRoomRM.id)
         .update({
           kode_antrian_layanan: kode_antrian_layanan || existingRoomRM.kode_antrian_layanan,
@@ -163,7 +166,7 @@ export async function syncRekamMedisPerAntrian({
     } else {
       // INSERT baris ruangan baru
       const kodeRMR = `RMR-${kode_kunjungan}-${roomCodeParam}-${Date.now().toString().slice(-4)}`;
-      const [insertedRoomId] = await DB("trx_rekam_medis_ruangan").insert({
+      const [insertedRoomId] = await db("trx_rekam_medis_ruangan").insert({
         kode_rekam_medis_ruangan: kodeRMR,
         id_rekam_medis: id_rekam_medis,
         kode_kunjungan: kode_kunjungan,
@@ -187,17 +190,17 @@ export async function syncRekamMedisPerAntrian({
     // 4. Simpan/link foto ke trx_rekam_medis_foto dengan id_rekam_medis_ruangan (Upsert per tipe)
     if (id_rekam_medis_ruangan && extractedFotos.length > 0) {
       for (const foto of extractedFotos) {
-        const existingFotoSameTipe = await DB("trx_rekam_medis_foto")
+        const existingFotoSameTipe = await db("trx_rekam_medis_foto")
           .where("id_rekam_medis_ruangan", id_rekam_medis_ruangan)
           .where("tipe", foto.tipe)
           .first();
 
         if (existingFotoSameTipe) {
-          await DB("trx_rekam_medis_foto")
+          await db("trx_rekam_medis_foto")
             .where("id", existingFotoSameTipe.id)
             .update({ url_foto: foto.url_foto });
         } else {
-          await DB("trx_rekam_medis_foto").insert({
+          await db("trx_rekam_medis_foto").insert({
             id_rekam_medis: id_rekam_medis,
             id_rekam_medis_ruangan: id_rekam_medis_ruangan,
             tipe: foto.tipe,

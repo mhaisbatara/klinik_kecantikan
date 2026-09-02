@@ -39,6 +39,7 @@ const handleGetOptions = async (req, res) => {
         "l.nama",
         "l.harga",
         "l.durasi_menit",
+        "l.tipe",
         "l.kode_ruangan",
         "r.nama_ruangan as nama_ruangan",
         "r.is_konsultasi as is_konsultasi"
@@ -60,7 +61,7 @@ const handleGetOptions = async (req, res) => {
     const vaPaket = await DB("mst_paket_layanan as p")
       .leftJoin("mst_ruangan as r", "p.kode_ruangan", "r.kode_ruangan")
       .where("p.status", "aktif")
-      .select("p.kode_paket_layanan", "p.nama", "p.harga_paket", "p.masa_berlaku_hari", "p.tanggal_mulai", "p.tanggal_selesai", "p.kode_ruangan", "r.nama_ruangan as nama_ruangan", "r.is_konsultasi as is_konsultasi")
+      .select("p.kode_paket_layanan", "p.nama", "p.harga_paket", "p.masa_berlaku_hari", "p.tanggal_mulai", "p.tanggal_selesai", "p.tipe", "p.kode_ruangan", "r.nama_ruangan as nama_ruangan", "r.is_konsultasi as is_konsultasi")
       .orderBy("p.id", "asc");
 
     // Map layanan & paket grouped by ruangan (initialized with ALL DB rooms)
@@ -161,6 +162,7 @@ const handleGetOptions = async (req, res) => {
         nama: lay.nama,
         harga: parseFloat(lay.harga || 0),
         durasi_menit: parseInt(lay.durasi_menit || 30, 10),
+        tipe: (lay.tipe || "BEAUTY TREATMENT").toString().trim().toUpperCase(),
         kode_ruangan: lay.kode_ruangan || "",
         nama_ruangan: lay.nama_ruangan || lay.kode_ruangan || "Ruang Treatment",
         is_konsultasi: Number(lay.is_konsultasi || 0),
@@ -181,7 +183,14 @@ const handleGetOptions = async (req, res) => {
     });
 
     // Format paket items & merge into ruanganMap
-    const paketItems = vaPaket.map((pkt) => {
+    const paketItems = [];
+    for (const pkt of vaPaket) {
+      const detailSesi = await DB("mst_detail_paket_layanan")
+        .where("kode_paket_layanan", pkt.kode_paket_layanan)
+        .sum("jumlah_sesi as total_sesi")
+        .first();
+      const totalSesi = parseInt(detailSesi?.total_sesi || 0, 10) || 1;
+
       const rawItem = {
         jenis: "paket",
         kode_layanan: pkt.kode_paket_layanan,
@@ -191,6 +200,8 @@ const handleGetOptions = async (req, res) => {
         harga: parseFloat(pkt.harga_paket || 0),
         durasi_menit: 60, // default estimasi durasi paket
         masa_berlaku_hari: pkt.masa_berlaku_hari,
+        total_sesi: totalSesi,
+        tipe: (pkt.tipe || "BEAUTY TREATMENT").toString().trim().toUpperCase(),
         kode_ruangan: pkt.kode_ruangan || "",
         nama_ruangan: pkt.nama_ruangan || pkt.kode_ruangan || "Ruang Treatment",
         is_konsultasi: Number(pkt.is_konsultasi || 0),
@@ -210,9 +221,8 @@ const handleGetOptions = async (req, res) => {
         ruanganMap.set(kodeRuang, rngObj);
       }
       rngObj.items.push(itemData);
-
-      return itemData;
-    });
+      paketItems.push(itemData);
+    }
 
     // Output all ruangan data from database (all 5 rooms)
     const resultRuangan = Array.from(ruanganMap.values());

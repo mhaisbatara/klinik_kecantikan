@@ -58,10 +58,30 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
             // Form data dipindahkan ke trx_rekam_medis; form dimulai kosong setiap sesi baru
             setCatatanPetugas('');
             setFormData({});
-            setRekomendasiItems([]);
             setSelectedPetugas(antrianData.kode_karyawan || '');
+            if (isKonsultasi) {
+                loadPendaftaranItems();
+            } else {
+                setRekomendasiItems([]);
+            }
         }
-    }, [visible, antrianData]);
+    }, [visible, antrianData, isKonsultasi]);
+
+    const loadPendaftaranItems = async () => {
+        if (!antrianData?.kode_kunjungan) return;
+        try {
+            const res = await postData('/master/antrian-layanan-pendaftaran-items', {
+                kode_kunjungan: antrianData.kode_kunjungan,
+            });
+            if (['00', '0000'].includes(res.data.status) && res.data.data?.length > 0) {
+                setRekomendasiItems(res.data.data);
+            } else {
+                setRekomendasiItems([]);
+            }
+        } catch (e) {
+            setRekomendasiItems([]);
+        }
+    };
 
     const loadKaryawan = async () => {
         try {
@@ -277,7 +297,9 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
                             </label>
 
                             <div className="grid formgrid p-fluid">
-                                {fields.map((f) => {
+                                {fields
+                                    .filter((f) => !(f.label_field || '').toLowerCase().includes('treatment yang direkomendasikan'))
+                                    .map((f) => {
                                     const val = formData[f.label_field];
                                     const isFoto = f.tipe_field === 'upload_foto';
                                     const colSize = isFoto ? 'col-12' : 'col-12 md:col-6';
@@ -383,16 +405,14 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
                             size="small"
                         />
 
-                        {antrianData.status === 'dipanggil' && (
-                            <Button
-                                label="Simpan & Selesaikan Tindakan"
-                                icon="pi pi-check-circle"
-                                severity="success"
-                                loading={saving}
-                                onClick={() => handleSave('selesai')}
-                                size="small"
-                            />
-                        )}
+                        <Button
+                            label={isKonsultasi ? "Simpan & Selesaikan Konsultasi" : "Simpan & Selesaikan Tindakan"}
+                            icon="pi pi-check-circle"
+                            severity="success"
+                            loading={saving}
+                            onClick={() => handleSave('selesai')}
+                            size="small"
+                        />
                     </div>
                 </div>
             </Dialog>

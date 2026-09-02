@@ -10,10 +10,10 @@ import { Toast } from 'primereact/toast';
 import postData from '@/lib/axios/postData';
 import { showError, showSuccess } from '@/lib/tools/generalTools';
 import { confirmDialog, ConfirmDialog } from 'primereact/confirmdialog';
-import { apiPasienLayananOptions, apiPasienAmbilAntrianLayanan } from './endpoints';
+import { apiPasienLayananOptions, apiPasienAmbilAntrianLayanan, apiPasienKepemilikanPaket } from './endpoints';
 
 interface ServiceItem {
-  jenis: 'layanan' | 'paket';
+  jenis: 'layanan' | 'paket' | 'klaim_paket';
   kode_layanan: string;
   kode_kategori: string;
   nama_kategori: string;
@@ -27,9 +27,14 @@ interface ServiceItem {
   nilai_diskon?: number;
   durasi_menit: number;
   masa_berlaku_hari?: number;
+  total_sesi?: number;
   kode_ruangan?: string;
   nama_ruangan?: string;
   is_konsultasi?: number;
+  tipe?: 'MEDICAL TREATMENT' | 'BEAUTY TREATMENT' | 'SERVICE TREATMENT' | string;
+  kode_kepemilikan_paket_layanan?: string;
+  nama_paket_asal?: string;
+  sisa_sesi?: number;
 }
 
 interface RuanganGroup {
@@ -62,14 +67,21 @@ export const StepPilihLayanan: React.FC<Props> = ({
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [ruangans, setRuangans] = useState<RuanganGroup[]>([]);
+  const [ownedPackages, setOwnedPackages] = useState<any[]>([]);
+
   // Map item yang dipilih: key = `${jenis}_${kode_layanan}`
   const [selectedMap, setSelectedMap] = useState<{ [key: string]: ServiceItem }>({});
+  // Map pilihan konsul khusus untuk item Opsional Konsul (BEAUTY TREATMENT): true = Ya (Ke Ruang Konsul), false = Tidak (Langsung Treatment)
+  const [consultChoiceMap, setConsultChoiceMap] = useState<{ [key: string]: boolean }>({});
   // Kode ruangan yang sedang aktif dipilih (null = belum ada yang dipilih)
   const [activeRuangan, setActiveRuangan] = useState<string | null>(null);
 
   useEffect(() => {
     fetchOptions();
-  }, []);
+    if (pasienData?.no_rm) {
+      fetchOwnedPackages();
+    }
+  }, [pasienData?.no_rm]);
 
   const fetchOptions = async () => {
     setLoading(true);
@@ -87,11 +99,22 @@ export const StepPilihLayanan: React.FC<Props> = ({
     }
   };
 
+  const fetchOwnedPackages = async () => {
+    try {
+      const res = await postData(apiPasienKepemilikanPaket, {
+        no_rm: pasienData.no_rm,
+        status: 'aktif',
+      });
+      if (['00', '0000'].includes(res.data.status)) {
+        setOwnedPackages(res.data.data || []);
+      }
+    } catch (e) {
+      console.error('Failed to load owned packages for patient');
+    }
+  };
+
   /**
    * Toggle pilih/batal item layanan atau paket.
-   * Aturan:
-   * - Dalam 1 ruangan yang sama → boleh multi-select (centang banyak layanan / paket)
-   * - Beda ruangan → tidak bisa dipilih selama ruangan lain masih aktif
    */
   const handleToggleItem = (item: ServiceItem) => {
     const key = `${item.jenis}_${item.kode_layanan}`;
@@ -101,16 +124,13 @@ export const StepPilihLayanan: React.FC<Props> = ({
       const next = { ...prev };
 
       if (next[key]) {
-        // Jika item sudah dipilih → deselect
         delete next[key];
-        // Jika tidak ada yang tersisa → reset activeRuangan
         if (Object.keys(next).length === 0) {
           setActiveRuangan(null);
         }
         return next;
       }
 
-      // Jika belum dipilih → cek apakah ruangan cocok
       if (activeRuangan !== null && activeRuangan !== targetRoomCode) {
         const activeRoomName = Object.values(prev)[0]?.nama_ruangan || activeRuangan;
         showError(
@@ -120,9 +140,16 @@ export const StepPilihLayanan: React.FC<Props> = ({
         return prev;
       }
 
-      // Ruangan sama atau belum ada yang dipilih → tambahkan
       next[key] = item;
       setActiveRuangan(targetRoomCode);
+
+      setConsultChoiceMap((cPrev) => {
+        if (cPrev[key] === undefined) {
+          return { ...cPrev, [key]: true };
+        }
+        return cPrev;
+      });
+
       return next;
     });
   };
@@ -130,16 +157,26 @@ export const StepPilihLayanan: React.FC<Props> = ({
   const handleClearSelection = () => {
     setSelectedMap({});
     setActiveRuangan(null);
+    setConsultChoiceMap({});
   };
 
   const selectedList = Object.values(selectedMap);
-  // totalHarga selalu pakai harga asli — diskon akan diterapkan di kasir
   const totalHarga = selectedList.reduce((sum, i) => sum + (i.harga_asal ?? i.harga), 0);
   const totalDurasi = selectedList.reduce((sum, i) => sum + i.durasi_menit, 0);
-  const hasPromo = selectedList.some((i) => i.is_promo);
 
   const formatRupiah = (val: number) => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
+  };
+
+  const getItemConsultType = (item: ServiceItem) => {
+    if (item.jenis === 'klaim_paket') {
+      return { isWajib: false, isService: true, isOpsional: false };
+    }
+    const rawTipe = (item.tipe || '').toString().trim().toUpperCase();
+    const isWajib = rawTipe === 'MEDICAL TREATMENT' || rawTipe.includes('MEDICAL') || rawTipe.includes('WAJIB');
+    const isService = rawTipe === 'SERVICE TREATMENT' || rawTipe.includes('SERVICE') || rawTipe.includes('TIDAK');
+    const isOpsional = !isWajib && !isService;
+    return { isWajib, isService, isOpsional };
   };
 
   const handleProcessSubmit = async (customItems?: ServiceItem[]) => {
@@ -147,12 +184,28 @@ export const StepPilihLayanan: React.FC<Props> = ({
 
     setSubmitting(true);
     try {
-      const itemsPayload = itemsToSubmit.map((item) => ({
-        jenis_layanan: item.jenis,
-        kode_layanan: item.kode_layanan,
-        kode_ruangan: item.kode_ruangan,
-        nama_ruangan: item.nama_ruangan,
-      }));
+      const itemsPayload = itemsToSubmit.map((item) => {
+        const key = `${item.jenis}_${item.kode_layanan}`;
+        const { isWajib, isService } = getItemConsultType(item);
+
+        let chooseConsult = false;
+        if (isWajib) {
+          chooseConsult = true;
+        } else if (isService) {
+          chooseConsult = false;
+        } else {
+          chooseConsult = consultChoiceMap[key] !== false;
+        }
+
+        return {
+          jenis_layanan: item.jenis,
+          kode_layanan: item.kode_layanan,
+          kode_ruangan: item.kode_ruangan,
+          nama_ruangan: item.nama_ruangan,
+          butuh_konsul: chooseConsult,
+          kode_kepemilikan_paket_layanan: item.kode_kepemilikan_paket_layanan,
+        };
+      });
 
       const res = await postData(apiPasienAmbilAntrianLayanan, {
         no_rm: pasienData.no_rm,
@@ -180,155 +233,186 @@ export const StepPilihLayanan: React.FC<Props> = ({
       confirmDialog({
         message: (
           <div className="flex flex-column align-items-center text-center gap-2 py-2">
-            <i className="pi pi-question-circle text-orange-500 text-5xl mb-2" />
-            <h3 className="font-bold text-xl m-0 text-900">Pendaftaran Tanpa Layanan</h3>
-            <p className="text-color-secondary text-sm m-0">
-              Apakah Anda yakin ingin mendaftarkan kunjungan pasien <strong>{pasienData.nama}</strong> ({pasienData.no_rm}) tanpa mengambil layanan medis/paket?
-            </p>
+            <i className="pi pi-question-circle text-blue-500 text-4xl mb-1" />
+            <span className="font-bold text-lg text-900">Pendaftaran Kunjungan Tanpa Layanan?</span>
+            <span className="text-sm text-600 max-w-24rem">
+              Anda tidak memilih layanan/paket treatment. Pasien <strong>{pasienData.nama}</strong> ({pasienData.no_rm}) akan didaftarkan antrean kunjungan ke <strong>Ruang Konsultasi Dokter</strong>.
+            </span>
           </div>
-        ) as any,
+        ),
         header: 'Konfirmasi Pendaftaran Kunjungan',
-        icon: 'pi pi-exclamation-triangle',
-        acceptLabel: 'Ya, Selesaikan',
+        icon: 'pi pi-info-circle',
+        acceptLabel: 'Ya, Terbitkan Antrean Konsul',
         rejectLabel: 'Batal',
-        acceptClassName: 'p-button-secondary font-bold',
+        acceptClassName: 'p-button-primary font-bold px-4',
         rejectClassName: 'p-button-outlined p-button-secondary',
-        accept: () => handleProcessSubmit(itemsToSubmit),
+        accept: () => handleProcessSubmit([]),
       });
       return;
     }
 
-    const combinedNama = itemsToSubmit.map((i) => i.nama).join(', ');
+    const firstItem = itemsToSubmit[0];
+    const roomName = firstItem.nama_ruangan || 'Ruang Treatment';
 
     confirmDialog({
       message: (
-        <div className="flex flex-column text-left gap-3 py-1">
-          <div className="flex align-items-center gap-3 bg-blue-50 p-3 border-round-xl border-1 border-blue-100">
-            <i className="pi pi-user text-blue-600 text-3xl" />
-            <div>
-              <span className="text-xs text-500 block">Pasien</span>
-              <span className="font-bold text-blue-900 text-base">{pasienData.nama}</span>
-              <span className="text-xs text-blue-700 block">No. RM: {pasienData.no_rm}</span>
-            </div>
+        <div className="flex flex-column gap-3 py-1">
+          <div className="text-center pb-2 border-bottom-1 surface-border">
+            <i className="pi pi-[#3b82f6] pi-ticket text-blue-500 text-4xl mb-2" />
+            <h4 className="font-extrabold text-xl text-900 m-0">Terbitkan Nomor Antrean Kunjungan?</h4>
+            <p className="text-sm text-500 m-0 mt-1">
+              Pasien <strong>{pasienData.nama}</strong> ({pasienData.no_rm})
+            </p>
           </div>
 
-          <div>
-            <span className="text-xs font-semibold text-color-secondary block mb-1">
-              LAYANAN / PAKET TERPILIH ({itemsToSubmit.length}):
-            </span>
-            <div className="surface-100 p-3 border-round-lg border-1 surface-border">
-              <div className="font-bold text-900 text-sm mb-1">{combinedNama}</div>
-              <div className="text-xs text-500 flex justify-content-between align-items-center pt-2 border-top-1 surface-border mt-2">
-                <span>Estimasi Biaya:</span>
-                <div className="flex flex-column align-items-end gap-1">
-                  <span className="font-extrabold text-blue-600 text-base">{formatRupiah(totalHarga)}</span>
-                  {hasPromo && (
-                    <span className="text-xs text-rose-500 font-semibold">* Diskon promo diterapkan di kasir</span>
-                  )}
+          <div className="surface-100 p-3 border-round-xl">
+            <span className="text-xs text-500 block mb-2 font-bold uppercase">Daftar Layanan Dipilih:</span>
+            {itemsToSubmit.map((item, idx) => {
+              const key = `${item.jenis}_${item.kode_layanan}`;
+              const { isWajib, isService } = getItemConsultType(item);
+              let statusText = 'Konsultasi Dokter Dahulu';
+              if (isService) statusText = 'Langsung Treatment';
+              else if (!isWajib && consultChoiceMap[key] === false) statusText = 'Langsung Treatment (Tanpa Konsul)';
+
+              return (
+                <div key={idx} className="flex align-items-center justify-content-between py-1 text-sm border-bottom-1 border-200 last:border-none">
+                  <div>
+                    <span className="font-bold text-900">{item.nama}</span>
+                    {item.jenis === 'klaim_paket' && <Tag value="KLAIM PAKET" severity="warning" className="ml-2 text-[10px]" />}
+                    <span className="text-xs text-blue-600 block">{statusText}</span>
+                  </div>
+                  <span className="font-extrabold text-slate-800">{formatRupiah(item.harga)}</span>
                 </div>
-              </div>
-            </div>
+              );
+            })}
           </div>
-
-          <p className="text-sm text-700 m-0">
-            Apakah Anda yakin ingin menerbitkan nomor antrean tindakan untuk pasien ini?
-          </p>
         </div>
-      ) as any,
-      header: 'Konfirmasi Ambil Nomor Antrean',
-      icon: 'pi pi-ticket',
-      acceptLabel: 'Ya, Terbitkan Antrean',
+      ),
+      header: 'Konfirmasi Pendaftaran',
+      acceptLabel: 'Ya, Terbitkan Antrean Now',
       rejectLabel: 'Batal',
-      acceptClassName: 'p-button-primary font-bold',
+      acceptClassName: 'p-button-success font-bold px-4',
       rejectClassName: 'p-button-outlined p-button-secondary',
       accept: () => handleProcessSubmit(itemsToSubmit),
     });
   };
 
-  /**
-   * Render card item layanan / paket.
-   */
   const renderItemCard = (item: ServiceItem) => {
     const key = `${item.jenis}_${item.kode_layanan}`;
     const isSelected = !!selectedMap[key];
     const isPaket = item.jenis === 'paket';
-    const itemRoomCode = item.kode_ruangan || 'LAINNYA';
-    const isDisabled = activeRuangan !== null && !isSelected && activeRuangan !== itemRoomCode;
+    const isKlaim = item.jenis === 'klaim_paket';
+    const targetRoomCode = item.kode_ruangan || 'LAINNYA';
+    const isDisabled = activeRuangan !== null && activeRuangan !== targetRoomCode && !isSelected;
 
-    const colorScheme = isPaket ? 'amber' : 'blue';
-    const selectedBorder = isPaket ? 'border-amber-500 bg-amber-50 shadow-2' : 'border-blue-500 bg-blue-50 shadow-2';
-    const disabledStyle = isDisabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:border-300';
+    const { isWajib, isService, isOpsional } = getItemConsultType(item);
 
     return (
-      <div key={`${item.jenis}_${item.kode_layanan}`} className="col-12 md:col-6 lg:col-4">
+      <div key={key} className="col-12 sm:col-6 lg:col-4 p-2">
         <div
-          className={`surface-card p-3 border-round-xl border-1 shadow-1 transition-all transition-duration-200 select-none ${
-            isSelected ? selectedBorder : `surface-border ${disabledStyle}`
+          className={`h-full p-4 border-round-xl border-1 transition-all transition-duration-200 flex flex-column justify-content-between cursor-pointer ${
+            isSelected
+              ? isKlaim
+                ? 'surface-card border-amber-500 shadow-3 bg-amber-50'
+                : isPaket
+                ? 'surface-card border-amber-500 shadow-3 bg-amber-50'
+                : 'surface-card border-blue-600 shadow-3 bg-blue-50'
+              : isDisabled
+              ? 'surface-200 border-200 opacity-60 cursor-not-allowed'
+              : 'surface-card surface-border hover:border-blue-400 hover:shadow-2'
           }`}
-          style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
           onClick={() => {
             if (!isDisabled) handleToggleItem(item);
           }}
-          title={isDisabled ? `Tidak bisa dipilih — ruangan aktif: ${Object.values(selectedMap)[0]?.nama_ruangan || activeRuangan}` : ''}
         >
-          <div className="flex align-items-start gap-3">
-            <Checkbox
-              checked={isSelected}
-              disabled={isDisabled}
-              onChange={() => {
-                if (!isDisabled) handleToggleItem(item);
-              }}
-              className="mt-1"
-            />
-            <div className="w-full">
-              <div className="flex align-items-center justify-content-between gap-1 mb-1">
-                <div className="flex align-items-center gap-1 flex-wrap">
-                  {item.is_promo && (
-                    <Tag value={`🔥 PROMO ${item.jenis_diskon === 'persen' ? `-${item.nilai_diskon}%` : ''}`} severity="danger" className="text-xs font-bold" />
-                  )}
-                  {isPaket ? (
-                    <Tag value="PAKET LAYANAN" severity="warning" className="text-xs font-bold" />
-                  ) : (
-                    <Tag value={item.nama_kategori || item.kode_layanan} severity="info" className="text-xs font-bold" />
-                  )}
-                </div>
-                {!isPaket ? (
-                  <span className="text-xs text-500 flex align-items-center gap-1">
-                    <i className="pi pi-clock" /> {item.durasi_menit} mnt
-                  </span>
+          <div>
+            <div className="flex align-items-center justify-content-between mb-2">
+              <div className="flex align-items-center gap-1 flex-wrap">
+                {isKlaim ? (
+                  <Tag value="🎁 KLAIM SESI PAKET" severity="warning" className="text-xs font-bold" />
+                ) : isPaket ? (
+                  <Tag value="PAKET TREATMENT" severity="warning" className="text-xs font-bold" />
                 ) : (
-                  item.masa_berlaku_hari ? (
-                    <span className="text-xs text-500">Masa berlaku {item.masa_berlaku_hari} hr</span>
-                  ) : (
-                    <span className="text-xs text-500 flex align-items-center gap-1">
-                      <i className="pi pi-clock" /> {item.durasi_menit} mnt
-                    </span>
-                  )
+                  <Tag value={item.nama_kategori || 'LAYANAN'} severity="info" className="text-xs font-medium" />
                 )}
-              </div>
-              
-              <h4 className="font-bold text-900 text-base m-0 mb-1">{item.nama}</h4>
 
-              {/* NAMA RUANGAN EXPLICITLY SHOWN WITH ICON & TEXT */}
-              <div className="flex align-items-center gap-1 text-xs text-teal-700 font-semibold mb-2">
-                <i className="pi pi-building text-teal-500" />
-                <span>{item.nama_ruangan ? `${item.kode_ruangan ? item.kode_ruangan + ' - ' : ''}${item.nama_ruangan}` : 'Ruang Treatment'}</span>
-                {item.nama_promo && <span className="text-rose-500 font-bold ml-1">• {item.nama_promo}</span>}
-              </div>
+                {item.total_sesi && item.total_sesi > 0 && (
+                  <Tag value={`${item.total_sesi} SESI`} severity="success" className="text-xs font-bold" />
+                )}
 
-              <div>
-                <span className={`text-base font-extrabold ${isPaket ? 'text-amber-700' : 'text-blue-600'}`}>
-                  {formatRupiah(item.harga_asal ?? item.harga)}
-                </span>
+                {isWajib && <Tag value="Wajib Konsul" severity="danger" className="text-[10px] font-bold" />}
+                {isService && <Tag value="Tidak Perlu Konsul" severity="success" className="text-[10px] font-bold" />}
+                {isOpsional && <Tag value="Opsional Konsul" severity="info" className="text-[10px] font-bold" />}
               </div>
 
-              {isDisabled && (
-                <div className="text-xs text-red-400 mt-1 flex align-items-center gap-1">
-                  <i className="pi pi-lock" />
-                  <span>Ganti ruangan untuk memilih ini</span>
-                </div>
+              <Checkbox
+                checked={isSelected}
+                disabled={isDisabled}
+                onChange={() => {
+                  if (!isDisabled) handleToggleItem(item);
+                }}
+              />
+            </div>
+
+            <h4 className="text-base font-bold text-900 m-0 mb-1 line-height-2">{item.nama}</h4>
+            {isKlaim && item.nama_paket_asal && (
+              <span className="text-xs text-amber-700 block font-semibold mb-1">Paket Asal: {item.nama_paket_asal}</span>
+            )}
+            <div className="flex align-items-center gap-3 text-xs text-500 mb-3">
+              <span className="flex align-items-center gap-1">
+                <i className="pi pi-clock text-xs" /> {item.durasi_menit} Menit
+              </span>
+              {isKlaim && item.sisa_sesi !== undefined && (
+                <span className="font-bold text-amber-700">Sisa {item.sisa_sesi} Sesi</span>
               )}
             </div>
+
+            <div>
+              <span className={`text-base font-extrabold ${isKlaim ? 'text-amber-700' : isPaket ? 'text-amber-700' : 'text-blue-600'}`}>
+                {isKlaim ? 'Rp 0 (Klaim Sesi)' : formatRupiah(item.harga_asal ?? item.harga)}
+              </span>
+            </div>
+
+            {/* PILIHAN INTERAKTIF UNTUK OPSIONAL KONSUL */}
+            {isSelected && isOpsional && (
+              <div
+                className="mt-3 pt-2 border-top-1 surface-border flex flex-column gap-1"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <span className="text-xs font-bold text-700 flex align-items-center gap-1">
+                  <i className="pi pi-question-circle text-blue-500" />
+                  Konsultasi Dokter Dahulu?
+                </span>
+                <div className="flex align-items-center gap-2 mt-1">
+                  <Button
+                    type="button"
+                    size="small"
+                    label="Ya (Ke Ruang Konsul)"
+                    icon="pi pi-user-edit text-xs"
+                    severity={consultChoiceMap[key] !== false ? 'warning' : 'secondary'}
+                    outlined={consultChoiceMap[key] === false}
+                    className="text-xs font-bold py-1 px-2 border-round-lg"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setConsultChoiceMap((prev) => ({ ...prev, [key]: true }));
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    size="small"
+                    label="Tidak (Langsung Treatment)"
+                    icon="pi pi-arrow-right text-xs"
+                    severity={consultChoiceMap[key] === false ? 'success' : 'secondary'}
+                    outlined={consultChoiceMap[key] !== false}
+                    className="text-xs font-bold py-1 px-2 border-round-lg"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setConsultChoiceMap((prev) => ({ ...prev, [key]: false }));
+                    }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -338,7 +422,7 @@ export const StepPilihLayanan: React.FC<Props> = ({
   return (
     <div className="grid">
       <ConfirmDialog />
-      {/* PASIEN INFO HEADER */}
+
       <div className="col-12">
         <div className="surface-card p-4 border-round-xl border-1 surface-border shadow-1 mb-4">
           <div className="flex flex-column md:flex-row align-items-start md:align-items-center justify-content-between gap-3 border-bottom-1 surface-border pb-3 mb-3">
@@ -369,7 +453,7 @@ export const StepPilihLayanan: React.FC<Props> = ({
 
           {/* INFO RUANGAN AKTIF */}
           {activeRuangan && selectedList.length > 0 && (
-            <div className="flex align-items-center justify-content-between flex-wrap gap-2 p-3 bg-blue-50 border-round-lg border-1 border-blue-200">
+            <div className="flex align-items-center justify-content-between flex-wrap gap-2 p-3 bg-blue-50 border-round-lg border-1 border-blue-200 mb-3">
               <div className="flex align-items-center gap-2">
                 <i className="pi pi-check-circle text-blue-600 text-lg" />
                 <div>
@@ -393,62 +477,100 @@ export const StepPilihLayanan: React.FC<Props> = ({
               />
             </div>
           )}
-        </div>
-      </div>
 
-      {/* OPTIONS CONTAINER — KELOMPOK PER RUANGAN */}
-      <div className="col-12 mb-8">
-        {loading ? (
-          <div className="flex flex-column align-items-center justify-content-center p-5 surface-card border-round-xl">
-            <ProgressSpinner style={{ width: '50px', height: '50px' }} />
-            <span className="mt-3 text-500 font-medium">Memuat pilihan layanan &amp; paket per ruangan...</span>
-          </div>
-        ) : (
-          <TabView className="p-tabview-custom">
-            {/* TABS RUANGAN LAYANAN & PAKET */}
-            {ruangans.map((ruang) => {
-              const isRuangActive = activeRuangan === ruang.kode_ruangan;
-              const isRuangDisabled = activeRuangan !== null && activeRuangan !== ruang.kode_ruangan;
-              const ruangSelectedCount = ruang.items.filter(
-                (item) => !!selectedMap[`${item.jenis}_${item.kode_layanan}`]
-              ).length;
-              const roomTitle = ruang.nama_ruangan
-                ? `${ruang.nama_ruangan}`
-                : `Ruangan ${ruang.kode_ruangan}`;
-              const countSuffix = ruangSelectedCount > 0 ? ` (${ruangSelectedCount})` : '';
-              const tabHeaderString = `${roomTitle}${countSuffix}`;
-
-              return (
+          {loading ? (
+            <div className="flex flex-column align-items-center justify-content-center p-6 my-4">
+              <ProgressSpinner style={{ width: '40px', height: '40px' }} strokeWidth="4" />
+              <span className="text-500 text-sm mt-3 font-medium">Memuat opsi layanan &amp; paket...</span>
+            </div>
+          ) : (
+            <TabView className="p-tabview-custom">
+              {/* TAB KHUSUS: PAKET DIMILIKI PASIEN (KLAIM SESI) */}
+              {ownedPackages && ownedPackages.length > 0 && (
                 <TabPanel
-                  key={ruang.kode_ruangan}
-                  header={tabHeaderString}
-                  leftIcon={`pi ${isRuangActive ? 'pi-check-circle' : 'pi-building'} mr-2`}
+                  header={`🎁 Paket Dimiliki Pasien (${ownedPackages.length})`}
+                  leftIcon="pi pi-gift mr-2 text-amber-600 font-bold"
                 >
-                  {isRuangDisabled && (
-                    <div className="flex align-items-center gap-2 p-3 mb-3 bg-orange-50 border-round-lg border-1 border-orange-200">
-                      <i className="pi pi-info-circle text-orange-500" />
-                      <span className="text-sm text-orange-700">
-                        Ruangan ini tidak bisa dipilih karena Anda sudah memilih layanan/paket dari ruangan <strong>{selectedList[0]?.nama_ruangan || activeRuangan}</strong>.
-                        Batalkan semua pilihan terlebih dahulu untuk berpindah ruangan.
-                      </span>
-                    </div>
-                  )}
-                  {ruang.items.length === 0 ? (
-                    <div className="flex flex-column align-items-center justify-content-center p-5 surface-card border-round-xl border-1 surface-border my-3 text-center">
-                      <i className="pi pi-inbox text-400 text-4xl mb-2" />
-                      <span className="text-700 font-bold block text-base">{roomTitle}</span>
-                      <span className="text-500 text-sm mt-1">Belum ada layanan atau paket yang tersedia di ruangan ini.</span>
-                    </div>
-                  ) : (
-                    <div className="grid">
-                      {ruang.items.map((item) => renderItemCard(item))}
-                    </div>
-                  )}
+                  <div className="p-3 bg-amber-50 border-round-lg border-1 border-amber-200 mb-3 flex align-items-center gap-2">
+                    <i className="pi pi-info-circle text-amber-600 text-lg" />
+                    <span className="text-sm text-amber-900 font-semibold">
+                      Pasien ini memiliki paket aktif! Centang sesi layanan di bawah ini untuk klaim antrean kunjungan tanpa biaya tambahan (Rp 0).
+                    </span>
+                  </div>
+
+                  <div className="grid">
+                    {ownedPackages.map((pkg) => {
+                      return (pkg.details || []).map((det: any) => {
+                        const claimItem: ServiceItem = {
+                          jenis: 'klaim_paket',
+                          kode_layanan: det.kode_layanan,
+                          kode_kategori: 'KLAIM PAKET',
+                          nama_kategori: `Klaim Paket`,
+                          nama: `${det.nama_layanan || det.kode_layanan}`,
+                          harga: 0,
+                          harga_asal: 0,
+                          durasi_menit: 45,
+                          total_sesi: det.sesi_total,
+                          sisa_sesi: det.sisa_sesi,
+                          kode_ruangan: 'RNG-001',
+                          nama_ruangan: 'Ruang Treatment',
+                          tipe: 'BEAUTY TREATMENT',
+                          kode_kepemilikan_paket_layanan: pkg.kode_kepemilikan_paket_layanan,
+                          nama_paket_asal: pkg.nama_paket,
+                        };
+
+                        return renderItemCard(claimItem);
+                      });
+                    })}
+                  </div>
                 </TabPanel>
-              );
-            })}
-          </TabView>
-        )}
+              )}
+
+              {/* TABS RUANGAN LAYANAN & PAKET STANDARD */}
+              {ruangans.map((ruang) => {
+                const isRuangActive = activeRuangan === ruang.kode_ruangan;
+                const isRuangDisabled = activeRuangan !== null && activeRuangan !== ruang.kode_ruangan;
+                const ruangSelectedCount = ruang.items.filter(
+                  (item) => !!selectedMap[`${item.jenis}_${item.kode_layanan}`]
+                ).length;
+                const roomTitle = ruang.nama_ruangan
+                  ? `${ruang.nama_ruangan}`
+                  : `Ruangan ${ruang.kode_ruangan}`;
+                const countSuffix = ruangSelectedCount > 0 ? ` (${ruangSelectedCount})` : '';
+                const tabHeaderString = `${roomTitle}${countSuffix}`;
+
+                return (
+                  <TabPanel
+                    key={ruang.kode_ruangan}
+                    header={tabHeaderString}
+                    leftIcon={`pi ${isRuangActive ? 'pi-check-circle' : 'pi-building'} mr-2`}
+                  >
+                    {isRuangDisabled && (
+                      <div className="flex align-items-center gap-2 p-3 mb-3 bg-orange-50 border-round-lg border-1 border-orange-200">
+                        <i className="pi pi-info-circle text-orange-500" />
+                        <span className="text-sm text-orange-700">
+                          Ruangan ini tidak bisa dipilih karena Anda sudah memilih layanan/paket dari ruangan <strong>{selectedList[0]?.nama_ruangan || activeRuangan}</strong>.
+                          Batalkan semua pilihan terlebih dahulu untuk berpindah ruangan.
+                        </span>
+                      </div>
+                    )}
+                    {ruang.items.length === 0 ? (
+                      <div className="flex flex-column align-items-center justify-content-center p-5 surface-card border-round-xl border-1 surface-border my-3 text-center">
+                        <i className="pi pi-inbox text-400 text-4xl mb-2" />
+                        <span className="text-700 font-bold block text-base">{roomTitle}</span>
+                        <span className="text-500 text-sm mt-1">Belum ada layanan atau paket yang tersedia di ruangan ini.</span>
+                      </div>
+                    ) : (
+                      <div className="grid">
+                        {ruang.items.map((item) => renderItemCard(item))}
+                      </div>
+                    )}
+                  </TabPanel>
+                );
+              })}
+            </TabView>
+          )}
+        </div>
       </div>
 
       {/* FIXED / STICKY BOTTOM SUMMARY BAR */}
@@ -471,32 +593,24 @@ export const StepPilihLayanan: React.FC<Props> = ({
             <span className="text-xs text-500 block">Total Estimasi Biaya:</span>
             <span className="font-extrabold text-blue-600 text-xl">{formatRupiah(totalHarga)}</span>
           </div>
-          {selectedList.length > 0 && (
-            <div className="hidden md:block border-left-1 surface-border pl-4">
-              <span className="text-xs text-500 block">Ruangan Aktif:</span>
-              <span className="font-bold text-green-700 text-sm flex align-items-center gap-1">
-                <i className="pi pi-check-circle text-green-500" />
-                {selectedList[0]?.nama_ruangan || activeRuangan}
-              </span>
-            </div>
-          )}
         </div>
 
         <div className="flex align-items-center gap-2 pr-3">
           <Button
-            label="Selesai Tanpa Layanan"
+            label="Batalkan"
             icon="pi pi-times"
-            className="p-button-outlined p-button-secondary border-round-lg text-sm"
-            onClick={() => confirmTakeQueue([])}
-            disabled={submitting}
+            severity="secondary"
+            outlined
+            className="border-round-lg font-bold px-3"
+            onClick={onBack}
           />
           <Button
-            label={`Ambil Nomor Antrean (${selectedList.length})`}
-            icon="pi pi-ticket"
-            className="p-button-primary border-round-lg font-bold p-button-lg"
-            onClick={() => confirmTakeQueue()}
+            label={submitting ? 'Memproses...' : 'Terbitkan Antrean Kunjungan'}
+            icon="pi pi-check"
+            severity="success"
             loading={submitting}
-            disabled={selectedList.length === 0}
+            className="border-round-lg font-bold px-4"
+            onClick={() => confirmTakeQueue()}
           />
         </div>
       </div>

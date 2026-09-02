@@ -589,6 +589,7 @@ router.post("/antrian-layanan-simpan-rekomendasi", async (req, res) => {
           catatan_petugas: combinedCatatan,
           kode_karyawan: updateObj.kode_karyawan || currentAntrian.kode_karyawan,
           username: username,
+          trx: trx,
         });
       }
     });
@@ -624,6 +625,98 @@ router.post("/antrian-layanan-simpan-rekomendasi", async (req, res) => {
     return res.status(500).json({
       status: status.BAD_REQUEST,
       message: error.message || "Gagal menyimpan rekomendasi & penanganan pasien",
+      datetime: formatDateSystem(),
+    });
+  }
+});
+
+/**
+ * ─── 3. FETCH PRE-SELECTED ITEMS DARI PENDAFTARAN (UNLOCKED / LOCKED) ───
+ */
+router.post("/antrian-layanan-pendaftaran-items", async (req, res) => {
+  const { kode_kunjungan, kode_antrian_layanan } = req.body || {};
+  const username = req?.auth?.username || "system";
+
+  try {
+    if (!kode_kunjungan && !kode_antrian_layanan) {
+      return res.status(422).json({
+        status: status.BAD_REQUEST,
+        message: "kode_kunjungan atau kode_antrian_layanan wajib diisi",
+        datetime: formatDateSystem(),
+      });
+    }
+
+    let query = DB("trx_detail_antrian_layanan as dal")
+      .leftJoin("mst_layanan as l", "dal.kode_layanan", "l.kode_layanan")
+      .leftJoin("mst_paket_layanan as p", "dal.kode_layanan", "p.kode_paket_layanan")
+      .leftJoin("mst_ruangan as r_lay", "l.kode_ruangan", "r_lay.kode_ruangan")
+      .leftJoin("mst_ruangan as r_pkt", "p.kode_ruangan", "r_pkt.kode_ruangan");
+
+    if (kode_kunjungan) {
+      query = query.where("dal.kode_kunjungan", kode_kunjungan);
+    } else {
+      query = query.where("dal.kode_antrian_layanan", kode_antrian_layanan);
+    }
+
+    const rawItems = await query.select(
+      "dal.*",
+      "l.kode_ruangan as lay_ruangan",
+      "r_lay.nama_ruangan as lay_nama_ruangan",
+      "r_lay.is_konsultasi as lay_is_konsul",
+      "p.kode_ruangan as pkt_ruangan",
+      "r_pkt.nama_ruangan as pkt_nama_ruangan",
+      "r_pkt.is_konsultasi as pkt_is_konsul"
+    );
+
+    const formatted = rawItems
+      .filter((i) => !Boolean(i.lay_is_konsul) && !Boolean(i.pkt_is_konsul))
+      .map((i) => {
+        const jenisStr = (i.jenis_layanan || "").toLowerCase();
+        const isPaket = jenisStr.includes("paket");
+        const roomCode = isPaket ? (i.pkt_ruangan || i.kode_ruangan) : (i.lay_ruangan || i.kode_ruangan);
+        const roomName = isPaket ? (i.pkt_nama_ruangan || i.nama_ruangan) : (i.lay_nama_ruangan || i.nama_ruangan);
+
+        return {
+          jenis: isPaket ? "paket_layanan" : (jenisStr || "layanan"),
+          tipe: isPaket ? "paket_layanan" : "layanan_biasa",
+          kode: i.kode_layanan,
+          nama: i.nama_layanan,
+          harga: parseFloat(i.harga || 0),
+          kode_ruangan: roomCode || "RNG-001",
+          nama_ruangan: roomName || "Ruang Treatment",
+          is_locked: true,
+          is_pendaftaran: true,
+        };
+      });
+
+    // Deduplicate unique pendaftaran items by (jenis, kode)
+    const uniqueItemsMap = new Map();
+    formatted.forEach((item) => {
+      const normJenis = (item.jenis || "").includes("paket") ? "paket_layanan" : item.jenis;
+      const key = `${normJenis}_${item.kode}`;
+      if (!uniqueItemsMap.has(key)) {
+        uniqueItemsMap.set(key, item);
+      }
+    });
+    const uniqueFormatted = Array.from(uniqueItemsMap.values());
+
+    return res.status(200).json({
+      status: status.SUKSES,
+      message: "Data item pendaftaran berhasil dimuat",
+      datetime: formatDateSystem(),
+      data: uniqueFormatted,
+    });
+  } catch (error) {
+    Logging(error, {
+      file: "/master/ruangan/ruangan_rekomendasi.js",
+      func: "antrian-layanan-pendaftaran-items",
+      request: req.body,
+      response: {},
+      user: username,
+    });
+    return res.status(500).json({
+      status: status.BAD_REQUEST,
+      message: "Gagal mengambil data item pendaftaran",
       datetime: formatDateSystem(),
     });
   }

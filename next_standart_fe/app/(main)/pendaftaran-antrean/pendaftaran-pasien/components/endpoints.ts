@@ -7,3 +7,4 @@ export const apiPasienDelete = '/master/pendaftaran-pasien-delete';
 export const apiPasienBatal = '/master/pendaftaran-pasien-batal';
 export const apiPasienLayananOptions = '/master/pendaftaran-pasien-layanan-options';
 export const apiPasienAmbilAntrianLayanan = '/master/pendaftaran-pasien-ambil-antrian-layanan';
+export const apiPasienKepemilikanPaket = '/master/pendaftaran-pasien-kepemilikan-paket';

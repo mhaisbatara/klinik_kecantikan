@@ -183,27 +183,118 @@ router.post("/", async (req, res) => {
           }
         }
 
+        // Ambil data ruangan konsul aktif (is_konsultasi = 1)
+        const ruangKonsul = await trx("mst_ruangan")
+          .where("is_konsultasi", 1)
+          .where("status", "aktif")
+          .first();
+
         // 1. Validasi & Ambil Detail Semua Item (harga ASLI dari master, promo disimpan sebagai referensi)
         const processedItems = [];
         for (const item of items) {
           const jenis = (item.jenis_layanan || item.jenis || "layanan").toLowerCase();
           const kodeLayanan = (item.kode_layanan || item.kode || "").trim();
 
-          if (!["layanan", "paket"].includes(jenis) || !kodeLayanan) {
+          if (!["layanan", "paket", "klaim_paket"].includes(jenis) || !kodeLayanan) {
             continue;
           }
 
           let namaLayanan = "";
           let hargaLayanan = 0; // Selalu harga ASLI dari master
-          let kodeRuangan = "";
-          let namaRuangan = "";
+          let kodeRuanganTarget = "";
+          let namaRuanganTarget = "";
+          let tipeLayanan = "";
 
-          if (jenis === "layanan") {
+          if (jenis === "klaim_paket" || item.is_klaim === true || item.kode_kepemilikan_paket_layanan) {
+            const kodeKpl = item.kode_kepemilikan_paket_layanan || item.kode_kepemilikan;
+            const kpl = await trx("trx_kepemilikan_paket_layanan")
+              .where("kode_kepemilikan_paket_layanan", kodeKpl)
+              .where("no_rm", pasien.no_rm)
+              .first();
+
+            if (!kpl) {
+              const err = new Error(`Data kepemilikan paket ${kodeKpl} tidak ditemukan untuk pasien ${pasien.no_rm}`);
+              err.statusCode = 422;
+              throw err;
+            }
+
+            if (kpl.status !== "aktif") {
+              const err = new Error(`Paket ${kpl.kode_kepemilikan_paket_layanan} sudah ${kpl.status}`);
+              err.statusCode = 422;
+              throw err;
+            }
+
+            // Cari detail layanan dalam paket
+            let dkpl = null;
+            if (kodeLayanan) {
+              dkpl = await trx("trx_detail_kepemilikan_paket_layanan")
+                .where("kode_kepemilikan_paket_layanan", kodeKpl)
+                .where("kode_layanan", kodeLayanan)
+                .whereRaw("sesi_total - sesi_terpakai > 0")
+                .first();
+            }
+
+            if (!dkpl) {
+              dkpl = await trx("trx_detail_kepemilikan_paket_layanan")
+                .where("kode_kepemilikan_paket_layanan", kodeKpl)
+                .whereRaw("sesi_total - sesi_terpakai > 0")
+                .first();
+            }
+
+            if (!dkpl) {
+              const err = new Error(`Sesi layanan paket untuk ${kodeLayanan || kodeKpl} sudah habis`);
+              err.statusCode = 422;
+              throw err;
+            }
+
+            // Potong 1 sesi (sesi_terpakai + 1)
+            await trx("trx_detail_kepemilikan_paket_layanan")
+              .where("id", dkpl.id)
+              .update({
+                sesi_terpakai: dkpl.sesi_terpakai + 1,
+                updated_at: formatDateSystem(),
+              });
+
+            // Cek apakah seluruh detail sesi sudah habis (sisa_sesi === 0)
+            const allDetails = await trx("trx_detail_kepemilikan_paket_layanan")
+              .where("kode_kepemilikan_paket_layanan", kodeKpl)
+              .select("sesi_total", "sesi_terpakai");
+
+            const totalRemaining = allDetails.reduce((sum, d) => sum + Math.max(0, d.sesi_total - d.sesi_terpakai), 0);
+            if (totalRemaining <= 0) {
+              await trx("trx_kepemilikan_paket_layanan")
+                .where("kode_kepemilikan_paket_layanan", kodeKpl)
+                .update({
+                  status: "habis",
+                  updated_at: formatDateSystem(),
+                });
+            }
+
+            // Ambil info master layanan & paket asal yang diklaim
+            const targetLayKode = dkpl.kode_layanan || kodeLayanan;
+            const lay = await trx("mst_layanan as l")
+              .leftJoin("mst_ruangan as r", "l.kode_ruangan", "r.kode_ruangan")
+              .where("l.kode_layanan", targetLayKode)
+              .select("l.nama", "l.tipe", "l.kode_ruangan", "r.nama_ruangan as nama_ruangan")
+              .first();
+
+            const pktAsal = await trx("mst_paket_layanan as p")
+              .leftJoin("mst_ruangan as r", "p.kode_ruangan", "r.kode_ruangan")
+              .where("p.kode_paket_layanan", kpl.kode_paket_layanan)
+              .select("p.nama as nama_paket", "p.kode_ruangan", "r.nama_ruangan as nama_ruangan")
+              .first();
+
+            namaLayanan = lay ? `${lay.nama} (Klaim Sesi Paket)` : `Klaim Sesi Paket (${targetLayKode})`;
+            hargaLayanan = 0; // Klaim paket -> Rp 0 pada kunjungan ini
+            tipeLayanan = (lay?.tipe || "BEAUTY TREATMENT").toUpperCase();
+            kodeRuanganTarget = lay?.kode_ruangan || pktAsal?.kode_ruangan || "RNG-001";
+            namaRuanganTarget = lay?.nama_ruangan || pktAsal?.nama_ruangan || "Ruang Treatment";
+          } else if (jenis === "layanan") {
             const lay = await trx("mst_layanan as l")
               .leftJoin("mst_ruangan as r", "l.kode_ruangan", "r.kode_ruangan")
               .where("l.kode_layanan", kodeLayanan)
               .where("l.status", "aktif")
-              .select("l.nama", "l.harga", "l.kode_ruangan", "r.nama_ruangan as nama_ruangan")
+              .select("l.nama", "l.harga", "l.tipe", "l.kode_ruangan", "r.nama_ruangan as nama_ruangan")
               .first();
 
             if (!lay) {
@@ -213,14 +304,15 @@ router.post("/", async (req, res) => {
             }
             namaLayanan = lay.nama;
             hargaLayanan = parseFloat(lay.harga || 0); // harga ASLI
-            kodeRuangan = lay.kode_ruangan || "";
-            namaRuangan = lay.nama_ruangan || lay.kode_ruangan || "Ruang Treatment";
+            tipeLayanan = (lay.tipe || "BEAUTY TREATMENT").toUpperCase();
+            kodeRuanganTarget = lay.kode_ruangan || "";
+            namaRuanganTarget = lay.nama_ruangan || lay.kode_ruangan || "Ruang Treatment";
           } else {
             const pkt = await trx("mst_paket_layanan as p")
               .leftJoin("mst_ruangan as r", "p.kode_ruangan", "r.kode_ruangan")
               .where("p.kode_paket_layanan", kodeLayanan)
               .where("p.status", "aktif")
-              .select("p.nama", "p.harga_paket", "p.kode_ruangan", "r.nama_ruangan as nama_ruangan")
+              .select("p.nama", "p.harga_paket", "p.tipe", "p.masa_berlaku_hari", "p.is_selamanya", "p.tanggal_selesai", "p.kode_ruangan", "r.nama_ruangan as nama_ruangan")
               .first();
 
             if (!pkt) {
@@ -230,8 +322,120 @@ router.post("/", async (req, res) => {
             }
             namaLayanan = pkt.nama;
             hargaLayanan = parseFloat(pkt.harga_paket || 0); // harga ASLI
-            kodeRuangan = pkt.kode_ruangan || "";
-            namaRuangan = pkt.nama_ruangan || pkt.kode_ruangan || "Ruang Treatment";
+            tipeLayanan = (pkt.tipe || "BEAUTY TREATMENT").toUpperCase();
+            kodeRuanganTarget = pkt.kode_ruangan || "";
+            namaRuanganTarget = pkt.nama_ruangan || pkt.kode_ruangan || "Ruang Treatment";
+
+            // Catat Kepemilikan Paket ke DB jika item ini ber-jenis "paket"
+            const pktDetails = await trx("mst_detail_paket_layanan")
+              .where("kode_paket_layanan", kodeLayanan)
+              .select("kode_layanan", "jumlah_sesi");
+
+            const totalSesiPaket = pktDetails.reduce((sum, d) => sum + parseInt(d.jumlah_sesi || 0, 10), 0);
+
+            if (totalSesiPaket >= 1) {
+              const prefixKpl = `KPL-${todayStr}-`;
+              const prefixDkpl = `DKPL-${todayStr}-`;
+
+              const lastKpl = await trx("trx_kepemilikan_paket_layanan")
+                .where("kode_kepemilikan_paket_layanan", "like", `${prefixKpl}%`)
+                .orderBy("id", "desc")
+                .first();
+
+              const lastDkpl = await trx("trx_detail_kepemilikan_paket_layanan")
+                .where("kode_detail_kepemilikan_paket_layanan", "like", `${prefixDkpl}%`)
+                .orderBy("id", "desc")
+                .first();
+
+              let seq1 = 0;
+              if (lastKpl && lastKpl.kode_kepemilikan_paket_layanan) {
+                const parts = lastKpl.kode_kepemilikan_paket_layanan.split("-");
+                const num = parseInt(parts[parts.length - 1], 10);
+                if (!isNaN(num)) seq1 = num;
+              }
+
+              let seq2 = 0;
+              if (lastDkpl && lastDkpl.kode_detail_kepemilikan_paket_layanan) {
+                const parts = lastDkpl.kode_detail_kepemilikan_paket_layanan.split("-");
+                if (parts.length >= 3) {
+                  const num = parseInt(parts[2], 10);
+                  if (!isNaN(num)) seq2 = num;
+                }
+              }
+
+              const nextKplSeq = Math.max(seq1, seq2) + 1;
+              const cKodeKpl = `${prefixKpl}${String(nextKplSeq).padStart(3, "0")}`;
+
+              let tglExpired = "2099-12-31";
+              const masaBerlakuHari = parseInt(pkt.masa_berlaku_hari || 0, 10);
+              if (!Boolean(pkt.is_selamanya) && masaBerlakuHari > 0) {
+                const dExp = new Date();
+                dExp.setDate(dExp.getDate() + masaBerlakuHari);
+                tglExpired = formatDateSystem(dExp, "yyyy-MM-dd");
+              }
+
+              const oKepemilikan = {
+                kode_kepemilikan_paket_layanan: cKodeKpl,
+                no_rm: pasien.no_rm,
+                kode_paket_layanan: kodeLayanan,
+                tanggal_beli: todayYmd,
+                tanggal_expired: tglExpired,
+                status: "aktif",
+                tz: oPayload.tz || "Asia/Jakarta",
+                created_by: username,
+                created_at: formatDateSystem(),
+                updated_by: username,
+                updated_at: formatDateSystem(),
+              };
+
+              await trx("trx_kepemilikan_paket_layanan").insert(oKepemilikan);
+
+              let dkSeq = 1;
+              const vaDetailKpl = [];
+              for (const det of pktDetails) {
+                const cKodeDkpl = `DKPL-${todayStr}-${String(nextKplSeq).padStart(3, "0")}-${String(dkSeq).padStart(2, "0")}`;
+                dkSeq++;
+                const jSesi = parseInt(det.jumlah_sesi || 0, 10);
+                vaDetailKpl.push({
+                  kode_detail_kepemilikan_paket_layanan: cKodeDkpl,
+                  kode_kepemilikan_paket_layanan: cKodeKpl,
+                  kode_layanan: det.kode_layanan,
+                  sesi_total: jSesi,
+                  sesi_terpakai: 1, // 1 sesi terpakai pada antrean pendaftaran ini
+                  tz: oPayload.tz || "Asia/Jakarta",
+                  created_by: username,
+                  created_at: formatDateSystem(),
+                  updated_by: username,
+                  updated_at: formatDateSystem(),
+                });
+              }
+              if (vaDetailKpl.length > 0) {
+                await trx("trx_detail_kepemilikan_paket_layanan").insert(vaDetailKpl);
+              }
+            }
+          }
+
+          // Logika Penentuan Konsultasi:
+          // 1. MEDICAL TREATMENT -> Wajib Konsul (needsConsult = true)
+          // 2. SERVICE TREATMENT -> Tidak Perlu Konsul (needsConsult = false)
+          // 3. BEAUTY TREATMENT  -> Opsional Konsul (needsConsult = item.butuh_konsul)
+          let needsConsult = false;
+          if (jenis === "klaim_paket" || item.is_klaim === true || item.kode_kepemilikan_paket_layanan) {
+            needsConsult = false; // Klaim Sesi Paket -> LANGSUNG KE RUANG TINDAKAN / TREATMENT!
+          } else if (tipeLayanan === "MEDICAL TREATMENT") {
+            needsConsult = true;
+          } else if (tipeLayanan === "SERVICE TREATMENT") {
+            needsConsult = false;
+          } else {
+            needsConsult = item.butuh_konsul === true || item.pilih_konsul === true || item.is_konsul === 1;
+          }
+
+          let kodeRuanganFinal = kodeRuanganTarget;
+          let namaRuanganFinal = namaRuanganTarget;
+
+          if (needsConsult && ruangKonsul) {
+            kodeRuanganFinal = ruangKonsul.kode_ruangan;
+            namaRuanganFinal = ruangKonsul.nama_ruangan || "Ruang Konsultasi";
           }
 
           // Cari promo aktif untuk item ini (disimpan sebagai referensi kasir, tidak mengubah harga)
@@ -247,8 +451,12 @@ router.post("/", async (req, res) => {
             nama_promo: promoItem?.nama_promo || null,
             jenis_diskon: promoItem?.jenis_diskon || null,
             nilai_diskon: promoItem ? parseFloat(promoItem.nilai_diskon || 0) : null,
-            kode_ruangan: kodeRuangan,
-            nama_ruangan: namaRuangan,
+            kode_ruangan: kodeRuanganFinal,
+            nama_ruangan: namaRuanganFinal,
+            kode_ruangan_tujuan: kodeRuanganTarget,
+            nama_ruangan_tujuan: namaRuanganTarget,
+            tipe_layanan: tipeLayanan,
+            needs_consult: needsConsult,
           });
         }
 

@@ -104,8 +104,11 @@ router.use("/poli-dropdown", poliDropdown);
 router.use("/", antrianAwalIndex);
 router.use("/", antrianLayananIndex);
 
+import pendaftaranPasienKepemilikanPaket from "./pendaftaran_pasien/pendaftaran_pasien_kepemilikan_paket.js";
+
 // Pendaftaran Pasien
 router.use("/", pendaftaranPasienIndex);
+router.use("/pendaftaran-pasien-kepemilikan-paket", pendaftaranPasienKepemilikanPaket);
 
 // Kategori Layanan
 router.use("/kategori-layanan-data", kategoriLayananData);

@@ -27,6 +27,8 @@ export interface RekomendasiItem {
   kode_kategori?: string;
   nama_kategori?: string;
   masa_berlaku_hari?: number;
+  is_locked?: boolean;
+  is_pendaftaran?: boolean;
 }
 
 interface RekomendasiTreatmentPanelProps {
@@ -67,6 +69,39 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
   useEffect(() => {
     fetchOptions();
   }, []);
+
+  const lastNavigatedKeyRef = React.useRef<string>('');
+
+  useEffect(() => {
+    if (selectedItems && selectedItems.length > 0) {
+      const targetItem = selectedItems.find((s) => s.is_locked || s.is_pendaftaran);
+      if (targetItem) {
+        const itemKey = `${targetItem.jenis}_${targetItem.kode}`;
+        if (lastNavigatedKeyRef.current !== itemKey) {
+          lastNavigatedKeyRef.current = itemKey;
+          let targetTab: TabKey = 'layanan';
+          const j = (targetItem.jenis || '').toLowerCase();
+          if (j.includes('paket') && j.includes('produk')) {
+            targetTab = 'paket_produk';
+          } else if (j.includes('paket')) {
+            targetTab = 'paket_layanan';
+          } else if (j.includes('produk')) {
+            targetTab = 'produk';
+          } else {
+            targetTab = 'layanan';
+          }
+
+          setActiveTab(targetTab);
+
+          if (targetItem.kode_ruangan) {
+            setSelectedRoomFilter(targetItem.kode_ruangan);
+          }
+        }
+      }
+    } else {
+      lastNavigatedKeyRef.current = '';
+    }
+  }, [selectedItems]);
 
   const fetchOptions = async () => {
     setLoading(true);
@@ -114,9 +149,13 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
   const handleToggleSelect = (item: RekomendasiItem) => {
     if (disabled) return;
     const isService = ['layanan', 'paket_layanan'].includes(item.jenis);
-    const exists = isItemSelected(item);
+    const existing = selectedItems.find((s) => s.jenis === item.jenis && s.kode === item.kode);
 
-    if (exists) {
+    if (existing) {
+      if (existing.is_locked || existing.is_pendaftaran) {
+        showError(toast, `Item "${existing.nama}" dipilih saat pendaftaran dan tidak dapat diubah/dihapus.`);
+        return;
+      }
       onChangeSelectedItems(selectedItems.filter((s) => !(s.jenis === item.jenis && s.kode === item.kode)));
       return;
     }
@@ -173,9 +212,21 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
     return Object.values(options).flatMap((arr) => arr).filter((i) => i.is_promo).length;
   }, [options]);
 
-  const countLayanan = selectedItems.filter((s) => ['layanan', 'paket_layanan'].includes(s.jenis)).length;
-  const countProduk = selectedItems.filter((s) => ['produk', 'paket_produk'].includes(s.jenis)).length;
-  const totalHargaSelected = selectedItems.reduce((sum, i) => sum + i.harga * (i.qty || 1), 0);
+  const cleanSelectedItems = useMemo(() => {
+    const map = new Map<string, RekomendasiItem>();
+    (selectedItems || []).forEach((item) => {
+      const normJenis = (item.jenis || '').includes('paket') ? 'paket_layanan' : item.jenis;
+      const key = `${normJenis}_${item.kode}`;
+      if (!map.has(key)) {
+        map.set(key, item);
+      }
+    });
+    return Array.from(map.values());
+  }, [selectedItems]);
+
+  const countLayanan = cleanSelectedItems.filter((s) => ['layanan', 'paket_layanan'].includes(s.jenis)).length;
+  const countProduk = cleanSelectedItems.filter((s) => ['produk', 'paket_produk'].includes(s.jenis)).length;
+  const totalHargaSelected = cleanSelectedItems.reduce((sum, i) => sum + (i.harga || 0) * (i.qty || 1), 0);
 
   const formatRupiah = (val: number) =>
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
@@ -393,7 +444,8 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
           {displayItems.map((item) => {
             const selected = isItemSelected(item);
             const selectedObj = selectedItems.find((s) => s.jenis === item.jenis && s.kode === item.kode);
-            const isLocked =
+            const isPendaftaranLocked = Boolean(selectedObj?.is_locked || selectedObj?.is_pendaftaran);
+            const isRoomLocked =
               isServiceTab &&
               activeTreatmentRoom !== null &&
               !selected &&
@@ -403,24 +455,45 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
             return (
               <div key={item.kode} className="col-12 sm:col-6 md:col-4 mb-2 p-1">
                 <div
-                  onClick={() => !isLocked && handleToggleSelect(item)}
+                  onClick={() => {
+                    if (isPendaftaranLocked) {
+                      showError(toast, `Layanan/paket "${item.nama}" sudah terpilih dari pendaftaran awal dan tidak dapat diubah.`);
+                      return;
+                    }
+                    if (!isRoomLocked) handleToggleSelect(item);
+                  }}
                   className="p-3 border-round-xl cursor-pointer transition-all flex flex-column justify-content-between relative surface-card hover:shadow-2"
                   style={{
-                    border: selected
+                    border: isPendaftaranLocked
+                      ? '2px solid #d97706'
+                      : selected
                       ? `2px solid ${item.is_promo ? '#ef4444' : currentTab.accent}`
-                      : isLocked
+                      : isRoomLocked
                       ? '1.5px solid #e2e8f0'
                       : item.is_promo
                       ? '1.5px solid #fca5a5'
                       : '1.5px solid #e2e8f0',
-                    background: selected ? currentTab.bgActive : isLocked ? '#f8fafc' : item.is_promo ? '#fff1f2' : '#ffffff',
-                    opacity: isLocked ? 0.55 : 1,
+                    background: isPendaftaranLocked
+                      ? '#fffbeb'
+                      : selected
+                      ? currentTab.bgActive
+                      : isRoomLocked
+                      ? '#f8fafc'
+                      : item.is_promo
+                      ? '#fff1f2'
+                      : '#ffffff',
+                    opacity: isRoomLocked ? 0.55 : 1,
                     boxShadow: selected ? `0 4px 14px -2px ${currentTab.accent}30` : '0 1px 3px rgba(0, 0, 0, 0.03)',
                     minHeight: '135px',
                   }}
                 >
-                  {/* Selected checkmark badge */}
-                  {selected && (
+                  {/* Pendaftaran Locked / Checkmark / Room Locked badge */}
+                  {isPendaftaranLocked ? (
+                    <span className="absolute bg-amber-600 text-white border-round-md px-2 py-0.5 text-[9px] font-extrabold flex align-items-center gap-1 shadow-1" style={{ top: '10px', right: '10px' }}>
+                      <i className="pi pi-lock text-[9px]" />
+                      PENDAFTARAN (TERKUNCI)
+                    </span>
+                  ) : selected ? (
                     <span
                       className="absolute border-circle flex align-items-center justify-content-center text-white shadow-1"
                       style={{
@@ -433,15 +506,12 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                     >
                       <i className="pi pi-check text-xs font-black" />
                     </span>
-                  )}
-
-                  {/* Locked badge */}
-                  {isLocked && (
+                  ) : isRoomLocked ? (
                     <span className="absolute bg-slate-100 text-slate-400 border-round px-2 py-0.5 text-[9px] font-extrabold flex align-items-center gap-1" style={{ top: '10px', right: '10px' }}>
                       <i className="pi pi-lock text-[9px]" />
-                      TERKUNCI
+                      RUANGAN BEDA
                     </span>
-                  )}
+                  ) : null}
 
                   {/* ITEM INFO */}
                   <div className="pr-4">
@@ -528,7 +598,7 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
       )}
 
       {/* ── SELECTED SUMMARY DRAWER BAR ── */}
-      {selectedItems.length > 0 && (
+      {cleanSelectedItems.length > 0 && (
         <div
           className="mt-3 p-3 border-round-2xl flex flex-column sm:flex-row align-items-start sm:align-items-center justify-content-between gap-3 shadow-2"
           style={{
@@ -542,18 +612,29 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
             </div>
             <div>
               <span className="text-xs font-black text-teal-950 block">
-                {selectedItems.length} ITEM TERPILIH UNTUK REKOMENDASI
+                {cleanSelectedItems.length} ITEM TERPILIH UNTUK REKOMENDASI
               </span>
               <div className="flex align-items-center gap-2 mt-1 flex-wrap">
-                {selectedItems.map((item, idx) => (
-                  <span key={idx} className="inline-flex align-items-center gap-1 bg-white text-teal-900 border-1 border-teal-200 px-2 py-0.5 border-round-md text-xs font-semibold">
-                    {item.nama} {item.qty ? `(${item.qty}x)` : ''}
-                    <i
-                      className="pi pi-times text-[9px] text-red-500 cursor-pointer ml-1 hover:text-red-700"
-                      onClick={() => onChangeSelectedItems(selectedItems.filter((_, i) => i !== idx))}
-                    />
-                  </span>
-                ))}
+                {cleanSelectedItems.map((item, idx) => {
+                  const isLocked = item.is_locked || item.is_pendaftaran;
+                  return (
+                    <span
+                      key={idx}
+                      className={`inline-flex align-items-center gap-1 border-1 px-2 py-0.5 border-round-md text-xs font-semibold ${
+                        isLocked ? 'bg-amber-50 text-amber-900 border-amber-300' : 'bg-white text-teal-900 border-teal-200'
+                      }`}
+                    >
+                      {isLocked && <i className="pi pi-lock text-[10px] text-amber-700 mr-1" />}
+                      {item.nama} {item.qty ? `(${item.qty}x)` : ''}
+                      {!isLocked && (
+                        <i
+                          className="pi pi-times text-[9px] text-red-500 cursor-pointer ml-1 hover:text-red-700"
+                          onClick={() => onChangeSelectedItems(cleanSelectedItems.filter((_, i) => i !== idx))}
+                        />
+                      )}
+                    </span>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -565,13 +646,13 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
             </div>
 
             <Button
-              label="Hapus Semua"
+              label="Hapus Pilihan Tambahan"
               icon="pi pi-trash"
               outlined
               severity="danger"
               size="small"
               className="font-bold text-xs border-round-lg"
-              onClick={() => onChangeSelectedItems([])}
+              onClick={() => onChangeSelectedItems(selectedItems.filter((i) => i.is_locked || i.is_pendaftaran))}
             />
           </div>
         </div>
