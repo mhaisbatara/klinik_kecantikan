@@ -285,6 +285,43 @@ const handleHasilTreatmentSave = async (req, res) => {
             updated_at: formatDateSystem(),
           });
       }
+
+      // ─── UPDATE STATUS ANTRIAN MENJADI SELESAI ────────────────────────────────
+      if (resolvedKodeAntrian) {
+        await trx("trx_antrian_layanan")
+          .where("kode_antrian_layanan", resolvedKodeAntrian)
+          .update({
+            status: "selesai",
+            selesai_at: formatDateSystem(),
+            updated_by: username,
+            updated_at: formatDateSystem(),
+          });
+      }
+
+      // ─── CEK APAKAH SEMUA ANTRIAN DI KUNJUNGAN INI SUDAH SELESAI ─────────────
+      const allAntrianKunjungan = await trx("trx_antrian_layanan")
+        .where("kode_kunjungan", kode_kunjungan)
+        .select("status");
+
+      const allSelesai = allAntrianKunjungan.every(
+        (a) => a.status === "selesai" || a.status === "batal"
+      );
+
+      if (allSelesai && allAntrianKunjungan.length > 0) {
+        // Tandai kunjungan sebagai selesai jika tabel trx_kunjungan ada kolom status
+        try {
+          await trx("trx_kunjungan")
+            .where("kode_kunjungan", kode_kunjungan)
+            .update({
+              status: "selesai",
+              updated_by: username,
+              updated_at: formatDateSystem(),
+            });
+        } catch (_) {
+          // Jika kolom/tabel tidak ada, abaikan
+        }
+      }
+
     });
 
     return res.status(200).json({
