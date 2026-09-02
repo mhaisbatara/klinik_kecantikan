@@ -494,100 +494,103 @@ export const StepPilihLayanan: React.FC<Props> = ({
               activeIndex={activeTabIndex}
               onTabChange={(e) => setActiveTabIndex(e.index)}
             >
-              {/* TAB KHUSUS: PAKET DIMILIKI PASIEN (KLAIM SESI) */}
               {(() => {
+                const panels: React.ReactNode[] = [];
+
                 const claimablePackages = (ownedPackages || []).filter((pkg: any) => {
                   if (pkg.status && pkg.status.toLowerCase() !== 'aktif') return false;
                   return (pkg.details || []).some((det: any) => (det.sisa_sesi || 0) > 0);
                 });
 
-                if (claimablePackages.length === 0) return null;
-
-                return (
-                  <TabPanel
-                    header={`🎁 Paket Dimiliki Pasien (${claimablePackages.length})`}
-                    leftIcon="pi pi-gift mr-2 text-amber-600 font-bold"
-                  >
-                    <div className="p-3 bg-amber-50 border-round-lg border-1 border-amber-200 mb-3 flex align-items-center gap-2">
-                      <i className="pi pi-info-circle text-amber-600 text-lg" />
-                      <span className="text-sm text-amber-900 font-semibold">
-                        Pasien ini memiliki paket aktif! Centang sesi layanan di bawah ini untuk klaim antrean kunjungan tanpa biaya tambahan (Rp 0).
-                      </span>
-                    </div>
-
-                    <div className="grid">
-                      {claimablePackages.map((pkg: any) => {
-                        return (pkg.details || [])
-                          .filter((det: any) => (det.sisa_sesi || 0) > 0)
-                          .map((det: any) => {
-                            const claimItem: ServiceItem = {
-                              jenis: 'klaim_paket',
-                              kode_layanan: det.kode_layanan,
-                              kode_kategori: 'KLAIM PAKET',
-                              nama_kategori: `Klaim Paket`,
-                              nama: `${det.nama_layanan || det.kode_layanan}`,
-                              harga: 0,
-                              harga_asal: 0,
-                              durasi_menit: 45,
-                              total_sesi: det.sesi_total,
-                              sisa_sesi: det.sisa_sesi,
-                              kode_ruangan: 'RNG-001',
-                              nama_ruangan: 'Ruang Treatment',
-                              tipe: 'BEAUTY TREATMENT',
-                              kode_kepemilikan_paket_layanan: pkg.kode_kepemilikan_paket_layanan,
-                              nama_paket_asal: pkg.nama_paket,
-                            };
-
-                            return renderItemCard(claimItem);
-                          });
-                      })}
-                    </div>
-                  </TabPanel>
-                );
-              })()}
-
-              {/* TABS RUANGAN LAYANAN & PAKET STANDARD */}
-              {ruangans.map((ruang) => {
-                const isRuangActive = activeRuangan === ruang.kode_ruangan;
-                const isRuangDisabled = activeRuangan !== null && activeRuangan !== ruang.kode_ruangan;
-                const ruangSelectedCount = ruang.items.filter(
-                  (item) => !!selectedMap[`${item.jenis}_${item.kode_layanan}`]
-                ).length;
-                const roomTitle = ruang.nama_ruangan
-                  ? `${ruang.nama_ruangan}`
-                  : `Ruangan ${ruang.kode_ruangan}`;
-                const countSuffix = ruangSelectedCount > 0 ? ` (${ruangSelectedCount})` : '';
-                const tabHeaderString = `${roomTitle}${countSuffix}`;
-
-                return (
-                  <TabPanel
-                    key={ruang.kode_ruangan}
-                    header={tabHeaderString}
-                    leftIcon={`pi ${isRuangActive ? 'pi-check-circle' : 'pi-building'} mr-2`}
-                  >
-                    {isRuangDisabled && (
-                      <div className="flex align-items-center gap-2 p-3 mb-3 bg-orange-50 border-round-lg border-1 border-orange-200">
-                        <i className="pi pi-info-circle text-orange-500" />
-                        <span className="text-sm text-orange-700">
-                          Ruangan ini tidak bisa dipilih karena Anda sudah memilih layanan/paket dari ruangan <strong>{selectedList[0]?.nama_ruangan || activeRuangan}</strong>.
-                          Batalkan semua pilihan terlebih dahulu untuk berpindah ruangan.
+                if (claimablePackages.length > 0) {
+                  panels.push(
+                    <TabPanel
+                      key="owned_packages_tab"
+                      header={`🎁 Paket Dimiliki Pasien (${claimablePackages.length})`}
+                      leftIcon="pi pi-gift mr-2 text-amber-600 font-bold"
+                    >
+                      <div className="p-3 bg-amber-50 border-round-lg border-1 border-amber-200 mb-3 flex align-items-center gap-2">
+                        <i className="pi pi-info-circle text-amber-600 text-lg" />
+                        <span className="text-sm text-amber-900 font-semibold">
+                          Pasien ini memiliki paket aktif! Centang sesi layanan di bawah ini untuk klaim antrean kunjungan tanpa biaya tambahan (Rp 0).
                         </span>
                       </div>
-                    )}
-                    {ruang.items.length === 0 ? (
-                      <div className="flex flex-column align-items-center justify-content-center p-5 surface-card border-round-xl border-1 surface-border my-3 text-center">
-                        <i className="pi pi-inbox text-400 text-4xl mb-2" />
-                        <span className="text-700 font-bold block text-base">{roomTitle}</span>
-                        <span className="text-500 text-sm mt-1">Belum ada layanan atau paket yang tersedia di ruangan ini.</span>
-                      </div>
-                    ) : (
+
                       <div className="grid">
-                        {ruang.items.map((item) => renderItemCard(item))}
+                        {claimablePackages.map((pkg: any) => {
+                          return (pkg.details || [])
+                            .filter((det: any) => (det.sisa_sesi || 0) > 0)
+                            .map((det: any) => {
+                              const claimItem: ServiceItem = {
+                                jenis: 'klaim_paket',
+                                kode_layanan: det.kode_layanan,
+                                kode_kategori: 'KLAIM PAKET',
+                                nama_kategori: `Klaim Paket`,
+                                nama: `${det.nama_layanan || det.kode_layanan}`,
+                                harga: 0,
+                                harga_asal: 0,
+                                durasi_menit: 45,
+                                total_sesi: det.sesi_total,
+                                sisa_sesi: det.sisa_sesi,
+                                kode_ruangan: 'RNG-001',
+                                nama_ruangan: 'Ruang Treatment',
+                                tipe: 'BEAUTY TREATMENT',
+                                kode_kepemilikan_paket_layanan: pkg.kode_kepemilikan_paket_layanan,
+                                nama_paket_asal: pkg.nama_paket,
+                              };
+
+                              return renderItemCard(claimItem);
+                            });
+                        })}
                       </div>
-                    )}
-                  </TabPanel>
-                );
-              })}
+                    </TabPanel>
+                  );
+                }
+
+                ruangans.forEach((ruang) => {
+                  const isRuangActive = activeRuangan === ruang.kode_ruangan;
+                  const isRuangDisabled = activeRuangan !== null && activeRuangan !== ruang.kode_ruangan;
+                  const ruangSelectedCount = ruang.items.filter(
+                    (item) => !!selectedMap[`${item.jenis}_${item.kode_layanan}`]
+                  ).length;
+                  const roomTitle = ruang.nama_ruangan
+                    ? `${ruang.nama_ruangan}`
+                    : `Ruangan ${ruang.kode_ruangan}`;
+                  const countSuffix = ruangSelectedCount > 0 ? ` (${ruangSelectedCount})` : '';
+                  const tabHeaderString = `${roomTitle}${countSuffix}`;
+
+                  panels.push(
+                    <TabPanel
+                      key={ruang.kode_ruangan}
+                      header={tabHeaderString}
+                      leftIcon={`pi ${isRuangActive ? 'pi-check-circle' : 'pi-building'} mr-2`}
+                    >
+                      {isRuangDisabled && (
+                        <div className="flex align-items-center gap-2 p-3 mb-3 bg-orange-50 border-round-lg border-1 border-orange-200">
+                          <i className="pi pi-info-circle text-orange-500" />
+                          <span className="text-sm text-orange-700">
+                            Ruangan ini tidak bisa dipilih karena Anda sudah memilih layanan/paket dari ruangan <strong>{selectedList[0]?.nama_ruangan || activeRuangan}</strong>.
+                            Batalkan semua pilihan terlebih dahulu untuk berpindah ruangan.
+                          </span>
+                        </div>
+                      )}
+                      {ruang.items.length === 0 ? (
+                        <div className="flex flex-column align-items-center justify-content-center p-5 surface-card border-round-xl border-1 surface-border my-3 text-center">
+                          <i className="pi pi-inbox text-400 text-4xl mb-2" />
+                          <span className="text-700 font-bold block text-base">{roomTitle}</span>
+                          <span className="text-500 text-sm mt-1">Belum ada layanan atau paket yang tersedia di ruangan ini.</span>
+                        </div>
+                      ) : (
+                        <div className="grid">
+                          {ruang.items.map((item) => renderItemCard(item))}
+                        </div>
+                      )}
+                    </TabPanel>
+                  );
+                });
+
+                return panels;
+              })()}
             </TabView>
           )}
         </div>
