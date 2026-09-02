@@ -495,45 +495,56 @@ export const StepPilihLayanan: React.FC<Props> = ({
               onTabChange={(e) => setActiveTabIndex(e.index)}
             >
               {/* TAB KHUSUS: PAKET DIMILIKI PASIEN (KLAIM SESI) */}
-              {ownedPackages && ownedPackages.length > 0 && (
-                <TabPanel
-                  header={`🎁 Paket Dimiliki Pasien (${ownedPackages.length})`}
-                  leftIcon="pi pi-gift mr-2 text-amber-600 font-bold"
-                >
-                  <div className="p-3 bg-amber-50 border-round-lg border-1 border-amber-200 mb-3 flex align-items-center gap-2">
-                    <i className="pi pi-info-circle text-amber-600 text-lg" />
-                    <span className="text-sm text-amber-900 font-semibold">
-                      Pasien ini memiliki paket aktif! Centang sesi layanan di bawah ini untuk klaim antrean kunjungan tanpa biaya tambahan (Rp 0).
-                    </span>
-                  </div>
+              {(() => {
+                const claimablePackages = (ownedPackages || []).filter((pkg: any) => {
+                  if (pkg.status && pkg.status.toLowerCase() !== 'aktif') return false;
+                  return (pkg.details || []).some((det: any) => (det.sisa_sesi || 0) > 0);
+                });
 
-                  <div className="grid">
-                    {ownedPackages.map((pkg) => {
-                      return (pkg.details || []).map((det: any) => {
-                        const claimItem: ServiceItem = {
-                          jenis: 'klaim_paket',
-                          kode_layanan: det.kode_layanan,
-                          kode_kategori: 'KLAIM PAKET',
-                          nama_kategori: `Klaim Paket`,
-                          nama: `${det.nama_layanan || det.kode_layanan}`,
-                          harga: 0,
-                          harga_asal: 0,
-                          durasi_menit: 45,
-                          total_sesi: det.sesi_total,
-                          sisa_sesi: det.sisa_sesi,
-                          kode_ruangan: 'RNG-001',
-                          nama_ruangan: 'Ruang Treatment',
-                          tipe: 'BEAUTY TREATMENT',
-                          kode_kepemilikan_paket_layanan: pkg.kode_kepemilikan_paket_layanan,
-                          nama_paket_asal: pkg.nama_paket,
-                        };
+                if (claimablePackages.length === 0) return null;
 
-                        return renderItemCard(claimItem);
-                      });
-                    })}
-                  </div>
-                </TabPanel>
-              )}
+                return (
+                  <TabPanel
+                    header={`🎁 Paket Dimiliki Pasien (${claimablePackages.length})`}
+                    leftIcon="pi pi-gift mr-2 text-amber-600 font-bold"
+                  >
+                    <div className="p-3 bg-amber-50 border-round-lg border-1 border-amber-200 mb-3 flex align-items-center gap-2">
+                      <i className="pi pi-info-circle text-amber-600 text-lg" />
+                      <span className="text-sm text-amber-900 font-semibold">
+                        Pasien ini memiliki paket aktif! Centang sesi layanan di bawah ini untuk klaim antrean kunjungan tanpa biaya tambahan (Rp 0).
+                      </span>
+                    </div>
+
+                    <div className="grid">
+                      {claimablePackages.map((pkg: any) => {
+                        return (pkg.details || [])
+                          .filter((det: any) => (det.sisa_sesi || 0) > 0)
+                          .map((det: any) => {
+                            const claimItem: ServiceItem = {
+                              jenis: 'klaim_paket',
+                              kode_layanan: det.kode_layanan,
+                              kode_kategori: 'KLAIM PAKET',
+                              nama_kategori: `Klaim Paket`,
+                              nama: `${det.nama_layanan || det.kode_layanan}`,
+                              harga: 0,
+                              harga_asal: 0,
+                              durasi_menit: 45,
+                              total_sesi: det.sesi_total,
+                              sisa_sesi: det.sisa_sesi,
+                              kode_ruangan: 'RNG-001',
+                              nama_ruangan: 'Ruang Treatment',
+                              tipe: 'BEAUTY TREATMENT',
+                              kode_kepemilikan_paket_layanan: pkg.kode_kepemilikan_paket_layanan,
+                              nama_paket_asal: pkg.nama_paket,
+                            };
+
+                            return renderItemCard(claimItem);
+                          });
+                      })}
+                    </div>
+                  </TabPanel>
+                );
+              })()}
 
               {/* TABS RUANGAN LAYANAN & PAKET STANDARD */}
               {ruangans.map((ruang) => {
