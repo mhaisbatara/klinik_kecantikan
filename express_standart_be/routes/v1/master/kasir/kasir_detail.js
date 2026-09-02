@@ -47,15 +47,29 @@ router.post("/", async (req, res) => {
         .where("dal.kode_kunjungan", trx.kode_kunjungan)
         .whereNull("al.kode_antrian_asal")
         .groupBy("dal.kode_layanan")
-        .select("dal.kode_layanan", "dal.nama_layanan", "dal.harga",
-          "dal.kode_promo", "dal.nama_promo", "dal.jenis_diskon", "dal.nilai_diskon");
+        .select(
+          "dal.kode_layanan",
+          DB.raw("MAX(dal.nama_layanan) as nama_layanan"),
+          DB.raw("MAX(dal.harga) as harga"),
+          DB.raw("MAX(dal.kode_promo) as kode_promo"),
+          DB.raw("MAX(dal.nama_promo) as nama_promo"),
+          DB.raw("MAX(dal.jenis_diskon) as jenis_diskon"),
+          DB.raw("MAX(dal.nilai_diskon) as nilai_diskon")
+        );
 
       if (antrianItems.length === 0) {
         antrianItems = await DB("trx_detail_antrian_layanan as dal")
           .where("dal.kode_kunjungan", trx.kode_kunjungan)
           .groupBy("dal.kode_layanan")
-          .select("dal.kode_layanan", "dal.nama_layanan", "dal.harga",
-            "dal.kode_promo", "dal.nama_promo", "dal.jenis_diskon", "dal.nilai_diskon");
+          .select(
+            "dal.kode_layanan",
+            DB.raw("MAX(dal.nama_layanan) as nama_layanan"),
+            DB.raw("MAX(dal.harga) as harga"),
+            DB.raw("MAX(dal.kode_promo) as kode_promo"),
+            DB.raw("MAX(dal.nama_promo) as nama_promo"),
+            DB.raw("MAX(dal.jenis_diskon) as jenis_diskon"),
+            DB.raw("MAX(dal.nilai_diskon) as nilai_diskon")
+          );
       }
 
       if (antrianItems.length > 0) {

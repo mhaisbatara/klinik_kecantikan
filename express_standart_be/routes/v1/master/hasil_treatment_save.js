@@ -110,9 +110,9 @@ const handleHasilTreatmentSave = async (req, res) => {
         .groupBy("dal.kode_layanan")
         .select(
           "dal.kode_layanan",
-          "dal.nama_layanan",
+          trx.raw("MAX(dal.nama_layanan) as nama_layanan"),
           trx.raw("MAX(dal.harga) as harga"),
-          "dal.jenis_layanan"
+          trx.raw("MAX(dal.jenis_layanan) as jenis_layanan")
         );
 
       // Fallback jika tidak ada antrian asal (misal semua sudah punya asal)
@@ -122,9 +122,9 @@ const handleHasilTreatmentSave = async (req, res) => {
           .groupBy("dal.kode_layanan")
           .select(
             "dal.kode_layanan",
-            "dal.nama_layanan",
+            trx.raw("MAX(dal.nama_layanan) as nama_layanan"),
             trx.raw("MAX(dal.harga) as harga"),
-            "dal.jenis_layanan"
+            trx.raw("MAX(dal.jenis_layanan) as jenis_layanan")
           );
       }
 
