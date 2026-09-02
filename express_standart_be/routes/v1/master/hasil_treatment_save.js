@@ -102,15 +102,31 @@ const handleHasilTreatmentSave = async (req, res) => {
       let resolvedKodeRM = kode_rekam_medis || (id_rekam_medis ? String(id_rekam_medis) : null);
 
       // ─── 3. AMBIL LAYANAN DARI PENDAFTARAN (trx_detail_antrian_layanan) ──────
-      const layananPendaftaran = await trx("trx_detail_antrian_layanan as dal")
+      // Ambil hanya dari antrian asal (kode_antrian_asal IS NULL) dan deduplicate per kode_layanan
+      let layananPendaftaran = await trx("trx_detail_antrian_layanan as dal")
         .join("trx_antrian_layanan as al", "dal.kode_antrian_layanan", "al.kode_antrian_layanan")
         .where("dal.kode_kunjungan", kode_kunjungan)
+        .whereNull("al.kode_antrian_asal")
+        .groupBy("dal.kode_layanan")
         .select(
           "dal.kode_layanan",
           "dal.nama_layanan",
-          "dal.harga",
+          trx.raw("MAX(dal.harga) as harga"),
           "dal.jenis_layanan"
         );
+
+      // Fallback jika tidak ada antrian asal (misal semua sudah punya asal)
+      if (layananPendaftaran.length === 0) {
+        layananPendaftaran = await trx("trx_detail_antrian_layanan as dal")
+          .where("dal.kode_kunjungan", kode_kunjungan)
+          .groupBy("dal.kode_layanan")
+          .select(
+            "dal.kode_layanan",
+            "dal.nama_layanan",
+            trx.raw("MAX(dal.harga) as harga"),
+            "dal.jenis_layanan"
+          );
+      }
 
       // ─── 4. GABUNGKAN LAYANAN PENDAFTARAN + PRODUK DOKTER ────────────────────
       const hasItems = layananPendaftaran.length > 0 || produkItems.length > 0;

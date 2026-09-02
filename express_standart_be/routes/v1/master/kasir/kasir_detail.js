@@ -42,10 +42,21 @@ router.post("/", async (req, res) => {
 
     // ─── AUTO-SELECT IDEMPOTENT LAYANAN/PAKET DARI ANTRIAN (JIKA DRAFT & KODE_KUNJUNGAN ADA) ───
     if (trx.kode_kunjungan && trx.status === "draft") {
-      const antrianItems = await DB("trx_detail_antrian_layanan")
-        .where("kode_kunjungan", trx.kode_kunjungan)
-        .select("kode_layanan", "nama_layanan", "harga",
-          "kode_promo", "nama_promo", "jenis_diskon", "nilai_diskon");
+      let antrianItems = await DB("trx_detail_antrian_layanan as dal")
+        .join("trx_antrian_layanan as al", "dal.kode_antrian_layanan", "al.kode_antrian_layanan")
+        .where("dal.kode_kunjungan", trx.kode_kunjungan)
+        .whereNull("al.kode_antrian_asal")
+        .groupBy("dal.kode_layanan")
+        .select("dal.kode_layanan", "dal.nama_layanan", "dal.harga",
+          "dal.kode_promo", "dal.nama_promo", "dal.jenis_diskon", "dal.nilai_diskon");
+
+      if (antrianItems.length === 0) {
+        antrianItems = await DB("trx_detail_antrian_layanan as dal")
+          .where("dal.kode_kunjungan", trx.kode_kunjungan)
+          .groupBy("dal.kode_layanan")
+          .select("dal.kode_layanan", "dal.nama_layanan", "dal.harga",
+            "dal.kode_promo", "dal.nama_promo", "dal.jenis_diskon", "dal.nilai_diskon");
+      }
 
       if (antrianItems.length > 0) {
         const existingDetails = await DB("trx_detail_transaksi")
@@ -71,6 +82,7 @@ router.post("/", async (req, res) => {
         let insertedAny = false;
         for (const item of antrianItems) {
           if (item.kode_layanan && !existingSet.has(item.kode_layanan)) {
+            existingSet.add(item.kode_layanan);
             const cKodeDetail = `${prefixDetail}${String(dtSeq).padStart(3, "0")}`;
             dtSeq++;
 
@@ -179,6 +191,7 @@ router.post("/", async (req, res) => {
         }
       )
       .where("dt.kode_transaksi", kode_transaksi)
+      .groupBy("dt.id")
       .select(
         "dt.kode_detail_transaksi",
         "dt.kode_layanan",
@@ -191,10 +204,10 @@ router.post("/", async (req, res) => {
         "dt.harga_satuan",
         "dt.subtotal",
         DB.raw("COALESCE(dt.is_from_pendaftaran, 0) as is_from_pendaftaran"),
-        "dal.kode_promo",
-        "dal.nama_promo",
-        "dal.jenis_diskon",
-        "dal.nilai_diskon"
+        DB.raw("MAX(dal.kode_promo) as kode_promo"),
+        DB.raw("MAX(dal.nama_promo) as nama_promo"),
+        DB.raw("MAX(dal.jenis_diskon) as jenis_diskon"),
+        DB.raw("MAX(dal.nilai_diskon) as nilai_diskon")
       )
       .orderBy("dt.is_from_pendaftaran", "desc")
       .orderBy("dt.id", "asc");
