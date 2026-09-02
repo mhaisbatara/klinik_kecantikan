@@ -34,6 +34,9 @@ const handleGetData = async (req, res) => {
       .leftJoin("trx_kunjungan as k", "al.kode_kunjungan", "k.kode_kunjungan")
       .leftJoin("mst_pasien as p", "k.no_rm", "p.no_rm")
       .leftJoin("trx_rekam_medis as rm_asal", "al.kode_kunjungan", "rm_asal.kode_kunjungan")
+      .leftJoin("trx_rekam_medis_foto as rmf", function () {
+        this.on("rm_asal.id", "=", "rmf.id_rekam_medis").andOn("rmf.tipe", "=", DB.raw("?", ["before"]));
+      })
       .leftJoin("trx_antrian_layanan as al_asal", "al.kode_antrian_asal", "al_asal.kode_antrian_layanan")
       .leftJoin("trx_detail_antrian_layanan as dal", "al.kode_antrian_layanan", "dal.kode_antrian_layanan")
       .leftJoin("mst_ruangan as ral", "al.kode_ruangan", "ral.kode_ruangan")
@@ -41,7 +44,7 @@ const handleGetData = async (req, res) => {
       .leftJoin("mst_karyawan as kar", function () {
         this.on("al.kode_karyawan", "=", "kar.no_sip").orOn("al.kode_karyawan", "=", "kar.kode_user");
       })
-      .groupBy("al.id", "k.id", "p.id", "rm_asal.id", "al_asal.id", "ral.id", "kar.id")
+      .groupBy("al.id", "k.id", "p.id", "rm_asal.id", "rmf.id", "al_asal.id", "ral.id", "kar.id")
       .modify((qb) => {
         if (filterTanggal) {
           qb.whereRaw("DATE(al.created_at) = ?", [filterTanggal]);
@@ -103,7 +106,7 @@ const handleGetData = async (req, res) => {
       "rm_asal.objective as data_konsultasi_objective",
       "rm_asal.assessment as data_konsultasi_assessment",
       "rm_asal.plan as data_konsultasi_plan",
-      "rm_asal.foto_before as data_konsultasi_foto_before",
+      "rmf.url_foto as data_konsultasi_foto_before",
       "al_asal.hasil_form as data_konsultasi_hasil_form",
       "al_asal.catatan_petugas as data_konsultasi_catatan_petugas",
       DB.raw("COALESCE(al.kode_ruangan, 'RG-01') as kode_ruangan"),

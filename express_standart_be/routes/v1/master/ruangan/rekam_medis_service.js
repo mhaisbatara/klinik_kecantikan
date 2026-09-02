@@ -99,7 +99,7 @@ export async function syncRekamMedisPerAntrian({
     const headerFields = [
       "keluhan", "durasi_keluhan", "riwayat_alergi", "riwayat_treatment",
       "pemeriksaan_acne", "pemeriksaan_inflammation", "pemeriksaan_skin_type", "pemeriksaan_pigmentation", "pemeriksaan_sensitivity",
-      "diagnosis", "subjective", "objective", "assessment", "plan", "foto_before"
+      "diagnosis", "subjective", "objective", "assessment", "plan"
     ];
     let hasHeaderFields = false;
     headerFields.forEach((f) => {
