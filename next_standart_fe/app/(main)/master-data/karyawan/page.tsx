@@ -259,6 +259,7 @@ const Page = () => {
                             />
                         )}
                     ></Column>
+                    <Column field="kode_karyawan" header="Kode" sortable headerStyle={{ fontWeight: 'bold', width: '7rem' }}></Column>
                     <Column field="no_sip" header="No SIP" sortable headerStyle={{ fontWeight: 'bold' }}></Column>
                     <Column field="nama" header="Nama Karyawan" sortable headerStyle={{ fontWeight: 'bold' }}></Column>
                     <Column field="jabatan" header="Jabatan" body={(r) => <Tag value={r.jabatan?.toUpperCase()} severity="info" />}></Column>
