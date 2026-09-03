@@ -55,17 +55,12 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
         persetujuan_tindakan: true,
     });
 
-    // Form header trx_rekam_medis (Anamnesis, Examination, Diagnosis, SOAP)
+    // Form header trx_rekam_medis (Anamnesis, Diagnosis, SOAP)
     const [headerRMData, setHeaderRMData] = useState({
         keluhan: '',
         durasi_keluhan: '',
         riwayat_alergi: '',
         riwayat_treatment: '',
-        pemeriksaan_acne: 'tidak_ada',
-        pemeriksaan_inflammation: 'tidak_ada',
-        pemeriksaan_skin_type: 'normal',
-        pemeriksaan_pigmentation: 'tidak_ada',
-        pemeriksaan_sensitivity: 'normal',
         diagnosis: '',
         subjective: '',
         objective: '',
@@ -103,11 +98,6 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
                 durasi_keluhan: (antrianData as any).data_konsultasi_durasi_keluhan || '',
                 riwayat_alergi: (antrianData as any).data_konsultasi_riwayat_alergi || '',
                 riwayat_treatment: (antrianData as any).data_konsultasi_riwayat_treatment || '',
-                pemeriksaan_acne: (antrianData as any).data_konsultasi_acne || 'tidak_ada',
-                pemeriksaan_inflammation: (antrianData as any).data_konsultasi_inflammation || 'tidak_ada',
-                pemeriksaan_skin_type: (antrianData as any).data_konsultasi_skin_type || 'normal',
-                pemeriksaan_pigmentation: (antrianData as any).data_konsultasi_pigmentation || 'tidak_ada',
-                pemeriksaan_sensitivity: (antrianData as any).data_konsultasi_sensitivity || 'normal',
                 diagnosis: (antrianData as any).data_konsultasi_diagnosis || '',
                 subjective: (antrianData as any).data_konsultasi_subjective || '',
                 objective: (antrianData as any).data_konsultasi_objective || '',
@@ -300,18 +290,7 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
                                 <span className="font-bold text-blue-900 text-sm block">{dataKonsul.data_konsultasi_plan || dataKonsul.data_konsultasi_assessment || '-'}</span>
                             </div>
 
-                            {(dataKonsul.data_konsultasi_acne || dataKonsul.data_konsultasi_skin_type) && (
-                                <div className="col-12 mt-2 pt-2 border-top-1 border-blue-200">
-                                    <span className="font-bold text-blue-800 block mb-1">Hasil Pemeriksaan Kulit:</span>
-                                    <div className="grid text-[11px]">
-                                        <div className="col-4">Acne: <strong>{dataKonsul.data_konsultasi_acne || '-'}</strong></div>
-                                        <div className="col-4">Inflammation: <strong>{dataKonsul.data_konsultasi_inflammation || '-'}</strong></div>
-                                        <div className="col-4">Tipe Kulit: <strong>{dataKonsul.data_konsultasi_skin_type || '-'}</strong></div>
-                                        <div className="col-4">Pigmentasi: <strong>{dataKonsul.data_konsultasi_pigmentation || '-'}</strong></div>
-                                        <div className="col-4">Sensitivitas: <strong>{dataKonsul.data_konsultasi_sensitivity || '-'}</strong></div>
-                                    </div>
-                                </div>
-                            )}
+
                         </div>
                     </div>
                 )}
@@ -413,88 +392,7 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
 
                             <div>
                                 <label className="block text-xs font-bold text-teal-800 uppercase tracking-wider mb-2 pb-2 border-bottom-1 surface-border">
-                                    2. HASIL PEMERIKSAAN KULIT
-                                </label>
-                                <div className="grid formgrid p-fluid">
-                                    <div className="col-12 md:col-4 mb-2">
-                                        <label className="block text-xs font-semibold mb-1">Pemeriksaan Acne</label>
-                                        <Dropdown
-                                            value={headerRMData.pemeriksaan_acne}
-                                            options={[
-                                                { label: 'Tidak Ada', value: 'Tidak Ada' },
-                                                { label: 'Grade 1 (Mild)', value: 'Grade 1' },
-                                                { label: 'Grade 2 (Moderate)', value: 'Grade 2' },
-                                                { label: 'Grade 3 (Severe)', value: 'Grade 3' },
-                                                { label: 'Grade 4 (Cystic)', value: 'Grade 4' },
-                                            ]}
-                                            onChange={(e) => setHeaderRMData({ ...headerRMData, pemeriksaan_acne: e.value })}
-                                            className="text-sm"
-                                        />
-                                    </div>
-                                    <div className="col-12 md:col-4 mb-2">
-                                        <label className="block text-xs font-semibold mb-1">Inflammation</label>
-                                        <Dropdown
-                                            value={headerRMData.pemeriksaan_inflammation}
-                                            options={[
-                                                { label: 'Tidak Ada', value: 'Tidak Ada' },
-                                                { label: 'Ringan', value: 'Ringan' },
-                                                { label: 'Sedang', value: 'Sedang' },
-                                                { label: 'Berat', value: 'Berat' },
-                                            ]}
-                                            onChange={(e) => setHeaderRMData({ ...headerRMData, pemeriksaan_inflammation: e.value })}
-                                            className="text-sm"
-                                        />
-                                    </div>
-                                    <div className="col-12 md:col-4 mb-2">
-                                        <label className="block text-xs font-semibold mb-1">Jenis / Tipe Kulit</label>
-                                        <Dropdown
-                                            value={headerRMData.pemeriksaan_skin_type}
-                                            options={[
-                                                { label: 'Normal', value: 'Normal' },
-                                                { label: 'Berminyak', value: 'Berminyak' },
-                                                { label: 'Kering', value: 'Kering' },
-                                                { label: 'Kombinasi', value: 'Kombinasi' },
-                                                { label: 'Sensitif', value: 'Sensitif' },
-                                            ]}
-                                            onChange={(e) => setHeaderRMData({ ...headerRMData, pemeriksaan_skin_type: e.value })}
-                                            className="text-sm"
-                                        />
-                                    </div>
-                                    <div className="col-12 md:col-6 mb-2">
-                                        <label className="block text-xs font-semibold mb-1">Pigmentasi</label>
-                                        <Dropdown
-                                            value={headerRMData.pemeriksaan_pigmentation}
-                                            options={[
-                                                { label: 'Tidak Ada', value: 'Tidak Ada' },
-                                                { label: 'Melasma', value: 'Melasma' },
-                                                { label: 'PIH (Hiperpigmentasi Pasca Inflamasi)', value: 'PIH' },
-                                                { label: 'Freckles / Flek', value: 'Freckles' },
-                                                { label: 'Lentigo', value: 'Lentigo' },
-                                                { label: 'PIE (Eritema Pasca Inflamasi)', value: 'PIE' },
-                                            ]}
-                                            onChange={(e) => setHeaderRMData({ ...headerRMData, pemeriksaan_pigmentation: e.value })}
-                                            className="text-sm"
-                                        />
-                                    </div>
-                                    <div className="col-12 md:col-6 mb-2">
-                                        <label className="block text-xs font-semibold mb-1">Sensitivitas Kulit</label>
-                                        <Dropdown
-                                            value={headerRMData.pemeriksaan_sensitivity}
-                                            options={[
-                                                { label: 'Rendah', value: 'Rendah' },
-                                                { label: 'Sedang', value: 'Sedang' },
-                                                { label: 'Tinggi', value: 'Tinggi' },
-                                            ]}
-                                            onChange={(e) => setHeaderRMData({ ...headerRMData, pemeriksaan_sensitivity: e.value })}
-                                            className="text-sm"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-bold text-teal-800 uppercase tracking-wider mb-2 pb-2 border-bottom-1 surface-border">
-                                    3. DIAGNOSIS DOKTER &amp; SOAP MEDIS
+                                    2. DIAGNOSIS DOKTER &amp; SOAP MEDIS
                                 </label>
                                 <div className="grid formgrid p-fluid">
                                     <div className="col-12 md:col-6 mb-2">
