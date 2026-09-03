@@ -263,7 +263,7 @@ const AppMenu = () => {
                         );
 
                         const topItems = splitIdx === -1 ? state.filteredMenu : state.filteredMenu.slice(0, splitIdx);
-                        const bottomItems = splitIdx === -1 ? [] : state.filteredMenu.slice(splitIdx).filter((item) => item.label && !item.label.toLowerCase().includes('riwayat'));
+                        const bottomItems = splitIdx === -1 ? [] : state.filteredMenu.slice(splitIdx).filter((item) => item.label && !item.label.toLowerCase().includes('riwayat') && !item.label.toLowerCase().includes('kasir') && !item.label.toLowerCase().includes('layanan'));
 
                         const renderItem = (item: AppMenuItem, i: number) =>
                             !item.separator ? (
@@ -371,36 +371,6 @@ const AppMenu = () => {
                                     </li>
                                 )}
 
-                                {/* ── RIWAYAT / LAPORAN ── */}
-                                {canAccessLaporan && (
-                                    <li className="layout-root-menuitem" key="riwayat-section">
-                                        <div className="layout-menuitem-root-text">LAPORAN</div>
-                                        <ul>
-                                            <li className={pathname === '/riwayat/rekam-medis' ? 'active-menuitem' : ''}>
-                                                <Link
-                                                    href="/riwayat/rekam-medis"
-                                                    className={`p-ripple flex align-items-center gap-2${pathname === '/riwayat/rekam-medis' ? ' active-route' : ''}`}
-                                                    style={{ padding: '0.75rem 1.25rem', borderRadius: '6px', transition: 'background 0.2s' }}
-                                                >
-                                                    <i
-                                                        className="layout-menuitem-icon pi pi-folder-open"
-                                                        style={{ color: pathname === '/riwayat/rekam-medis' ? 'var(--primary-color)' : undefined }}
-                                                    />
-                                                    <span
-                                                        className="layout-menuitem-text"
-                                                        style={{
-                                                            fontWeight: pathname === '/riwayat/rekam-medis' ? 700 : undefined,
-                                                            color: pathname === '/riwayat/rekam-medis' ? 'var(--primary-color)' : undefined,
-                                                        }}
-                                                    >
-                                                        Laporan
-                                                    </span>
-                                                </Link>
-                                            </li>
-                                        </ul>
-                                    </li>
-                                )}
-
                                 {/* ── KASIR ── */}
                                 {canAccessKasir && (
                                     <li className="layout-root-menuitem" key="kasir-section">
@@ -424,6 +394,36 @@ const AppMenu = () => {
                                                         }}
                                                     >
                                                         Kasir
+                                                    </span>
+                                                </Link>
+                                            </li>
+                                        </ul>
+                                    </li>
+                                )}
+
+                                {/* ── RIWAYAT / LAPORAN ── */}
+                                {canAccessLaporan && (
+                                    <li className="layout-root-menuitem" key="riwayat-section">
+                                        <div className="layout-menuitem-root-text">LAPORAN</div>
+                                        <ul>
+                                            <li className={pathname === '/riwayat/rekam-medis' ? 'active-menuitem' : ''}>
+                                                <Link
+                                                    href="/riwayat/rekam-medis"
+                                                    className={`p-ripple flex align-items-center gap-2${pathname === '/riwayat/rekam-medis' ? ' active-route' : ''}`}
+                                                    style={{ padding: '0.75rem 1.25rem', borderRadius: '6px', transition: 'background 0.2s' }}
+                                                >
+                                                    <i
+                                                        className="layout-menuitem-icon pi pi-folder-open"
+                                                        style={{ color: pathname === '/riwayat/rekam-medis' ? 'var(--primary-color)' : undefined }}
+                                                    />
+                                                    <span
+                                                        className="layout-menuitem-text"
+                                                        style={{
+                                                            fontWeight: pathname === '/riwayat/rekam-medis' ? 700 : undefined,
+                                                            color: pathname === '/riwayat/rekam-medis' ? 'var(--primary-color)' : undefined,
+                                                        }}
+                                                    >
+                                                        Laporan
                                                     </span>
                                                 </Link>
                                             </li>
