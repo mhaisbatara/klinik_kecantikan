@@ -14,7 +14,6 @@ export default function LoginPage() {
   const toast = useRef<Toast>(null);
 
   const [showPassword, setShowPassword] = useState(false);
-  const [lang, setLang] = useState<'ID' | 'EN'>('ID');
   const [state, setState] = useState<LoginState>({
     load: false,
     googleLoad: false,
@@ -94,7 +93,7 @@ export default function LoginPage() {
       />
 
       <style>{`
-        /* Reset & Fixed Viewport Setup (No Scroll) */
+        /* Reset & Fixed Natural Canvas (No Scroll) */
         *, *::before, *::after {
           box-sizing: border-box;
           margin: 0;
@@ -106,19 +105,21 @@ export default function LoginPage() {
           height: 100vh;
           max-height: 100vh;
           overflow: hidden;
-          background-color: #e9fef3;
+          background-color: #eafaf1;
         }
 
         .kk-page-wrapper {
           font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          background-color: #e9fef3;
+          background: radial-gradient(120% 120% at 50% 10%, #f2fbf6 0%, #e2f6eb 100%);
           color: #0d1f18;
           width: 100vw;
           height: 100vh;
           max-height: 100vh;
           overflow: hidden;
           display: flex;
-          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 20px 24px;
           position: relative;
         }
 
@@ -145,128 +146,19 @@ export default function LoginPage() {
           font-variation-settings: 'FILL' 1;
         }
 
-        /* ── HEADER (Sleek Compact) ── */
-        .kk-header {
-          width: 100%;
-          height: 56px;
-          flex-shrink: 0;
-          z-index: 50;
-          background: rgba(233, 254, 243, 0.94);
-          backdrop-filter: blur(12px);
-          -webkit-backdrop-filter: blur(12px);
-          border-bottom: 1px solid rgba(216, 237, 226, 0.85);
-          display: flex;
-          align-items: center;
-        }
-
-        .kk-header-inner {
-          width: 100%;
-          max-width: 1160px;
-          margin: 0 auto;
-          padding: 0 24px;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-        }
-
-        .kk-brand-logo {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          cursor: pointer;
-          text-decoration: none;
-        }
-
-        .kk-logo-box {
-          width: 36px;
-          height: 36px;
-          border-radius: 11px;
-          background: linear-gradient(135deg, #004731 0%, #2b6953 100%);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: #ffffff;
-          box-shadow: 0 3px 10px rgba(0, 71, 49, 0.2);
-          transition: transform 0.2s ease;
-        }
-
-        .kk-brand-logo:hover .kk-logo-box {
-          transform: scale(1.04);
-        }
-
-        .kk-brand-text {
-          display: flex;
-          flex-direction: column;
-        }
-
-        .kk-brand-title {
-          font-size: 15px;
-          font-weight: 700;
-          color: #004731;
-          line-height: 1.15;
-          letter-spacing: -0.2px;
-        }
-
-        .kk-brand-subtitle {
-          font-size: 9px;
-          font-weight: 700;
-          color: #404944;
-          letter-spacing: 0.8px;
-          text-transform: uppercase;
-          margin-top: 1px;
-        }
-
-        .kk-lang-toggle {
-          display: flex;
-          align-items: center;
-          background: #d8ede2;
-          border-radius: 999px;
-          padding: 2.5px;
-          border: 1px solid #def3e8;
-        }
-
-        .kk-lang-btn {
-          border: none;
-          padding: 3px 10px;
-          border-radius: 999px;
-          font-size: 11px;
-          font-weight: 700;
-          cursor: pointer;
-          background: transparent;
-          color: #404944;
-          transition: all 0.2s;
-        }
-
-        .kk-lang-btn.active {
-          background: #ffffff;
-          color: #004731;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-        }
-
-        /* ── MAIN VIEWPORT (Fixed to remaining screen height) ── */
-        .kk-main {
-          flex: 1;
-          min-height: 0;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 10px 24px;
-          width: 100%;
-          overflow: hidden;
-        }
-
+        /* ── MAIN CONTAINER & GRID ── */
         .kk-container {
           width: 100%;
-          max-width: 1160px;
+          max-width: 1120px;
           margin: 0 auto;
         }
 
         .kk-grid {
           display: grid;
-          grid-template-columns: 1.35fr 1fr;
+          grid-template-columns: 1.34fr 1fr;
           gap: 24px;
           align-items: stretch;
-          max-height: calc(100vh - 102px);
+          max-height: 94vh;
         }
 
         @media (max-width: 960px) {
@@ -281,15 +173,15 @@ export default function LoginPage() {
           }
         }
 
-        /* ── LEFT SHOWCASE PANEL ── */
+        /* ── LEFT SHOWCASE PANEL (Aesthetic Botanicals) ── */
         .kk-left-card {
-          background: linear-gradient(180deg, #013525 0%, #004731 55%, #04281c 100%);
-          border-radius: 24px;
-          border: 1px solid rgba(31, 95, 71, 0.5);
-          box-shadow: 0 16px 36px rgba(0, 33, 21, 0.25);
+          background: linear-gradient(165deg, #013525 0%, #004731 55%, #032b1e 100%);
+          border-radius: 26px;
+          border: 1px solid rgba(31, 95, 71, 0.45);
+          box-shadow: 0 20px 48px rgba(0, 33, 21, 0.22);
           position: relative;
           overflow: hidden;
-          padding: 24px 28px;
+          padding: 26px 30px;
           display: flex;
           flex-direction: column;
           justify-content: space-between;
@@ -299,8 +191,8 @@ export default function LoginPage() {
           position: absolute;
           right: -60px;
           top: -60px;
-          width: 240px;
-          height: 240px;
+          width: 250px;
+          height: 250px;
           border-radius: 50%;
           background: rgba(176, 240, 209, 0.14);
           filter: blur(50px);
@@ -311,8 +203,8 @@ export default function LoginPage() {
           position: absolute;
           left: -60px;
           bottom: -30px;
-          width: 220px;
-          height: 220px;
+          width: 230px;
+          height: 230px;
           border-radius: 50%;
           background: rgba(43, 105, 83, 0.22);
           filter: blur(50px);
@@ -324,7 +216,7 @@ export default function LoginPage() {
           inset: 0;
           width: 100%;
           height: 100%;
-          opacity: 0.18;
+          opacity: 0.16;
           pointer-events: none;
         }
 
@@ -335,7 +227,7 @@ export default function LoginPage() {
           padding: 4px 11px;
           background: rgba(255, 255, 255, 0.1);
           backdrop-filter: blur(8px);
-          border: 1px solid rgba(255, 255, 255, 0.12);
+          border: 1px solid rgba(255, 255, 255, 0.14);
           border-radius: 999px;
           margin-bottom: 8px;
         }
@@ -364,7 +256,7 @@ export default function LoginPage() {
 
         .kk-headline {
           font-family: 'Playfair Display', Georgia, serif;
-          font-size: clamp(23px, 2.4vw, 30px);
+          font-size: clamp(23px, 2.3vw, 30px);
           font-weight: 700;
           color: #ffffff;
           line-height: 1.2;
@@ -676,12 +568,12 @@ export default function LoginPage() {
           margin-top: 1px;
         }
 
-        /* ── RIGHT AUTHENTICATION PANEL ── */
+        /* ── RIGHT AUTHENTICATION PANEL (Clean Natural Form) ── */
         .kk-right-card {
           background: #ffffff;
-          border-radius: 24px;
-          padding: 26px 30px;
-          box-shadow: 0 14px 34px rgba(0, 71, 49, 0.06);
+          border-radius: 26px;
+          padding: 34px 34px;
+          box-shadow: 0 16px 40px rgba(0, 48, 32, 0.07);
           border: 1px solid rgba(216, 237, 226, 0.85);
           display: flex;
           flex-direction: column;
@@ -693,31 +585,31 @@ export default function LoginPage() {
           flex-direction: column;
           align-items: center;
           text-align: center;
-          margin-bottom: 12px;
+          margin-bottom: 16px;
         }
 
         .kk-auth-icon-box {
-          width: 48px;
-          height: 48px;
-          border-radius: 14px;
+          width: 52px;
+          height: 52px;
+          border-radius: 16px;
           background: linear-gradient(135deg, #004731 0%, #2b6953 100%);
           display: flex;
           align-items: center;
           justify-content: center;
           color: #ffffff;
-          box-shadow: 0 4px 14px rgba(0, 71, 49, 0.2);
-          margin-bottom: 8px;
+          box-shadow: 0 5px 16px rgba(0, 71, 49, 0.2);
+          margin-bottom: 9px;
         }
 
         .kk-auth-portal-title {
-          font-size: 17px;
+          font-size: 18px;
           font-weight: 700;
           color: #004731;
           letter-spacing: -0.2px;
         }
 
         .kk-auth-portal-sub {
-          font-size: 10px;
+          font-size: 10.5px;
           font-weight: 700;
           color: #404944;
           letter-spacing: 0.8px;
@@ -727,7 +619,7 @@ export default function LoginPage() {
 
         .kk-auth-welcome {
           font-family: 'Playfair Display', Georgia, serif;
-          font-size: 22px;
+          font-size: 24px;
           font-weight: 700;
           color: #0d1f18;
           text-align: center;
@@ -735,23 +627,23 @@ export default function LoginPage() {
         }
 
         .kk-auth-welcome-sub {
-          font-size: 12px;
+          font-size: 12.5px;
           color: #404944;
           text-align: center;
-          margin: 0 0 16px 0;
+          margin: 0 0 18px 0;
         }
 
         .kk-form-group {
-          margin-bottom: 12px;
+          margin-bottom: 14px;
           text-align: left;
         }
 
         .kk-label {
           display: block;
-          font-size: 12px;
+          font-size: 12.5px;
           font-weight: 600;
           color: #0d1f18;
-          margin-bottom: 4px;
+          margin-bottom: 5px;
         }
 
         .kk-input-wrap {
@@ -762,21 +654,21 @@ export default function LoginPage() {
 
         .kk-input-icon {
           position: absolute;
-          left: 12px;
+          left: 13px;
           color: #2b6953;
           pointer-events: none;
-          font-size: 18px;
+          font-size: 19px;
         }
 
         .kk-input {
           width: 100%;
-          height: 42px;
-          padding-left: 38px;
+          height: 44px;
+          padding-left: 40px;
           padding-right: 14px;
           background: #f4fcf7;
           border: 1px solid #d2e7dc;
-          border-radius: 10px;
-          font-size: 13px;
+          border-radius: 11px;
+          font-size: 13.5px;
           font-family: inherit;
           color: #0d1f18;
           outline: none;
@@ -784,7 +676,7 @@ export default function LoginPage() {
         }
 
         .kk-input.has-eye {
-          padding-right: 38px;
+          padding-right: 40px;
         }
 
         .kk-input:focus {
@@ -799,12 +691,12 @@ export default function LoginPage() {
 
         .kk-eye-btn {
           position: absolute;
-          right: 8px;
+          right: 9px;
           background: none;
           border: none;
           cursor: pointer;
           color: #707973;
-          padding: 4px;
+          padding: 5px;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -817,9 +709,9 @@ export default function LoginPage() {
         }
 
         .kk-error-msg {
-          font-size: 11px;
+          font-size: 11.5px;
           color: #ba1a1a;
-          margin-top: 3px;
+          margin-top: 4px;
           font-weight: 500;
         }
 
@@ -827,7 +719,7 @@ export default function LoginPage() {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          margin: 8px 0 14px 0;
+          margin: 10px 0 18px 0;
         }
 
         .kk-remember-label {
@@ -835,7 +727,7 @@ export default function LoginPage() {
           align-items: center;
           gap: 6px;
           cursor: pointer;
-          font-size: 12px;
+          font-size: 12.5px;
           color: #0d1f18;
           user-select: none;
         }
@@ -848,7 +740,7 @@ export default function LoginPage() {
         }
 
         .kk-forgot-link {
-          font-size: 11.5px;
+          font-size: 12px;
           font-weight: 600;
           color: #2b6953;
           text-decoration: none;
@@ -862,11 +754,11 @@ export default function LoginPage() {
 
         .kk-submit-btn {
           width: 100%;
-          height: 42px;
+          height: 44px;
           border-radius: 999px;
           background: #004731;
           color: #ffffff;
-          font-size: 14px;
+          font-size: 14.5px;
           font-weight: 700;
           font-family: inherit;
           border: none;
@@ -874,14 +766,14 @@ export default function LoginPage() {
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: 6px;
-          box-shadow: 0 4px 12px rgba(0, 71, 49, 0.2);
+          gap: 7px;
+          box-shadow: 0 4px 14px rgba(0, 71, 49, 0.22);
           transition: all 0.2s ease;
         }
 
         .kk-submit-btn:hover {
           background: #1f5f47;
-          box-shadow: 0 5px 16px rgba(0, 71, 49, 0.3);
+          box-shadow: 0 6px 18px rgba(0, 71, 49, 0.32);
           transform: translateY(-1px);
         }
 
@@ -894,374 +786,305 @@ export default function LoginPage() {
           cursor: not-allowed;
           transform: none;
         }
-
-        .kk-security-badges {
-          margin-top: 14px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 16px;
-          color: #707973;
-          font-size: 10.5px;
-        }
-
-        .kk-badge-item {
-          display: inline-flex;
-          align-items: center;
-          gap: 5px;
-        }
       `}</style>
 
       <div className="kk-page-wrapper">
-        {/* ── TOP HEADER / NAV BAR ── */}
-        <header className="kk-header">
-          <div className="kk-header-inner">
-            {/* Logo and Brand */}
-            <div className="kk-brand-logo" onClick={() => router.push('/')}>
-              <div className="kk-logo-box">
-                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>spa</span>
-              </div>
-              <div className="kk-brand-text">
-                <span className="kk-brand-title">Klinik Kecantikan</span>
-                <span className="kk-brand-subtitle">Aesthetic &amp; Wellness Hub</span>
-              </div>
-            </div>
+        <div className="kk-container">
+          <div className="kk-grid">
+            {/* ── LEFT COLUMN: Showcase & Stacked Floating Cards ── */}
+            <div className="kk-left-card">
+              {/* Background Ambient Glows */}
+              <div className="kk-glow-top"></div>
+              <div className="kk-glow-bottom"></div>
 
-            {/* Language Switch ONLY (Hotline & Avatar removed as requested) */}
-            <div className="kk-lang-toggle">
-              <button
-                type="button"
-                onClick={() => setLang('ID')}
-                className={`kk-lang-btn ${lang === 'ID' ? 'active' : ''}`}
-              >
-                ID
-              </button>
-              <button
-                type="button"
-                onClick={() => setLang('EN')}
-                className={`kk-lang-btn ${lang === 'EN' ? 'active' : ''}`}
-              >
-                EN
-              </button>
-            </div>
-          </div>
-        </header>
+              {/* Dot Matrix SVG Pattern */}
+              <svg className="kk-dot-pattern" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <pattern id="kk-dots-v3" width="22" height="22" patternUnits="userSpaceOnUse">
+                    <circle cx="2" cy="2" r="1.2" fill="#b0f0d1"></circle>
+                  </pattern>
+                </defs>
+                <rect width="100%" height="100%" fill="url(#kk-dots-v3)"></rect>
+              </svg>
 
-        {/* ── MAIN VIEWPORT (Fits in 1 Screen without scroll) ── */}
-        <main className="kk-main">
-          <div className="kk-container">
-            <div className="kk-grid">
-              {/* ── LEFT COLUMN: Showcase & Stacked Floating Cards ── */}
-              <div className="kk-left-card">
-                {/* Background Ambient Glows */}
-                <div className="kk-glow-top"></div>
-                <div className="kk-glow-bottom"></div>
-
-                {/* Dot Matrix SVG Pattern */}
-                <svg className="kk-dot-pattern" xmlns="http://www.w3.org/2000/svg">
-                  <defs>
-                    <pattern id="kk-dots-v2" width="22" height="22" patternUnits="userSpaceOnUse">
-                      <circle cx="2" cy="2" r="1.2" fill="#b0f0d1"></circle>
-                    </pattern>
-                  </defs>
-                  <rect width="100%" height="100%" fill="url(#kk-dots-v2)"></rect>
-                </svg>
-
-                {/* Top Brand Tag & Headline */}
-                <div style={{ position: 'relative', zIndex: 10 }}>
-                  <div className="kk-tag-pill">
-                    <span className="kk-pulsing-dot"></span>
-                    <span className="kk-tag-text">KLINIK KECANTIKAN</span>
-                  </div>
-
-                  <h1 className="kk-headline">
-                    Eksplorasi Perawatan <br />
-                    <span className="kk-headline-highlight">Estetika Terbaik</span>
-                  </h1>
+              {/* Top Brand Tag & Headline */}
+              <div style={{ position: 'relative', zIndex: 10 }}>
+                <div className="kk-tag-pill">
+                  <span className="kk-pulsing-dot"></span>
+                  <span className="kk-tag-text">KLINIK KECANTIKAN</span>
                 </div>
 
-                {/* Dynamic Showcase Floating Stack */}
-                <div className="kk-floating-stack">
-                  {/* Floating Top Right Badge */}
-                  <div className="kk-badge-verified-wrap">
-                    <div className="kk-badge-verified">
-                      <span className="material-symbols-outlined material-symbols-filled" style={{ color: '#004731', fontSize: '15px' }}>
-                        verified
-                      </span>
-                      <span>Terverifikasi</span>
-                      <span style={{ color: '#bfc9c2' }}>|</span>
-                      <span style={{ color: '#2b6953', display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
-                        <span>Lihat Semua</span>
-                        <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>arrow_forward</span>
-                      </span>
+                <h1 className="kk-headline">
+                  Eksplorasi Perawatan <br />
+                  <span className="kk-headline-highlight">Estetika Terbaik</span>
+                </h1>
+              </div>
+
+              {/* Dynamic Showcase Floating Stack */}
+              <div className="kk-floating-stack">
+                {/* Floating Top Right Badge */}
+                <div className="kk-badge-verified-wrap">
+                  <div className="kk-badge-verified">
+                    <span className="material-symbols-outlined material-symbols-filled" style={{ color: '#004731', fontSize: '15px' }}>
+                      verified
+                    </span>
+                    <span>Terverifikasi</span>
+                    <span style={{ color: '#bfc9c2' }}>|</span>
+                    <span style={{ color: '#2b6953', display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
+                      <span>Lihat Semua</span>
+                      <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>arrow_forward</span>
+                    </span>
+                  </div>
+                </div>
+
+                {/* Main Floating Card: Katalog Perawatan */}
+                <div className="kk-card-katalog">
+                  <div className="kk-katalog-header">
+                    <div className="kk-katalog-left">
+                      <div className="kk-katalog-icon">
+                        <span className="material-symbols-outlined" style={{ fontSize: '17px' }}>spa</span>
+                      </div>
+                      <div>
+                        <h2 className="kk-katalog-title">Katalog Perawatan</h2>
+                        <p className="kk-katalog-desc">Solusi kecantikan &amp; estetika terpadu</p>
+                      </div>
                     </div>
+                    <span className="kk-badge-reservasi">Siap Reservasi</span>
                   </div>
 
-                  {/* Main Floating Card: Katalog Perawatan */}
-                  <div className="kk-card-katalog">
-                    <div className="kk-katalog-header">
-                      <div className="kk-katalog-left">
-                        <div className="kk-katalog-icon">
-                          <span className="material-symbols-outlined" style={{ fontSize: '17px' }}>spa</span>
+                  <div>
+                    {/* Item 1: Facial */}
+                    <div className="kk-item-row">
+                      <div className="kk-item-left">
+                        <div className="kk-item-icon-box" style={{ background: 'rgba(176, 240, 209, 0.6)', color: '#004731' }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>face</span>
                         </div>
                         <div>
-                          <h2 className="kk-katalog-title">Katalog Perawatan</h2>
-                          <p className="kk-katalog-desc">Solusi kecantikan &amp; estetika terpadu</p>
+                          <h3 className="kk-item-title">Facial &amp; Skin Rejuvenation</h3>
+                          <p className="kk-item-subtitle">Dermatology Care</p>
                         </div>
                       </div>
-                      <span className="kk-badge-reservasi">Siap Reservasi</span>
+                      <span className="kk-status-pill">
+                        <span className="kk-status-dot"></span>
+                        Aktif
+                      </span>
                     </div>
 
-                    <div>
-                      {/* Item 1: Facial */}
-                      <div className="kk-item-row">
-                        <div className="kk-item-left">
-                          <div className="kk-item-icon-box" style={{ background: 'rgba(176, 240, 209, 0.6)', color: '#004731' }}>
-                            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>face</span>
-                          </div>
-                          <div>
-                            <h3 className="kk-item-title">Facial &amp; Skin Rejuvenation</h3>
-                            <p className="kk-item-subtitle">Dermatology Care</p>
-                          </div>
+                    {/* Item 2: Laser */}
+                    <div className="kk-item-row">
+                      <div className="kk-item-left">
+                        <div className="kk-item-icon-box" style={{ background: '#fedeb2', color: '#4e3a1b' }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>auto_awesome</span>
                         </div>
-                        <span className="kk-status-pill">
-                          <span className="kk-status-dot"></span>
-                          Aktif
-                        </span>
-                      </div>
-
-                      {/* Item 2: Laser */}
-                      <div className="kk-item-row">
-                        <div className="kk-item-left">
-                          <div className="kk-item-icon-box" style={{ background: '#fedeb2', color: '#4e3a1b' }}>
-                            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>auto_awesome</span>
-                          </div>
-                          <div>
-                            <h3 className="kk-item-title">Laser &amp; Anti-Aging</h3>
-                            <p className="kk-item-subtitle">Teknologi Medis Modern</p>
-                          </div>
+                        <div>
+                          <h3 className="kk-item-title">Laser &amp; Anti-Aging</h3>
+                          <p className="kk-item-subtitle">Teknologi Medis Modern</p>
                         </div>
-                        <span className="kk-status-pill">
-                          <span className="kk-status-dot"></span>
-                          Aktif
-                        </span>
                       </div>
-                    </div>
-                  </div>
-
-                  {/* Subcards: Konsultasi & Resep */}
-                  <div className="kk-subcards-grid">
-                    <div className="kk-subcard">
-                      <div className="kk-subcard-icon">
-                        <span className="material-symbols-outlined" style={{ color: '#004731', fontSize: '18px' }}>
-                          medical_services
-                        </span>
-                      </div>
-                      <div style={{ minWidth: 0 }}>
-                        <span className="kk-subcard-tag" style={{ color: '#2b6953' }}>KONSULTASI DOKTER</span>
-                        <span className="kk-subcard-title">Dokter Spesialis</span>
-                      </div>
-                    </div>
-
-                    <div className="kk-subcard">
-                      <div className="kk-subcard-icon">
-                        <span className="material-symbols-outlined" style={{ color: '#4e3a1b', fontSize: '18px' }}>
-                          prescriptions
-                        </span>
-                      </div>
-                      <div style={{ minWidth: 0 }}>
-                        <span className="kk-subcard-tag" style={{ color: '#4e3a1b' }}>RESEP &amp; PRODUK</span>
-                        <span className="kk-subcard-title">BPOM &amp; Halal Certified</span>
-                      </div>
+                      <span className="kk-status-pill">
+                        <span className="kk-status-dot"></span>
+                        Aktif
+                      </span>
                     </div>
                   </div>
                 </div>
 
-                {/* Bottom Narrative Banner */}
-                <div className="kk-narrative-banner">
-                  <div className="kk-banner-top">
-                    <div className="kk-shield-icon">
-                      <span className="material-symbols-outlined material-symbols-filled" style={{ fontSize: '18px' }}>
-                        verified_user
+                {/* Subcards: Konsultasi & Resep */}
+                <div className="kk-subcards-grid">
+                  <div className="kk-subcard">
+                    <div className="kk-subcard-icon">
+                      <span className="material-symbols-outlined" style={{ color: '#004731', fontSize: '18px' }}>
+                        medical_services
                       </span>
                     </div>
-                    <div>
-                      <div className="kk-banner-heading-wrap">
-                        <span className="kk-banner-heading">10.000+ Pasien Terpercaya</span>
-                        <span className="kk-spesialis-badge">Spesialis Sp.KK/Sp.DVE</span>
-                      </div>
-                      <p className="kk-banner-sub">
-                        Ditangani dokter spesialis berlisensi resmi &amp; teknologi bersertifikasi FDA
-                      </p>
+                    <div style={{ minWidth: 0 }}>
+                      <span className="kk-subcard-tag" style={{ color: '#2b6953' }}>KONSULTASI DOKTER</span>
+                      <span className="kk-subcard-title">Dokter Spesialis</span>
                     </div>
                   </div>
 
-                  <div className="kk-banner-grid">
-                    <div className="kk-banner-mini-card">
-                      <span className="material-symbols-outlined" style={{ color: '#b0f0d1', fontSize: '16px' }}>
-                        clinical_notes
+                  <div className="kk-subcard">
+                    <div className="kk-subcard-icon">
+                      <span className="material-symbols-outlined" style={{ color: '#4e3a1b', fontSize: '18px' }}>
+                        prescriptions
                       </span>
-                      <div>
-                        <span className="kk-mini-card-title">100% Medis</span>
-                        <span className="kk-mini-card-sub">Dokter Berlisensi</span>
-                      </div>
                     </div>
-
-                    <div className="kk-banner-mini-card">
-                      <span className="material-symbols-outlined" style={{ color: '#b0f0d1', fontSize: '16px' }}>
-                        biomedical
-                      </span>
-                      <div>
-                        <span className="kk-mini-card-title">Alat Canggih</span>
-                        <span className="kk-mini-card-sub">FDA &amp; CE Approved</span>
-                      </div>
-                    </div>
-
-                    <div className="kk-banner-mini-card">
-                      <span className="material-symbols-outlined" style={{ color: '#b0f0d1', fontSize: '16px' }}>
-                        sanitizer
-                      </span>
-                      <div>
-                        <span className="kk-mini-card-title">Higienis &amp; Steril</span>
-                        <span className="kk-mini-card-sub">Standar Medis RS</span>
-                      </div>
+                    <div style={{ minWidth: 0 }}>
+                      <span className="kk-subcard-tag" style={{ color: '#4e3a1b' }}>RESEP &amp; PRODUK</span>
+                      <span className="kk-subcard-title">BPOM &amp; Halal Certified</span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* ── RIGHT COLUMN: Authentication Form ── */}
-              <div className="kk-right-card">
-                {/* Brand Center */}
-                <div className="kk-auth-brand-center">
-                  <div className="kk-auth-icon-box">
-                    <span className="material-symbols-outlined" style={{ fontSize: '26px' }}>spa</span>
+              {/* Bottom Narrative Banner */}
+              <div className="kk-narrative-banner">
+                <div className="kk-banner-top">
+                  <div className="kk-shield-icon">
+                    <span className="material-symbols-outlined material-symbols-filled" style={{ fontSize: '18px' }}>
+                      verified_user
+                    </span>
                   </div>
-                  <span className="kk-auth-portal-title">Klinik Kecantikan</span>
-                  <span className="kk-auth-portal-sub">Aesthetic &amp; Wellness Portal</span>
+                  <div>
+                    <div className="kk-banner-heading-wrap">
+                      <span className="kk-banner-heading">10.000+ Pasien Terpercaya</span>
+                      <span className="kk-spesialis-badge">Spesialis Sp.KK/Sp.DVE</span>
+                    </div>
+                    <p className="kk-banner-sub">
+                      Ditangani dokter spesialis berlisensi resmi &amp; teknologi bersertifikasi FDA
+                    </p>
+                  </div>
                 </div>
 
-                {/* Heading */}
-                <h2 className="kk-auth-welcome">Selamat Datang</h2>
-                <p className="kk-auth-welcome-sub">Silakan masuk ke akun Anda</p>
-
-                {/* Form */}
-                <form onSubmit={formik.handleSubmit}>
-                  {/* Email / Username */}
-                  <div className="kk-form-group">
-                    <label className="kk-label" htmlFor="username-input">
-                      Email / Username
-                    </label>
-                    <div className="kk-input-wrap">
-                      <span className="material-symbols-outlined kk-input-icon">person</span>
-                      <input
-                        id="username-input"
-                        name="username"
-                        type="text"
-                        required
-                        value={formik.values.username}
-                        onChange={formik.handleChange}
-                        onBlur={formik.handleBlur}
-                        placeholder="Masukkan username Anda"
-                        className="kk-input"
-                      />
-                    </div>
-                    {formik.touched.username && formik.errors.username && (
-                      <div className="kk-error-msg">{formik.errors.username}</div>
-                    )}
-                  </div>
-
-                  {/* Password */}
-                  <div className="kk-form-group">
-                    <label className="kk-label" htmlFor="password-input">
-                      Password
-                    </label>
-                    <div className="kk-input-wrap">
-                      <span className="material-symbols-outlined kk-input-icon">lock</span>
-                      <input
-                        id="password-input"
-                        name="password"
-                        type={showPassword ? 'text' : 'password'}
-                        required
-                        value={formik.values.password}
-                        onChange={formik.handleChange}
-                        onBlur={formik.handleBlur}
-                        placeholder="Masukkan password Anda"
-                        className="kk-input has-eye"
-                      />
-                      <button
-                        type="button"
-                        aria-label="Tampilkan atau sembunyikan kata sandi"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="kk-eye-btn"
-                      >
-                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
-                          {showPassword ? 'visibility_off' : 'visibility'}
-                        </span>
-                      </button>
-                    </div>
-                    {formik.touched.password && formik.errors.password && (
-                      <div className="kk-error-msg">{formik.errors.password}</div>
-                    )}
-                  </div>
-
-                  {/* Options: Remember me & Forgot Password */}
-                  <div className="kk-form-options">
-                    <label className="kk-remember-label">
-                      <input
-                        type="checkbox"
-                        name="remember_me"
-                        checked={Boolean(formik.values.remember_me)}
-                        onChange={formik.handleChange}
-                        className="kk-remember-checkbox"
-                      />
-                      <span>Ingat Saya</span>
-                    </label>
-
-                    <a href="#" onClick={handleForgotPassword} className="kk-forgot-link">
-                      Lupa password?
-                    </a>
-                  </div>
-
-                  {/* Submit Button */}
-                  <button type="submit" disabled={state.load} className="kk-submit-btn">
-                    {state.load ? (
-                      <>
-                        <span className="material-symbols-outlined" style={{ animation: 'spin 1s linear infinite', fontSize: '16px' }}>
-                          progress_activity
-                        </span>
-                        <span>Memproses Masuk...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>Masuk</span>
-                        <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
-                          arrow_forward
-                        </span>
-                      </>
-                    )}
-                  </button>
-                </form>
-
-                {/* Security Badges */}
-                <div className="kk-security-badges">
-                  <span className="kk-badge-item">
-                    <span className="material-symbols-outlined" style={{ color: '#004731', fontSize: '14px' }}>
-                      lock
+                <div className="kk-banner-grid">
+                  <div className="kk-banner-mini-card">
+                    <span className="material-symbols-outlined" style={{ color: '#b0f0d1', fontSize: '16px' }}>
+                      clinical_notes
                     </span>
-                    Enkripsi 256-bit SSL
-                  </span>
-                  <span className="kk-badge-item">
-                    <span className="material-symbols-outlined" style={{ color: '#004731', fontSize: '14px' }}>
-                      security
+                    <div>
+                      <span className="kk-mini-card-title">100% Medis</span>
+                      <span className="kk-mini-card-sub">Dokter Berlisensi</span>
+                    </div>
+                  </div>
+
+                  <div className="kk-banner-mini-card">
+                    <span className="material-symbols-outlined" style={{ color: '#b0f0d1', fontSize: '16px' }}>
+                      biomedical
                     </span>
-                    ISO 27001 Certified
-                  </span>
+                    <div>
+                      <span className="kk-mini-card-title">Alat Canggih</span>
+                      <span className="kk-mini-card-sub">FDA &amp; CE Approved</span>
+                    </div>
+                  </div>
+
+                  <div className="kk-banner-mini-card">
+                    <span className="material-symbols-outlined" style={{ color: '#b0f0d1', fontSize: '16px' }}>
+                      sanitizer
+                    </span>
+                    <div>
+                      <span className="kk-mini-card-title">Higienis &amp; Steril</span>
+                      <span className="kk-mini-card-sub">Standar Medis RS</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
+
+            {/* ── RIGHT COLUMN: Authentication Form (Clean & Focused) ── */}
+            <div className="kk-right-card">
+              {/* Brand Center */}
+              <div className="kk-auth-brand-center">
+                <div className="kk-auth-icon-box">
+                  <span className="material-symbols-outlined" style={{ fontSize: '26px' }}>spa</span>
+                </div>
+                <span className="kk-auth-portal-title">Klinik Kecantikan</span>
+                <span className="kk-auth-portal-sub">Aesthetic &amp; Wellness Portal</span>
+              </div>
+
+              {/* Heading */}
+              <h2 className="kk-auth-welcome">Selamat Datang</h2>
+              <p className="kk-auth-welcome-sub">Silakan masuk ke akun Anda</p>
+
+              {/* Form */}
+              <form onSubmit={formik.handleSubmit}>
+                {/* Email / Username */}
+                <div className="kk-form-group">
+                  <label className="kk-label" htmlFor="username-input">
+                    Email / Username
+                  </label>
+                  <div className="kk-input-wrap">
+                    <span className="material-symbols-outlined kk-input-icon">person</span>
+                    <input
+                      id="username-input"
+                      name="username"
+                      type="text"
+                      required
+                      value={formik.values.username}
+                      onChange={formik.handleChange}
+                      onBlur={formik.handleBlur}
+                      placeholder="Masukkan username Anda"
+                      className="kk-input"
+                    />
+                  </div>
+                  {formik.touched.username && formik.errors.username && (
+                    <div className="kk-error-msg">{formik.errors.username}</div>
+                  )}
+                </div>
+
+                {/* Password */}
+                <div className="kk-form-group">
+                  <label className="kk-label" htmlFor="password-input">
+                    Password
+                  </label>
+                  <div className="kk-input-wrap">
+                    <span className="material-symbols-outlined kk-input-icon">lock</span>
+                    <input
+                      id="password-input"
+                      name="password"
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      value={formik.values.password}
+                      onChange={formik.handleChange}
+                      onBlur={formik.handleBlur}
+                      placeholder="Masukkan password Anda"
+                      className="kk-input has-eye"
+                    />
+                    <button
+                      type="button"
+                      aria-label="Tampilkan atau sembunyikan kata sandi"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="kk-eye-btn"
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                        {showPassword ? 'visibility_off' : 'visibility'}
+                      </span>
+                    </button>
+                  </div>
+                  {formik.touched.password && formik.errors.password && (
+                    <div className="kk-error-msg">{formik.errors.password}</div>
+                  )}
+                </div>
+
+                {/* Options: Remember me & Forgot Password */}
+                <div className="kk-form-options">
+                  <label className="kk-remember-label">
+                    <input
+                      type="checkbox"
+                      name="remember_me"
+                      checked={Boolean(formik.values.remember_me)}
+                      onChange={formik.handleChange}
+                      className="kk-remember-checkbox"
+                    />
+                    <span>Ingat Saya</span>
+                  </label>
+
+                  <a href="#" onClick={handleForgotPassword} className="kk-forgot-link">
+                    Lupa password?
+                  </a>
+                </div>
+
+                {/* Submit Button */}
+                <button type="submit" disabled={state.load} className="kk-submit-btn">
+                  {state.load ? (
+                    <>
+                      <span className="material-symbols-outlined" style={{ animation: 'spin 1s linear infinite', fontSize: '16px' }}>
+                        progress_activity
+                      </span>
+                      <span>Memproses Masuk...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Masuk</span>
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+                        arrow_forward
+                      </span>
+                    </>
+                  )}
+                </button>
+              </form>
+            </div>
           </div>
-        </main>
+        </div>
       </div>
     </>
   );
