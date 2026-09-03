@@ -282,8 +282,8 @@ export default function ManajemenMenuPage() {
           <div>
             <div className="flex align-items-center gap-2">
               <span
-                className="flex align-items-center justify-content-center border-round-lg shadow-1"
-                style={{ width: '36px', height: '36px', backgroundColor: '#1d4ed8', color: '#ffffff' }}
+                className="flex align-items-center justify-content-center border-round-xl shadow-1"
+                style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: '#1d4ed8', color: '#ffffff', flexShrink: 0 }}
               >
                 <i className="pi pi-sliders-h text-lg" />
               </span>
@@ -338,8 +338,15 @@ export default function ManajemenMenuPage() {
         >
           <div className="flex align-items-center gap-3">
             <div
-              className="flex align-items-center justify-content-center border-round-circle shadow-1"
-              style={{ width: '40px', height: '40px', backgroundColor: currentRoleMeta.color, color: '#ffffff' }}
+              className="flex align-items-center justify-content-center border-round-xl shadow-1"
+              style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '12px',
+                backgroundColor: currentRoleMeta.color,
+                color: '#ffffff',
+                flexShrink: 0,
+              }}
             >
               <i className={`${currentRoleMeta.icon} text-base`} />
             </div>

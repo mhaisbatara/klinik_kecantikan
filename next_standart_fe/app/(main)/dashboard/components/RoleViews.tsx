@@ -101,7 +101,7 @@ export const OwnerManagerView: React.FC<{ data: any; onRefresh: () => void; load
             <div>
               <div className="flex justify-content-between align-items-center mb-2">
                 <span className="text-xs font-bold text-blue-700 uppercase tracking-wider">KPI KLINIK</span>
-                <span className="p-2 border-round-circle bg-blue-50 text-blue-600">
+                <span className="p-2 border-round-xl bg-blue-50 text-blue-600 flex align-items-center justify-content-center" style={{ borderRadius: '10px' }}>
                   <i className="pi pi-users text-sm" />
                 </span>
               </div>
@@ -121,7 +121,7 @@ export const OwnerManagerView: React.FC<{ data: any; onRefresh: () => void; load
             <div>
               <div className="flex justify-content-between align-items-center mb-2">
                 <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">PENDAPATAN</span>
-                <span className="p-2 border-round-circle bg-emerald-50 text-emerald-600">
+                <span className="p-2 border-round-xl bg-emerald-50 text-emerald-600 flex align-items-center justify-content-center" style={{ borderRadius: '10px' }}>
                   <i className="pi pi-wallet text-sm" />
                 </span>
               </div>
@@ -141,7 +141,7 @@ export const OwnerManagerView: React.FC<{ data: any; onRefresh: () => void; load
             <div>
               <div className="flex justify-content-between align-items-center mb-2">
                 <span className="text-xs font-bold text-purple-700 uppercase tracking-wider">TREATMENT</span>
-                <span className="p-2 border-round-circle bg-purple-50 text-purple-600">
+                <span className="p-2 border-round-xl bg-purple-50 text-purple-600 flex align-items-center justify-content-center" style={{ borderRadius: '10px' }}>
                   <i className="pi pi-sparkles text-sm" />
                 </span>
               </div>
@@ -161,7 +161,7 @@ export const OwnerManagerView: React.FC<{ data: any; onRefresh: () => void; load
             <div>
               <div className="flex justify-content-between align-items-center mb-2">
                 <span className="text-xs font-bold text-amber-700 uppercase tracking-wider">INVENTORY</span>
-                <span className="p-2 border-round-circle bg-amber-50 text-amber-600">
+                <span className="p-2 border-round-xl bg-amber-50 text-amber-600 flex align-items-center justify-content-center" style={{ borderRadius: '10px' }}>
                   <i className="pi pi-box text-sm" />
                 </span>
               </div>
@@ -181,7 +181,7 @@ export const OwnerManagerView: React.FC<{ data: any; onRefresh: () => void; load
             <div>
               <div className="flex justify-content-between align-items-center mb-2">
                 <span className="text-xs font-bold text-indigo-700 uppercase tracking-wider">PERFORMA SDM</span>
-                <span className="p-2 border-round-circle bg-indigo-50 text-indigo-600">
+                <span className="p-2 border-round-xl bg-indigo-50 text-indigo-600 flex align-items-center justify-content-center" style={{ borderRadius: '10px' }}>
                   <i className="pi pi-id-card text-sm" />
                 </span>
               </div>

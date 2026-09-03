@@ -74,8 +74,8 @@ export const DashboardRoleNav: React.FC<DashboardRoleNavProps> = ({ activeRole, 
       <div className="pt-3 pb-2 px-4 text-center border-bottom-1" style={{ borderColor: '#e0f2fe' }}>
         <div className="inline-flex align-items-center justify-content-center gap-2">
           <div
-            className="flex align-items-center justify-content-center border-round-lg shadow-1"
-            style={{ width: '32px', height: '32px', backgroundColor: '#1d4ed8', color: '#ffffff' }}
+            className="flex align-items-center justify-content-center border-round-xl shadow-1"
+            style={{ width: '32px', height: '32px', borderRadius: '10px', backgroundColor: '#1d4ed8', color: '#ffffff', flexShrink: 0 }}
           >
             <i className="pi pi-shield text-base" />
           </div>
@@ -113,8 +113,15 @@ export const DashboardRoleNav: React.FC<DashboardRoleNavProps> = ({ activeRole, 
                 {/* ROLE HEADER */}
                 <div className="flex align-items-center gap-2 mb-2.5 pb-2 border-bottom-1 surface-border">
                   <div
-                    className="flex align-items-center justify-content-center border-round-circle shadow-1"
-                    style={{ width: '34px', height: '34px', backgroundColor: col.iconBg, color: col.iconColor }}
+                    className="flex align-items-center justify-content-center border-round-xl shadow-1"
+                    style={{
+                      width: '34px',
+                      height: '34px',
+                      borderRadius: '10px',
+                      backgroundColor: col.iconBg,
+                      color: col.iconColor,
+                      flexShrink: 0,
+                    }}
                   >
                     <i className={`${col.icon} text-sm`} />
                   </div>

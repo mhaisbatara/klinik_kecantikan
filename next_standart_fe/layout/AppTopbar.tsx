@@ -38,17 +38,17 @@ const AppTopbar = forwardRef<AppTopbarRef>((props, ref) => {
                             width: '38px',
                             height: '38px',
                             borderRadius: '12px',
-                            background: 'linear-gradient(135deg, #004731 0%, #2b6953 100%)',
+                            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             color: '#ffffff',
-                            boxShadow: '0 3px 10px rgba(0, 71, 49, 0.22)',
+                            boxShadow: '0 3px 10px rgba(16, 185, 129, 0.28)',
                             flexShrink: 0
                         }}>
                             <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>spa</span>
                         </div>
-                        <span style={{ fontSize: '1.2rem', fontWeight: 700, color: '#004731', letterSpacing: '-0.2px' }}>
+                        <span style={{ fontSize: '1.2rem', fontWeight: 700, color: '#10b981', letterSpacing: '-0.2px' }}>
                             Klinik Kecantikan
                         </span>
                     </Link>

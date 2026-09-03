@@ -11,8 +11,8 @@ export default function DataPasienUserPage() {
     <div className="surface-ground min-h-screen p-4 flex align-items-center justify-content-center border-round-xl">
       <div className="surface-card p-5 md:p-6 border-round-2xl shadow-2 text-center max-w-lg border-1 border-200">
         <div
-          className="flex align-items-center justify-content-center border-round-circle mx-auto mb-4"
-          style={{ width: '80px', height: '80px', backgroundColor: '#fef3c7', color: '#d97706' }}
+          className="flex align-items-center justify-content-center border-round-3xl mx-auto mb-4"
+          style={{ width: '80px', height: '80px', borderRadius: '24px', backgroundColor: '#fef3c7', color: '#d97706' }}
         >
           <i className="pi pi-user text-4xl"></i>
         </div>

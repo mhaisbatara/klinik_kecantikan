@@ -7,7 +7,7 @@ import { Toast } from 'primereact/toast';
 import { Button } from 'primereact/button';
 import postData from '@/lib/axios/postData';
 import { showError } from '@/lib/tools/generalTools';
-import DashboardRoleNav, { DashboardRole } from './components/DashboardRoleNav';
+import { DashboardRole } from './components/DashboardRoleNav';
 import {
   OwnerManagerView,
   DokterView,
@@ -105,8 +105,6 @@ const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* ─── KARTU NAVIGASI HUB DASHBOARD ROLE BASED (SESUAI GAMBAR 2) ─── */}
-      <DashboardRoleNav activeRole={activeRole} onSelectRole={(r) => setActiveRole(r)} />
 
       {/* ─── RENDER DASHBOARD SPESIFIK BERDASARKAN ROLE AKTIF ─── */}
       {activeRole === 'owner' && (

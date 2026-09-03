@@ -16,10 +16,11 @@ export const ModulWipCard: React.FC<ModulWipCardProps> = ({
   return (
     <div className="surface-card p-6 md:p-8 border-round-2xl border-1 surface-border shadow-1 text-center flex flex-column align-items-center justify-content-center">
       <div
-        className="flex align-items-center justify-content-center border-round-circle mb-4 shadow-1"
+        className="flex align-items-center justify-content-center border-round-3xl mb-4 shadow-1"
         style={{
           width: '84px',
           height: '84px',
+          borderRadius: '24px',
           backgroundColor: '#fef3c7',
           color: '#d97706',
         }}
