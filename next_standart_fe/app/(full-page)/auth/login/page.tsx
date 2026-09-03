@@ -94,22 +94,33 @@ export default function LoginPage() {
       />
 
       <style>{`
-        /* Reset & Root Variables */
-        * {
+        /* Reset & Fixed Viewport Setup (No Scroll) */
+        *, *::before, *::after {
           box-sizing: border-box;
+          margin: 0;
+          padding: 0;
+        }
+
+        html, body {
+          width: 100%;
+          height: 100vh;
+          max-height: 100vh;
+          overflow: hidden;
+          background-color: #e9fef3;
         }
 
         .kk-page-wrapper {
           font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           background-color: #e9fef3;
           color: #0d1f18;
-          min-height: 100vh;
+          width: 100vw;
+          height: 100vh;
+          max-height: 100vh;
+          overflow: hidden;
           display: flex;
           flex-direction: column;
           justify-content: space-between;
           position: relative;
-          width: 100%;
-          overflow-x: hidden;
         }
 
         .font-serif-display {
@@ -120,7 +131,7 @@ export default function LoginPage() {
           font-family: 'Material Symbols Outlined', sans-serif;
           font-weight: normal;
           font-style: normal;
-          font-size: 20px;
+          font-size: 18px;
           line-height: 1;
           letter-spacing: normal;
           text-transform: none;
@@ -135,27 +146,23 @@ export default function LoginPage() {
           font-variation-settings: 'FILL' 1;
         }
 
-        /* ── HEADER STYLES ── */
+        /* ── HEADER (Sleek Compact) ── */
         .kk-header {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
           width: 100%;
-          height: 76px;
+          height: 56px;
+          flex-shrink: 0;
           z-index: 50;
-          background: rgba(233, 254, 243, 0.92);
-          backdrop-filter: blur(16px);
-          -webkit-backdrop-filter: blur(16px);
-          border-bottom: 1px solid rgba(216, 237, 226, 0.8);
-          box-shadow: 0 1px 12px rgba(31, 95, 71, 0.04);
+          background: rgba(233, 254, 243, 0.94);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          border-bottom: 1px solid rgba(216, 237, 226, 0.85);
           display: flex;
           align-items: center;
         }
 
         .kk-header-inner {
           width: 100%;
-          max-width: 1240px;
+          max-width: 1160px;
           margin: 0 auto;
           padding: 0 24px;
           display: flex;
@@ -166,21 +173,21 @@ export default function LoginPage() {
         .kk-brand-logo {
           display: flex;
           align-items: center;
-          gap: 12px;
+          gap: 10px;
           cursor: pointer;
           text-decoration: none;
         }
 
         .kk-logo-box {
-          width: 42px;
-          height: 42px;
-          border-radius: 14px;
+          width: 36px;
+          height: 36px;
+          border-radius: 11px;
           background: linear-gradient(135deg, #004731 0%, #2b6953 100%);
           display: flex;
           align-items: center;
           justify-content: center;
           color: #ffffff;
-          box-shadow: 0 4px 12px rgba(0, 71, 49, 0.2);
+          box-shadow: 0 3px 10px rgba(0, 71, 49, 0.2);
           transition: transform 0.2s ease;
         }
 
@@ -194,7 +201,7 @@ export default function LoginPage() {
         }
 
         .kk-brand-title {
-          font-size: 17px;
+          font-size: 15px;
           font-weight: 700;
           color: #004731;
           line-height: 1.15;
@@ -202,18 +209,12 @@ export default function LoginPage() {
         }
 
         .kk-brand-subtitle {
-          font-size: 10px;
+          font-size: 9px;
           font-weight: 700;
           color: #404944;
           letter-spacing: 0.8px;
           text-transform: uppercase;
-          margin-top: 2px;
-        }
-
-        .kk-header-right {
-          display: flex;
-          align-items: center;
-          gap: 14px;
+          margin-top: 1px;
         }
 
         .kk-lang-toggle {
@@ -221,15 +222,15 @@ export default function LoginPage() {
           align-items: center;
           background: #d8ede2;
           border-radius: 999px;
-          padding: 3px;
+          padding: 2.5px;
           border: 1px solid #def3e8;
         }
 
         .kk-lang-btn {
           border: none;
-          padding: 4px 12px;
+          padding: 3px 10px;
           border-radius: 999px;
-          font-size: 12px;
+          font-size: 11px;
           font-weight: 700;
           cursor: pointer;
           background: transparent;
@@ -240,144 +241,112 @@ export default function LoginPage() {
         .kk-lang-btn.active {
           background: #ffffff;
           color: #004731;
-          box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
         }
 
-        .kk-hotline-btn {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          background: #e3f9ed;
-          color: #004731;
-          padding: 8px 16px;
-          border-radius: 999px;
-          font-size: 13px;
-          font-weight: 600;
-          text-decoration: none;
-          border: 1px solid rgba(210, 231, 220, 0.8);
-          transition: background 0.2s;
-        }
-
-        .kk-hotline-btn:hover {
-          background: #d8ede2;
-        }
-
-        .kk-avatar-circle {
-          width: 38px;
-          height: 38px;
-          border-radius: 50%;
-          background: #004731;
-          color: #ffffff;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        /* ── MAIN CONTENT & GRID ── */
+        /* ── MAIN VIEWPORT (Fixed to remaining screen height) ── */
         .kk-main {
           flex: 1;
-          padding-top: 104px;
-          padding-bottom: 48px;
+          min-height: 0;
           display: flex;
-          flex-direction: column;
+          align-items: center;
           justify-content: center;
+          padding: 10px 24px;
           width: 100%;
+          overflow: hidden;
         }
 
         .kk-container {
           width: 100%;
-          max-width: 1240px;
+          max-width: 1160px;
           margin: 0 auto;
-          padding: 0 24px;
         }
 
         .kk-grid {
           display: grid;
           grid-template-columns: 1.35fr 1fr;
-          gap: 32px;
+          gap: 24px;
           align-items: stretch;
+          max-height: calc(100vh - 102px);
         }
 
-        @media (max-width: 1024px) {
+        @media (max-width: 960px) {
+          html, body, .kk-page-wrapper {
+            height: auto;
+            max-height: none;
+            overflow-y: auto;
+          }
           .kk-grid {
             grid-template-columns: 1fr;
-          }
-          .kk-header-inner {
-            padding: 0 16px;
-          }
-          .kk-container {
-            padding: 0 16px;
+            max-height: none;
           }
         }
 
         /* ── LEFT SHOWCASE PANEL ── */
         .kk-left-card {
           background: linear-gradient(180deg, #013525 0%, #004731 55%, #04281c 100%);
-          border-radius: 28px;
+          border-radius: 24px;
           border: 1px solid rgba(31, 95, 71, 0.5);
-          box-shadow: 0 20px 48px rgba(0, 33, 21, 0.28);
+          box-shadow: 0 16px 36px rgba(0, 33, 21, 0.25);
           position: relative;
           overflow: hidden;
-          padding: 38px 36px;
+          padding: 24px 28px;
           display: flex;
           flex-direction: column;
           justify-content: space-between;
-          min-height: 640px;
         }
 
-        /* Ambient Glows */
         .kk-glow-top {
           position: absolute;
-          right: -80px;
-          top: -80px;
-          width: 320px;
-          height: 320px;
+          right: -60px;
+          top: -60px;
+          width: 240px;
+          height: 240px;
           border-radius: 50%;
-          background: rgba(176, 240, 209, 0.16);
-          filter: blur(60px);
+          background: rgba(176, 240, 209, 0.14);
+          filter: blur(50px);
           pointer-events: none;
         }
 
         .kk-glow-bottom {
           position: absolute;
-          left: -80px;
-          bottom: -40px;
-          width: 300px;
-          height: 300px;
+          left: -60px;
+          bottom: -30px;
+          width: 220px;
+          height: 220px;
           border-radius: 50%;
-          background: rgba(43, 105, 83, 0.25);
-          filter: blur(60px);
+          background: rgba(43, 105, 83, 0.22);
+          filter: blur(50px);
           pointer-events: none;
         }
 
-        /* Background Pattern */
         .kk-dot-pattern {
           position: absolute;
           inset: 0;
           width: 100%;
           height: 100%;
-          opacity: 0.2;
+          opacity: 0.18;
           pointer-events: none;
         }
 
         .kk-tag-pill {
           display: inline-flex;
           align-items: center;
-          gap: 8px;
-          padding: 6px 14px;
+          gap: 6px;
+          padding: 4px 11px;
           background: rgba(255, 255, 255, 0.1);
           backdrop-filter: blur(8px);
           border: 1px solid rgba(255, 255, 255, 0.12);
           border-radius: 999px;
-          margin-bottom: 16px;
+          margin-bottom: 8px;
         }
 
         .kk-pulsing-dot {
-          width: 7px;
-          height: 7px;
+          width: 6px;
+          height: 6px;
           border-radius: 50%;
           background: #b0f0d1;
-          box-shadow: 0 0 8px #b0f0d1;
+          box-shadow: 0 0 6px #b0f0d1;
           animation: pulseAnim 2s infinite ease-in-out;
         }
 
@@ -387,21 +356,21 @@ export default function LoginPage() {
         }
 
         .kk-tag-text {
-          font-size: 11px;
+          font-size: 10px;
           font-weight: 700;
-          letter-spacing: 1.5px;
+          letter-spacing: 1.2px;
           color: #b0f0d1;
           text-transform: uppercase;
         }
 
         .kk-headline {
           font-family: 'Playfair Display', Georgia, serif;
-          font-size: 38px;
+          font-size: clamp(23px, 2.4vw, 30px);
           font-weight: 700;
           color: #ffffff;
-          line-height: 1.22;
-          margin: 0 0 24px 0;
-          letter-spacing: -0.4px;
+          line-height: 1.2;
+          margin: 0 0 12px 0;
+          letter-spacing: -0.3px;
         }
 
         .kk-headline-highlight {
@@ -409,21 +378,21 @@ export default function LoginPage() {
           text-decoration: underline;
           text-decoration-style: wavy;
           text-decoration-color: rgba(176, 240, 209, 0.45);
-          text-underline-offset: 8px;
+          text-underline-offset: 6px;
         }
 
         /* Floating Card Stack */
         .kk-floating-stack {
           position: relative;
           z-index: 10;
-          margin: 8px 0 20px 0;
+          margin: 4px 0 10px 0;
         }
 
         .kk-badge-verified-wrap {
           display: flex;
           justify-content: flex-end;
-          margin-bottom: -14px;
-          margin-right: 18px;
+          margin-bottom: -11px;
+          margin-right: 14px;
           position: relative;
           z-index: 20;
         }
@@ -431,24 +400,24 @@ export default function LoginPage() {
         .kk-badge-verified {
           display: inline-flex;
           align-items: center;
-          gap: 6px;
-          padding: 6px 14px;
+          gap: 5px;
+          padding: 4px 12px;
           background: #ffffff;
           color: #004731;
           border-radius: 999px;
-          font-size: 12px;
+          font-size: 11px;
           font-weight: 600;
-          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+          box-shadow: 0 6px 18px rgba(0, 0, 0, 0.14);
           border: 1px solid #d8ede2;
         }
 
         .kk-card-katalog {
           background: rgba(255, 255, 255, 0.96);
-          backdrop-filter: blur(16px);
-          -webkit-backdrop-filter: blur(16px);
-          border-radius: 20px;
-          padding: 18px 22px;
-          box-shadow: 0 16px 36px rgba(0, 0, 0, 0.18);
+          backdrop-filter: blur(14px);
+          -webkit-backdrop-filter: blur(14px);
+          border-radius: 16px;
+          padding: 13px 16px;
+          box-shadow: 0 12px 28px rgba(0, 0, 0, 0.16);
           border: 1px solid rgba(255, 255, 255, 0.6);
         }
 
@@ -457,20 +426,20 @@ export default function LoginPage() {
           align-items: center;
           justify-content: space-between;
           border-bottom: 1px solid #def3e8;
-          padding-bottom: 12px;
-          margin-bottom: 12px;
+          padding-bottom: 8px;
+          margin-bottom: 8px;
         }
 
         .kk-katalog-left {
           display: flex;
           align-items: center;
-          gap: 10px;
+          gap: 8px;
         }
 
         .kk-katalog-icon {
-          width: 34px;
-          height: 34px;
-          border-radius: 10px;
+          width: 28px;
+          height: 28px;
+          border-radius: 8px;
           background: #b0f0d3;
           display: flex;
           align-items: center;
@@ -479,23 +448,23 @@ export default function LoginPage() {
         }
 
         .kk-katalog-title {
-          font-size: 15px;
+          font-size: 13.5px;
           font-weight: 700;
           color: #0d1f18;
           margin: 0;
-          line-height: 1.2;
+          line-height: 1.15;
         }
 
         .kk-katalog-desc {
-          font-size: 11.5px;
+          font-size: 10.5px;
           color: #404944;
-          margin: 2px 0 0 0;
+          margin: 1px 0 0 0;
         }
 
         .kk-badge-reservasi {
-          font-size: 11px;
+          font-size: 10px;
           font-weight: 600;
-          padding: 3px 10px;
+          padding: 2px 8px;
           background: #def3e8;
           color: #004731;
           border-radius: 999px;
@@ -505,11 +474,11 @@ export default function LoginPage() {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 10px 14px;
-          border-radius: 12px;
+          padding: 7px 11px;
+          border-radius: 10px;
           background: #f3fdf8;
           border: 1px solid #d2e7dc;
-          margin-bottom: 8px;
+          margin-bottom: 6px;
         }
 
         .kk-item-row:last-child {
@@ -519,46 +488,46 @@ export default function LoginPage() {
         .kk-item-left {
           display: flex;
           align-items: center;
-          gap: 12px;
+          gap: 10px;
         }
 
         .kk-item-icon-box {
-          width: 36px;
-          height: 36px;
-          border-radius: 10px;
+          width: 28px;
+          height: 28px;
+          border-radius: 8px;
           display: flex;
           align-items: center;
           justify-content: center;
         }
 
         .kk-item-title {
-          font-size: 13px;
+          font-size: 12px;
           font-weight: 600;
           color: #0d1f18;
           margin: 0;
         }
 
         .kk-item-subtitle {
-          font-size: 11px;
+          font-size: 10px;
           color: #404944;
-          margin: 1px 0 0 0;
+          margin: 0;
         }
 
         .kk-status-pill {
           display: inline-flex;
           align-items: center;
-          gap: 5px;
-          padding: 3px 10px;
+          gap: 4px;
+          padding: 2px 8px;
           border-radius: 999px;
-          font-size: 11px;
+          font-size: 10px;
           font-weight: 700;
           background: #b0f0d3;
           color: #004731;
         }
 
         .kk-status-dot {
-          width: 6px;
-          height: 6px;
+          width: 5px;
+          height: 5px;
           border-radius: 50%;
           background: #004731;
         }
@@ -567,26 +536,26 @@ export default function LoginPage() {
         .kk-subcards-grid {
           display: grid;
           grid-template-columns: 1fr 1fr;
-          gap: 12px;
-          margin-top: 12px;
+          gap: 10px;
+          margin-top: 8px;
         }
 
         .kk-subcard {
           background: rgba(255, 255, 255, 0.94);
-          backdrop-filter: blur(12px);
-          border-radius: 14px;
-          padding: 12px 14px;
+          backdrop-filter: blur(10px);
+          border-radius: 12px;
+          padding: 8px 12px;
           border: 1px solid rgba(255, 255, 255, 0.5);
-          box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1);
+          box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
           display: flex;
           align-items: center;
-          gap: 12px;
+          gap: 10px;
         }
 
         .kk-subcard-icon {
-          width: 36px;
-          height: 36px;
-          border-radius: 10px;
+          width: 30px;
+          height: 30px;
+          border-radius: 8px;
           background: #def3e8;
           display: flex;
           align-items: center;
@@ -595,15 +564,15 @@ export default function LoginPage() {
         }
 
         .kk-subcard-tag {
-          font-size: 10px;
+          font-size: 9px;
           font-weight: 700;
-          letter-spacing: 0.8px;
+          letter-spacing: 0.6px;
           text-transform: uppercase;
           display: block;
         }
 
         .kk-subcard-title {
-          font-size: 12px;
+          font-size: 11px;
           font-weight: 600;
           color: #0d1f18;
           margin-top: 1px;
@@ -616,11 +585,11 @@ export default function LoginPage() {
         /* Bottom Narrative Banner */
         .kk-narrative-banner {
           background: rgba(0, 0, 0, 0.32);
-          backdrop-filter: blur(14px);
-          -webkit-backdrop-filter: blur(14px);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
           border: 1px solid rgba(255, 255, 255, 0.12);
-          border-radius: 18px;
-          padding: 16px 18px;
+          border-radius: 14px;
+          padding: 10px 14px;
           color: #ffffff;
           position: relative;
           z-index: 10;
@@ -629,16 +598,16 @@ export default function LoginPage() {
         .kk-banner-top {
           display: flex;
           align-items: center;
-          gap: 12px;
+          gap: 10px;
           border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-          padding-bottom: 12px;
-          margin-bottom: 12px;
+          padding-bottom: 7px;
+          margin-bottom: 7px;
         }
 
         .kk-shield-icon {
-          width: 38px;
-          height: 38px;
-          border-radius: 12px;
+          width: 30px;
+          height: 30px;
+          border-radius: 9px;
           background: rgba(176, 240, 209, 0.18);
           border: 1px solid rgba(176, 240, 209, 0.3);
           display: flex;
@@ -651,82 +620,73 @@ export default function LoginPage() {
         .kk-banner-heading-wrap {
           display: flex;
           align-items: center;
-          gap: 8px;
+          gap: 6px;
           flex-wrap: wrap;
         }
 
         .kk-banner-heading {
-          font-size: 14px;
+          font-size: 12.5px;
           font-weight: 700;
           color: #ffffff;
         }
 
         .kk-spesialis-badge {
-          font-size: 10px;
+          font-size: 9px;
           font-weight: 600;
           background: rgba(176, 240, 209, 0.2);
           color: #b0f0d1;
-          padding: 2px 8px;
+          padding: 1.5px 6px;
           border-radius: 999px;
           border: 1px solid rgba(176, 240, 209, 0.3);
         }
 
         .kk-banner-sub {
-          font-size: 11.5px;
+          font-size: 10.5px;
           color: rgba(255, 255, 255, 0.82);
-          margin: 2px 0 0 0;
+          margin: 1px 0 0 0;
         }
 
         .kk-banner-grid {
           display: grid;
           grid-template-columns: 1fr 1fr 1fr;
-          gap: 8px;
+          gap: 6px;
         }
 
         .kk-banner-mini-card {
           background: rgba(255, 255, 255, 0.06);
           border: 1px solid rgba(255, 255, 255, 0.08);
-          border-radius: 10px;
-          padding: 8px 10px;
+          border-radius: 8px;
+          padding: 6px 8px;
           display: flex;
           align-items: center;
-          gap: 8px;
+          gap: 6px;
         }
 
         .kk-mini-card-title {
-          font-size: 10px;
+          font-size: 9.5px;
           font-weight: 700;
           color: #ffffff;
-          line-height: 1.2;
+          line-height: 1.15;
           display: block;
         }
 
         .kk-mini-card-sub {
-          font-size: 9.5px;
+          font-size: 8.5px;
           color: rgba(255, 255, 255, 0.7);
           display: block;
-          margin-top: 2px;
+          margin-top: 1px;
         }
 
         /* ── RIGHT AUTHENTICATION PANEL ── */
         .kk-right-card {
           background: #ffffff;
-          border-radius: 28px;
-          padding: 44px 40px;
-          box-shadow: 0 16px 40px rgba(0, 71, 49, 0.07);
+          border-radius: 24px;
+          padding: 26px 30px;
+          box-shadow: 0 14px 34px rgba(0, 71, 49, 0.06);
           border: 1px solid rgba(216, 237, 226, 0.85);
           display: flex;
           flex-direction: column;
           justify-content: center;
-        }
-
-        @media (max-width: 640px) {
-          .kk-right-card {
-            padding: 32px 20px;
-          }
-          .kk-left-card {
-            padding: 28px 20px;
-          }
         }
 
         .kk-auth-brand-center {
@@ -734,65 +694,65 @@ export default function LoginPage() {
           flex-direction: column;
           align-items: center;
           text-align: center;
-          margin-bottom: 20px;
+          margin-bottom: 12px;
         }
 
         .kk-auth-icon-box {
-          width: 62px;
-          height: 62px;
-          border-radius: 18px;
+          width: 48px;
+          height: 48px;
+          border-radius: 14px;
           background: linear-gradient(135deg, #004731 0%, #2b6953 100%);
           display: flex;
           align-items: center;
           justify-content: center;
           color: #ffffff;
-          box-shadow: 0 6px 16px rgba(0, 71, 49, 0.22);
-          margin-bottom: 12px;
+          box-shadow: 0 4px 14px rgba(0, 71, 49, 0.2);
+          margin-bottom: 8px;
         }
 
         .kk-auth-portal-title {
-          font-size: 20px;
+          font-size: 17px;
           font-weight: 700;
           color: #004731;
-          letter-spacing: -0.3px;
+          letter-spacing: -0.2px;
         }
 
         .kk-auth-portal-sub {
-          font-size: 11px;
+          font-size: 10px;
           font-weight: 700;
           color: #404944;
-          letter-spacing: 1px;
+          letter-spacing: 0.8px;
           text-transform: uppercase;
-          margin-top: 3px;
+          margin-top: 2px;
         }
 
         .kk-auth-welcome {
           font-family: 'Playfair Display', Georgia, serif;
-          font-size: 27px;
+          font-size: 22px;
           font-weight: 700;
           color: #0d1f18;
           text-align: center;
-          margin: 0 0 6px 0;
+          margin: 0 0 3px 0;
         }
 
         .kk-auth-welcome-sub {
-          font-size: 13.5px;
+          font-size: 12px;
           color: #404944;
           text-align: center;
-          margin: 0 0 24px 0;
+          margin: 0 0 16px 0;
         }
 
         .kk-form-group {
-          margin-bottom: 18px;
+          margin-bottom: 12px;
           text-align: left;
         }
 
         .kk-label {
           display: block;
-          font-size: 13px;
+          font-size: 12px;
           font-weight: 600;
           color: #0d1f18;
-          margin-bottom: 7px;
+          margin-bottom: 4px;
         }
 
         .kk-input-wrap {
@@ -803,21 +763,21 @@ export default function LoginPage() {
 
         .kk-input-icon {
           position: absolute;
-          left: 14px;
+          left: 12px;
           color: #2b6953;
           pointer-events: none;
-          font-size: 20px;
+          font-size: 18px;
         }
 
         .kk-input {
           width: 100%;
-          height: 48px;
-          padding-left: 44px;
-          padding-right: 16px;
+          height: 42px;
+          padding-left: 38px;
+          padding-right: 14px;
           background: #f4fcf7;
           border: 1px solid #d2e7dc;
-          border-radius: 12px;
-          font-size: 14px;
+          border-radius: 10px;
+          font-size: 13px;
           font-family: inherit;
           color: #0d1f18;
           outline: none;
@@ -825,13 +785,13 @@ export default function LoginPage() {
         }
 
         .kk-input.has-eye {
-          padding-right: 44px;
+          padding-right: 38px;
         }
 
         .kk-input:focus {
           background: #ffffff;
           border-color: #2b6953;
-          box-shadow: 0 0 0 3px rgba(43, 105, 83, 0.16);
+          box-shadow: 0 0 0 3px rgba(43, 105, 83, 0.14);
         }
 
         .kk-input::placeholder {
@@ -840,12 +800,12 @@ export default function LoginPage() {
 
         .kk-eye-btn {
           position: absolute;
-          right: 12px;
+          right: 8px;
           background: none;
           border: none;
           cursor: pointer;
           color: #707973;
-          padding: 6px;
+          padding: 4px;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -858,9 +818,9 @@ export default function LoginPage() {
         }
 
         .kk-error-msg {
-          font-size: 12px;
+          font-size: 11px;
           color: #ba1a1a;
-          margin-top: 5px;
+          margin-top: 3px;
           font-weight: 500;
         }
 
@@ -868,28 +828,28 @@ export default function LoginPage() {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          margin: 12px 0 20px 0;
+          margin: 8px 0 14px 0;
         }
 
         .kk-remember-label {
           display: flex;
           align-items: center;
-          gap: 8px;
+          gap: 6px;
           cursor: pointer;
-          font-size: 13.5px;
+          font-size: 12px;
           color: #0d1f18;
           user-select: none;
         }
 
         .kk-remember-checkbox {
-          width: 16px;
-          height: 16px;
+          width: 15px;
+          height: 15px;
           accent-color: #004731;
           cursor: pointer;
         }
 
         .kk-forgot-link {
-          font-size: 12.5px;
+          font-size: 11.5px;
           font-weight: 600;
           color: #2b6953;
           text-decoration: none;
@@ -903,11 +863,11 @@ export default function LoginPage() {
 
         .kk-submit-btn {
           width: 100%;
-          height: 48px;
+          height: 42px;
           border-radius: 999px;
           background: #004731;
           color: #ffffff;
-          font-size: 15px;
+          font-size: 14px;
           font-weight: 700;
           font-family: inherit;
           border: none;
@@ -915,14 +875,14 @@ export default function LoginPage() {
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: 8px;
-          box-shadow: 0 4px 14px rgba(0, 71, 49, 0.22);
+          gap: 6px;
+          box-shadow: 0 4px 12px rgba(0, 71, 49, 0.2);
           transition: all 0.2s ease;
         }
 
         .kk-submit-btn:hover {
           background: #1f5f47;
-          box-shadow: 0 6px 18px rgba(0, 71, 49, 0.32);
+          box-shadow: 0 5px 16px rgba(0, 71, 49, 0.3);
           transform: translateY(-1px);
         }
 
@@ -937,33 +897,38 @@ export default function LoginPage() {
         }
 
         .kk-security-badges {
-          margin-top: 24px;
+          margin-top: 14px;
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: 22px;
+          gap: 16px;
           color: #707973;
-          font-size: 11.5px;
+          font-size: 10.5px;
         }
 
         .kk-badge-item {
           display: inline-flex;
           align-items: center;
-          gap: 6px;
+          gap: 5px;
         }
 
-        /* ── FOOTER STYLES ── */
+        /* ── FOOTER (Compact Single Line) ── */
         .kk-footer {
           width: 100%;
+          height: 36px;
+          flex-shrink: 0;
           background: rgba(227, 249, 237, 0.85);
           backdrop-filter: blur(8px);
           border-top: 1px solid rgba(216, 237, 226, 0.8);
-          padding: 16px 24px;
+          padding: 8px 24px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
           text-align: center;
         }
 
         .kk-footer-text {
-          font-size: 12px;
+          font-size: 11px;
           color: #404944;
           margin: 0;
         }
@@ -976,7 +941,7 @@ export default function LoginPage() {
             {/* Logo and Brand */}
             <div className="kk-brand-logo" onClick={() => router.push('/')}>
               <div className="kk-logo-box">
-                <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>spa</span>
+                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>spa</span>
               </div>
               <div className="kk-brand-text">
                 <span className="kk-brand-title">Klinik Kecantikan</span>
@@ -984,44 +949,27 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Language & Contact Hotline & User Icon */}
-            <div className="kk-header-right">
-              {/* Language Switch */}
-              <div className="kk-lang-toggle">
-                <button
-                  type="button"
-                  onClick={() => setLang('ID')}
-                  className={`kk-lang-btn ${lang === 'ID' ? 'active' : ''}`}
-                >
-                  ID
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLang('EN')}
-                  className={`kk-lang-btn ${lang === 'EN' ? 'active' : ''}`}
-                >
-                  EN
-                </button>
-              </div>
-
-              {/* Hotline Button */}
-              <a href="tel:1500828" className="kk-hotline-btn">
-                <span className="material-symbols-outlined" style={{ color: '#2b6953', fontSize: '18px' }}>
-                  support_agent
-                </span>
-                <span style={{ color: '#404944', fontWeight: 'normal' }}>Hotline:</span>
-                <span>1500-828</span>
-              </a>
-
-              {/* User Avatar Circle */}
-              <div className="kk-avatar-circle">
-                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>person</span>
-              </div>
+            {/* Language Switch ONLY (Hotline & Avatar removed as requested) */}
+            <div className="kk-lang-toggle">
+              <button
+                type="button"
+                onClick={() => setLang('ID')}
+                className={`kk-lang-btn ${lang === 'ID' ? 'active' : ''}`}
+              >
+                ID
+              </button>
+              <button
+                type="button"
+                onClick={() => setLang('EN')}
+                className={`kk-lang-btn ${lang === 'EN' ? 'active' : ''}`}
+              >
+                EN
+              </button>
             </div>
           </div>
         </header>
 
-        {/* ── MAIN VIEWPORT ── */}
+        {/* ── MAIN VIEWPORT (Fits in 1 Screen without scroll) ── */}
         <main className="kk-main">
           <div className="kk-container">
             <div className="kk-grid">
@@ -1034,11 +982,11 @@ export default function LoginPage() {
                 {/* Dot Matrix SVG Pattern */}
                 <svg className="kk-dot-pattern" xmlns="http://www.w3.org/2000/svg">
                   <defs>
-                    <pattern id="kk-dots" width="24" height="24" patternUnits="userSpaceOnUse">
-                      <circle cx="2" cy="2" r="1.3" fill="#b0f0d1"></circle>
+                    <pattern id="kk-dots-v2" width="22" height="22" patternUnits="userSpaceOnUse">
+                      <circle cx="2" cy="2" r="1.2" fill="#b0f0d1"></circle>
                     </pattern>
                   </defs>
-                  <rect width="100%" height="100%" fill="url(#kk-dots)"></rect>
+                  <rect width="100%" height="100%" fill="url(#kk-dots-v2)"></rect>
                 </svg>
 
                 {/* Top Brand Tag & Headline */}
@@ -1059,14 +1007,14 @@ export default function LoginPage() {
                   {/* Floating Top Right Badge */}
                   <div className="kk-badge-verified-wrap">
                     <div className="kk-badge-verified">
-                      <span className="material-symbols-outlined material-symbols-filled" style={{ color: '#004731', fontSize: '16px' }}>
+                      <span className="material-symbols-outlined material-symbols-filled" style={{ color: '#004731', fontSize: '15px' }}>
                         verified
                       </span>
                       <span>Terverifikasi</span>
                       <span style={{ color: '#bfc9c2' }}>|</span>
                       <span style={{ color: '#2b6953', display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
                         <span>Lihat Semua</span>
-                        <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>arrow_forward</span>
+                        <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>arrow_forward</span>
                       </span>
                     </div>
                   </div>
@@ -1076,7 +1024,7 @@ export default function LoginPage() {
                     <div className="kk-katalog-header">
                       <div className="kk-katalog-left">
                         <div className="kk-katalog-icon">
-                          <span className="material-symbols-outlined" style={{ fontSize: '19px' }}>spa</span>
+                          <span className="material-symbols-outlined" style={{ fontSize: '17px' }}>spa</span>
                         </div>
                         <div>
                           <h2 className="kk-katalog-title">Katalog Perawatan</h2>
@@ -1091,7 +1039,7 @@ export default function LoginPage() {
                       <div className="kk-item-row">
                         <div className="kk-item-left">
                           <div className="kk-item-icon-box" style={{ background: 'rgba(176, 240, 209, 0.6)', color: '#004731' }}>
-                            <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>face</span>
+                            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>face</span>
                           </div>
                           <div>
                             <h3 className="kk-item-title">Facial &amp; Skin Rejuvenation</h3>
@@ -1108,7 +1056,7 @@ export default function LoginPage() {
                       <div className="kk-item-row">
                         <div className="kk-item-left">
                           <div className="kk-item-icon-box" style={{ background: '#fedeb2', color: '#4e3a1b' }}>
-                            <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>auto_awesome</span>
+                            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>auto_awesome</span>
                           </div>
                           <div>
                             <h3 className="kk-item-title">Laser &amp; Anti-Aging</h3>
@@ -1127,7 +1075,7 @@ export default function LoginPage() {
                   <div className="kk-subcards-grid">
                     <div className="kk-subcard">
                       <div className="kk-subcard-icon">
-                        <span className="material-symbols-outlined" style={{ color: '#004731', fontSize: '20px' }}>
+                        <span className="material-symbols-outlined" style={{ color: '#004731', fontSize: '18px' }}>
                           medical_services
                         </span>
                       </div>
@@ -1139,7 +1087,7 @@ export default function LoginPage() {
 
                     <div className="kk-subcard">
                       <div className="kk-subcard-icon">
-                        <span className="material-symbols-outlined" style={{ color: '#4e3a1b', fontSize: '20px' }}>
+                        <span className="material-symbols-outlined" style={{ color: '#4e3a1b', fontSize: '18px' }}>
                           prescriptions
                         </span>
                       </div>
@@ -1155,7 +1103,7 @@ export default function LoginPage() {
                 <div className="kk-narrative-banner">
                   <div className="kk-banner-top">
                     <div className="kk-shield-icon">
-                      <span className="material-symbols-outlined material-symbols-filled" style={{ fontSize: '22px' }}>
+                      <span className="material-symbols-outlined material-symbols-filled" style={{ fontSize: '18px' }}>
                         verified_user
                       </span>
                     </div>
@@ -1172,7 +1120,7 @@ export default function LoginPage() {
 
                   <div className="kk-banner-grid">
                     <div className="kk-banner-mini-card">
-                      <span className="material-symbols-outlined" style={{ color: '#b0f0d1', fontSize: '18px' }}>
+                      <span className="material-symbols-outlined" style={{ color: '#b0f0d1', fontSize: '16px' }}>
                         clinical_notes
                       </span>
                       <div>
@@ -1182,7 +1130,7 @@ export default function LoginPage() {
                     </div>
 
                     <div className="kk-banner-mini-card">
-                      <span className="material-symbols-outlined" style={{ color: '#b0f0d1', fontSize: '18px' }}>
+                      <span className="material-symbols-outlined" style={{ color: '#b0f0d1', fontSize: '16px' }}>
                         biomedical
                       </span>
                       <div>
@@ -1192,7 +1140,7 @@ export default function LoginPage() {
                     </div>
 
                     <div className="kk-banner-mini-card">
-                      <span className="material-symbols-outlined" style={{ color: '#b0f0d1', fontSize: '18px' }}>
+                      <span className="material-symbols-outlined" style={{ color: '#b0f0d1', fontSize: '16px' }}>
                         sanitizer
                       </span>
                       <div>
@@ -1209,7 +1157,7 @@ export default function LoginPage() {
                 {/* Brand Center */}
                 <div className="kk-auth-brand-center">
                   <div className="kk-auth-icon-box">
-                    <span className="material-symbols-outlined" style={{ fontSize: '30px' }}>spa</span>
+                    <span className="material-symbols-outlined" style={{ fontSize: '26px' }}>spa</span>
                   </div>
                   <span className="kk-auth-portal-title">Klinik Kecantikan</span>
                   <span className="kk-auth-portal-sub">Aesthetic &amp; Wellness Portal</span>
@@ -1269,7 +1217,7 @@ export default function LoginPage() {
                         onClick={() => setShowPassword(!showPassword)}
                         className="kk-eye-btn"
                       >
-                        <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
                           {showPassword ? 'visibility_off' : 'visibility'}
                         </span>
                       </button>
@@ -1301,7 +1249,7 @@ export default function LoginPage() {
                   <button type="submit" disabled={state.load} className="kk-submit-btn">
                     {state.load ? (
                       <>
-                        <span className="material-symbols-outlined" style={{ animation: 'spin 1s linear infinite' }}>
+                        <span className="material-symbols-outlined" style={{ animation: 'spin 1s linear infinite', fontSize: '16px' }}>
                           progress_activity
                         </span>
                         <span>Memproses Masuk...</span>
@@ -1309,7 +1257,7 @@ export default function LoginPage() {
                     ) : (
                       <>
                         <span>Masuk</span>
-                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
                           arrow_forward
                         </span>
                       </>
@@ -1320,13 +1268,13 @@ export default function LoginPage() {
                 {/* Security Badges */}
                 <div className="kk-security-badges">
                   <span className="kk-badge-item">
-                    <span className="material-symbols-outlined" style={{ color: '#004731', fontSize: '15px' }}>
+                    <span className="material-symbols-outlined" style={{ color: '#004731', fontSize: '14px' }}>
                       lock
                     </span>
                     Enkripsi 256-bit SSL
                   </span>
                   <span className="kk-badge-item">
-                    <span className="material-symbols-outlined" style={{ color: '#004731', fontSize: '15px' }}>
+                    <span className="material-symbols-outlined" style={{ color: '#004731', fontSize: '14px' }}>
                       security
                     </span>
                     ISO 27001 Certified
@@ -1337,7 +1285,7 @@ export default function LoginPage() {
           </div>
         </main>
 
-        {/* ── FOOTER ── */}
+        {/* ── FOOTER (Compact Single Line) ── */}
         <footer className="kk-footer">
           <p className="kk-footer-text">
             &copy; 2024 Klinik Kecantikan. Seluruh hak cipta dilindungi.
