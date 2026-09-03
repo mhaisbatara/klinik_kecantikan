@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Button } from 'primereact/button';
 import { InputText } from 'primereact/inputtext';
 import { InputTextarea } from 'primereact/inputtextarea';
+import { InputNumber } from 'primereact/inputnumber';
 import { ProgressSpinner } from 'primereact/progressspinner';
 import { Toast } from 'primereact/toast';
 import { Dialog } from 'primereact/dialog';
@@ -68,6 +69,11 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
     const [searchProduk, setSearchProduk] = useState<string>('');
     const [selectedProdukList, setSelectedProdukList] = useState<SelectedProduk[]>([]);
 
+    // State Biaya Custom
+    const [showCustomFeeModal, setShowCustomFeeModal] = useState<boolean>(false);
+    const [customFeeNama, setCustomFeeNama] = useState<string>('');
+    const [customFeeHarga, setCustomFeeHarga] = useState<number | null>(null);
+
     // Catatan treatment
     const [catatan, setCatatan] = useState<string>('');
     const [submitting, setSubmitting] = useState<boolean>(false);
@@ -77,6 +83,32 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
 
     // Modal Konfirmasi Persetujuan
     const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
+
+    const handleAddCustomFee = () => {
+        if (isSubmitted) return;
+        if (!customFeeNama.trim()) {
+            showError(toast, 'Nama biaya / produk custom wajib diisi!');
+            return;
+        }
+        if (!customFeeHarga || customFeeHarga <= 0) {
+            showError(toast, 'Nominal harga wajib lebih dari 0!');
+            return;
+        }
+
+        const customItem: SelectedProduk = {
+            kode_produk: `CST-${Date.now().toString().slice(-10)}`,
+            nama: customFeeNama.trim(),
+            harga_jual: customFeeHarga,
+            satuan: 'item',
+            qty: 1,
+        };
+
+        setSelectedProdukList((prev) => [...prev, customItem]);
+        setShowCustomFeeModal(false);
+        setCustomFeeNama('');
+        setCustomFeeHarga(null);
+        showSuccess(toast, 'Biaya tambahan custom berhasil ditambahkan!');
+    };
 
     useEffect(() => {
         fetchProdukOptions();
@@ -119,12 +151,14 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
         setLoadingProduk(true);
         try {
             const res = await postData('/master/produk-dropdown', { search: keyword });
-            const list: ProdukItem[] = (res.data?.data || []).map((p: any) => ({
-                kode_produk: p.kode_produk,
-                nama: p.nama,
-                harga_jual: parseFloat(p.harga_jual || 0),
-                satuan: p.satuan || 'pcs',
-            }));
+            const list: ProdukItem[] = (res.data?.data || [])
+                .filter((p: any) => !String(p.kode_produk || '').startsWith('CUSTOM-') && !String(p.kode_produk || '').startsWith('CST-'))
+                .map((p: any) => ({
+                    kode_produk: p.kode_produk,
+                    nama: p.nama,
+                    harga_jual: parseFloat(p.harga_jual || 0),
+                    satuan: p.satuan || 'pcs',
+                }));
             setProdukOptions(list);
         } catch (_) {
             showError(toast, 'Gagal memuat daftar produk');
@@ -241,7 +275,10 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                 kode_karyawan: selectedPetugas || activePatient.kode_karyawan,
                 produk_items: selectedProdukList.map((p) => ({
                     kode_produk: p.kode_produk,
+                    nama: p.nama,
                     qty: p.qty,
+                    harga_jual: p.harga_jual,
+                    satuan: p.satuan || 'pcs',
                 })),
             };
 
@@ -390,10 +427,23 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                 <div className="col-12 lg:col-7">
                     <div className="p-3 surface-50 border-round-xl border-1 surface-border flex flex-column gap-3 h-full">
                         <div>
-                            <label className="block text-xs font-extrabold text-teal-800 uppercase tracking-wider mb-2 flex align-items-center gap-2">
-                                <i className="pi pi-shopping-bag text-teal-600 text-sm" />
-                                PILIH PRODUK TAMBAHAN UNTUK KASIR
-                            </label>
+                            <div className="flex align-items-center justify-content-between mb-2">
+                                <label className="block text-xs font-extrabold text-teal-800 uppercase tracking-wider flex align-items-center gap-2 m-0">
+                                    <i className="pi pi-shopping-bag text-teal-600 text-sm" />
+                                    PILIH PRODUK TAMBAHAN UNTUK KASIR
+                                </label>
+                                <Button
+                                    type="button"
+                                    label="+ Biaya Custom"
+                                    icon="pi pi-plus"
+                                    size="small"
+                                    severity="success"
+                                    outlined
+                                    className="text-xs font-bold py-1 px-2.5 border-round-lg"
+                                    disabled={isSubmitted}
+                                    onClick={() => setShowCustomFeeModal(true)}
+                                />
+                            </div>
 
                             {/* Search Box */}
                             <div className="flex gap-2 mb-3">
@@ -722,6 +772,62 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                             </p>
                         </div>
                     </div>
+                </div>
+            </Dialog>
+
+            {/* DIALOG TAMBAH BIAYA CUSTOM */}
+            <Dialog
+                visible={showCustomFeeModal}
+                onHide={() => setShowCustomFeeModal(false)}
+                header={
+                    <div className="flex align-items-center gap-2">
+                        <i className="pi pi-plus-circle text-teal-600 text-xl" />
+                        <span className="font-bold text-base text-900">Tambah Biaya / Produk Custom</span>
+                    </div>
+                }
+                style={{ width: '420px' }}
+                modal
+            >
+                <div className="flex flex-column gap-3 pt-2">
+                    <div>
+                        <label className="block text-xs font-bold text-700 mb-1">Nama Biaya / Produk Custom *</label>
+                        <InputText
+                            value={customFeeNama}
+                            onChange={(e) => setCustomFeeNama(e.target.value)}
+                            placeholder="Contoh: Biaya Jarum Injeksi / Alat Tambahan"
+                            className="w-full p-inputtext-sm text-sm border-round-lg"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-700 mb-1">Nominal Harga (Rp) *</label>
+                        <InputNumber
+                            value={customFeeHarga}
+                            onValueChange={(e) => setCustomFeeHarga(e.value ?? null)}
+                            mode="currency"
+                            currency="IDR"
+                            locale="id-ID"
+                            placeholder="Masukkan nominal harga..."
+                            className="w-full text-sm"
+                            inputClassName="p-inputtext-sm w-full text-sm border-round-lg font-bold text-teal-700"
+                        />
+                    </div>
+                </div>
+
+                <div className="flex justify-content-end gap-2 mt-4 pt-3 border-top-1 surface-border">
+                    <Button
+                        label="Batal"
+                        icon="pi pi-times"
+                        text
+                        severity="secondary"
+                        onClick={() => setShowCustomFeeModal(false)}
+                    />
+                    <Button
+                        label="Tambahkan ke Daftar"
+                        icon="pi pi-check"
+                        severity="success"
+                        className="bg-teal-600 border-none font-bold text-sm"
+                        onClick={handleAddCustomFee}
+                    />
                 </div>
             </Dialog>
         </div>

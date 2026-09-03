@@ -75,6 +75,21 @@ export interface GridPanggilProps {
     getGridData: () => Promise<void>;
 }
 
+export interface AmbilResult {
+    kode_antrian: string;
+    no_antrian: string;
+    diambil_at: string;
+    antrean_menunggu: number;
+    nama_klinik: string;
+}
+
+export interface TabCetakAntreanProps {
+    state: State;
+    setState: React.Dispatch<React.SetStateAction<State>>;
+    toast: RefObject<Toast>;
+    getGridData: () => Promise<void>;
+}
+
 export const STATUS_LABELS: Record<string, { label: string; severity: string }> = {
     tersedia:  { label: 'Tersedia',  severity: 'success' },
     diambil:   { label: 'Diambil',   severity: 'info'    },
@@ -82,3 +97,4 @@ export const STATUS_LABELS: Record<string, { label: string; severity: string }> 
     selesai:   { label: 'Selesai',   severity: 'secondary' },
     nonaktif:  { label: 'Nonaktif',  severity: 'danger'  },
 };
+

@@ -160,6 +160,7 @@ router.post("/", async (req, res) => {
     const vaProduk = await DB("mst_produk as p")
       .leftJoin("mst_kategori_produk as k", "p.kode_kategori_produk", "k.kode_kategori_produk")
       .where("p.status", "aktif")
+      .whereRaw("p.kode_produk NOT LIKE 'CUSTOM-%' AND p.kode_produk NOT LIKE 'CST-%'")
       .select(
         "p.kode_produk",
         "p.nama",

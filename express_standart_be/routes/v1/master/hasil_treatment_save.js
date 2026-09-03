@@ -244,6 +244,33 @@ const handleHasilTreatmentSave = async (req, res) => {
         }
 
         for (const item of produkItems) {
+          const isCustom = item.kode_produk && (String(item.kode_produk).startsWith("CUSTOM-") || String(item.kode_produk).startsWith("CST-"));
+          if (isCustom && item.nama) {
+            const existP = await trx("mst_produk").where("kode_produk", item.kode_produk).first();
+            if (!existP) {
+              const kat = await trx("mst_kategori_produk").where("status", "aktif").first();
+              const defaultKatKode = kat?.kode_kategori_produk || "KATPRD-001";
+
+              await trx("mst_produk").insert({
+                kode_produk: item.kode_produk,
+                kode_kategori_produk: defaultKatKode,
+                nama: item.nama,
+                satuan: item.satuan || "item",
+                harga_beli: 0,
+                harga_jual: parseFloat(item.harga_jual || item.harga_satuan || 0),
+                stok_minimum: 0,
+                stok_tersedia: 999,
+                status: "nonaktif", // Diset nonaktif agar hanya berlaku per transaksi dan tidak mencemari master data produk
+                tz: tz || "Asia/Jakarta",
+                created_by: username,
+                created_at: formatDateSystem(),
+                updated_by: username,
+                updated_at: formatDateSystem(),
+              });
+            }
+            produkPriceMap[item.kode_produk] = parseFloat(item.harga_jual || item.harga_satuan || 0);
+          }
+
           const cKodeDetail = `${prefixDetail}${String(nextDetailSeq).padStart(3, "0")}`;
           nextDetailSeq++;
           const qty = Math.max(1, parseInt(item.qty || 1, 10));

@@ -60,6 +60,7 @@ const handleGetRekomendasiOptions = async (req, res) => {
     const vaProduk = await DB("mst_produk as pr")
       .leftJoin("mst_kategori_produk as kp", "pr.kode_kategori_produk", "kp.kode_kategori_produk")
       .where("pr.status", "aktif")
+      .whereRaw("pr.kode_produk NOT LIKE 'CUSTOM-%' AND pr.kode_produk NOT LIKE 'CST-%'")
       .select(
         "pr.kode_produk",
         "pr.kode_kategori_produk",

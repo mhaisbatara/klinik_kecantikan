@@ -928,7 +928,7 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                                 }`}>
                                     1
                                 </span>
-                                <span>1. Form Penanganan Ruangan</span>
+                                <span>Form Penanganan Ruangan</span>
                             </button>
 
                             <i className="pi pi-chevron-right text-400 text-sm hidden sm:inline-block" />
@@ -947,7 +947,7 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                                 }`}>
                                     2
                                 </span>
-                                <span>2. Hasil Treatment (Foto After) &amp; Rekomendasi Produk</span>
+                                <span>Hasil Treatment (Foto After) &amp; Rekomendasi Produk</span>
                             </button>
                         </div>
 

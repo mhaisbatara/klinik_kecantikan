@@ -75,16 +75,41 @@ const AppMenu = () => {
             }
 
             const rawMenu: AppMenuItem[] = JSON.parse(JSON.stringify(vaData.data));
-            const transformedMenu = rawMenu.map((item) => {
+            const transformItem = (item: AppMenuItem): AppMenuItem => {
+                const newItem: AppMenuItem = { ...item };
                 if (
-                    item.label &&
-                    (item.label.toLowerCase().includes('master data & user') ||
-                        item.label.toLowerCase().includes('pengaturan'))
+                    newItem.label &&
+                    (newItem.label.toLowerCase().includes('master data & user') ||
+                        newItem.label.toLowerCase().includes('pengaturan'))
                 ) {
-                    return { ...item, label: 'PENGATURAN' };
+                    newItem.label = 'PENGATURAN';
                 }
-                return item;
-            });
+                if (
+                    (newItem.label && (newItem.label.toLowerCase() === 'antrean awal' || newItem.label.toLowerCase() === 'antrian awal')) ||
+                    newItem.to === '/antrian-awal' ||
+                    newItem.to === '/pendaftaran-antrean/antrean-awal' ||
+                    newItem.to === '/pendaftaran-antrean/antrian-awal'
+                ) {
+                    newItem.label = 'Antrean Pendaftaran';
+                }
+                if (newItem.items && newItem.items.length > 0) {
+                    newItem.items = newItem.items
+                        .filter((sub) => {
+                            const lbl = (sub.label || '').trim().toLowerCase();
+                            const to = (sub.to || '').trim().toLowerCase();
+                            return lbl !== 'antrean' && to !== '/pendaftaran-antrean/antrean';
+                        })
+                        .map(transformItem);
+                }
+                return newItem;
+            };
+            const transformedMenu = rawMenu
+                .filter((item) => {
+                    const lbl = (item.label || '').trim().toLowerCase();
+                    const to = (item.to || '').trim().toLowerCase();
+                    return lbl !== 'antrean' && to !== '/pendaftaran-antrean/antrean';
+                })
+                .map(transformItem);
             const menu2: AppMenuItem[] = JSON.parse(JSON.stringify(transformedMenu));
 
             setState(prev => ({
