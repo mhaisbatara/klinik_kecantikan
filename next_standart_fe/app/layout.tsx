@@ -19,15 +19,15 @@ export const viewport: Viewport = {
     initialScale: 1,
 };
 
-// 2. Metadata Microva Store
+// 2. Metadata Klinik Kecantikan
 export const metadata: Metadata = {
     title: {
-        default: 'Microva Store - Platform SaaS & Manajemen Aplikasi',
-        template: '%s | Microva Store', // Otomatis format judul di sub-halaman (contoh: "Dashboard | Microva Store")
+        default: 'Klinik Kecantikan - Aesthetic & Wellness Hub',
+        template: '%s | Klinik Kecantikan',
     },
-    description: 'Solusi lengkap manajemen aplikasi SaaS Microva Store. Kelola layanan, transaksi, dan operasional Anda dengan lebih cepat, aman, dan efisien.',
-    keywords: ['Microva Store', 'SaaS', 'Store Platform', 'Dashboard SaaS', 'Aplikasi SaaS'],
-    authors: [{ name: 'Microva Team' }],
+    description: 'Sistem Informasi Manajemen Klinik Kecantikan & Estetika Terpadu.',
+    keywords: ['Klinik Kecantikan', 'Aesthetic', 'Wellness Hub', 'Klinik Estetika'],
+    authors: [{ name: 'Klinik Kecantikan Team' }],
     manifest: '/manifest.json',
     
     // Atur robot sesuai kebutuhan (gunakan 'index: true' jika halaman ini ingin di-index Google)
@@ -75,6 +75,18 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: RootLayoutProps) {
     return (
         <html lang="id" suppressHydrationWarning>
+            <head>
+                <link rel="preconnect" href="https://fonts.googleapis.com" />
+                <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+                <link
+                    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap"
+                    rel="stylesheet"
+                />
+                <link
+                    href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+                    rel="stylesheet"
+                />
+            </head>
             <body suppressHydrationWarning>
                 <SessionProvider>
                     <PrimeReactProvider>
