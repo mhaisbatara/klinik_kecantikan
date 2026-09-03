@@ -2,6 +2,7 @@ import express from "express";
 const router = express.Router();
 
 import antrianAwalIndex from "./antrian_awal/index.js";
+import antrianAwalAmbil from "./antrian_awal/antrian_awal_ambil.js";
 import pendaftaranPasienIndex from "./pendaftaran_pasien/index.js";
 
 import kategoriLayananData from "./kategori_layanan/kategori_layanan_data.js";
@@ -101,6 +102,10 @@ router.use("/penjamin-dropdown", penjaminDropdown);
 router.use("/poli-dropdown", poliDropdown);
 
 // Antrian Awal & Layanan
+router.use("/antrian-awal-ambil", antrianAwalAmbil);
+router.use("/antrean-awal-ambil", antrianAwalAmbil);
+router.use("/antrian-pendaftaran-ambil", antrianAwalAmbil);
+router.use("/antrean-pendaftaran-ambil", antrianAwalAmbil);
 router.use("/", antrianAwalIndex);
 router.use("/", antrianLayananIndex);
 

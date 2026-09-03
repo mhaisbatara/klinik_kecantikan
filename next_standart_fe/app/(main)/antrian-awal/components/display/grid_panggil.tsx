@@ -4,7 +4,7 @@ import { Button } from 'primereact/button';
 import { confirmDialog, ConfirmDialog } from 'primereact/confirmdialog';
 import { GridPanggilProps, TableData } from '../interfaces';
 import postData from '@/lib/axios/postData';
-import { showError, showSuccess } from '@/lib/tools/generalTools';
+import { showError, showSuccess, showWarning } from '@/lib/tools/generalTools';
 import { apiEndpointPanggil, apiEndpointReset } from '../endpoints';
 import { getTzUser } from '@/lib/tools/dateTools';
 
@@ -25,7 +25,7 @@ const playChime = () => {
             const t = ctx.currentTime + i * 0.4;
             gain.gain.setValueAtTime(0, t);
             gain.gain.linearRampToValueAtTime(0.45, t + 0.05);
-            gain.gain.linearRampToValueAtTime(0, t + 0.45);
+            gain.gain.linearRampToValueAtTime(0.45, t + 0.45);
             osc.start(t);
             osc.stop(t + 0.5);
         });
@@ -118,10 +118,40 @@ const GridPanggil = ({ state, setState, toast, getGridData }: GridPanggilProps) 
     const diambil    = state.gridData.filter((d) => d.status === 'diambil').length;
     const dipanggil  = state.gridData.filter((d) => d.status === 'dipanggil').length;
     const aktif      = state.gridData.filter((d) => d.status !== 'nonaktif');
+    const currentDipanggil = state.gridData.find((d) => d.status === 'dipanggil');
+
+    // Urutkan nomor yang diambil (FIFO)
+    const takenItems = state.gridData
+        .filter((d) => d.status === 'diambil')
+        .sort((a, b) => {
+            const numA = parseInt(a.no_antrian.replace(/\D/g, '')) || 0;
+            const numB = parseInt(b.no_antrian.replace(/\D/g, '')) || 0;
+            return numA !== numB ? numA - numB : a.no_antrian.localeCompare(b.no_antrian);
+        });
+    const nextTakenToCall = takenItems.length > 0 ? takenItems[0] : null;
+
+    // Urutkan nomor yang tersedia (FIFO)
+    const availableItems = state.gridData
+        .filter((d) => d.status === 'tersedia')
+        .sort((a, b) => {
+            const numA = parseInt(a.no_antrian.replace(/\D/g, '')) || 0;
+            const numB = parseInt(b.no_antrian.replace(/\D/g, '')) || 0;
+            return numA !== numB ? numA - numB : a.no_antrian.localeCompare(b.no_antrian);
+        });
+    const nextAvailableToTake = availableItems.length > 0 ? availableItems[0] : null;
 
     const handleAksi = (item: TableData) => {
         const next = NEXT_AKSI[item.status];
         if (!next) return;
+
+        // Validasi: Cegah memanggil antrean baru jika masih ada antrean lain yang sedang dipanggil di loket
+        if (next.aksi === 'dipanggil' && currentDipanggil && currentDipanggil.kode_antrian !== item.kode_antrian) {
+            showWarning(
+                toast,
+                `Nomor antrean ${currentDipanggil.no_antrian} sedang dipanggil di loket dan belum diselesaikan. Harap selesaikan nomor ${currentDipanggil.no_antrian} terlebih dahulu sebelum memanggil antrean berikutnya.`
+            );
+            return;
+        }
 
         confirmDialog({
             message: (
@@ -208,21 +238,33 @@ const GridPanggil = ({ state, setState, toast, getGridData }: GridPanggilProps) 
                 <div>
                     <h3 className="text-2xl font-semibold flex align-items-center gap-2 mb-1">
                         <i className="pi pi-bell text-blue-600 text-2xl" />
-                        Panggil Antrian
+                        Antrean Manual
                     </h3>
                     <p className="text-color-secondary text-sm">
-                        Klik nomor sesuai kartu pasien untuk mengubah statusnya. Suara akan berbunyi saat <strong>Dipanggil</strong>.
+                        Klik nomor sesuai kartu pasien untuk mengubah statusnya. Panggilan antrean berjalan sesuai urutan.
                     </p>
                 </div>
-                <Button
-                    label="Reset Semua"
-                    icon="pi pi-refresh"
-                    severity="warning"
-                    outlined
-                    size="small"
-                    onClick={handleReset}
-                    loading={state.loadGrid}
-                />
+                <div className="flex align-items-center gap-2 flex-wrap">
+                    <Button
+                        label="Display TV"
+                        icon="pi pi-desktop"
+                        severity="info"
+                        outlined
+                        size="small"
+                        onClick={() => window.open('/display-antrean-pendaftaran', '_blank')}
+                        title="Buka Layar Display TV Antrean di Tab Baru"
+                        className="font-bold text-xs"
+                    />
+                    <Button
+                        label="Reset Semua"
+                        icon="pi pi-refresh"
+                        severity="warning"
+                        outlined
+                        size="small"
+                        onClick={handleReset}
+                        loading={state.loadGrid}
+                    />
+                </div>
             </div>
 
             {/* Counter */}
@@ -282,6 +324,44 @@ const GridPanggil = ({ state, setState, toast, getGridData }: GridPanggilProps) 
                 ))}
             </div>
 
+            {/* Banner Antrean Aktif di Loket */}
+            {currentDipanggil && (
+                <div className="p-3 mb-4 border-round-xl border-1 border-amber-300 bg-amber-50 flex align-items-center justify-content-between flex-wrap gap-3 shadow-1">
+                    <div className="flex align-items-center gap-3">
+                        <span className="text-3xl">📢</span>
+                        <div>
+                            <div className="font-bold text-base text-amber-900">
+                                Sedang Melayani Nomor: <span className="text-xl text-amber-900 underline font-black">{currentDipanggil.no_antrian}</span> di Loket
+                            </div>
+                            <div className="text-xs text-amber-700 mt-0.5">
+                                Selesaikan antrean nomor ini terlebih dahulu sebelum dapat memanggil antrean berikutnya.
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex align-items-center gap-2">
+                        <Button
+                            label="Panggil Ulang"
+                            icon="pi pi-volume-up"
+                            severity="warning"
+                            size="small"
+                            onClick={() => {
+                                playChime();
+                                speakNomor(currentDipanggil.no_antrian);
+                            }}
+                            className="font-bold text-xs"
+                        />
+                        <Button
+                            label="Tandai Selesai"
+                            icon="pi pi-check"
+                            severity="success"
+                            size="small"
+                            onClick={() => handleAksi(currentDipanggil)}
+                            className="font-bold text-xs"
+                        />
+                    </div>
+                </div>
+            )}
+
             {/* Grid Tombol */}
             {state.loadGrid ? (
                 <div className="flex justify-content-center align-items-center py-6">
@@ -297,8 +377,29 @@ const GridPanggil = ({ state, setState, toast, getGridData }: GridPanggilProps) 
                 >
                     {aktif.map((item) => {
                         const cfg = STATUS_CONFIG[item.status] || STATUS_CONFIG.nonaktif;
-                        const canClick = !!NEXT_AKSI[item.status];
+                        const nextAksi = NEXT_AKSI[item.status]?.aksi;
                         const isDipanggil = item.status === 'dipanggil';
+                        const isDiambil = item.status === 'diambil';
+
+                        // Aturan Kunci: Jika sedang ada antrean lain dipanggil, antrean diambil lainnya tidak dapat dipanggil
+                        const isCallingOther = !!currentDipanggil && currentDipanggil.kode_antrian !== item.kode_antrian;
+                        const isDipanggilBlocked = isCallingOther && nextAksi === 'dipanggil';
+
+                        const isNextInLine = !currentDipanggil && isDiambil && nextTakenToCall?.kode_antrian === item.kode_antrian;
+                        const canClick = !!NEXT_AKSI[item.status] && !isDipanggilBlocked;
+
+                        let badgeText = cfg.label;
+                        if (isDipanggilBlocked) {
+                            badgeText = '🔒 Tunggu';
+                        } else if (isNextInLine) {
+                            badgeText = '⭐ Panggil';
+                        }
+
+                        let tooltipText = `No. ${item.no_antrian} — ${item.status}`;
+                        if (isDipanggilBlocked) {
+                            tooltipText = `No. ${item.no_antrian} (Selesaikan No. ${currentDipanggil?.no_antrian} terlebih dahulu)`;
+                        }
+
                         return (
                             <div
                                 key={item.kode_antrian}
@@ -308,39 +409,60 @@ const GridPanggil = ({ state, setState, toast, getGridData }: GridPanggilProps) 
                                 <button
                                     onClick={() => handleAksi(item)}
                                     disabled={!canClick}
-                                    title={`No. ${item.no_antrian} — ${item.status}`}
+                                    title={tooltipText}
                                     style={{
                                         height: '84px',
                                         fontSize: '1.5rem',
                                         fontWeight: 'bold',
                                         borderRadius: '12px',
-                                        border: `2px solid ${cfg.border}`,
-                                        background: cfg.bg,
-                                        color: cfg.color,
-                                        cursor: cfg.cursor,
+                                        border: isNextInLine
+                                            ? '2.5px solid #2563eb'
+                                            : `2px solid ${isDipanggilBlocked ? '#cbd5e1' : cfg.border}`,
+                                        background: isDipanggilBlocked ? '#f1f5f9' : cfg.bg,
+                                        color: isDipanggilBlocked ? '#94a3b8' : isNextInLine ? '#1d4ed8' : cfg.color,
+                                        cursor: isDipanggilBlocked ? 'not-allowed' : cfg.cursor,
+                                        opacity: isDipanggilBlocked ? 0.75 : 1,
                                         transition: 'all 0.18s ease',
-                                        boxShadow: cfg.shadow,
+                                        boxShadow: isNextInLine
+                                            ? '0 0 12px rgba(37,99,235,0.45)'
+                                            : isDipanggilBlocked
+                                            ? 'none'
+                                            : cfg.shadow,
                                         display: 'flex',
                                         flexDirection: 'column',
                                         alignItems: 'center',
                                         justifyContent: 'center',
                                         gap: '2px',
                                         width: '100%',
+                                        position: 'relative',
                                     }}
                                     onMouseEnter={(e) => {
-                                        if (canClick) {
+                                        if (canClick && !isDipanggilBlocked) {
                                             (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1.07)';
                                             (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 6px 18px ${cfg.border}66`;
                                         }
                                     }}
                                     onMouseLeave={(e) => {
                                         (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)';
-                                        (e.currentTarget as HTMLButtonElement).style.boxShadow = cfg.shadow;
+                                        (e.currentTarget as HTMLButtonElement).style.boxShadow = isNextInLine
+                                            ? '0 0 12px rgba(37,99,235,0.45)'
+                                            : isDipanggilBlocked
+                                            ? 'none'
+                                            : cfg.shadow;
                                     }}
                                 >
                                     <span style={{ lineHeight: 1 }}>{item.no_antrian}</span>
-                                    {cfg.label && (
-                                        <span style={{ fontSize: '0.75rem', opacity: 0.85 }}>{cfg.label}</span>
+                                    {badgeText && (
+                                        <span
+                                            style={{
+                                                fontSize: '0.7rem',
+                                                fontWeight: isNextInLine ? '800' : '600',
+                                                color: isNextInLine ? '#1d4ed8' : isDipanggilBlocked ? '#94a3b8' : 'inherit',
+                                                opacity: isDipanggilBlocked ? 0.9 : 0.95,
+                                            }}
+                                        >
+                                            {badgeText}
+                                        </span>
                                     )}
                                 </button>
 

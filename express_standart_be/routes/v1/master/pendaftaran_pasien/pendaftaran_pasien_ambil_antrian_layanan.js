@@ -281,14 +281,14 @@ router.post("/", async (req, res) => {
             const pktAsal = await trx("mst_paket_layanan as p")
               .leftJoin("mst_ruangan as r", "p.kode_ruangan", "r.kode_ruangan")
               .where("p.kode_paket_layanan", kpl.kode_paket_layanan)
-              .select("p.nama as nama_paket", "p.kode_ruangan", "r.nama_ruangan as nama_ruangan")
+              .select("p.nama as nama_paket", "p.tipe", "p.kode_ruangan", "r.nama_ruangan as nama_ruangan")
               .first();
 
             namaLayanan = lay ? `${lay.nama} (Klaim Sesi Paket)` : `Klaim Sesi Paket (${targetLayKode})`;
             hargaLayanan = 0; // Klaim paket -> Rp 0 pada kunjungan ini
-            tipeLayanan = (lay?.tipe || "BEAUTY TREATMENT").toUpperCase();
-            kodeRuanganTarget = lay?.kode_ruangan || pktAsal?.kode_ruangan || "RNG-001";
-            namaRuanganTarget = lay?.nama_ruangan || pktAsal?.nama_ruangan || "Ruang Treatment";
+            tipeLayanan = (pktAsal?.tipe || lay?.tipe || "BEAUTY TREATMENT").toUpperCase();
+            kodeRuanganTarget = lay?.kode_ruangan || pktAsal?.kode_ruangan || "RNG-002";
+            namaRuanganTarget = lay?.nama_ruangan || pktAsal?.nama_ruangan || "Ruangan Facial & Peeling";
           } else if (jenis === "layanan") {
             const lay = await trx("mst_layanan as l")
               .leftJoin("mst_ruangan as r", "l.kode_ruangan", "r.kode_ruangan")
@@ -416,18 +416,21 @@ router.post("/", async (req, res) => {
           }
 
           // Logika Penentuan Konsultasi:
-          // 1. MEDICAL TREATMENT -> Wajib Konsul (needsConsult = true)
-          // 2. SERVICE TREATMENT -> Tidak Perlu Konsul (needsConsult = false)
-          // 3. BEAUTY TREATMENT  -> Opsional Konsul (needsConsult = item.butuh_konsul)
+          // 1. Prioritas utama: Jika item berstatus WAJIB / MEDICAL TREATMENT -> needsConsult = true
+          // 2. Jika butuh_konsul / lewat_konsultasi dikirimkan secara eksplisit (user memilih Ya/Tidak di dialog/step) -> ikuti pilihan user!
+          // 3. Jika TIDAK PERLU KONSUL / SERVICE TREATMENT -> needsConsult = false
+          // 4. Default: false
           let needsConsult = false;
-          if (jenis === "klaim_paket" || item.is_klaim === true || item.kode_kepemilikan_paket_layanan) {
-            needsConsult = false; // Klaim Sesi Paket -> LANGSUNG KE RUANG TINDAKAN / TREATMENT!
-          } else if (tipeLayanan === "MEDICAL TREATMENT") {
+          if (item.wajib_konsultasi === "wajib" || item.wajib_konsultasi === "WAJIB" || tipeLayanan === "MEDICAL TREATMENT") {
             needsConsult = true;
-          } else if (tipeLayanan === "SERVICE TREATMENT") {
+          } else if (item.butuh_konsul !== undefined && item.butuh_konsul !== null) {
+            needsConsult = item.butuh_konsul === true || item.butuh_konsul === 1 || item.butuh_konsul === "true";
+          } else if (item.lewat_konsultasi !== undefined && item.lewat_konsultasi !== null) {
+            needsConsult = item.lewat_konsultasi === true || item.lewat_konsultasi === 1 || item.lewat_konsultasi === "true";
+          } else if (item.wajib_konsultasi === "tidak" || item.wajib_konsultasi === "TIDAK" || tipeLayanan === "SERVICE TREATMENT") {
             needsConsult = false;
           } else {
-            needsConsult = item.butuh_konsul === true || item.pilih_konsul === true || item.is_konsul === 1;
+            needsConsult = item.pilih_konsul === true || item.is_konsul === 1;
           }
 
           let kodeRuanganFinal = kodeRuanganTarget;

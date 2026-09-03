@@ -123,6 +123,22 @@ router.post("/", async (req, res) => {
         throw error;
       }
 
+      // Validasi: Cegah memanggil antrean baru jika masih ada antrean lain yang sedang dipanggil (belum selesai)
+      if (aksi === "dipanggil") {
+        const existingDipanggil = await trx("trx_antrian_awal")
+          .where("status", "dipanggil")
+          .where("kode_antrian_awal", "!=", oPayload.kode_antrian)
+          .first();
+
+        if (existingDipanggil) {
+          const error = new Error(
+            `Nomor antrean ${existingDipanggil.nomor_antrian} sedang dipanggil di loket dan belum diselesaikan. Harap selesaikan nomor ${existingDipanggil.nomor_antrian} terlebih dahulu sebelum memanggil antrean berikutnya.`
+          );
+          error.statusCode = 422;
+          throw error;
+        }
+      }
+
       let newDbStatus = record.status;
       let newDiambilAt = record.diambil_at;
       let newDipanggilAt = record.dipanggil_at;

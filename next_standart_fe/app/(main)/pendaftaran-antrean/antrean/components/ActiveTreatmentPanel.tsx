@@ -18,6 +18,7 @@ import { FormRuanganFotoUploader } from './FormRuanganFotoUploader';
 import { RekomendasiTreatmentPanel, RekomendasiItem } from './RekomendasiTreatmentPanel';
 import { DialogHasilTerbitAntrian } from './DialogHasilTerbitAntrian';
 import { HasilTreatmentPanel } from './HasilTreatmentPanel';
+import { DrawerRiwayatPasien } from './DrawerRiwayatPasien';
 
 interface ActiveTreatmentPanelProps {
     activePatient: AntrianLayananData | null;
@@ -52,6 +53,7 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
     const [catatanPetugas, setCatatanPetugas] = useState<string>('');
     const [rekomendasiItems, setRekomendasiItems] = useState<RekomendasiItem[]>([]);
     const [saving, setSaving] = useState<boolean>(false);
+    const [drawerRiwayatVisible, setDrawerRiwayatVisible] = useState<boolean>(false);
 
     // Rekam Medis (trx_rekam_medis) Header Data State
     const [headerRMData, setHeaderRMData] = useState({
@@ -127,11 +129,11 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                     durasi_keluhan: ap.durasi_keluhan || ap.data_konsultasi_durasi_keluhan || '',
                     riwayat_alergi: ap.riwayat_alergi || ap.data_konsultasi_riwayat_alergi || '',
                     riwayat_treatment: ap.riwayat_treatment || ap.data_konsultasi_riwayat_treatment || '',
-                    pemeriksaan_acne: ap.pemeriksaan_acne || ap.data_konsultasi_acne || 'Tidak Ada',
-                    pemeriksaan_inflammation: ap.pemeriksaan_inflammation || ap.data_konsultasi_inflammation || 'Tidak Ada',
-                    pemeriksaan_skin_type: ap.pemeriksaan_skin_type || ap.data_konsultasi_skin_type || 'Normal',
-                    pemeriksaan_pigmentation: ap.pemeriksaan_pigmentation || ap.data_konsultasi_pigmentation || 'Tidak Ada',
-                    pemeriksaan_sensitivity: ap.pemeriksaan_sensitivity || ap.data_konsultasi_sensitivity || 'Rendah',
+                    pemeriksaan_acne: ap.pemeriksaan_acne || ap.data_konsultasi_pemeriksaan_acne || 'Tidak Ada',
+                    pemeriksaan_inflammation: ap.pemeriksaan_inflammation || ap.data_konsultasi_pemeriksaan_inflammation || 'Tidak Ada',
+                    pemeriksaan_skin_type: ap.pemeriksaan_skin_type || ap.data_konsultasi_pemeriksaan_skin_type || 'Normal',
+                    pemeriksaan_pigmentation: ap.pemeriksaan_pigmentation || ap.data_konsultasi_pemeriksaan_pigmentation || 'Tidak Ada',
+                    pemeriksaan_sensitivity: ap.pemeriksaan_sensitivity || ap.data_konsultasi_pemeriksaan_sensitivity || 'Rendah',
                     diagnosis: ap.diagnosis || ap.data_konsultasi_diagnosis || '',
                     subjective: ap.subjective || ap.data_konsultasi_subjective || '',
                     objective: ap.objective || ap.data_konsultasi_objective || '',
@@ -461,6 +463,13 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
 
                 <div className="flex align-items-center justify-content-end gap-2 flex-wrap pt-2 border-top-1 border-teal-600">
                     <Button
+                        label="Riwayat Pasien"
+                        icon="pi pi-history"
+                        size="small"
+                        className="text-xs font-semibold bg-white-alpha-20 text-white border-1 border-white-alpha-40 border-round-lg hover:bg-white-alpha-30"
+                        onClick={() => setDrawerRiwayatVisible(true)}
+                    />
+                    <Button
                         label="Panggil Ulang"
                         icon="pi pi-volume-up"
                         size="small"
@@ -671,10 +680,9 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                                         value={headerRMData.pemeriksaan_acne}
                                         options={[
                                             { label: 'Tidak Ada', value: 'Tidak Ada' },
-                                            { label: 'Grade 1 (Mild)', value: 'Grade 1' },
-                                            { label: 'Grade 2 (Moderate)', value: 'Grade 2' },
-                                            { label: 'Grade 3 (Severe)', value: 'Grade 3' },
-                                            { label: 'Grade 4 (Cystic)', value: 'Grade 4' },
+                                            { label: 'Ringan', value: 'Ringan' },
+                                            { label: 'Sedang', value: 'Sedang' },
+                                            { label: 'Berat', value: 'Berat' },
                                         ]}
                                         onChange={(e) => setHeaderRMData({ ...headerRMData, pemeriksaan_acne: e.value })}
                                         disabled={isFormSaved}
@@ -682,7 +690,7 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                                     />
                                 </div>
                                 <div className="col-12 md:col-4 mb-3">
-                                    <label className="block text-xs font-semibold mb-1">Inflammation</label>
+                                    <label className="block text-xs font-semibold mb-1">Pemeriksaan Inflammation</label>
                                     <Dropdown
                                         value={headerRMData.pemeriksaan_inflammation}
                                         options={[
@@ -702,8 +710,8 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                                         value={headerRMData.pemeriksaan_skin_type}
                                         options={[
                                             { label: 'Normal', value: 'Normal' },
-                                            { label: 'Berminyak', value: 'Berminyak' },
                                             { label: 'Kering', value: 'Kering' },
+                                            { label: 'Berminyak', value: 'Berminyak' },
                                             { label: 'Kombinasi', value: 'Kombinasi' },
                                             { label: 'Sensitif', value: 'Sensitif' },
                                         ]}
@@ -713,16 +721,15 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                                     />
                                 </div>
                                 <div className="col-12 md:col-6 mb-3">
-                                    <label className="block text-xs font-semibold mb-1">Pigmentasi</label>
+                                    <label className="block text-xs font-semibold mb-1">Pemeriksaan Pigmentasi</label>
                                     <Dropdown
                                         value={headerRMData.pemeriksaan_pigmentation}
                                         options={[
                                             { label: 'Tidak Ada', value: 'Tidak Ada' },
                                             { label: 'Melasma', value: 'Melasma' },
-                                            { label: 'PIH (Hiperpigmentasi Pasca Inflamasi)', value: 'PIH' },
-                                            { label: 'Freckles / Flek', value: 'Freckles' },
+                                            { label: 'PIH', value: 'PIH' },
+                                            { label: 'Freckles', value: 'Freckles' },
                                             { label: 'Lentigo', value: 'Lentigo' },
-                                            { label: 'PIE (Eritema Pasca Inflamasi)', value: 'PIE' },
                                         ]}
                                         onChange={(e) => setHeaderRMData({ ...headerRMData, pemeriksaan_pigmentation: e.value })}
                                         disabled={isFormSaved}
@@ -768,6 +775,39 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                                         value={headerRMData.plan}
                                         onChange={(e) => setHeaderRMData({ ...headerRMData, plan: e.target.value })}
                                         placeholder="Rencana penanganan / treatment..."
+                                        disabled={isFormSaved}
+                                        className="w-full text-sm border-round-md"
+                                    />
+                                </div>
+                                <div className="col-12 md:col-4 mb-3">
+                                    <label className="block text-xs font-semibold mb-1">SOAP (Subjective)</label>
+                                    <InputTextarea
+                                        value={headerRMData.subjective}
+                                        onChange={(e) => setHeaderRMData({ ...headerRMData, subjective: e.target.value })}
+                                        rows={2}
+                                        placeholder="Catatan subjektif pasien..."
+                                        disabled={isFormSaved}
+                                        className="w-full text-sm border-round-md"
+                                    />
+                                </div>
+                                <div className="col-12 md:col-4 mb-3">
+                                    <label className="block text-xs font-semibold mb-1">SOAP (Objective)</label>
+                                    <InputTextarea
+                                        value={headerRMData.objective}
+                                        onChange={(e) => setHeaderRMData({ ...headerRMData, objective: e.target.value })}
+                                        rows={2}
+                                        placeholder="Catatan objektif fisik..."
+                                        disabled={isFormSaved}
+                                        className="w-full text-sm border-round-md"
+                                    />
+                                </div>
+                                <div className="col-12 md:col-4 mb-3">
+                                    <label className="block text-xs font-semibold mb-1">SOAP (Assessment)</label>
+                                    <InputTextarea
+                                        value={headerRMData.assessment}
+                                        onChange={(e) => setHeaderRMData({ ...headerRMData, assessment: e.target.value })}
+                                        rows={2}
+                                        placeholder="Penilaian klinis dokter..."
                                         disabled={isFormSaved}
                                         className="w-full text-sm border-round-md"
                                     />
@@ -888,7 +928,7 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                                 }`}>
                                     1
                                 </span>
-                                <span>1. Form Penanganan Ruangan</span>
+                                <span>Form Penanganan Ruangan</span>
                             </button>
 
                             <i className="pi pi-chevron-right text-400 text-sm hidden sm:inline-block" />
@@ -907,7 +947,7 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                                 }`}>
                                     2
                                 </span>
-                                <span>2. Hasil Treatment (Foto After) &amp; Rekomendasi Produk</span>
+                                <span>Hasil Treatment (Foto After) &amp; Rekomendasi Produk</span>
                             </button>
                         </div>
 
@@ -1008,18 +1048,7 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                                             <span className="font-bold text-blue-900 text-sm block">{dataKonsul.data_konsultasi_plan || dataKonsul.data_konsultasi_assessment || '-'}</span>
                                         </div>
 
-                                        {(dataKonsul.data_konsultasi_acne || dataKonsul.data_konsultasi_skin_type) && (
-                                            <div className="col-12 mt-1 pt-2 border-top-1 border-blue-200">
-                                                <span className="font-bold text-blue-800 block mb-1">Hasil Pemeriksaan Kulit:</span>
-                                                <div className="grid text-[11px]">
-                                                    <div className="col-4">Acne: <strong>{dataKonsul.data_konsultasi_acne || '-'}</strong></div>
-                                                    <div className="col-4">Inflammation: <strong>{dataKonsul.data_konsultasi_inflammation || '-'}</strong></div>
-                                                    <div className="col-4">Tipe Kulit: <strong>{dataKonsul.data_konsultasi_skin_type || '-'}</strong></div>
-                                                    <div className="col-4">Pigmentasi: <strong>{dataKonsul.data_konsultasi_pigmentation || '-'}</strong></div>
-                                                    <div className="col-4">Sensitivitas: <strong>{dataKonsul.data_konsultasi_sensitivity || '-'}</strong></div>
-                                                </div>
-                                            </div>
-                                        )}
+
 
                                         {extraFormFields.length > 0 && (
                                             <div className="col-12 mt-2 pt-2 border-top-1 border-blue-200 grid">
@@ -1161,6 +1190,16 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                 kodeKunjungan={hasilKodeKunjungan}
                 antrianList={hasilAntrianList}
                 transaksiDraft={hasilTransaksiDraft}
+            />
+
+            {/* DRAWER PANEL RIWAYAT PASIEN */}
+            <DrawerRiwayatPasien
+                visible={drawerRiwayatVisible}
+                onHide={() => setDrawerRiwayatVisible(false)}
+                noRm={activePatient?.no_rm || ''}
+                namaPasien={activePatient?.nama_pasien || ''}
+                excludeKodeKunjungan={activePatient?.kode_kunjungan || ''}
+                toast={toast}
             />
         </div>
     );

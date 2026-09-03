@@ -15,6 +15,7 @@ router.post("/", async (req, res) => {
   try {
     const baseQuery = DB("mst_produk as p")
       .leftJoin("mst_kategori_produk as k", "p.kode_kategori_produk", "k.kode_kategori_produk")
+      .whereRaw("p.kode_produk NOT LIKE 'CUSTOM-%' AND p.kode_produk NOT LIKE 'CST-%'")
       .modify((qb) => {
         if (keyword) { const lower = keyword.toLowerCase(); qb.where(function () { this.whereRaw("LOWER(p.kode_produk) LIKE ?", [`%${lower}%`]).orWhereRaw("LOWER(p.nama) LIKE ?", [`%${lower}%`]).orWhereRaw("LOWER(k.nama) LIKE ?", [`%${lower}%`]); }); }
         if (filterStatus) qb.where("p.status", filterStatus);

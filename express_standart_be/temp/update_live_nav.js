@@ -42,9 +42,8 @@ const updatedMenuObj = [
     "label": "Pendaftaran & Antrean",
     "icon": "pi pi-fw pi-calendar",
     "items": [
-      { "label": "Antrean Awal", "icon": "pi pi-fw pi-ticket", "to": "/antrian-awal" },
-      { "label": "Pendaftaran Pasien", "icon": "pi pi-fw pi-user-plus", "to": "/pendaftaran-antrean/pendaftaran-pasien" },
-      { "label": "Antrean", "icon": "pi pi-fw pi-list", "to": "/pendaftaran-antrean/antrean" }
+      { "label": "Antrean Pendaftaran", "icon": "pi pi-fw pi-ticket", "to": "/antrian-awal" },
+      { "label": "Pendaftaran Pasien", "icon": "pi pi-fw pi-user-plus", "to": "/pendaftaran-antrean/pendaftaran-pasien" }
     ]
   },
   {

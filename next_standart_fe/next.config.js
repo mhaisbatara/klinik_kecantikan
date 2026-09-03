@@ -4,7 +4,11 @@ const nextConfig = {
         return [
             {
                 source: '/api/assets/:path*',
-                destination: `${process.env.PUBLIC_ASSET_ORG}/:path*`,
+                destination: `${process.env.PUBLIC_ASSET_ORG || 'http://127.0.0.1:8000'}/:path*`,
+            },
+            {
+                source: '/uploads/:path*',
+                destination: `${process.env.PUBLIC_ASSET_ORG || 'http://127.0.0.1:8000'}/uploads/:path*`,
             },
         ];
     }

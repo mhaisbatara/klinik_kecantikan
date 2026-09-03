@@ -26,8 +26,17 @@ export const showSuccess = (toast: RefObject<Toast>, detail: string) => {
 };
 
 export const showError = (toast: RefObject<Toast>, detail: string) => {
-    toast?.current?.show({ severity: "warn", summary: "Warning", detail: detail, life: 3000 });
+    toast?.current?.show({ severity: "error", summary: "Error", detail: detail, life: 3000 });
 };
+
+export const showWarning = (toast: RefObject<Toast>, detail: string) => {
+    toast?.current?.show({ severity: "warn", summary: "Peringatan", detail: detail, life: 3000 });
+};
+
+export const showInfo = (toast: RefObject<Toast>, detail: string) => {
+    toast?.current?.show({ severity: "info", summary: "Informasi", detail: detail, life: 3000 });
+};
+
 
 export const findMatchingItem = (menuData: Array<MenuModel>, url: string) => {
     for (const item of menuData) {

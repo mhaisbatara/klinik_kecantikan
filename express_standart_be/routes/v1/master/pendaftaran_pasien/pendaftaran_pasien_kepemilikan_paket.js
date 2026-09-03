@@ -42,6 +42,7 @@ const handleGetKepemilikanPaket = async (req, res) => {
     const baseQuery = DB("trx_kepemilikan_paket_layanan as k")
       .leftJoin("mst_pasien as p", "k.no_rm", "p.no_rm")
       .leftJoin("mst_paket_layanan as pkt", "k.kode_paket_layanan", "pkt.kode_paket_layanan")
+      .leftJoin("mst_ruangan as rpkt", "pkt.kode_ruangan", "rpkt.kode_ruangan")
       .modify((qb) => {
         if (keyword) {
           const lower = keyword.toLowerCase();
@@ -65,6 +66,8 @@ const handleGetKepemilikanPaket = async (req, res) => {
       "k.kode_paket_layanan",
       "pkt.nama as nama_paket",
       "pkt.tipe as tipe_paket",
+      "pkt.kode_ruangan as kode_ruangan_paket",
+      "rpkt.nama_ruangan as nama_ruangan_paket",
       DB.raw("DATE_FORMAT(k.tanggal_beli, '%Y-%m-%d') as tanggal_beli"),
       DB.raw("DATE_FORMAT(k.tanggal_expired, '%Y-%m-%d') as tanggal_expired"),
       "k.status",
@@ -89,19 +92,43 @@ const handleGetKepemilikanPaket = async (req, res) => {
     for (const item of vaData) {
       const details = await DB("trx_detail_kepemilikan_paket_layanan as d")
         .leftJoin("mst_layanan as l", "d.kode_layanan", "l.kode_layanan")
+        .leftJoin("mst_ruangan as r", "l.kode_ruangan", "r.kode_ruangan")
         .where("d.kode_kepemilikan_paket_layanan", item.kode_kepemilikan_paket_layanan)
         .select(
           "d.kode_detail_kepemilikan_paket_layanan",
           "d.kode_layanan",
           "l.nama as nama_layanan",
+          "l.durasi_menit",
+          "l.tipe as tipe_layanan",
+          "l.wajib_konsultasi",
+          "l.kode_ruangan",
+          "r.nama_ruangan as nama_ruangan",
           "d.sesi_total",
           "d.sesi_terpakai"
         );
 
-      item.details = details.map((d) => ({
-        ...d,
-        sisa_sesi: Math.max(0, parseInt(d.sesi_total || 0, 10) - parseInt(d.sesi_terpakai || 0, 10)),
-      }));
+      item.details = details.map((d) => {
+        const sisaSesi = Math.max(0, parseInt(d.sesi_total || 0, 10) - parseInt(d.sesi_terpakai || 0, 10));
+        const finalTipe = item.tipe_paket || d.tipe_layanan || 'BEAUTY TREATMENT';
+        let finalWajibKonsultasi = 'opsional';
+        if (finalTipe === 'MEDICAL TREATMENT' || d.wajib_konsultasi === 'wajib') {
+          finalWajibKonsultasi = 'wajib';
+        } else if (finalTipe === 'SERVICE TREATMENT' || d.wajib_konsultasi === 'tidak') {
+          finalWajibKonsultasi = 'tidak';
+        } else {
+          finalWajibKonsultasi = 'opsional';
+        }
+
+        return {
+          ...d,
+          sisa_sesi: sisaSesi,
+          tipe: finalTipe,
+          wajib_konsultasi: finalWajibKonsultasi,
+          kode_ruangan: d.kode_ruangan || item.kode_ruangan_paket || 'RNG-002',
+          nama_ruangan: d.nama_ruangan || item.nama_ruangan_paket || 'Ruangan Facial & Peeling',
+          durasi_menit: d.durasi_menit || 45,
+        };
+      });
 
       const totalSesi = details.reduce((sum, d) => sum + parseInt(d.sesi_total || 0, 10), 0);
       const totalTerpakai = details.reduce((sum, d) => sum + parseInt(d.sesi_terpakai || 0, 10), 0);

@@ -24,6 +24,7 @@ const handleProdukDropdown = async (req, res) => {
   try {
     let query = DB("mst_produk")
       .where("status", "aktif")
+      .whereRaw("kode_produk NOT LIKE 'CUSTOM-%' AND kode_produk NOT LIKE 'CST-%'")
       .select("kode_produk", "nama", "harga_jual", "satuan")
       .orderBy("nama", "asc");
 

@@ -12,6 +12,7 @@ import { initValue, State } from './components/interfaces';
 import { apiEndpointData } from './components/endpoints';
 import Table from './components/display/table';
 import GridPanggil from './components/display/grid_panggil';
+import TabCetakAntrean from './components/display/tab_cetak_antrean';
 import { TabPanel, TabView } from 'primereact/tabview';
 
 const Page = () => {
@@ -133,14 +134,14 @@ const Page = () => {
         <>
             <Toast ref={toast} position="top-right" />
 
-            <div className="card p-0 mb-3">
-                <div className="p-4 border-bottom-1 border-300">
-                    <h2 className="text-3xl font-bold flex align-items-center gap-2 mb-1">
-                        <i className="pi pi-ticket text-blue-600 text-3xl" />
-                        Antrian Awal
+            <div className="card p-0 mb-3 border-round-xl overflow-hidden surface-border shadow-1">
+                <div className="p-4 border-bottom-1 surface-border bg-teal-50">
+                    <h2 className="text-3xl font-bold flex align-items-center gap-2 mb-1 text-teal-900">
+                        <i className="pi pi-ticket text-teal-600 text-3xl" />
+                        Antrean Pendaftaran
                     </h2>
-                    <p className="text-color-secondary">
-                        Kelola nomor antrian fisik dan panggil pasien sesuai kartu yang dipegang.
+                    <p className="text-color-secondary m-0">
+                        Kelola tiket fisik nomor antrean pendaftaran pasien, pencetakan struk, dan pemanggilan pasien ke loket.
                     </p>
                 </div>
             </div>
@@ -150,7 +151,19 @@ const Page = () => {
                 onTabChange={(e) => setState((p) => ({ ...p, activeTab: e.index }))}
             >
                 <TabPanel
-                    header="Panggil Antrian"
+                    header="Antrean Digital"
+                    leftIcon="pi pi-print mr-2"
+                >
+                    <TabCetakAntrean
+                        state={state}
+                        setState={setState}
+                        toast={toast}
+                        getGridData={getGridData}
+                    />
+                </TabPanel>
+
+                <TabPanel
+                    header="Antrean Manual"
                     leftIcon="pi pi-bell mr-2"
                 >
                     <GridPanggil
@@ -181,3 +194,4 @@ const Page = () => {
 };
 
 export default Page;
+
