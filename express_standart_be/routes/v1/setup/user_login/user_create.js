@@ -68,12 +68,7 @@ router.post("/", async (req, res) => {
           .label("Telp"),
         role: Joi.string().required().label("Role"),
         password: Joi.string()
-          .min(8)
-          .pattern(
-            new RegExp(
-              "^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^a-zA-Z0-9]).+$",
-            ),
-          )
+          .min(6)
           .required()
           .label("Password"),
         status: Joi.string().required().label("Status"),
@@ -119,15 +114,23 @@ router.post("/", async (req, res) => {
       cRole = "master";
     }
 
-    const oNavigation = await DB("mst_navigation")
+    let oNavigation = await DB("mst_navigation")
       .select("menu")
       .where("role", cRole)
       .first();
 
+    // Fallback ke master navigation jika role belum memiliki menu spesifik
+    if (!oNavigation || !oNavigation?.menu) {
+      oNavigation = await DB("mst_navigation")
+        .select("menu")
+        .where("role", "master")
+        .first();
+    }
+
     if (!oNavigation || !oNavigation?.menu) {
       return res.status(400).json({
         status: status.GAGAL,
-        message: "User tidak memiliki credential terdaftar di database",
+        message: "Navigasi sistem belum terdaftar di database",
         datetime: formatDateSystem(),
       });
     }
@@ -159,10 +162,10 @@ router.post("/", async (req, res) => {
 
       // Insert navigasi user
       await trx("user_navigation").insert({
-        Menu: oNavigation.menu,
+        menu: oNavigation.menu,
         user_code: cUserCode,
-        CreatedAt: formatDateSystem(),
-        UpdatedAt: formatDateSystem(),
+        created_at: formatDateSystem(),
+        updated_at: formatDateSystem(),
       });
 
       // Insert data user credential

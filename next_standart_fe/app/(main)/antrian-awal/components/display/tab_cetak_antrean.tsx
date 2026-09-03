@@ -690,10 +690,11 @@ export const TabCetakAntrean: React.FC<TabCetakAntreanProps> = ({
                         <div className="w-full">
                             <div className="mb-2">
                                 <span
-                                    className="inline-flex align-items-center justify-content-center border-round-circle shadow-2"
+                                    className="inline-flex align-items-center justify-content-center border-round-2xl shadow-2"
                                     style={{
                                         width: '64px',
                                         height: '64px',
+                                        borderRadius: '20px',
                                         background: 'linear-gradient(135deg, #0ea5e9, #0d9488)',
                                         color: '#ffffff',
                                     }}
@@ -770,10 +771,11 @@ export const TabCetakAntrean: React.FC<TabCetakAntreanProps> = ({
                         <div className="w-full">
                             <div className="mb-2">
                                 <span
-                                    className="inline-flex align-items-center justify-content-center border-round-circle shadow-2"
+                                    className="inline-flex align-items-center justify-content-center border-round-2xl shadow-2"
                                     style={{
                                         width: '64px',
                                         height: '64px',
+                                        borderRadius: '20px',
                                         background: currentDipanggil
                                             ? 'linear-gradient(135deg, #f59e0b, #d97706)'
                                             : 'linear-gradient(135deg, #3b82f6, #1d4ed8)',

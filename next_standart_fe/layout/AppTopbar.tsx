@@ -33,9 +33,24 @@ const AppTopbar = forwardRef<AppTopbarRef>((props, ref) => {
         <div className="layout-topbar">
             <div className='flex justify-content-between w-full align-items-center'>
                 <div className='flex align-items-center'>
-                    <Link href="/" className="layout-topbar-logo">
-                        <img src={`/layout/images/logo.png`} width="40px" height={'40px'} alt="logo" />
-                        <span>Standart WO</span>
+                    <Link href="/" className="layout-topbar-logo flex align-items-center gap-2" style={{ textDecoration: 'none', width: 'auto' }}>
+                        <div style={{
+                            width: '38px',
+                            height: '38px',
+                            borderRadius: '12px',
+                            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#ffffff',
+                            boxShadow: '0 3px 10px rgba(16, 185, 129, 0.28)',
+                            flexShrink: 0
+                        }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>spa</span>
+                        </div>
+                        <span style={{ fontSize: '1.2rem', fontWeight: 700, color: '#10b981', letterSpacing: '-0.2px' }}>
+                            Klinik Kecantikan
+                        </span>
                     </Link>
 
                     <button ref={menubuttonRef} type="button" className="p-link layout-menu-button layout-topbar-button" onClick={onMenuToggle}>

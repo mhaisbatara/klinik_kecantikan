@@ -205,4 +205,12 @@ router.use("/pasien-rekam-medis", rekamMedisPasien);
 router.use("/pasien-transaksi", transaksiPasien);
 router.use("/pasien", rekamMedisPasien);
 
+// Laporan & Analytics (Semua Modul)
+import laporanRoutes from "./laporan/laporan_routes.js";
+router.use("/laporan", laporanRoutes);
+
+// Dashboard Role Based
+import dashboardRoutes from "./dashboard/dashboard_routes.js";
+router.use("/dashboard", dashboardRoutes);
+
 export default router;

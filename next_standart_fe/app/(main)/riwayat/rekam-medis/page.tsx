@@ -19,6 +19,21 @@ import { Row } from 'primereact/row';
 import postData from '@/lib/axios/postData';
 import { showError } from '@/lib/tools/generalTools';
 import { exportToXLSX } from '@/lib/tools/printTools/exportToXLSX';
+import LaporanNavCard, { LaporanModuleId } from './components/LaporanNavCard';
+import ModulWipCard from './components/ModulWipCard';
+import {
+  LaporanPenjualanView,
+  LaporanTreatmentView,
+  LaporanProdukView,
+  LaporanPaketView,
+  LaporanPasienView,
+  LaporanKunjunganView,
+  LaporanDokterView,
+  LaporanBeauticianView,
+  LaporanInventoryView,
+  LaporanVoucherView,
+  LaporanKeuanganView,
+} from './components/LaporanViews';
 
 interface KaryawanInfo {
   kode_karyawan: string;
@@ -373,8 +388,8 @@ const LaporanPage = () => {
   const printMenuTrxRef = useRef<Menu>(null);
   const printMenuRMRef = useRef<Menu>(null);
 
-  // Tab State: 'rekam_medis' | 'transaksi'
-  const [activeTab, setActiveTab] = useState<'rekam_medis' | 'transaksi'>('rekam_medis');
+  // Tab / Modul Laporan State
+  const [activeModule, setActiveModule] = useState<LaporanModuleId>('penjualan');
 
   // ─── REKAM MEDIS STATE ───
   const [searchVal, setSearchVal] = useState('');
@@ -404,17 +419,17 @@ const LaporanPage = () => {
 
   // Fetch Rekam Medis
   useEffect(() => {
-    if (activeTab === 'rekam_medis') {
+    if (activeModule === 'rekam_medis') {
       fetchRekamMedis(1);
     }
-  }, [tanggalDari, tanggalSampai, activeTab]);
+  }, [tanggalDari, tanggalSampai, activeModule]);
 
   // Fetch Transaksi
   useEffect(() => {
-    if (activeTab === 'transaksi') {
+    if (activeModule === 'penjualan') {
       fetchTransaksi(1);
     }
-  }, [trxTanggalDari, trxTanggalSampai, activeTab]);
+  }, [trxTanggalDari, trxTanggalSampai, activeModule]);
 
   const fetchRekamMedis = async (
     pPage = 1,
@@ -871,57 +886,14 @@ const LaporanPage = () => {
     <>
       <Toast ref={toast} position="top-right" />
 
-      {/* 1. TOP HEADER PAGE */}
-      <div className="flex justify-content-between items-start mb-4">
-        <div className="flex flex-column">
-          <h3 className="text-2xl font-semibold flex align-items-center gap-2 m-0">
-            <i className={activeTab === 'rekam_medis' ? 'pi pi-folder-open text-blue-600 text-3xl' : 'pi pi-credit-card text-blue-600 text-3xl'} />
-            {activeTab === 'rekam_medis' ? 'Laporan Rekam Medis' : 'Laporan Transaksi Pembayaran'}
-          </h3>
-          <p className="text-gray-500 text-sm m-0 mt-1">
-            {activeTab === 'rekam_medis'
-              ? 'Timeline rekam medis pasien, anamnesa/SOAP dokter penanggung jawab, dan sesi treatment per ruangan.'
-              : 'Daftar log transaksi pembayaran pasien, metode bayar, dan rincian transaksi dari database real-time.'}
-          </p>
-        </div>
-      </div>
+      {/* 1. KARTU SELEKTOR UTAMA: LAPORAN & ANALYTICS (SESUAI GAMBAR 4 KOLOM) */}
+      <LaporanNavCard
+        activeModule={activeModule}
+        onSelectModule={(id) => setActiveModule(id)}
+      />
 
-      {/* 2. TAB SELECTION BUTTONS (PERSIS SEPERTI GAMBAR CONTOH MUTASI STOCK) */}
-      <div
-        className="flex gap-1 mb-4 p-1.5 border-round-xl w-fit align-items-center"
-        style={{ backgroundColor: '#f1f5f9' }}
-      >
-        <button
-          type="button"
-          onClick={() => setActiveTab('rekam_medis')}
-          className="font-bold px-4 py-2 border-round-lg flex align-items-center gap-2 border-none cursor-pointer text-sm transition-all"
-          style={
-            activeTab === 'rekam_medis'
-              ? { backgroundColor: '#10b981', color: '#ffffff', boxShadow: '0 2px 4px rgba(0,0,0,0.08)' }
-              : { backgroundColor: 'transparent', color: '#1e293b' }
-          }
-        >
-          <i className="pi pi-folder-open text-base" style={{ color: activeTab === 'rekam_medis' ? '#ffffff' : '#1e293b' }} />
-          <span>Rekam Medis</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('transaksi')}
-          className="font-bold px-4 py-2 border-round-lg flex align-items-center gap-2 border-none cursor-pointer text-sm transition-all"
-          style={
-            activeTab === 'transaksi'
-              ? { backgroundColor: '#10b981', color: '#ffffff', boxShadow: '0 2px 4px rgba(0,0,0,0.08)' }
-              : { backgroundColor: 'transparent', color: '#1e293b' }
-          }
-        >
-          <i className="pi pi-box text-base" style={{ color: activeTab === 'transaksi' ? '#ffffff' : '#1e293b' }} />
-          <span>Transaksi</span>
-        </button>
-      </div>
-
-      {/* ─── TAB 1: REKAM MEDIS ─── */}
-      {activeTab === 'rekam_medis' && (
+      {/* ─── TAB: REKAM MEDIS KLINIS ─── */}
+      {activeModule === 'rekam_medis' && (
         <>
           {/* CARD UTAMA: ACTION BUTTONS, KETERANGAN STATUS & FILTER BAR */}
           <div className="card mb-4">
@@ -1324,337 +1296,43 @@ const LaporanPage = () => {
       </>
     )}
 
-      {/* ─── TAB 2: TRANSAKSI (SAMA PERSIS DENGAN CONTOH LAPORAN) ─── */}
-      {activeTab === 'transaksi' && (
-        <>
-          {/* Widget Ringkasan Finansial Modern (4 Stat Cards Top Bar) */}
-          <div className="grid mb-4">
-            <div className="col-12 sm:col-6 lg:col-3">
-              <div className="surface-card border-round-xl border-1 surface-border p-3 flex align-items-center justify-content-between h-full hover:shadow-2 transition-duration-150">
-                <div className="flex flex-column gap-1">
-                  <span className="text-xs font-bold text-500 uppercase tracking-wider">Total Transaksi</span>
-                  <span className="text-xl font-black text-blue-700">{trxTotalRecords} Data</span>
-                </div>
-                <div className="p-3 bg-blue-50 border-round-lg">
-                  <i className="pi pi-shopping-cart text-blue-600 text-xl" />
-                </div>
-              </div>
-            </div>
+      {/* ─── TAMPILAN VIEW MODUL LAPORAN AKTIF DARI DATABASE ─── */}
+      {activeModule === 'penjualan' && <LaporanPenjualanView />}
+      {activeModule === 'treatment' && <LaporanTreatmentView />}
+      {activeModule === 'produk' && <LaporanProdukView />}
+      {activeModule === 'paket' && <LaporanPaketView />}
+      {activeModule === 'pasien' && <LaporanPasienView />}
+      {activeModule === 'kunjungan' && <LaporanKunjunganView />}
+      {activeModule === 'dokter' && <LaporanDokterView />}
+      {activeModule === 'beautician' && <LaporanBeauticianView />}
+      {activeModule === 'inventory' && <LaporanInventoryView />}
+      {activeModule === 'voucher' && <LaporanVoucherView />}
+      {activeModule === 'keuangan' && <LaporanKeuanganView />}
 
-            <div className="col-12 sm:col-6 lg:col-3">
-              <div className="surface-card border-round-xl border-1 surface-border p-3 flex align-items-center justify-content-between h-full hover:shadow-2 transition-duration-150">
-                <div className="flex flex-column gap-1">
-                  <span className="text-xs font-bold text-500 uppercase tracking-wider">Total Subtotal</span>
-                  <span className="text-xl font-black text-purple-700">{formatRupiah(totalHargaBruto)}</span>
-                </div>
-                <div className="p-3 bg-purple-50 border-round-lg">
-                  <i className="pi pi-wallet text-purple-600 text-xl" />
-                </div>
-              </div>
-            </div>
-
-            <div className="col-12 sm:col-6 lg:col-3">
-              <div className="surface-card border-round-xl border-1 surface-border p-3 flex align-items-center justify-content-between h-full hover:shadow-2 transition-duration-150">
-                <div className="flex flex-column gap-1">
-                  <span className="text-xs font-bold text-500 uppercase tracking-wider">Total Potongan Diskon</span>
-                  <span className="text-xl font-black text-red-600">{formatRupiah(totalPotonganDiskon)}</span>
-                </div>
-                <div className="p-3 bg-red-50 border-round-lg">
-                  <i className="pi pi-percentage text-red-600 text-xl" />
-                </div>
-              </div>
-            </div>
-
-            <div className="col-12 sm:col-6 lg:col-3">
-              <div className="surface-card border-round-xl border-1 surface-border p-3 flex align-items-center justify-content-between h-full hover:shadow-2 transition-duration-150">
-                <div className="flex flex-column gap-1">
-                  <span className="text-xs font-bold text-500 uppercase tracking-wider">Grand Total Bersih</span>
-                  <span className="text-xl font-black text-green-600">{formatRupiah(grandTotalBersih)}</span>
-                </div>
-                <div className="p-3 bg-green-50 border-round-lg">
-                  <i className="pi pi-check-circle text-green-600 text-xl" />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* CARD UTAMA: ACTION BUTTONS, KETERANGAN STATUS, FILTER BAR & DATATABLE */}
-          <div className="card mb-4">
-            <div className="flex flex-row flex-wrap align-items-center gap-2 mb-4">
-              <Button
-                size="small"
-                label="Refresh"
-                icon="pi pi-refresh"
-                outlined
-                severity="success"
-                className="border-round-lg"
-                loading={loadingTrx}
-                onClick={() => fetchTransaksi(1, trxSearchVal)}
-              />
-              <Menu model={printMenuItemsTrx} popup ref={printMenuTrxRef} />
-              <Button
-                type="button"
-                size="small"
-                label="Cetak Laporan"
-                icon="pi pi-print"
-                outlined
-                severity="success"
-                className="border-round-lg"
-                onClick={(e) => printMenuTrxRef.current?.toggle(e)}
-              />
-            </div>
-
-            {/* Legend Box Status Transaksi */}
-            <div className="flex flex-wrap align-items-center gap-4 mb-4 p-3 surface-50 border-round-xl border-1 surface-border">
-              <span className="flex align-items-center text-xs font-bold text-500 uppercase tracking-wider mr-2">
-                <i className="pi pi-info-circle mr-2" /> KETERANGAN STATUS PEMBAYARAN:
-              </span>
-              <div className="flex align-items-center gap-2">
-                <span className="block bg-teal-500 border-round-sm" style={{ width: '12px', height: '12px' }} />
-                <span className="text-xs font-semibold text-700">Lunas / Berhasil</span>
-              </div>
-              <div className="flex align-items-center gap-2">
-                <span className="block bg-yellow-500 border-round-sm" style={{ width: '12px', height: '12px' }} />
-                <span className="text-xs font-semibold text-700">Draft / Menunggu</span>
-              </div>
-              <div className="flex align-items-center gap-2">
-                <span className="block bg-red-500 border-round-sm" style={{ width: '12px', height: '12px' }} />
-                <span className="text-xs font-semibold text-700">Batal / Cancelled</span>
-              </div>
-            </div>
-
-            {/* Filter Bar */}
-            <div className="flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
-              <div className="flex align-items-center flex-wrap gap-2">
-                <div className="flex align-items-center gap-2">
-                  <Calendar
-                    value={trxTanggalDari}
-                    onChange={(e) => setTrxTanggalDari(e.value as Date)}
-                    dateFormat="yy-mm-dd"
-                    showIcon
-                    placeholder="Mulai"
-                    className="w-11rem text-sm"
-                  />
-                  <span className="text-xs text-500 font-bold">s.d</span>
-                  <Calendar
-                    value={trxTanggalSampai}
-                    onChange={(e) => setTrxTanggalSampai(e.value as Date)}
-                    dateFormat="yy-mm-dd"
-                    showIcon
-                    placeholder="Selesai"
-                    className="w-11rem text-sm"
-                  />
-                </div>
-              </div>
-
-              <div className="flex align-items-center gap-2 ml-auto w-full md:w-auto">
-                <Button
-                  type="button"
-                  icon="pi pi-filter"
-                  label="Filter"
-                  outlined
-                  severity="success"
-                  onClick={() => fetchTransaksi(1, trxSearchVal)}
-                  loading={loadingTrx}
-                  className="border-round-lg"
-                />
-
-                <span className="p-input-icon-left w-full md:w-20rem">
-                  <IconField iconPosition="left">
-                    <InputIcon className="pi pi-search" />
-                    <InputText
-                      value={trxSearchVal}
-                      className="w-full text-sm"
-                      placeholder="Cari Kode Transaksi, RM, Pasien..."
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        setTrxSearchVal(value);
-
-                        if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
-                        searchTimeoutRef.current = setTimeout(() => {
-                          fetchTransaksi(1, value);
-                        }, 400);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
-                          fetchTransaksi(1, trxSearchVal);
-                        }
-                      }}
-                    />
-                  </IconField>
-                </span>
-
-                <Button
-                  type="button"
-                  icon="pi pi-filter-slash"
-                  outlined
-                  severity="danger"
-                  tooltip="Reset Semua Filter"
-                  tooltipOptions={{ position: 'bottom' }}
-                  onClick={handleResetFilterTrx}
-                  className="border-round-lg"
-                />
-              </div>
-            </div>
-
-            {/* TRANSAKSI DATATABLE */}
-            <DataTable
-              value={trxRecords}
-              loading={loadingTrx}
-              className="p-datatable-sm text-xs"
-              responsiveLayout="scroll"
-              stripedRows
-              showGridlines
-              emptyMessage="Data transaksi pembayaran tidak ditemukan pada filter ini."
-              footerColumnGroup={trxFooterGroup}
-              expandedRows={expandedTrxRows}
-              onRowToggle={(e) => setExpandedTrxRows(e.data)}
-              rowExpansionTemplate={(tr: TransaksiRecord) => (
-                <div className="p-3 bg-gray-50/80 border-round-lg">
-                  <div className="flex align-items-center justify-content-between mb-2 pb-1 border-bottom-1 surface-border">
-                    <span className="text-xs font-bold text-gray-700 uppercase tracking-wider flex align-items-center gap-2">
-                      <i className="pi pi-list text-emerald-600 text-sm" />
-                      RINCIAN ITEM TRANSAKSI ({tr.details.length} ITEM)
-                    </span>
-                  </div>
-                  {tr.details.length === 0 ? (
-                    <div className="text-xs text-gray-400 italic py-1">Tidak ada rincian item.</div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-xs text-left border-collapse bg-white border-round-lg overflow-hidden border-1 surface-border">
-                        <thead>
-                          <tr className="bg-gray-100 text-gray-600 font-bold uppercase text-[10px]">
-                            <th className="p-2">#</th>
-                            <th className="p-2">Kode Item</th>
-                            <th className="p-2">Nama Layanan / Produk</th>
-                            <th className="p-2 text-center">Jenis</th>
-                            <th className="p-2 text-center">Qty</th>
-                            <th className="p-2 text-right">Harga Satuan</th>
-                            <th className="p-2 text-right">Subtotal</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {tr.details.map((dItem, dIdx) => (
-                            <tr key={dIdx} className="border-bottom-1 surface-border hover:bg-gray-50">
-                              <td className="p-2 text-gray-500 font-medium">{dIdx + 1}</td>
-                              <td className="p-2 font-mono text-gray-600 font-semibold">{dItem.kode || '-'}</td>
-                              <td className="p-2 font-bold text-gray-800">{dItem.nama}</td>
-                              <td className="p-2 text-center">
-                                <span className={dItem.jenis === 'layanan' ? 'bg-blue-50 text-blue-700 border-1 border-blue-200 text-[10px] font-bold px-2 py-0.5 border-round-pill' : 'bg-amber-50 text-amber-700 border-1 border-amber-200 text-[10px] font-bold px-2 py-0.5 border-round-pill'}>
-                                  {dItem.jenis.toUpperCase()}
-                                </span>
-                              </td>
-                              <td className="p-2 text-center font-bold text-gray-800">{dItem.qty} {dItem.satuan}</td>
-                              <td className="p-2 text-right text-gray-700">{formatRupiah(dItem.harga_satuan)}</td>
-                              <td className="p-2 text-right font-bold text-emerald-700">{formatRupiah(dItem.subtotal)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              )}
-              dataKey="kode_transaksi"
-            >
-              <Column expander style={{ width: '3rem' }} />
-              <Column
-                header="#"
-                body={(_, options) => (trxPage - 1) * trxPerPage + options.rowIndex + 1}
-                style={{ width: '3rem', textAlign: 'center' }}
-              />
-              <Column
-                field="tanggal_transaksi"
-                header="TANGGAL"
-                sortable
-                body={(tr: TransaksiRecord) => (
-                  <div className="flex align-items-center gap-1.5 text-xs text-gray-700 font-medium">
-                    <i className="pi pi-calendar text-emerald-600" />
-                    <span>{formatDateIndo(tr.tanggal_transaksi)}</span>
-                  </div>
-                )}
-              />
-              <Column
-                field="nama_pasien"
-                header="NAMA PASIEN"
-                sortable
-                body={(tr: TransaksiRecord) =>
-                  tr.nama_pasien ? (
-                    <span className="font-bold text-xs text-gray-800">{tr.nama_pasien}</span>
-                  ) : (
-                    <span className="text-xs text-gray-400 italic">Umum / Tanpa Pasien</span>
-                  )
-                }
-              />
-              <Column
-                field="metode_bayar"
-                header="METODE BAYAR"
-                body={(tr: TransaksiRecord) => (
-                  <Tag
-                    value={String(tr.metode_bayar || 'TUNAI').toUpperCase()}
-                    severity="info"
-                    className="text-[10px] font-bold px-2 py-0.5"
-                  />
-                )}
-              />
-              <Column
-                field="total_harga"
-                header="TOTAL HARGA"
-                sortable
-                body={(tr: TransaksiRecord) => (
-                  <span className="text-xs font-medium text-gray-700">{formatRupiah(tr.total_harga)}</span>
-                )}
-                className="text-right"
-              />
-              <Column
-                field="total_diskon"
-                header="TOTAL DISKON"
-                sortable
-                body={(tr: TransaksiRecord) => (
-                  <span className="text-xs font-medium text-red-600">
-                    {tr.total_diskon > 0 ? `- ${formatRupiah(tr.total_diskon)}` : 'Rp 0'}
-                  </span>
-                )}
-                className="text-right"
-              />
-              <Column
-                field="total_bayar"
-                header="TOTAL BAYAR"
-                sortable
-                body={(tr: TransaksiRecord) => (
-                  <span className="text-xs font-bold text-emerald-700">{formatRupiah(tr.total_bayar)}</span>
-                )}
-                className="text-right"
-              />
-              <Column
-                field="status"
-                header="STATUS"
-                sortable
-                body={(tr: TransaksiRecord) => (
-                  <Tag
-                    value={String(tr.status || '').toUpperCase()}
-                    severity={getStatusTransaksiSeverity(tr.status)}
-                    rounded
-                    className="text-[10px] font-bold px-2.5 py-0.5"
-                  />
-                )}
-              />
-            </DataTable>
-
-            {trxTotalRecords > trxPerPage && (
-              <div className="mt-3 pt-2 border-top-1 surface-border">
-                <Paginator
-                  first={(trxPage - 1) * trxPerPage}
-                  rows={trxPerPage}
-                  totalRecords={trxTotalRecords}
-                  onPageChange={(e) => fetchTransaksi(e.page + 1, trxSearchVal)}
-                  className="p-paginator-sm"
-                />
-              </div>
-            )}
-          </div>
-        </>
+      {/* ─── MODUL DALAM PROGRES PENGERJAAN (SESUAI REQUEST USER) ─── */}
+      {activeModule === 'membership' && (
+        <ModulWipCard moduleName="Laporan Membership" onBackToActive={() => setActiveModule('penjualan')} />
+      )}
+      {activeModule === 'appointment' && (
+        <ModulWipCard moduleName="Laporan Appointment" onBackToActive={() => setActiveModule('penjualan')} />
+      )}
+      {activeModule === 'komisi' && (
+        <ModulWipCard moduleName="Laporan Komisi" onBackToActive={() => setActiveModule('penjualan')} />
+      )}
+      {activeModule === 'stok_opname' && (
+        <ModulWipCard moduleName="Laporan Stok Opname" onBackToActive={() => setActiveModule('penjualan')} />
+      )}
+      {activeModule === 'pembelian' && (
+        <ModulWipCard moduleName="Laporan Pembelian" onBackToActive={() => setActiveModule('penjualan')} />
+      )}
+      {activeModule === 'expired' && (
+        <ModulWipCard moduleName="Laporan Expired" onBackToActive={() => setActiveModule('penjualan')} />
+      )}
+      {activeModule === 'deposit' && (
+        <ModulWipCard moduleName="Laporan Deposit" onBackToActive={() => setActiveModule('penjualan')} />
+      )}
+      {activeModule === 'crm' && (
+        <ModulWipCard moduleName="Laporan CRM" onBackToActive={() => setActiveModule('penjualan')} />
       )}
     </>
   );

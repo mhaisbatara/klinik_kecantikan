@@ -263,7 +263,7 @@ const AppMenu = () => {
                         );
 
                         const topItems = splitIdx === -1 ? state.filteredMenu : state.filteredMenu.slice(0, splitIdx);
-                        const bottomItems = splitIdx === -1 ? [] : state.filteredMenu.slice(splitIdx).filter((item) => item.label && !item.label.toLowerCase().includes('riwayat'));
+                        const bottomItems = splitIdx === -1 ? [] : state.filteredMenu.slice(splitIdx).filter((item) => item.label && !item.label.toLowerCase().includes('riwayat') && !item.label.toLowerCase().includes('kasir') && !item.label.toLowerCase().includes('layanan'));
 
                         const renderItem = (item: AppMenuItem, i: number) =>
                             !item.separator ? (
@@ -278,131 +278,158 @@ const AppMenu = () => {
                                 <li className="menu-separator" key={`separator-${i}`}></li>
                             );
 
+                        // Periksa izin akses berdasarkan konfigurasi menu role user
+                        const allowedPaths = new Set(
+                            state.menu.flatMap((group) => (group.items || []).map((it) => it.to))
+                        );
+                        const isSuperAdmin = (session?.user?.role || '').toLowerCase() === 'superadmin';
+                        const canAccessTindakan =
+                            isSuperAdmin ||
+                            allowedPaths.has('/pendaftaran-antrean/antrean?type=layanan') ||
+                            allowedPaths.has('/pendaftaran-antrean/antrean');
+                        const canAccessKonsul =
+                            isSuperAdmin ||
+                            allowedPaths.has('/pendaftaran-antrean/antrean?type=konsul') ||
+                            allowedPaths.has('/pendaftaran-antrean/antrean');
+                        const canAccessLayanan = canAccessTindakan || canAccessKonsul;
+                        const canAccessLaporan = isSuperAdmin || allowedPaths.has('/riwayat/rekam-medis');
+                        const canAccessKasir = isSuperAdmin || allowedPaths.has('/kasir');
+
                         return (
                             <>
                                 {topItems.map((item, i) => renderItem(item, i))}
 
                                 {/* ── LAYANAN & KONSUL SIDEBAR MENU ── */}
-                                <li className="layout-root-menuitem" key="layanan-ruangan-section">
-                                    <div className="layout-menuitem-root-text">LAYANAN</div>
-                                    <ul>
-                                        {(() => {
-                                            const typeParam = searchParams.get('type') || '';
-                                            const isLayananActive =
-                                                pathname === '/pendaftaran-antrean/antrean' &&
-                                                (typeParam === 'layanan' || !typeParam);
-                                            const isKonsulActive =
-                                                pathname === '/pendaftaran-antrean/antrean' &&
-                                                typeParam === 'konsul';
+                                {canAccessLayanan && (
+                                    <li className="layout-root-menuitem" key="layanan-ruangan-section">
+                                        <div className="layout-menuitem-root-text">LAYANAN</div>
+                                        <ul>
+                                            {(() => {
+                                                const typeParam = searchParams.get('type') || '';
+                                                const isLayananActive =
+                                                    pathname === '/pendaftaran-antrean/antrean' &&
+                                                    (typeParam === 'layanan' || !typeParam);
+                                                const isKonsulActive =
+                                                    pathname === '/pendaftaran-antrean/antrean' &&
+                                                    typeParam === 'konsul';
 
-                                            return (
-                                                <>
-                                                    {/* 1. SIDEBAR TINDAKAN */}
-                                                    <li className={isLayananActive ? 'active-menuitem' : ''}>
-                                                        <Link
-                                                            href="/pendaftaran-antrean/antrean?type=layanan"
-                                                            className={`p-ripple flex align-items-center gap-2${isLayananActive ? ' active-route' : ''}`}
-                                                            style={{ padding: '0.75rem 1.25rem', borderRadius: '6px', transition: 'background 0.2s' }}
-                                                        >
-                                                            <i
-                                                                className="layout-menuitem-icon pi pi-sparkles"
-                                                                style={{ color: isLayananActive ? 'var(--primary-color)' : undefined }}
-                                                            />
-                                                            <span
-                                                                className="layout-menuitem-text"
-                                                                style={{
-                                                                    fontWeight: isLayananActive ? 700 : undefined,
-                                                                    color: isLayananActive ? 'var(--primary-color)' : undefined,
-                                                                }}
-                                                            >
-                                                                Tindakan
-                                                            </span>
-                                                        </Link>
-                                                    </li>
+                                                return (
+                                                    <>
+                                                        {/* 1. SIDEBAR TINDAKAN */}
+                                                        {canAccessTindakan && (
+                                                            <li className={isLayananActive ? 'active-menuitem' : ''}>
+                                                                <Link
+                                                                    href="/pendaftaran-antrean/antrean?type=layanan"
+                                                                    className={`p-ripple flex align-items-center gap-2${isLayananActive ? ' active-route' : ''}`}
+                                                                    style={{ padding: '0.75rem 1.25rem', borderRadius: '6px', transition: 'background 0.2s' }}
+                                                                >
+                                                                    <i
+                                                                        className="layout-menuitem-icon pi pi-sparkles"
+                                                                        style={{ color: isLayananActive ? 'var(--primary-color)' : undefined }}
+                                                                    />
+                                                                    <span
+                                                                        className="layout-menuitem-text"
+                                                                        style={{
+                                                                            fontWeight: isLayananActive ? 700 : undefined,
+                                                                            color: isLayananActive ? 'var(--primary-color)' : undefined,
+                                                                        }}
+                                                                    >
+                                                                        Tindakan
+                                                                    </span>
+                                                                </Link>
+                                                            </li>
+                                                        )}
 
-                                                    {/* 2. SIDEBAR KONSULTASI */}
-                                                    <li className={isKonsulActive ? 'active-menuitem' : ''}>
-                                                        <Link
-                                                            href="/pendaftaran-antrean/antrean?type=konsul"
-                                                            className={`p-ripple flex align-items-center gap-2${isKonsulActive ? ' active-route' : ''}`}
-                                                            style={{ padding: '0.75rem 1.25rem', borderRadius: '6px', transition: 'background 0.2s' }}
-                                                        >
-                                                            <i
-                                                                className="layout-menuitem-icon pi pi-comments"
-                                                                style={{ color: isKonsulActive ? 'var(--primary-color)' : undefined }}
-                                                            />
-                                                            <span
-                                                                className="layout-menuitem-text"
-                                                                style={{
-                                                                    fontWeight: isKonsulActive ? 700 : undefined,
-                                                                    color: isKonsulActive ? 'var(--primary-color)' : undefined,
-                                                                }}
-                                                            >
-                                                                Konsultasi
-                                                            </span>
-                                                        </Link>
-                                                    </li>
-                                                </>
-                                            );
-                                        })()}
-                                    </ul>
-                                </li>
-
-                                {/* ── RIWAYAT / LAPORAN ── */}
-                                <li className="layout-root-menuitem" key="riwayat-section">
-                                    <div className="layout-menuitem-root-text">LAPORAN</div>
-                                    <ul>
-                                        <li className={pathname === '/riwayat/rekam-medis' ? 'active-menuitem' : ''}>
-                                            <Link
-                                                href="/riwayat/rekam-medis"
-                                                className={`p-ripple flex align-items-center gap-2${pathname === '/riwayat/rekam-medis' ? ' active-route' : ''}`}
-                                                style={{ padding: '0.75rem 1.25rem', borderRadius: '6px', transition: 'background 0.2s' }}
-                                            >
-                                                <i
-                                                    className="layout-menuitem-icon pi pi-folder-open"
-                                                    style={{ color: pathname === '/riwayat/rekam-medis' ? 'var(--primary-color)' : undefined }}
-                                                />
-                                                <span
-                                                    className="layout-menuitem-text"
-                                                    style={{
-                                                        fontWeight: pathname === '/riwayat/rekam-medis' ? 700 : undefined,
-                                                        color: pathname === '/riwayat/rekam-medis' ? 'var(--primary-color)' : undefined,
-                                                    }}
-                                                >
-                                                    Laporan
-                                                </span>
-                                            </Link>
-                                        </li>
-                                    </ul>
-                                </li>
+                                                        {/* 2. SIDEBAR KONSULTASI */}
+                                                        {canAccessKonsul && (
+                                                            <li className={isKonsulActive ? 'active-menuitem' : ''}>
+                                                                <Link
+                                                                    href="/pendaftaran-antrean/antrean?type=konsul"
+                                                                    className={`p-ripple flex align-items-center gap-2${isKonsulActive ? ' active-route' : ''}`}
+                                                                    style={{ padding: '0.75rem 1.25rem', borderRadius: '6px', transition: 'background 0.2s' }}
+                                                                >
+                                                                    <i
+                                                                        className="layout-menuitem-icon pi pi-comments"
+                                                                        style={{ color: isKonsulActive ? 'var(--primary-color)' : undefined }}
+                                                                    />
+                                                                    <span
+                                                                        className="layout-menuitem-text"
+                                                                        style={{
+                                                                            fontWeight: isKonsulActive ? 700 : undefined,
+                                                                            color: isKonsulActive ? 'var(--primary-color)' : undefined,
+                                                                        }}
+                                                                    >
+                                                                        Konsultasi
+                                                                    </span>
+                                                                </Link>
+                                                            </li>
+                                                        )}
+                                                    </>
+                                                );
+                                            })()}
+                                        </ul>
+                                    </li>
+                                )}
 
                                 {/* ── KASIR ── */}
-                                <li className="layout-root-menuitem" key="kasir-section">
-                                    <div className="layout-menuitem-root-text">KASIR</div>
-                                    <ul>
-                                        <li className={pathname === '/kasir' ? 'active-menuitem' : ''}>
-                                            <Link
-                                                href="/kasir"
-                                                className={`p-ripple flex align-items-center gap-2${pathname === '/kasir' ? ' active-route' : ''}`}
-                                                style={{ padding: '0.75rem 1.25rem', borderRadius: '6px', transition: 'background 0.2s' }}
-                                            >
-                                                <i
-                                                    className="layout-menuitem-icon pi pi-calculator"
-                                                    style={{ color: pathname === '/kasir' ? 'var(--primary-color)' : undefined }}
-                                                />
-                                                <span
-                                                    className="layout-menuitem-text"
-                                                    style={{
-                                                        fontWeight: pathname === '/kasir' ? 700 : undefined,
-                                                        color: pathname === '/kasir' ? 'var(--primary-color)' : undefined,
-                                                    }}
+                                {canAccessKasir && (
+                                    <li className="layout-root-menuitem" key="kasir-section">
+                                        <div className="layout-menuitem-root-text">KASIR</div>
+                                        <ul>
+                                            <li className={pathname === '/kasir' ? 'active-menuitem' : ''}>
+                                                <Link
+                                                    href="/kasir"
+                                                    className={`p-ripple flex align-items-center gap-2${pathname === '/kasir' ? ' active-route' : ''}`}
+                                                    style={{ padding: '0.75rem 1.25rem', borderRadius: '6px', transition: 'background 0.2s' }}
                                                 >
-                                                    Kasir
-                                                </span>
-                                            </Link>
-                                        </li>
-                                    </ul>
-                                </li>
+                                                    <i
+                                                        className="layout-menuitem-icon pi pi-calculator"
+                                                        style={{ color: pathname === '/kasir' ? 'var(--primary-color)' : undefined }}
+                                                    />
+                                                    <span
+                                                        className="layout-menuitem-text"
+                                                        style={{
+                                                            fontWeight: pathname === '/kasir' ? 700 : undefined,
+                                                            color: pathname === '/kasir' ? 'var(--primary-color)' : undefined,
+                                                        }}
+                                                    >
+                                                        Kasir
+                                                    </span>
+                                                </Link>
+                                            </li>
+                                        </ul>
+                                    </li>
+                                )}
+
+                                {/* ── RIWAYAT / LAPORAN ── */}
+                                {canAccessLaporan && (
+                                    <li className="layout-root-menuitem" key="riwayat-section">
+                                        <div className="layout-menuitem-root-text">LAPORAN</div>
+                                        <ul>
+                                            <li className={pathname === '/riwayat/rekam-medis' ? 'active-menuitem' : ''}>
+                                                <Link
+                                                    href="/riwayat/rekam-medis"
+                                                    className={`p-ripple flex align-items-center gap-2${pathname === '/riwayat/rekam-medis' ? ' active-route' : ''}`}
+                                                    style={{ padding: '0.75rem 1.25rem', borderRadius: '6px', transition: 'background 0.2s' }}
+                                                >
+                                                    <i
+                                                        className="layout-menuitem-icon pi pi-folder-open"
+                                                        style={{ color: pathname === '/riwayat/rekam-medis' ? 'var(--primary-color)' : undefined }}
+                                                    />
+                                                    <span
+                                                        className="layout-menuitem-text"
+                                                        style={{
+                                                            fontWeight: pathname === '/riwayat/rekam-medis' ? 700 : undefined,
+                                                            color: pathname === '/riwayat/rekam-medis' ? 'var(--primary-color)' : undefined,
+                                                        }}
+                                                    >
+                                                        Laporan
+                                                    </span>
+                                                </Link>
+                                            </li>
+                                        </ul>
+                                    </li>
+                                )}
 
                                 {bottomItems.map((item, i) => renderItem(item, topItems.length + i))}
                             </>

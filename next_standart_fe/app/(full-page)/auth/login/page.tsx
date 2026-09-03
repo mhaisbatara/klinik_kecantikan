@@ -2,18 +2,14 @@
 
 import { useFormik } from 'formik';
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
-import { showError, showSuccess } from '../../../../lib/tools/generalTools';
+import { useRef, useState } from 'react';
+import { showError, showSuccess, showWarning } from '../../../../lib/tools/generalTools';
 import { signIn } from 'next-auth/react';
 import { Toast } from 'primereact/toast';
-import { Button } from 'primereact/button';
-import { InputText } from 'primereact/inputtext';
-import { Checkbox } from 'primereact/checkbox';
-import Image from 'next/image';
 import axios from 'axios';
 import { LoginFormik, LoginState } from './component/interfaces';
 
-const LoginPage = () => {
+export default function LoginPage() {
   const router = useRouter();
   const toast = useRef<Toast>(null);
 
@@ -27,23 +23,21 @@ const LoginPage = () => {
     initialValues: {
       username: '',
       password: '',
-      remember_me: false
+      remember_me: true,
     },
     validate: (data: LoginFormik) => {
-      let errors = {} as Record<keyof LoginFormik, string>;
-
+      const errors = {} as Record<keyof LoginFormik, string>;
       if (!data.username) {
         errors.username = 'Username wajib diisi';
       }
       if (!data.password) {
         errors.password = 'Password wajib diisi';
       }
-
       return errors;
     },
     onSubmit: (data) => {
       handleSubmit(data);
-    }
+    },
   });
 
   const handleSubmit = async (data: LoginFormik) => {
@@ -52,495 +46,1047 @@ const LoginPage = () => {
       const { data: vaLogin } = await axios.post('/api/auth/login', {
         username: data.username,
         password: data.password,
-        remember_me: data.remember_me ? '1' : '0'
+        remember_me: data.remember_me ? '1' : '0',
       });
 
       const nAuth = await signIn('credentials', {
         userData: JSON.stringify(vaLogin.data),
-        redirect: false
+        redirect: false,
       });
 
       if (nAuth?.error) {
-        showError(toast, 'Username atau password salah.');
+        showError(toast, 'Username atau kata sandi tidak sesuai.');
       } else {
-        showSuccess(toast, 'Login Berhasil!');
-        setTimeout(() => router.push('/'), 500);
+        showSuccess(toast, 'Login Berhasil! Mengalihkan ke Dashboard...');
+        setTimeout(() => router.push('/dashboard'), 400);
       }
     } catch (error: any) {
       const e = error?.response?.data || error;
-      showError(toast, e.message || 'Terjadi kesalahan, silakan coba lagi nanti');
+      showError(toast, e.message || 'Gagal masuk ke sistem, periksa kembali username dan password Anda');
     } finally {
       setState((p) => ({ ...p, load: false }));
     }
   };
 
-  const handleGoogleLogin = async () => {
-    setState((p) => ({ ...p, googleLoad: true }));
-    try {
-      await signIn('google', { callbackUrl: '/' });
-    } catch (error) {
-      showError(toast, 'Gagal terhubung dengan Google.');
-      setState((p) => ({ ...p, googleLoad: false }));
-    }
-  };
-
-  const [isShortScreen, setIsShortScreen] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const handleResize = () => {
-      setIsShortScreen(window.innerHeight < 820);
-    };
-
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  const layout = {
-    cardHeight: isShortScreen ? '96vh' : '90vh',
-    leftPanelPadding: isShortScreen ? 'p-3 md:p-5' : 'p-5 md:p-6',
-    headerMargin: isShortScreen ? 'mb-2' : 'mb-4',
-    fieldMargin: isShortScreen ? 'mb-2' : 'mb-3',
-    inputPadding: isShortScreen ? 'py-2 px-3' : 'py-3 px-3',
-    logoTop: isShortScreen ? '1.5rem' : '2.5rem',
+  const handleForgotPassword = (e: React.MouseEvent) => {
+    e.preventDefault();
+    showWarning(
+      toast,
+      'Lupa kata sandi? Silakan hubungi Administrator IT atau Super Admin klinik untuk mereset kata sandi akun Anda.'
+    );
   };
 
   return (
     <>
-      <Toast ref={toast} />
+      <Toast ref={toast} position="top-right" />
 
-      {/* CSS Keyframes dengan performa GPU teroptimasi */}
+      {/* Google Fonts & Material Symbols */}
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+      <link
+        href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,600&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap"
+        rel="stylesheet"
+      />
+      <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+        rel="stylesheet"
+      />
+
       <style>{`
-        @keyframes floatMainCard {
-          0%, 100% { transform: rotate(-5deg) translate(-10px, -5px); }
-          50% { transform: rotate(-4deg) translate(-10px, -14px); }
+        /* Reset & Fixed Natural Canvas (No Scroll) */
+        *, *::before, *::after {
+          box-sizing: border-box;
+          margin: 0;
+          padding: 0;
         }
-        @keyframes floatWidgetOne {
-          0%, 100% { transform: rotate(4deg) translate(8px, 8px); }
-          50% { transform: rotate(5deg) translate(8px, 1px); }
+
+        html, body {
+          width: 100%;
+          height: 100vh;
+          max-height: 100vh;
+          overflow: hidden;
+          background-color: #ecfdf5;
         }
-        @keyframes floatWidgetThree {
-          0%, 100% { transform: rotate(-4deg) translate(8px, 8px); }
-          50% { transform: rotate(-4deg) translate(8px, 1px); }
+
+        .kk-page-wrapper {
+          font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          background: radial-gradient(120% 120% at 50% 10%, #f0fdf4 0%, #d1fae5 100%);
+          color: #0d1f18;
+          width: 100vw;
+          height: 100vh;
+          max-height: 100vh;
+          overflow: hidden;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 20px 24px;
+          position: relative;
         }
-        @keyframes floatWidgetTwo {
-          0%, 100% { transform: rotate(8deg) translate(4px, -8px); }
-          50% { transform: rotate(7deg) translate(4px, -15px); }
+
+        .font-serif-display {
+          font-family: 'Playfair Display', Georgia, serif;
         }
-        @keyframes pulseAmbient {
-          0%, 100% { transform: scale(1); opacity: 0.25; }
-          50% { transform: scale(1.1); opacity: 0.35; }
+
+        .material-symbols-outlined {
+          font-family: 'Material Symbols Outlined', sans-serif;
+          font-weight: normal;
+          font-style: normal;
+          font-size: 18px;
+          line-height: 1;
+          letter-spacing: normal;
+          text-transform: none;
+          display: inline-block;
+          white-space: nowrap;
+          word-wrap: normal;
+          direction: ltr;
+          -webkit-font-smoothing: antialiased;
         }
-        @keyframes pulseDot {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.4; }
+
+        .material-symbols-filled {
+          font-variation-settings: 'FILL' 1;
         }
-        .anim-main-card {
-          animation: floatMainCard 5.5s ease-in-out infinite;
+
+        /* ── MAIN CONTAINER & GRID ── */
+        .kk-container {
+          width: 100%;
+          max-width: 1120px;
+          margin: 0 auto;
         }
-        .anim-widget-one {
-          animation: floatWidgetOne 4.5s ease-in-out infinite;
+
+        .kk-grid {
+          display: grid;
+          grid-template-columns: 1.34fr 1fr;
+          gap: 24px;
+          align-items: stretch;
+          max-height: 94vh;
         }
-        .anim-widget-two {
-          animation: floatWidgetTwo 5s ease-in-out infinite;
+
+        @media (max-width: 960px) {
+          html, body, .kk-page-wrapper {
+            height: auto;
+            max-height: none;
+            overflow-y: auto;
+          }
+          .kk-grid {
+            grid-template-columns: 1fr;
+            max-height: none;
+          }
         }
-        .anim-widget-three {
-          animation: floatWidgetThree 5.2s ease-in-out infinite;
+
+        /* ── LEFT SHOWCASE PANEL (Aesthetic Botanicals) ── */
+        .kk-left-card {
+          background: linear-gradient(165deg, #064e3b 0%, #065f46 55%, #047857 100%);
+          border-radius: 26px;
+          border: 1px solid rgba(52, 211, 153, 0.25);
+          box-shadow: 0 20px 48px rgba(6, 78, 59, 0.28);
+          position: relative;
+          overflow: hidden;
+          padding: 26px 30px;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
         }
-        .anim-ambient {
-          animation: pulseAmbient 8s ease-in-out infinite;
+
+        .kk-glow-top {
+          position: absolute;
+          right: -60px;
+          top: -60px;
+          width: 250px;
+          height: 250px;
+          border-radius: 50%;
+          background: rgba(16, 185, 129, 0.2);
+          filter: blur(50px);
+          pointer-events: none;
         }
-        .pulse-dot {
-          animation: pulseDot 1.8s infinite;
+
+        .kk-glow-bottom {
+          position: absolute;
+          left: -60px;
+          bottom: -30px;
+          width: 230px;
+          height: 230px;
+          border-radius: 50%;
+          background: rgba(5, 150, 105, 0.25);
+          filter: blur(50px);
+          pointer-events: none;
+        }
+
+        .kk-dot-pattern {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          opacity: 0.16;
+          pointer-events: none;
+        }
+
+        .kk-tag-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 4px 11px;
+          background: rgba(255, 255, 255, 0.12);
+          backdrop-filter: blur(8px);
+          border: 1px solid rgba(255, 255, 255, 0.18);
+          border-radius: 999px;
+          margin-bottom: 8px;
+        }
+
+        .kk-pulsing-dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          background: #34d399;
+          box-shadow: 0 0 6px #34d399;
+          animation: pulseAnim 2s infinite ease-in-out;
+        }
+
+        @keyframes pulseAnim {
+          0%, 100% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(0.85); opacity: 0.45; }
+        }
+
+        .kk-tag-text {
+          font-size: 10px;
+          font-weight: 700;
+          letter-spacing: 1.2px;
+          color: #a7f3d0;
+          text-transform: uppercase;
+        }
+
+        .kk-headline {
+          font-family: 'Playfair Display', Georgia, serif;
+          font-size: clamp(23px, 2.3vw, 30px);
+          font-weight: 700;
+          color: #ffffff;
+          line-height: 1.2;
+          margin: 0 0 12px 0;
+          letter-spacing: -0.3px;
+        }
+
+        .kk-headline-highlight {
+          color: #6ee7b7;
+          text-decoration: underline;
+          text-decoration-style: wavy;
+          text-decoration-color: rgba(110, 231, 183, 0.45);
+          text-underline-offset: 6px;
+        }
+
+        /* Floating Card Stack */
+        .kk-floating-stack {
+          position: relative;
+          z-index: 10;
+          margin: 4px 0 10px 0;
+        }
+
+        .kk-badge-verified-wrap {
+          display: flex;
+          justify-content: flex-end;
+          margin-bottom: -11px;
+          margin-right: 14px;
+          position: relative;
+          z-index: 20;
+        }
+
+        .kk-badge-verified {
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+          padding: 4px 12px;
+          background: #ffffff;
+          color: #065f46;
+          border-radius: 999px;
+          font-size: 11px;
+          font-weight: 600;
+          box-shadow: 0 6px 18px rgba(0, 0, 0, 0.14);
+          border: 1px solid #d1fae5;
+        }
+
+        .kk-card-katalog {
+          background: rgba(255, 255, 255, 0.96);
+          backdrop-filter: blur(14px);
+          -webkit-backdrop-filter: blur(14px);
+          border-radius: 16px;
+          padding: 13px 16px;
+          box-shadow: 0 12px 28px rgba(0, 0, 0, 0.16);
+          border: 1px solid rgba(255, 255, 255, 0.6);
+        }
+
+        .kk-katalog-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          border-bottom: 1px solid #e5e7eb;
+          padding-bottom: 8px;
+          margin-bottom: 8px;
+        }
+
+        .kk-katalog-left {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .kk-katalog-icon {
+          width: 28px;
+          height: 28px;
+          border-radius: 8px;
+          background: #d1fae5;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #059669;
+        }
+
+        .kk-katalog-title {
+          font-size: 13.5px;
+          font-weight: 700;
+          color: #0d1f18;
+          margin: 0;
+          line-height: 1.15;
+        }
+
+        .kk-katalog-desc {
+          font-size: 10.5px;
+          color: #404944;
+          margin: 1px 0 0 0;
+        }
+
+        .kk-badge-reservasi {
+          font-size: 10px;
+          font-weight: 600;
+          padding: 2px 8px;
+          background: #ecfdf5;
+          color: #047857;
+          border: 1px solid #a7f3d0;
+          border-radius: 999px;
+        }
+
+        .kk-item-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 7px 11px;
+          border-radius: 10px;
+          background: #f0fdf4;
+          border: 1px solid #d1fae5;
+          margin-bottom: 6px;
+        }
+
+        .kk-item-row:last-child {
+          margin-bottom: 0;
+        }
+
+        .kk-item-left {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .kk-item-icon-box {
+          width: 28px;
+          height: 28px;
+          border-radius: 8px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .kk-item-title {
+          font-size: 12px;
+          font-weight: 600;
+          color: #0d1f18;
+          margin: 0;
+        }
+
+        .kk-item-subtitle {
+          font-size: 10px;
+          color: #404944;
+          margin: 0;
+        }
+
+        .kk-status-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          padding: 2px 8px;
+          border-radius: 999px;
+          font-size: 10px;
+          font-weight: 700;
+          background: #d1fae5;
+          color: #065f46;
+        }
+
+        .kk-status-dot {
+          width: 5px;
+          height: 5px;
+          border-radius: 50%;
+          background: #10b981;
+        }
+
+        /* 2 Subcards */
+        .kk-subcards-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
+          margin-top: 8px;
+        }
+
+        .kk-subcard {
+          background: rgba(255, 255, 255, 0.94);
+          backdrop-filter: blur(10px);
+          border-radius: 12px;
+          padding: 8px 12px;
+          border: 1px solid rgba(255, 255, 255, 0.5);
+          box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .kk-subcard-icon {
+          width: 30px;
+          height: 30px;
+          border-radius: 8px;
+          background: #ecfdf5;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+
+        .kk-subcard-tag {
+          font-size: 9px;
+          font-weight: 700;
+          letter-spacing: 0.6px;
+          text-transform: uppercase;
+          display: block;
+        }
+
+        .kk-subcard-title {
+          font-size: 11px;
+          font-weight: 600;
+          color: #0d1f18;
+          margin-top: 1px;
+          display: block;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        /* Bottom Narrative Banner */
+        .kk-narrative-banner {
+          background: rgba(0, 0, 0, 0.32);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          border-radius: 14px;
+          padding: 10px 14px;
+          color: #ffffff;
+          position: relative;
+          z-index: 10;
+        }
+
+        .kk-banner-top {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+          padding-bottom: 7px;
+          margin-bottom: 7px;
+        }
+
+        .kk-shield-icon {
+          width: 30px;
+          height: 30px;
+          border-radius: 9px;
+          background: rgba(16, 185, 129, 0.2);
+          border: 1px solid rgba(16, 185, 129, 0.35);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #a7f3d0;
+          flex-shrink: 0;
+        }
+
+        .kk-banner-heading-wrap {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          flex-wrap: wrap;
+        }
+
+        .kk-banner-heading {
+          font-size: 12.5px;
+          font-weight: 700;
+          color: #ffffff;
+        }
+
+        .kk-spesialis-badge {
+          font-size: 9px;
+          font-weight: 600;
+          background: rgba(16, 185, 129, 0.2);
+          color: #a7f3d0;
+          padding: 1.5px 6px;
+          border-radius: 999px;
+          border: 1px solid rgba(16, 185, 129, 0.35);
+        }
+
+        .kk-banner-sub {
+          font-size: 10.5px;
+          color: rgba(255, 255, 255, 0.82);
+          margin: 1px 0 0 0;
+        }
+
+        .kk-banner-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr 1fr;
+          gap: 6px;
+        }
+
+        .kk-banner-mini-card {
+          background: rgba(255, 255, 255, 0.06);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 8px;
+          padding: 6px 8px;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .kk-mini-card-title {
+          font-size: 9.5px;
+          font-weight: 700;
+          color: #ffffff;
+          line-height: 1.15;
+          display: block;
+        }
+
+        .kk-mini-card-sub {
+          font-size: 8.5px;
+          color: rgba(255, 255, 255, 0.7);
+          display: block;
+          margin-top: 1px;
+        }
+
+        /* ── RIGHT AUTHENTICATION PANEL (Clean Natural Form) ── */
+        .kk-right-card {
+          background: #ffffff;
+          border-radius: 26px;
+          padding: 34px 34px;
+          box-shadow: 0 16px 40px rgba(6, 78, 59, 0.08);
+          border: 1px solid rgba(167, 243, 208, 0.6);
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+        }
+
+        .kk-auth-brand-center {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          text-align: center;
+          margin-bottom: 16px;
+        }
+
+        .kk-auth-icon-box {
+          width: 52px;
+          height: 52px;
+          border-radius: 16px;
+          background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #ffffff;
+          box-shadow: 0 5px 16px rgba(16, 185, 129, 0.25);
+          margin-bottom: 9px;
+        }
+
+        .kk-auth-portal-title {
+          font-size: 18px;
+          font-weight: 700;
+          color: #10b981;
+          letter-spacing: -0.2px;
+        }
+
+        .kk-auth-portal-sub {
+          font-size: 10.5px;
+          font-weight: 700;
+          color: #404944;
+          letter-spacing: 0.8px;
+          text-transform: uppercase;
+          margin-top: 2px;
+        }
+
+        .kk-auth-welcome {
+          font-family: 'Playfair Display', Georgia, serif;
+          font-size: 24px;
+          font-weight: 700;
+          color: #0d1f18;
+          text-align: center;
+          margin: 0 0 3px 0;
+        }
+
+        .kk-auth-welcome-sub {
+          font-size: 12.5px;
+          color: #404944;
+          text-align: center;
+          margin: 0 0 18px 0;
+        }
+
+        .kk-form-group {
+          margin-bottom: 14px;
+          text-align: left;
+        }
+
+        .kk-label {
+          display: block;
+          font-size: 12.5px;
+          font-weight: 600;
+          color: #0d1f18;
+          margin-bottom: 5px;
+        }
+
+        .kk-input-wrap {
+          position: relative;
+          display: flex;
+          align-items: center;
+        }
+
+        .kk-input-icon {
+          position: absolute;
+          left: 13px;
+          color: #10b981;
+          pointer-events: none;
+          font-size: 19px;
+        }
+
+        .kk-input {
+          width: 100%;
+          height: 44px;
+          padding-left: 40px;
+          padding-right: 14px;
+          background: #f0fdf4;
+          border: 1px solid #d1fae5;
+          border-radius: 11px;
+          font-size: 13.5px;
+          font-family: inherit;
+          color: #0d1f18;
+          outline: none;
+          transition: all 0.2s ease;
+        }
+
+        .kk-input.has-eye {
+          padding-right: 40px;
+        }
+
+        .kk-input:focus {
+          background: #ffffff;
+          border-color: #10b981;
+          box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18);
+        }
+
+        .kk-input::placeholder {
+          color: #707973;
+        }
+
+        .kk-eye-btn {
+          position: absolute;
+          right: 9px;
+          background: none;
+          border: none;
+          cursor: pointer;
+          color: #707973;
+          padding: 5px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 6px;
+          transition: color 0.2s;
+        }
+
+        .kk-eye-btn:hover {
+          color: #10b981;
+        }
+
+        .kk-error-msg {
+          font-size: 11.5px;
+          color: #ba1a1a;
+          margin-top: 4px;
+          font-weight: 500;
+        }
+
+        .kk-form-options {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin: 10px 0 18px 0;
+        }
+
+        .kk-remember-label {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          cursor: pointer;
+          font-size: 12.5px;
+          color: #0d1f18;
+          user-select: none;
+        }
+
+        .kk-remember-checkbox {
+          width: 15px;
+          height: 15px;
+          accent-color: #10b981;
+          cursor: pointer;
+        }
+
+        .kk-forgot-link {
+          font-size: 12px;
+          font-weight: 600;
+          color: #059669;
+          text-decoration: none;
+          cursor: pointer;
+        }
+
+        .kk-forgot-link:hover {
+          color: #047857;
+          text-decoration: underline;
+        }
+
+        .kk-submit-btn {
+          width: 100%;
+          height: 44px;
+          border-radius: 999px;
+          background: #10b981;
+          color: #ffffff;
+          font-size: 14.5px;
+          font-weight: 700;
+          font-family: inherit;
+          border: none;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 7px;
+          box-shadow: 0 4px 14px rgba(16, 185, 129, 0.25);
+          transition: all 0.2s ease;
+        }
+
+        .kk-submit-btn:hover {
+          background: #059669;
+          box-shadow: 0 6px 18px rgba(16, 185, 129, 0.35);
+          transform: translateY(-1px);
+        }
+
+        .kk-submit-btn:active {
+          transform: translateY(0);
+        }
+
+        .kk-submit-btn:disabled {
+          opacity: 0.75;
+          cursor: not-allowed;
+          transform: none;
         }
       `}</style>
 
-      {/* Container Utama locked h-screen */}
-      <div className="flex w-full h-screen align-items-center justify-content-center p-2 md:p-3 surface-100 overflow-hidden">
-        {/* Main Card */}
-        <div
-          className="flex w-full surface-0 border-round-3xl shadow-3 overflow-hidden"
-          style={{
-            maxWidth: '1200px',
-            height: layout.cardHeight,
-            maxHeight: layout.cardHeight,
-            transition: 'all 0.3s ease'
-          }}
-        >
-          {/* Panel Kiri (SaaS Store Value Propositions Showcase - Swapped Left) */}
-          <div className="hidden md:flex w-8 p-4">
-            <div
-              className="w-full h-full border-round-2xl flex flex-column justify-content-between p-5 relative overflow-hidden"
-              style={{
-                background: 'radial-gradient(circle, #F4FAF7 0%, #E2F2E9 100%)',
-                backgroundImage: 'radial-gradient(rgba(16, 185, 129, 0.2) 1.5px, transparent 1.5px)',
-                backgroundSize: '24px 24px',
-                border: '1px solid #E2E8F0'
-              }}
-            >
-              {/* Efek Ambient Glow Halus */}
-              <div
-                className="absolute bg-green-200 opacity-25 filter blur-3xl border-circle anim-ambient"
-                style={{ width: '300px', height: '300px', top: '-10%', right: '-10%', pointerEvents: 'none' }}
-              ></div>
-              <div
-                className="absolute bg-teal-200 opacity-30 filter blur-3xl border-circle"
-                style={{ width: '250px', height: '250px', bottom: '-10%', left: '-10%', pointerEvents: 'none' }}
-              ></div>
-              <div
-                className="absolute bg-emerald-100 opacity-20 filter blur-2xl border-circle"
-                style={{ width: '180px', height: '180px', top: '40%', left: '20%', pointerEvents: 'none' }}
-              ></div>
+      <div className="kk-page-wrapper">
+        <div className="kk-container">
+          <div className="kk-grid">
+            {/* ── LEFT COLUMN: Showcase & Stacked Floating Cards ── */}
+            <div className="kk-left-card">
+              {/* Background Ambient Glows */}
+              <div className="kk-glow-top"></div>
+              <div className="kk-glow-bottom"></div>
 
-              {/* Teks Header Hero */}
-              <div className="text-center z-1 mt-2">
-                <span className="inline-block bg-white-alpha-80 text-green-700 text-xs font-bold px-3 py-1 border-round-20 mb-2 uppercase tracking-wider border-1 border-white-alpha-30 shadow-1">
-                  MICROVA STORE
-                </span>
-                <h2 className="text-2xl font-bold text-900 m-0 line-height-2">
-                  Eksplorasi Layanan <span className="text-green-600">SaaS Terbaik</span>
-                </h2>
+              {/* Dot Matrix SVG Pattern */}
+              <svg className="kk-dot-pattern" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <pattern id="kk-dots-v3" width="22" height="22" patternUnits="userSpaceOnUse">
+                    <circle cx="2" cy="2" r="1.2" fill="#a7f3d0"></circle>
+                  </pattern>
+                </defs>
+                <rect width="100%" height="100%" fill="url(#kk-dots-v3)"></rect>
+              </svg>
+
+              {/* Top Brand Tag & Headline */}
+              <div style={{ position: 'relative', zIndex: 10 }}>
+                <div className="kk-tag-pill">
+                  <span className="kk-pulsing-dot"></span>
+                  <span className="kk-tag-text">KLINIK KECANTIKAN</span>
+                </div>
+
+                <h1 className="kk-headline">
+                  Eksplorasi Perawatan <br />
+                  <span className="kk-headline-highlight">Estetika Terbaik</span>
+                </h1>
               </div>
 
-              {/* Tampilan Ilustrasi Glassmorphism Katalog SaaS Store */}
-              <div className="flex-grow-1 flex align-items-center justify-content-center my-3 z-1 overflow-hidden">
-                <div
-                  className="relative w-full flex align-items-center justify-content-center"
-                  style={{
-                    maxWidth: '340px',
-                    height: isShortScreen ? '220px' : '280px',
-                    transition: 'all 0.3s'
-                  }}
-                >
-                  {/* Kartu Dasar Utama (Frosted Acrylic Glass Catalog) */}
-                  <div
-                    className="absolute p-4 flex flex-column shadow-1 gap-3 anim-main-card border-1"
-                    style={{
-                      width: '310px',
-                      height: '220px',
-                      borderRadius: '20px',
-                      background: 'rgba(255, 255, 255, 0.75)',
-                      borderColor: 'rgba(255, 255, 255, 0.6)',
-                      backdropFilter: 'blur(16px)',
-                      WebkitBackdropFilter: 'blur(16px)',
-                      // boxShadow: '0 20px 40px -15px rgba(0, 0, 0, 0.08), 0 1px 0 rgba(255, 255, 255, 0.5) inset'
-                    }}
-                  >
-                    {/* Header Store Catalog */}
-                    <div className="flex align-items-center justify-content-between border-bottom-1 border-100 pb-2">
-                      <div className="flex align-items-center gap-2">
-                        <div className="bg-green-600 border-circle flex align-items-center justify-content-center" style={{ width: '22px', height: '22px' }}>
-                          <i className="pi pi-shopping-bag text-white text-xs"></i>
-                        </div>
-                        <span className="text-800 font-bold text-xs">Katalog Aplikasi</span>
-                      </div>
-                      <span className="text-500 font-semibold cursor-pointer hover:text-green-600" style={{ fontSize: '0.65rem' }}>Lihat Semua</span>
-                    </div>
+              {/* Dynamic Showcase Floating Stack */}
+              <div className="kk-floating-stack">
+                {/* Floating Top Right Badge */}
+                <div className="kk-badge-verified-wrap">
+                  <div className="kk-badge-verified">
+                    <span className="material-symbols-outlined material-symbols-filled" style={{ color: '#047857', fontSize: '15px' }}>
+                      verified
+                    </span>
+                    <span>Terverifikasi</span>
+                    <span style={{ color: '#bfc9c2' }}>|</span>
+                    <span style={{ color: '#059669', display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
+                      <span>Lihat Semua</span>
+                      <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>arrow_forward</span>
+                    </span>
+                  </div>
+                </div>
 
-                    {/* Daftar Produk Layanan */}
-                    <div className="flex flex-column gap-2">
-                      {/* Produk 1 */}
-                      <div className="flex align-items-center justify-content-between p-2 bg-white-alpha-60 border-round-xl border-1 border-white-alpha-30 shadow-1">
-                        <div className="flex align-items-center gap-3">
-                          <div className="bg-green-100 text-green-700 border-round-lg flex align-items-center justify-content-center shadow-1" style={{ width: '28px', height: '28px' }}>
-                            <i className="pi pi-chart-line text-sm"></i>
-                          </div>
-                          <div className="flex flex-column text-left">
-                            <span className="text-900 font-bold text-xs">Akuntansi</span>
-                            <span className="text-500 font-medium" style={{ fontSize: '0.55rem' }}>Sistem Keuangan</span>
-                          </div>
-                        </div>
-                        <span className="bg-green-100 text-green-700 font-bold border-round-xl px-3 py-1 flex align-items-center gap-1" style={{ fontSize: '0.6rem' }}>
-                          <span className="w-2 h-2 bg-green-500 border-circle inline-block pulse-dot"></span> Aktif
-                        </span>
+                {/* Main Floating Card: Katalog Perawatan */}
+                <div className="kk-card-katalog">
+                  <div className="kk-katalog-header">
+                    <div className="kk-katalog-left">
+                      <div className="kk-katalog-icon">
+                        <span className="material-symbols-outlined" style={{ fontSize: '17px' }}>spa</span>
                       </div>
-
-                      {/* Produk 2 */}
-                      <div className="flex align-items-center justify-content-between p-2 bg-white-alpha-60 border-round-xl border-1 border-white-alpha-30 shadow-1">
-                        <div className="flex align-items-center gap-3">
-                          <div className="bg-blue-100 text-blue-700 border-round-lg flex align-items-center justify-content-center shadow-1" style={{ width: '28px', height: '28px' }}>
-                            <i className="pi pi-shop text-sm"></i>
-                          </div>
-                          <div className="flex flex-column text-left">
-                            <span className="text-900 font-bold text-xs">Kasir POS</span>
-                            <span className="text-500 font-medium" style={{ fontSize: '0.55rem' }}>Kasir Retail</span>
-                          </div>
-                        </div>
-                        <span className="bg-green-100 text-green-700 font-bold border-round-xl px-3 py-1 flex align-items-center gap-1" style={{ fontSize: '0.6rem' }}>
-                          <span className="w-2 h-2 bg-green-500 border-circle inline-block pulse-dot"></span> Aktif
-                        </span>
+                      <div>
+                        <h2 className="kk-katalog-title">Katalog Perawatan</h2>
+                        <p className="kk-katalog-desc">Solusi kecantikan &amp; estetika terpadu</p>
                       </div>
                     </div>
+                    <span className="kk-badge-reservasi">Siap Reservasi</span>
                   </div>
 
-                  {/* Widget Melayang 1 (Cloud Support) */}
-                  <div
-                    className="absolute shadow-3 p-2 flex align-items-center gap-3 anim-widget-three border-1"
-                    style={{
-                      width: '155px',
-                      bottom: '-10px',
-                      left: '-40px',
-                      borderRadius: '16px',
-                      background: 'rgba(255, 255, 255, 0.85)',
-                      borderColor: 'rgba(255, 255, 255, 0.7)',
-                      backdropFilter: 'blur(12px)',
-                      WebkitBackdropFilter: 'blur(12px)',
-                    }}
-                  >
-                    <div className="bg-green-50 text-green-600 border-circle flex align-items-center justify-content-center shadow-1" style={{ width: '28px', height: '28px', flexShrink: 0 }}>
-                      <i className="pi pi-cloud text-xs"></i>
+                  <div>
+                    {/* Item 1: Facial */}
+                    <div className="kk-item-row">
+                      <div className="kk-item-left">
+                        <div className="kk-item-icon-box" style={{ background: '#d1fae5', color: '#047857' }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>face</span>
+                        </div>
+                        <div>
+                          <h3 className="kk-item-title">Facial &amp; Skin Rejuvenation</h3>
+                          <p className="kk-item-subtitle">Dermatology Care</p>
+                        </div>
+                      </div>
+                      <span className="kk-status-pill">
+                        <span className="kk-status-dot"></span>
+                        Aktif
+                      </span>
                     </div>
-                    <div className="flex flex-column text-left">
-                      <span className="text-400 font-bold" style={{ fontSize: '0.5rem' }}>CLOUD STORAGE</span>
-                      <span className="text-800 font-bold text-xs">Online System</span>
+
+                    {/* Item 2: Laser */}
+                    <div className="kk-item-row">
+                      <div className="kk-item-left">
+                        <div className="kk-item-icon-box" style={{ background: '#fedeb2', color: '#4e3a1b' }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>auto_awesome</span>
+                        </div>
+                        <div>
+                          <h3 className="kk-item-title">Laser &amp; Anti-Aging</h3>
+                          <p className="kk-item-subtitle">Teknologi Medis Modern</p>
+                        </div>
+                      </div>
+                      <span className="kk-status-pill">
+                        <span className="kk-status-dot"></span>
+                        Aktif
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Subcards: Konsultasi & Resep */}
+                <div className="kk-subcards-grid">
+                  <div className="kk-subcard">
+                    <div className="kk-subcard-icon">
+                      <span className="material-symbols-outlined" style={{ color: '#059669', fontSize: '18px' }}>
+                        medical_services
+                      </span>
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <span className="kk-subcard-tag" style={{ color: '#059669' }}>KONSULTASI DOKTER</span>
+                      <span className="kk-subcard-title">Dokter Spesialis</span>
                     </div>
                   </div>
 
-                  {/* Widget Melayang 2 (Ticketing System) */}
-                  <div
-                    className="absolute shadow-3 p-2 flex align-items-center gap-3 anim-widget-one border-1"
-                    style={{
-                      width: '155px',
-                      bottom: '5px',
-                      right: '-10px',
-                      borderRadius: '16px',
-                      background: 'rgba(255, 255, 255, 0.85)',
-                      borderColor: 'rgba(255, 255, 255, 0.7)',
-                      backdropFilter: 'blur(12px)',
-                      WebkitBackdropFilter: 'blur(12px)',
-                    }}
-                  >
-                    <div className="bg-green-50 text-green-600 border-circle flex align-items-center justify-content-center shadow-1" style={{ width: '28px', height: '28px', flexShrink: 0 }}>
-                      <i className="pi pi-bolt text-xs"></i>
+                  <div className="kk-subcard">
+                    <div className="kk-subcard-icon">
+                      <span className="material-symbols-outlined" style={{ color: '#4e3a1b', fontSize: '18px' }}>
+                        prescriptions
+                      </span>
                     </div>
-                    <div className="flex flex-column text-left">
-                      <span className="text-400 font-bold" style={{ fontSize: '0.5rem' }}>TICKETING</span>
-                      <span className="text-800 font-bold text-xs">Support 24/7</span>
+                    <div style={{ minWidth: 0 }}>
+                      <span className="kk-subcard-tag" style={{ color: '#4e3a1b' }}>RESEP &amp; PRODUK</span>
+                      <span className="kk-subcard-title">BPOM &amp; Halal Certified</span>
                     </div>
                   </div>
-
-                  {/* Widget Melayang 3 (Security) */}
-                  <div
-                    className="absolute shadow-3 p-2 flex align-items-center gap-3 anim-widget-two border-1"
-                    style={{
-                      width: '145px',
-                      top: '-15px',
-                      right: '-15px',
-                      borderRadius: '16px',
-                      background: 'rgba(255, 255, 255, 0.85)',
-                      borderColor: 'rgba(255, 255, 255, 0.7)',
-                      backdropFilter: 'blur(12px)',
-                      WebkitBackdropFilter: 'blur(12px)',
-                    }}
-                  >
-                    <div className="bg-blue-50 text-blue-600 border-circle flex align-items-center justify-content-center shadow-1" style={{ width: '26px', height: '26px', flexShrink: 0 }}>
-                      <i className="pi pi-shield text-xs"></i>
-                    </div>
-                    <span className="text-700 font-bold text-xs">Terverifikasi</span>
-                  </div>
-
                 </div>
               </div>
 
-              {/* Tagline & Indikator Halaman */}
-              <div className="text-center z-1 mb-1">
-                <p className="text-600 line-height-3 m-0 max-w-sm mx-auto text-xs">
-                  Satu akun untuk mengelola, berlangganan, dan memantau seluruh kebutuhan perangkat lunak bisnis Anda langsung dalam satu hub store terpadu.
-                </p>
+              {/* Bottom Narrative Banner */}
+              <div className="kk-narrative-banner">
+                <div className="kk-banner-top">
+                  <div className="kk-shield-icon">
+                    <span className="material-symbols-outlined material-symbols-filled" style={{ fontSize: '18px' }}>
+                      verified_user
+                    </span>
+                  </div>
+                  <div>
+                    <div className="kk-banner-heading-wrap">
+                      <span className="kk-banner-heading">10.000+ Pasien Terpercaya</span>
+                      <span className="kk-spesialis-badge">Spesialis Sp.KK/Sp.DVE</span>
+                    </div>
+                    <p className="kk-banner-sub">
+                      Ditangani dokter spesialis berlisensi resmi &amp; teknologi bersertifikasi FDA
+                    </p>
+                  </div>
+                </div>
 
-                {/* Indikator Slider */}
-                <div className="flex justify-content-center gap-1 mt-3">
-                  <div className="bg-green-600 border-round-xl" style={{ width: '20px', height: '4px' }}></div>
-                  <div className="bg-300 border-round-xl" style={{ width: '6px', height: '4px' }}></div>
-                  <div className="bg-300 border-round-xl" style={{ width: '6px', height: '4px' }}></div>
+                <div className="kk-banner-grid">
+                  <div className="kk-banner-mini-card">
+                    <span className="material-symbols-outlined" style={{ color: '#a7f3d0', fontSize: '16px' }}>
+                      clinical_notes
+                    </span>
+                    <div>
+                      <span className="kk-mini-card-title">100% Medis</span>
+                      <span className="kk-mini-card-sub">Dokter Berlisensi</span>
+                    </div>
+                  </div>
+
+                  <div className="kk-banner-mini-card">
+                    <span className="material-symbols-outlined" style={{ color: '#a7f3d0', fontSize: '16px' }}>
+                      biomedical
+                    </span>
+                    <div>
+                      <span className="kk-mini-card-title">Alat Canggih</span>
+                      <span className="kk-mini-card-sub">FDA &amp; CE Approved</span>
+                    </div>
+                  </div>
+
+                  <div className="kk-banner-mini-card">
+                    <span className="material-symbols-outlined" style={{ color: '#a7f3d0', fontSize: '16px' }}>
+                      sanitizer
+                    </span>
+                    <div>
+                      <span className="kk-mini-card-title">Higienis &amp; Steril</span>
+                      <span className="kk-mini-card-sub">Standar Medis RS</span>
+                    </div>
+                  </div>
                 </div>
               </div>
-
             </div>
-          </div>
 
-          {/* Panel Kanan (Form Login) */}
-          <div className={`w-full md:w-6 flex flex-column justify-content-center align-items-center relative ${layout.leftPanelPadding}`}>
-
-            {/* Form Body */}
-            <div className="w-full" style={{ maxWidth: '380px' }}>
-              <div className={`flex flex-column align-items-center relative w-full py-2 ${layout.headerMargin}`}>
-                {/* Background Grid */}
-                <div className="absolute w-full" style={{ height: '80px', top: '0', zIndex: 0, pointerEvents: 'none' }}>
-                  <div
-                    className="absolute"
-                    style={{
-                      width: '120px',
-                      height: '80px',
-                      right: 'calc(50% + 30px)',
-                      backgroundImage: 'linear-gradient(to right, #E2E8F0 1px, transparent 1px), linear-gradient(to bottom, #E2E8F0 1px, transparent 1px)',
-                      backgroundSize: '15px 15px',
-                      opacity: 0.5,
-                      maskImage: 'radial-gradient(ellipse at right, rgba(0,0,0,1) 15%, rgba(0,0,0,0) 100%)',
-                      WebkitMaskImage: 'radial-gradient(ellipse at right, rgba(0,0,0,1) 15%, rgba(0,0,0,0) 100%)'
-                    }}
-                  />
-                  <div
-                    className="absolute"
-                    style={{
-                      width: '120px',
-                      height: '80px',
-                      left: 'calc(50% + 30px)',
-                      backgroundImage: 'linear-gradient(to right, #E2E8F0 1px, transparent 1px), linear-gradient(to bottom, #E2E8F0 1px, transparent 1px)',
-                      backgroundSize: '15px 15px',
-                      opacity: 0.5,
-                      maskImage: 'radial-gradient(ellipse at left, rgba(0,0,0,1) 15%, rgba(0,0,0,0) 100%)',
-                      WebkitMaskImage: 'radial-gradient(ellipse at left, rgba(0,0,0,1) 15%, rgba(0,0,0,0) 100%)'
-                    }}
-                  />
+            {/* ── RIGHT COLUMN: Authentication Form (Clean & Focused) ── */}
+            <div className="kk-right-card">
+              {/* Brand Center */}
+              <div className="kk-auth-brand-center">
+                <div className="kk-auth-icon-box">
+                  <span className="material-symbols-outlined" style={{ fontSize: '26px' }}>spa</span>
                 </div>
-
-                {/* Wadah Logo Utama */}
-                <div
-                  className="flex align-items-center justify-content-center mb-2 z-1"
-                  style={{
-                    width: isShortScreen ? '46px' : '54px',
-                    height: isShortScreen ? '46px' : '54px',
-                    position: 'relative'
-                  }}
-                >
-                  <Image
-                    src="/layout/images/logo.png"
-                    alt="Microva Logo"
-                    width={isShortScreen ? 46 : 54}
-                    height={isShortScreen ? 46 : 54}
-                    className="object-contain"
-                    priority
-                  />
-                </div>
-
-                <h2 className={`${isShortScreen ? 'text-xl' : 'text-2xl'} font-bold text-900 m-0 mb-1 z-1`}>Selamat Datang</h2>
-                <p className="text-500 m-0 text-center text-xs z-1">Silakan masuk ke akun Anda</p>
+                <span className="kk-auth-portal-title">Klinik Kecantikan</span>
+                <span className="kk-auth-portal-sub">Aesthetic &amp; Wellness Portal</span>
               </div>
 
+              {/* Heading */}
+              <h2 className="kk-auth-welcome">Selamat Datang</h2>
+              <p className="kk-auth-welcome-sub">Silakan masuk ke akun Anda</p>
+
+              {/* Form */}
               <form onSubmit={formik.handleSubmit}>
-                {/* Input Username */}
-                <div className={`field ${layout.fieldMargin}`}>
-                  <label htmlFor="username" className="block text-700 font-semibold mb-1 text-xs">
+                {/* Email / Username */}
+                <div className="kk-form-group">
+                  <label className="kk-label" htmlFor="username-input">
                     Email / Username
                   </label>
-                  <div className="relative w-full flex align-items-center">
-                    <i className="pi pi-user text-400 z-2 absolute" style={{ left: '1rem', fontSize: '1rem' }} />
-                    <InputText
-                      id="username"
-                      disabled={state.load || state.googleLoad}
-                      className={`w-full border-round-lg text-sm surface-border ${formik.errors.username && formik.touched.username ? 'p-invalid' : ''}`}
-                      style={{ paddingLeft: '3rem', paddingBlock: isShortScreen ? '0.65rem' : '0.85rem' }}
-                      placeholder="Masukkan username Anda"
+                  <div className="kk-input-wrap">
+                    <span className="material-symbols-outlined kk-input-icon">person</span>
+                    <input
+                      id="username-input"
+                      name="username"
+                      type="text"
+                      required
                       value={formik.values.username}
                       onChange={formik.handleChange}
                       onBlur={formik.handleBlur}
+                      placeholder="Masukkan username Anda"
+                      className="kk-input"
                     />
                   </div>
-                  {formik.errors.username && formik.touched.username && (
-                    <small className="p-error block text-xs mt-1">{formik.errors.username}</small>
+                  {formik.touched.username && formik.errors.username && (
+                    <div className="kk-error-msg">{formik.errors.username}</div>
                   )}
                 </div>
 
-                {/* Input Password */}
-                <div className={`field ${layout.fieldMargin}`}>
-                  <label htmlFor="password" className="block text-700 font-semibold mb-1 text-xs">
+                {/* Password */}
+                <div className="kk-form-group">
+                  <label className="kk-label" htmlFor="password-input">
                     Password
                   </label>
-                  <div className="relative w-full flex align-items-center">
-                    <i className="pi pi-key text-400 z-2 absolute" style={{ left: '1rem', fontSize: '1rem' }} />
-                    <InputText
-                      id="password"
-                      disabled={state.load || state.googleLoad}
+                  <div className="kk-input-wrap">
+                    <span className="material-symbols-outlined kk-input-icon">lock</span>
+                    <input
+                      id="password-input"
+                      name="password"
                       type={showPassword ? 'text' : 'password'}
-                      className={`w-full border-round-lg text-sm surface-border ${formik.errors.password && formik.touched.password ? 'p-invalid' : ''}`}
-                      style={{ paddingLeft: '3rem', paddingRight: '3rem', paddingBlock: isShortScreen ? '0.65rem' : '0.85rem' }}
-                      placeholder="Masukkan password Anda"
+                      required
                       value={formik.values.password}
                       onChange={formik.handleChange}
                       onBlur={formik.handleBlur}
+                      placeholder="Masukkan password Anda"
+                      className="kk-input has-eye"
                     />
-                    <i
-                      className={`pi ${showPassword ? 'pi-eye-slash' : 'pi-eye'} text-500 cursor-pointer z-2 absolute`}
-                      style={{ right: '1rem' }}
+                    <button
+                      type="button"
+                      aria-label="Tampilkan atau sembunyikan kata sandi"
                       onClick={() => setShowPassword(!showPassword)}
-                    />
+                      className="kk-eye-btn"
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                        {showPassword ? 'visibility_off' : 'visibility'}
+                      </span>
+                    </button>
                   </div>
-                  {formik.errors.password && formik.touched.password && (
-                    <small className="p-error block text-xs mt-1">{formik.errors.password}</small>
+                  {formik.touched.password && formik.errors.password && (
+                    <div className="kk-error-msg">{formik.errors.password}</div>
                   )}
                 </div>
 
-                {/* Remember Me & Lupa Password */}
-                <div className="flex align-items-center justify-content-between mb-3">
-                  <div className="flex align-items-center">
-                    <Checkbox
-                      inputId="remember_me"
-                      disabled={state.load || state.googleLoad}
-                      checked={!!formik.values.remember_me}
-                      onChange={(e) => formik.setFieldValue('remember_me', e.checked)}
-                      className="mr-2"
+                {/* Options: Remember me & Forgot Password */}
+                <div className="kk-form-options">
+                  <label className="kk-remember-label">
+                    <input
+                      type="checkbox"
+                      name="remember_me"
+                      checked={Boolean(formik.values.remember_me)}
+                      onChange={formik.handleChange}
+                      className="kk-remember-checkbox"
                     />
-                    <label htmlFor="remember_me" className="text-xs text-600 cursor-pointer select-none">
-                      Ingat Saya
-                    </label>
-                  </div>
-                  <a href="/auth/reset_password" className="text-xs text-green-600 no-underline font-semibold hover:underline">
+                    <span>Ingat Saya</span>
+                  </label>
+
+                  <a href="#" onClick={handleForgotPassword} className="kk-forgot-link">
                     Lupa password?
                   </a>
                 </div>
 
-                {/* Action Buttons */}
-                <div className="flex flex-column gap-2">
-                  <Button
-                    loading={state.load}
-                    disabled={state.googleLoad}
-                    type="submit"
-                    label="Masuk"
-                    className="w-full text-sm border-round-lg bg-green-600 border-none hover:bg-green-700 transition-colors"
-                    style={{ paddingBlock: isShortScreen ? '0.65rem' : '0.85rem' }}
-                  />
-
-                  {/* <div className="flex align-items-center my-1">
-                    <div className="border-top-1 border-200 w-full"></div>
-                    <span className="px-2 text-400 text-xs font-semibold">ATAU</span>
-                    <div className="border-top-1 border-200 w-full"></div>
-                  </div> */}
-
-                  {/* <Button
-                    loading={state.googleLoad}
-                    disabled={state.load}
-                    type="button"
-                    onClick={handleGoogleLogin}
-                    className="w-full text-sm border-round-lg bg-white text-700 border-300 hover:bg-gray-50 transition-all flex justify-content-center align-items-center gap-2"
-                    style={{ paddingBlock: isShortScreen ? '0.65rem' : '0.85rem' }}
-                  >
-                    <i className="pi pi-google text-red-500 text-base"></i>
-                    <span>Lanjutkan dengan Google</span>
-                  </Button> */}
-
-                  {/* <div className="text-center mt-2">
-                    <span className="text-500 text-xs">Belum memiliki akun? </span>
-                    <button
-                      type="button"
-                      disabled={state.load || state.googleLoad}
-                      onClick={() => router.push("/auth/register")}
-                      className="bg-transparent border-none text-green-600 font-bold text-xs cursor-pointer p-0 hover:underline inline-flex align-items-center gap-1 transition-all"
-                    >
-                      Daftar Sekarang <i className="pi pi-arrow-right text-100" style={{ fontSize: '0.65rem' }}></i>
-                    </button>
-                  </div> */}
-                </div>
+                {/* Submit Button */}
+                <button type="submit" disabled={state.load} className="kk-submit-btn">
+                  {state.load ? (
+                    <>
+                      <span className="material-symbols-outlined" style={{ animation: 'spin 1s linear infinite', fontSize: '16px' }}>
+                        progress_activity
+                      </span>
+                      <span>Memproses Masuk...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Masuk</span>
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+                        arrow_forward
+                      </span>
+                    </>
+                  )}
+                </button>
               </form>
             </div>
           </div>
-
         </div>
       </div>
     </>
   );
-};
-
-export default LoginPage;
+}

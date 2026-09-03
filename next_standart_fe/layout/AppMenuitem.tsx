@@ -9,7 +9,6 @@ import { MenuContext } from './context/menucontext';
 import { usePathname, useSearchParams } from 'next/navigation'
 import { AppMenuItemProps } from '@/types';
 import { Skeleton } from 'primereact/skeleton';
-import { Toast } from 'primereact/toast';
 
 /**
  * Komponen pembungkus label menu yang mendeteksi overflow 
@@ -66,7 +65,6 @@ const AppMenuitem = (props: AppMenuItemProps) => {
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const nodeRef = useRef<HTMLUListElement>(null);
-    const toast = useRef<Toast>(null);
     const { activeMenu, setActiveMenu } = useContext(MenuContext);
     const item = props.item;
     const key = props.parentKey ? props.parentKey + '-' + props.index : String(props.index);
@@ -88,24 +86,6 @@ const AppMenuitem = (props: AppMenuItemProps) => {
         if (item!.disabled) {
             event.preventDefault();
             return;
-        }
-
-        const labelLower = item?.label?.toLowerCase() || '';
-        const toLower = item?.to?.toLowerCase() || '';
-        if (
-            labelLower.includes('data pasien') ||
-            labelLower.includes('manajemen menu') ||
-            labelLower.includes('manajemen user') ||
-            labelLower.includes('pengaturan') ||
-            toLower.includes('/setup/') ||
-            toLower.includes('/master-data-user/')
-        ) {
-            toast.current?.show({
-                severity: 'warn',
-                summary: 'Informasi Fitur',
-                detail: 'Fitur ini masih dalam proggres',
-                life: 3500,
-            });
         }
 
         if (item!.command) {
@@ -157,7 +137,6 @@ const AppMenuitem = (props: AppMenuItemProps) => {
                 }
             `}} />
 
-            <Toast ref={toast} position="top-right" />
             {props.load ? (
                 <li className="my-3">
                     <Skeleton className="py-4" />

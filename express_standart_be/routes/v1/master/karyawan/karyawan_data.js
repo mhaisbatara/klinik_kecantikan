@@ -15,11 +15,11 @@ router.post("/", async (req, res) => {
   const hasPagination = oPayload.page !== undefined || oPayload.perPage !== undefined;
   try {
     const baseQuery = DB("mst_karyawan as k").modify((qb) => {
-      if (keyword) { const lower = keyword.toLowerCase(); qb.where(function () { this.whereRaw("LOWER(k.no_sip) LIKE ?", [`%${lower}%`]).orWhereRaw("LOWER(k.nama) LIKE ?", [`%${lower}%`]).orWhereRaw("LOWER(k.jabatan) LIKE ?", [`%${lower}%`]); }); }
+      if (keyword) { const lower = keyword.toLowerCase(); qb.where(function () { this.whereRaw("LOWER(k.kode_karyawan) LIKE ?", [`%${lower}%`]).orWhereRaw("LOWER(k.no_sip) LIKE ?", [`%${lower}%`]).orWhereRaw("LOWER(k.nama) LIKE ?", [`%${lower}%`]).orWhereRaw("LOWER(k.jabatan) LIKE ?", [`%${lower}%`]); }); }
       if (filterStatus) qb.where("k.status", filterStatus);
       if (filterJabatan) qb.where("k.jabatan", filterJabatan);
     });
-    const selectFields = ["k.no_sip", "k.kode_user", "k.nama", "k.jabatan", "k.no_hp", "k.email", "k.status", "k.created_by", "k.created_at", "k.updated_at"];
+    const selectFields = ["k.id", "k.kode_karyawan", "k.no_sip", "k.kode_user", "k.nama", "k.jabatan", "k.no_hp", "k.email", "k.status", "k.created_by", "k.created_at", "k.updated_at"];
     let totalRecords = 0, vaData = [];
     if (hasPagination) {
       const offset = (page - 1) * perPage;

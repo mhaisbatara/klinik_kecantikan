@@ -1,7 +1,7 @@
 import express from "express";
 import DB from "../../../../core/config/knex.js";
 import { datetime, formatDateSystem } from "../../components/tools/date_tools.js";
-import { Logging } from "../../components/tools/servertool.js";
+import { Logging, validatePayload } from "../../components/tools/servertool.js";
 import Joi from "joi";
 import { status } from "../../components/tools/general.js";
 
@@ -54,26 +54,22 @@ router.post("/", async (req, res) => {
         }
 
 
-        const oData = await DB("mst_navigation")
-            .select('menu')
-            .where('role', oPayload?.role)
+        const role = String(oPayload?.role || 'master').toLowerCase();
+        const targetRole = role === 'superadmin' || role === 'admin' ? 'master' : role;
 
-        if (!oData) {
-            const oResult = {
-                status: status.GAGAL,
-                message: "Menu tidak ditemukan",
-                datetime: formatDateSystem(),
-            };
+        const masterRecord = await DB("mst_navigation").where('role', 'master').first();
+        const roleRecord = await DB("mst_navigation").where('role', targetRole).first();
 
-
-            return res.status(400).json(oResult);
-        }
+        const masterMenu = masterRecord?.menu ? JSON.parse(masterRecord.menu) : [];
+        const roleMenu = roleRecord?.menu ? JSON.parse(roleRecord.menu) : masterMenu;
 
         return res.status(200).json({
             status: status.SUKSES,
             message: "Data ditemukan",
             datetime: formatDateSystem(),
-            data: oData,
+            data: roleMenu,
+            master_menu: masterMenu,
+            is_custom: Boolean(roleRecord && targetRole !== 'master')
         });
     } catch (error) {
         const oResult = {
