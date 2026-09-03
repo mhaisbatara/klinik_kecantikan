@@ -119,7 +119,6 @@ export default function LoginPage() {
           overflow: hidden;
           display: flex;
           flex-direction: column;
-          justify-content: space-between;
           position: relative;
         }
 
@@ -911,27 +910,6 @@ export default function LoginPage() {
           align-items: center;
           gap: 5px;
         }
-
-        /* ── FOOTER (Compact Single Line) ── */
-        .kk-footer {
-          width: 100%;
-          height: 36px;
-          flex-shrink: 0;
-          background: rgba(227, 249, 237, 0.85);
-          backdrop-filter: blur(8px);
-          border-top: 1px solid rgba(216, 237, 226, 0.8);
-          padding: 8px 24px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          text-align: center;
-        }
-
-        .kk-footer-text {
-          font-size: 11px;
-          color: #404944;
-          margin: 0;
-        }
       `}</style>
 
       <div className="kk-page-wrapper">
@@ -1284,13 +1262,6 @@ export default function LoginPage() {
             </div>
           </div>
         </main>
-
-        {/* ── FOOTER (Compact Single Line) ── */}
-        <footer className="kk-footer">
-          <p className="kk-footer-text">
-            &copy; 2024 Klinik Kecantikan. Seluruh hak cipta dilindungi.
-          </p>
-        </footer>
       </div>
     </>
   );
