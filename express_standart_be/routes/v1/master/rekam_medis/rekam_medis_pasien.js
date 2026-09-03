@@ -52,6 +52,8 @@ const handleGetRekamMedis = async (req, res) => {
   const tanggal_sampai = oPayload.tanggal_sampai || null;
 
   const keyword = (oPayload.keyword || "").trim();
+  const exclude_kode_kunjungan = (oPayload.exclude_kode_kunjungan || "").trim();
+  const only_selesai = oPayload.only_selesai === true || oPayload.only_selesai === 'true' || oPayload.only_selesai === 1 || oPayload.only_selesai === '1';
 
   try {
     // 1. Fetch form field labels map (kode_ruangan -> field_key -> label_field)
@@ -71,6 +73,12 @@ const handleGetRekamMedis = async (req, res) => {
       .leftJoin("trx_rekam_medis_ruangan as rmr", "k.kode_kunjungan", "rmr.kode_kunjungan")
       .modify((qb) => {
         if (no_rm) qb.where("k.no_rm", no_rm);
+        if (exclude_kode_kunjungan) qb.whereNot("k.kode_kunjungan", exclude_kode_kunjungan);
+        if (only_selesai) {
+          qb.where("k.status", "selesai");
+        } else {
+          qb.where("k.status", "!=", "batal");
+        }
         if (tanggal_dari) {
           qb.where("k.tanggal_kunjungan", ">=", tanggal_dari);
         }
@@ -109,6 +117,12 @@ const handleGetRekamMedis = async (req, res) => {
       .groupBy("k.id", "p.id")
       .modify((qb) => {
         if (no_rm) qb.where("k.no_rm", no_rm);
+        if (exclude_kode_kunjungan) qb.whereNot("k.kode_kunjungan", exclude_kode_kunjungan);
+        if (only_selesai) {
+          qb.where("k.status", "selesai");
+        } else {
+          qb.where("k.status", "!=", "batal");
+        }
         if (tanggal_dari) {
           qb.where("k.tanggal_kunjungan", ">=", tanggal_dari);
         }
@@ -157,6 +171,7 @@ const handleGetRekamMedis = async (req, res) => {
     const kodeKunjunganList = vaKunjungan.map((k) => k.kode_kunjungan).filter(Boolean);
 
     let mapLayanan = {};
+    let headerRmMap = {};
 
     if (kodeKunjunganList.length > 0) {
       // 4. Ambil header trx_rekam_medis per kunjungan
@@ -192,14 +207,97 @@ const handleGetRekamMedis = async (req, res) => {
           "d.jabatan as dokter_jabatan"
         );
 
-      const headerRmMap = {};
       const rmHeaderIds = [];
       vaHeaderRM.forEach((h) => {
         headerRmMap[h.kode_kunjungan] = h;
         rmHeaderIds.push(h.header_rm_id);
       });
 
-      // 5. Ambil data terstruktur per ruangan dari trx_rekam_medis_ruangan
+      // 5. Ambil data sesi antrian layanan per kunjungan
+      const vaAntrianLayanan = await DB("trx_antrian_layanan as al")
+        .leftJoin("mst_karyawan as p", function () {
+          this.on("al.kode_karyawan", "=", "p.kode_karyawan")
+            .orOn("al.kode_karyawan", "=", "p.no_sip")
+            .orOn("al.kode_karyawan", "=", "p.kode_user");
+        })
+        .leftJoin("trx_detail_antrian_layanan as dal", "al.kode_antrian_layanan", "dal.kode_antrian_layanan")
+        .whereIn("al.kode_kunjungan", kodeKunjunganList)
+        .select(
+          "al.kode_antrian_layanan",
+          "al.kode_kunjungan",
+          "al.kode_ruangan",
+          "al.nama_ruangan",
+          "al.catatan_petugas as al_catatan_petugas",
+          "al.status as al_status",
+          "al.dipanggil_at",
+          "al.selesai_at",
+          "al.kode_karyawan as al_kode_karyawan",
+          "p.nama as petugas_nama",
+          "p.jabatan as petugas_jabatan",
+          "dal.nama_layanan as dal_nama_layanan",
+          "dal.jenis_layanan as dal_jenis_layanan",
+          "dal.harga"
+        );
+
+      vaAntrianLayanan.forEach((al) => {
+        const kKunjungan = al.kode_kunjungan;
+        if (!mapLayanan[kKunjungan]) mapLayanan[kKunjungan] = {};
+        const key = al.kode_antrian_layanan;
+        const headerRM = headerRmMap[kKunjungan] || {};
+
+        mapLayanan[kKunjungan][key] = {
+          kode_antrian_layanan: al.kode_antrian_layanan,
+          kode_rekam_medis_ruangan: null,
+          nama_layanan: al.dal_nama_layanan || al.nama_ruangan || "Pelayanan Klinik",
+          jenis_layanan: al.dal_jenis_layanan || "layanan",
+          harga: parseFloat(al.harga || 0),
+          kode_ruangan: al.kode_ruangan,
+          nama_ruangan: al.nama_ruangan || "Ruangan Treatment",
+          status: al.al_status || "selesai",
+          dipanggil_at: al.dipanggil_at || null,
+          selesai_at: al.selesai_at || null,
+          catatan_tindakan: null,
+          catatan_petugas: al.al_catatan_petugas || null,
+          catatan_hasil_treatment: null,
+          petugas: al.al_kode_karyawan
+            ? {
+                kode_karyawan: al.al_kode_karyawan,
+                nama: al.petugas_nama || al.al_kode_karyawan,
+                jabatan: al.petugas_jabatan || "petugas",
+              }
+            : null,
+          rekam_medis: {
+            kode_rekam_medis: headerRM.kode_rekam_medis || `RM-${headerRM.header_rm_id || key}`,
+            no_sip: headerRM.no_sip || null,
+            keluhan: headerRM.keluhan || "-",
+            durasi_keluhan: headerRM.durasi_keluhan || null,
+            riwayat_alergi: headerRM.riwayat_alergi || null,
+            riwayat_treatment: headerRM.riwayat_treatment || null,
+            pemeriksaan_acne: headerRM.pemeriksaan_acne || null,
+            pemeriksaan_inflammation: headerRM.pemeriksaan_inflammation || null,
+            pemeriksaan_skin_type: headerRM.pemeriksaan_skin_type || null,
+            pemeriksaan_pigmentation: headerRM.pemeriksaan_pigmentation || null,
+            pemeriksaan_sensitivity: headerRM.pemeriksaan_sensitivity || null,
+            diagnosis: headerRM.diagnosis || "-",
+            subjective: headerRM.subjective || null,
+            objective: headerRM.objective || null,
+            assessment: headerRM.assessment || null,
+            plan: headerRM.plan || null,
+            data_form: {},
+            formatted_data_form: [],
+            fotos: [],
+            dokter_penanggung_jawab: headerRM.kode_karyawan
+              ? {
+                  kode_karyawan: headerRM.kode_karyawan,
+                  nama: headerRM.dokter_nama || headerRM.kode_karyawan,
+                  jabatan: headerRM.dokter_jabatan || "dokter",
+                }
+              : null,
+          },
+        };
+      });
+
+      // 6. Ambil data terstruktur per ruangan dari trx_rekam_medis_ruangan
       const vaRuanganRows = await DB("trx_rekam_medis_ruangan as rmr")
         .leftJoin("mst_karyawan as p", function () {
           this.on("rmr.kode_karyawan", "=", "p.no_sip")
@@ -263,7 +361,7 @@ const handleGetRekamMedis = async (req, res) => {
         });
       }
 
-      // Grouping per ruangan per kunjungan
+      // Merge data dari trx_rekam_medis_ruangan
       vaRuanganRows.forEach((item) => {
         const kKunjungan = item.kode_kunjungan;
         if (!mapLayanan[kKunjungan]) mapLayanan[kKunjungan] = {};
@@ -288,58 +386,56 @@ const handleGetRekamMedis = async (req, res) => {
 
         const fotosRoom = mapFotosRmr[`RMR_${item.rmr_id}`] || mapFotosRmr[`RM_${item.id_rekam_medis}`] || [];
 
-        if (!mapLayanan[kKunjungan][keyRuangan]) {
-          mapLayanan[kKunjungan][keyRuangan] = {
-            kode_antrian_layanan: item.kode_antrian_layanan || keyRuangan,
-            kode_rekam_medis_ruangan: item.kode_rekam_medis_ruangan,
-            nama_layanan: item.nama_layanan || "Sesi Pelayanan Ruangan",
-            jenis_layanan: item.jenis_layanan || "layanan",
-            harga: parseFloat(item.harga || 0),
-            kode_ruangan: item.kode_ruangan,
-            nama_ruangan: item.nama_ruangan || "Ruangan Treatment",
-            status: item.status_ruangan || "selesai",
-            dipanggil_at: item.dipanggil_at || null,
-            selesai_at: item.selesai_at || null,
-            catatan_tindakan: item.catatan_tindakan || null,
-            catatan_petugas: item.catatan_petugas || null,
-            catatan_hasil_treatment: item.catatan_hasil_treatment || null,
-            petugas: item.rmr_kode_karyawan
+        mapLayanan[kKunjungan][keyRuangan] = {
+          kode_antrian_layanan: item.kode_antrian_layanan || keyRuangan,
+          kode_rekam_medis_ruangan: item.kode_rekam_medis_ruangan,
+          nama_layanan: item.nama_layanan || mapLayanan[kKunjungan]?.[keyRuangan]?.nama_layanan || "Sesi Pelayanan Ruangan",
+          jenis_layanan: item.jenis_layanan || mapLayanan[kKunjungan]?.[keyRuangan]?.jenis_layanan || "layanan",
+          harga: parseFloat(item.harga || mapLayanan[kKunjungan]?.[keyRuangan]?.harga || 0),
+          kode_ruangan: item.kode_ruangan || mapLayanan[kKunjungan]?.[keyRuangan]?.kode_ruangan,
+          nama_ruangan: item.nama_ruangan || mapLayanan[kKunjungan]?.[keyRuangan]?.nama_ruangan || "Ruangan Treatment",
+          status: item.status_ruangan || "selesai",
+          dipanggil_at: item.dipanggil_at || mapLayanan[kKunjungan]?.[keyRuangan]?.dipanggil_at || null,
+          selesai_at: item.selesai_at || mapLayanan[kKunjungan]?.[keyRuangan]?.selesai_at || null,
+          catatan_tindakan: item.catatan_tindakan || null,
+          catatan_petugas: item.catatan_petugas || null,
+          catatan_hasil_treatment: item.catatan_hasil_treatment || null,
+          petugas: item.rmr_kode_karyawan
+            ? {
+                kode_karyawan: item.rmr_kode_karyawan,
+                nama: item.petugas_nama || item.rmr_kode_karyawan,
+                jabatan: item.petugas_jabatan || "petugas",
+              }
+            : mapLayanan[kKunjungan]?.[keyRuangan]?.petugas || null,
+          rekam_medis: {
+            kode_rekam_medis: headerRM.kode_rekam_medis || `RM-${headerRM.header_rm_id || item.rmr_id}`,
+            no_sip: headerRM.no_sip || null,
+            keluhan: headerRM.keluhan || "-",
+            durasi_keluhan: headerRM.durasi_keluhan || null,
+            riwayat_alergi: headerRM.riwayat_alergi || null,
+            riwayat_treatment: headerRM.riwayat_treatment || null,
+            pemeriksaan_acne: headerRM.pemeriksaan_acne || null,
+            pemeriksaan_inflammation: headerRM.pemeriksaan_inflammation || null,
+            pemeriksaan_skin_type: headerRM.pemeriksaan_skin_type || null,
+            pemeriksaan_pigmentation: headerRM.pemeriksaan_pigmentation || null,
+            pemeriksaan_sensitivity: headerRM.pemeriksaan_sensitivity || null,
+            diagnosis: headerRM.diagnosis || "-",
+            subjective: headerRM.subjective || null,
+            objective: headerRM.objective || null,
+            assessment: headerRM.assessment || null,
+            plan: headerRM.plan || null,
+            data_form: parsedDataForm,
+            formatted_data_form: formattedForm,
+            fotos: fotosRoom,
+            dokter_penanggung_jawab: headerRM.kode_karyawan
               ? {
-                  kode_karyawan: item.rmr_kode_karyawan,
-                  nama: item.petugas_nama || item.rmr_kode_karyawan,
-                  jabatan: item.petugas_jabatan || "petugas",
+                  kode_karyawan: headerRM.kode_karyawan,
+                  nama: headerRM.dokter_nama || headerRM.kode_karyawan,
+                  jabatan: headerRM.dokter_jabatan || "dokter",
                 }
               : null,
-            rekam_medis: {
-              kode_rekam_medis: headerRM.kode_rekam_medis || `RM-${headerRM.header_rm_id || item.rmr_id}`,
-              no_sip: headerRM.no_sip || null,
-              keluhan: headerRM.keluhan || "-",
-              durasi_keluhan: headerRM.durasi_keluhan || null,
-              riwayat_alergi: headerRM.riwayat_alergi || null,
-              riwayat_treatment: headerRM.riwayat_treatment || null,
-              pemeriksaan_acne: headerRM.pemeriksaan_acne || null,
-              pemeriksaan_inflammation: headerRM.pemeriksaan_inflammation || null,
-              pemeriksaan_skin_type: headerRM.pemeriksaan_skin_type || null,
-              pemeriksaan_pigmentation: headerRM.pemeriksaan_pigmentation || null,
-              pemeriksaan_sensitivity: headerRM.pemeriksaan_sensitivity || null,
-              diagnosis: headerRM.diagnosis || "-",
-              subjective: headerRM.subjective || null,
-              objective: headerRM.objective || null,
-              assessment: headerRM.assessment || null,
-              plan: headerRM.plan || null,
-              data_form: parsedDataForm,
-              formatted_data_form: formattedForm,
-              fotos: fotosRoom,
-              dokter_penanggung_jawab: headerRM.kode_karyawan
-                ? {
-                    kode_karyawan: headerRM.kode_karyawan,
-                    nama: headerRM.dokter_nama || headerRM.kode_karyawan,
-                    jabatan: headerRM.dokter_jabatan || "dokter",
-                  }
-                : null,
-            },
-          };
-        }
+          },
+        };
       });
     }
 

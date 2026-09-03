@@ -15,9 +15,8 @@ import postData from '@/lib/axios/postData';
 import { showError, showSuccess } from '@/lib/tools/generalTools';
 import { apiEndpointPanggil, apiEndpointReset, apiEndpointData } from './endpoints';
 import { getTzUser } from '@/lib/tools/dateTools';
-import { DialogManageFormRuangan } from './DialogManageFormRuangan';
-import { DialogIsiFormPenanganan } from './DialogIsiFormPenanganan';
 import { ActiveTreatmentPanel } from './ActiveTreatmentPanel';
+import { DrawerRiwayatPasien } from './DrawerRiwayatPasien';
 
 interface PanelAntrianRuanganProps {
     state: State;
@@ -178,10 +177,8 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
         }
     }, [selectedRuangan]);
 
-    // State for Custom Form Dialogs
-    const [manageFormVisible, setManageFormVisible] = useState<boolean>(false);
-    const [isiFormVisible, setIsiFormVisible] = useState<boolean>(false);
-    const [selectedAntrianForForm, setSelectedAntrianForForm] = useState<AntrianLayananData | null>(null);
+    const [drawerRiwayatVisible, setDrawerRiwayatVisible] = useState<boolean>(false);
+    const [selectedPatientForRiwayat, setSelectedPatientForRiwayat] = useState<AntrianLayananData | null>(null);
 
     const searchParams = useSearchParams();
     const typeParam = searchParams.get('type') || '';
@@ -225,9 +222,9 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
         const targetAksi = customAksi || nextCfg?.aksi;
         if (!targetAksi) return;
 
-        // Validation: Block completing room treatment if Form Penanganan Pasien has not been saved
-        if (targetAksi === 'selesai' && !skipFormValidation && !item.hasil_form) {
-            showError(toast, 'Tindakan tidak dapat diselesaikan! Harap isi dan simpan Form Penanganan Pasien serta Hasil Treatment terlebih dahulu.');
+        // Validasi form hanya berlaku saat di menu Tindakan / Konsultasi
+        if (isLayananOrKonsul && targetAksi === 'selesai' && !skipFormValidation && !item.hasil_form) {
+            showError(toast, 'Tindakan tidak dapat diselesaikan! Harap isi dan simpan form penanganan pasien terlebih dahulu.');
             return;
         }
 
@@ -270,6 +267,8 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
     // Filter gridData based on selected room and status filter
     const allGridData = state.gridData || [];
     const activeRoomObj = ruanganList.find((r) => r.kode_ruangan === selectedRuangan);
+    const isKonsul = typeParam === 'konsul' || Boolean(activeRoomObj?.is_konsultasi);
+    const isLayananOrKonsul = typeParam === 'layanan' || typeParam === 'konsul';
 
     const roomFilteredItems = allGridData.filter((item) => {
         const matchRoom = selectedRuangan
@@ -319,11 +318,7 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
         }
     };
 
-    // Patient currently called ('dipanggil') in room or selected for inspection
-    const activeDipanggilPatient = roomFilteredItems.find((i) => i.status === 'dipanggil')
-        || (selectedAntrianForForm && selectedAntrianForForm.kode_ruangan === selectedRuangan ? selectedAntrianForForm : null);
-
-    // Next waiting patient in room
+    const activeDipanggilPatient = roomFilteredItems.find((i) => i.status === 'dipanggil') || null;
     const nextWaitingPatient = roomFilteredItems.find((i) => i.status === 'menunggu') || null;
 
     const mCount = roomFilteredItems.filter((i) => i.status === 'menunggu').length;
@@ -562,8 +557,8 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
                                         }
                                     `}</style>
 
-                                    {/* INDIKATOR POSISI ANTREAN */}
-                                    <div className="flex flex-column sm:flex-row align-items-center justify-content-between w-full gap-2 mb-3">
+                                    {/* ── BARIS INDIKATOR ANTREAN ── */}
+                                    <div className="flex flex-column sm:flex-row align-items-center justify-content-between w-full max-w-30rem gap-2 mb-2">
                                         <Tag
                                             value={`Antrean Ke-${currentIndex + 1} dari ${roomFilteredItems.length}`}
                                             severity="secondary"
@@ -576,10 +571,10 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
                                         </div>
                                     </div>
 
-                                    {/* KARTU SINGLE ANTREAN UTAMA (NOMOR BESAR & DETAIL PASIEN DENGAN ANIMASI) */}
+                                    {/* ── KARTU SINGLE ANTREAN UTAMA (KOTAK DI TENGAH) ── */}
                                     <div
                                         key={`${currentItem.kode_antrian_layanan}_${currentIndex}`}
-                                        className="w-full max-w-30rem p-4 border-round-2xl border-3 shadow-3 my-2 card-switch-animation"
+                                        className="w-full max-w-30rem p-4 border-round-2xl border-3 shadow-3 my-2 card-switch-animation text-center"
                                         style={{
                                             background: cfg.bg,
                                             borderColor: cfg.border,
@@ -622,68 +617,146 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
                                         </div>
                                     </div>
 
-                                    {/* TOMBOL KONTROL NAVIGASI (PREV, PANGGIL/AKSI, NEXT) */}
-                                    <div className="flex flex-column sm:flex-row align-items-center justify-content-center gap-3 w-full max-w-30rem mt-4">
-                                        <Button
-                                            label="Prev"
-                                            icon="pi pi-chevron-left"
-                                            outlined
-                                            severity="secondary"
-                                            disabled={currentIndex === 0}
-                                            onClick={handlePrevPatient}
-                                            className="font-bold border-round-lg px-4 py-2"
-                                        />
-
+                                    {/* ── KONTROL AKSI & NAVIGASI DI BAWAH KARTU (RAPI & TERPISAH) ── */}
+                                    <div className="w-full max-w-30rem mt-3 flex flex-column gap-3">
+                                        {/* BARIS TOMBOL AKSI UTAMA & RIWAYAT PASIEN */}
                                         {currentItem.status === 'menunggu' ? (
-                                            <Button
-                                                label="📢 Panggil Pasien Ini"
-                                                icon="pi pi-megaphone"
-                                                severity="info"
-                                                size="large"
-                                                className="font-bold border-round-lg flex-1 shadow-2 text-base py-3"
-                                                onClick={() => handleAksi(currentItem, 'dipanggil')}
-                                            />
+                                            <div className="flex gap-2 w-full">
+                                                <Button
+                                                    label="📢 Panggil Pasien Ini"
+                                                    icon="pi pi-megaphone"
+                                                    severity="info"
+                                                    size="large"
+                                                    className="font-bold border-round-lg flex-1 shadow-2 text-sm py-3"
+                                                    onClick={() => handleAksi(currentItem, 'dipanggil')}
+                                                />
+                                                <Button
+                                                    label="Riwayat"
+                                                    icon="pi pi-history"
+                                                    severity="help"
+                                                    outlined
+                                                    className="font-bold border-round-lg shadow-1 text-xs px-3"
+                                                    tooltip="Lihat Riwayat Kunjungan Pasien"
+                                                    onClick={() => {
+                                                        setSelectedPatientForRiwayat(currentItem);
+                                                        setDrawerRiwayatVisible(true);
+                                                    }}
+                                                />
+                                            </div>
                                         ) : isDipanggil ? (
-                                            <Button
-                                                label="🔁 Panggil Ulang Suara"
-                                                icon="pi pi-volume-up"
-                                                severity="info"
-                                                size="large"
-                                                className="font-bold border-round-lg flex-1 shadow-2 text-base py-3"
-                                                onClick={() => {
-                                                    playChime();
-                                                    speakNomorLayanan(currentItem.nomor_antrian, currentItem.nama_pasien, currentItem.nama_ruangan || currentItem.nama_layanan);
-                                                }}
-                                            />
+                                            <div className="flex flex-column gap-2 w-full">
+                                                <div className="grid grid-nogutter gap-2 align-items-center">
+                                                    <div className="col">
+                                                        <Button
+                                                            label="Panggil Ulang"
+                                                            icon="pi pi-volume-up"
+                                                            severity="info"
+                                                            className="font-bold border-round-lg w-full shadow-2 text-xs py-2 px-2 white-space-nowrap"
+                                                            onClick={() => {
+                                                                playChime();
+                                                                speakNomorLayanan(currentItem.nomor_antrian, currentItem.nama_pasien, currentItem.nama_ruangan || currentItem.nama_layanan);
+                                                            }}
+                                                        />
+                                                    </div>
+                                                    <div className="col">
+                                                        <Button
+                                                            label="Riwayat Pasien"
+                                                            icon="pi pi-history"
+                                                            severity="help"
+                                                            outlined
+                                                            className="font-bold border-round-lg w-full shadow-1 text-xs py-2 px-2 white-space-nowrap"
+                                                            onClick={() => {
+                                                                setSelectedPatientForRiwayat(currentItem);
+                                                                setDrawerRiwayatVisible(true);
+                                                            }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <div className="grid grid-nogutter gap-2 align-items-center">
+                                                    <div className="col-fixed" style={{ width: '38%' }}>
+                                                        <Button
+                                                            label="Batalkan"
+                                                            icon="pi pi-times"
+                                                            severity="danger"
+                                                            outlined
+                                                            className="font-bold border-round-lg w-full shadow-1 text-xs py-2 px-2 white-space-nowrap"
+                                                            onClick={() => handleAksi(currentItem, 'batal')}
+                                                        />
+                                                    </div>
+                                                    <div className="col">
+                                                        <Button
+                                                            label="Selesai"
+                                                            icon="pi pi-check-circle"
+                                                            severity="success"
+                                                            className="font-bold border-round-lg w-full shadow-2 text-xs py-2 px-2 white-space-nowrap"
+                                                            onClick={() => handleAksi(currentItem, 'selesai')}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
                                         ) : (
-                                            <Tag value={cfg.label} severity={currentItem.status === 'selesai' ? 'success' : 'danger'} className="text-sm font-bold py-2 px-4 flex-1" />
+                                            <div className="flex align-items-center gap-2 w-full">
+                                                <Tag value={cfg.label} severity={currentItem.status === 'selesai' ? 'success' : 'danger'} className="text-sm font-bold py-2 px-4 flex-1 text-center" />
+                                                <Button
+                                                    label="Riwayat"
+                                                    icon="pi pi-history"
+                                                    severity="help"
+                                                    outlined
+                                                    className="font-bold border-round-lg shadow-1 text-xs py-2 px-3 white-space-nowrap"
+                                                    tooltip="Lihat Riwayat Kunjungan Pasien"
+                                                    onClick={() => {
+                                                        setSelectedPatientForRiwayat(currentItem);
+                                                        setDrawerRiwayatVisible(true);
+                                                    }}
+                                                />
+                                            </div>
                                         )}
 
-                                        <Button
-                                            label="Next ➔"
-                                            iconPos="right"
-                                            severity="success"
-                                            disabled={currentIndex >= roomFilteredItems.length - 1}
-                                            onClick={handleNextPatient}
-                                            className="font-bold border-round-lg px-4 py-2"
-                                        />
+                                        {/* BARIS NAVIGASI PREV & NEXT */}
+                                        <div className="flex align-items-center justify-content-between gap-3 pt-2 border-top-1 surface-border">
+                                            <Button
+                                                label="‹ Prev"
+                                                icon="pi pi-chevron-left"
+                                                outlined
+                                                severity="secondary"
+                                                disabled={currentIndex === 0}
+                                                onClick={handlePrevPatient}
+                                                className="font-bold border-round-lg px-3 py-2 text-xs"
+                                            />
+                                            <span className="text-xs font-bold text-500">
+                                                Antrean {currentIndex + 1} dari {roomFilteredItems.length}
+                                            </span>
+                                            <Button
+                                                label="Next ›"
+                                                iconPos="right"
+                                                icon="pi pi-chevron-right"
+                                                outlined
+                                                severity="secondary"
+                                                disabled={currentIndex >= roomFilteredItems.length - 1}
+                                                onClick={handleNextPatient}
+                                                className="font-bold border-round-lg px-3 py-2 text-xs"
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                             );
                         })()}
                     </div>
 
-                    {/* 2. PANEL PENANGANAN PASIEN AKTIF & FORM ISIAN */}
-                    {Boolean(selectedRuangan) && (() => {
-                        const selectedRuanganObj = ruanganList.find(r => r.kode_ruangan === selectedRuangan);
-                        const isKonsultasi = Boolean(selectedRuanganObj?.is_konsultasi);
+                    {/* FORM PENANGANAN MEDIS & HASIL TREATMENT HANYA TAMPIL DI MENU TINDAKAN & KONSULTASI */}
+                    {isLayananOrKonsul && Boolean(selectedRuangan) && (() => {
+                        const selectedRuanganObj = ruanganList.find((r) => r.kode_ruangan === selectedRuangan);
+                        const isRoomKonsul = Boolean(selectedRuanganObj?.is_konsultasi) || typeParam === 'konsul';
+                        const activeDipanggilPatient = roomFilteredItems.find((item) => item.status === 'dipanggil') || (currentItem?.status === 'dipanggil' ? currentItem : null);
+                        const nextWaitingPatient = roomFilteredItems.find((item) => item.status === 'menunggu') || null;
+
                         return (
                             <ActiveTreatmentPanel
                                 activePatient={activeDipanggilPatient}
                                 nextWaitingPatient={nextWaitingPatient}
                                 kodeRuangan={selectedRuangan}
-                                namaRuangan={activeRoomObj?.nama_ruangan || selectedRuangan}
-                                isKonsultasi={isKonsultasi}
+                                namaRuangan={selectedRuanganObj?.nama_ruangan || selectedRuangan}
+                                isKonsultasi={isRoomKonsul}
                                 toast={toast}
                                 getGridData={getGridData}
                                 handleAksi={handleAksi}
@@ -695,14 +768,14 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
                 </div>
             )}
 
-            {/* DIALOG ISIAN FORM PENANGANAN PASIEN & CATATAN */}
-            <DialogIsiFormPenanganan
-                visible={isiFormVisible}
-                onHide={() => setIsiFormVisible(false)}
-                antrianData={selectedAntrianForForm}
-                isKonsultasi={Boolean(ruanganList.find(r => r.kode_ruangan === selectedRuangan)?.is_konsultasi)}
+            {/* DRAWER PANEL RIWAYAT PASIEN */}
+            <DrawerRiwayatPasien
+                visible={drawerRiwayatVisible}
+                onHide={() => setDrawerRiwayatVisible(false)}
+                noRm={selectedPatientForRiwayat?.no_rm || ''}
+                namaPasien={selectedPatientForRiwayat?.nama_pasien || ''}
+                excludeKodeKunjungan={selectedPatientForRiwayat?.kode_kunjungan || ''}
                 toast={toast}
-                getGridData={getGridData}
             />
         </div>
     );
