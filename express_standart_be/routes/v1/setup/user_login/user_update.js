@@ -56,8 +56,7 @@ router.post("/", async (req, res) => {
           .label("Telp"),
         role: Joi.string().required().label("Role"),
         password: Joi.string()
-          .min(8)
-          .pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^a-zA-Z0-9]).+$/)
+          .min(6)
           .label("Password")
           .optional()
           .allow(""),

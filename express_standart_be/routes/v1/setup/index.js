@@ -27,6 +27,7 @@ import navBase from "./navigation/mst_navigation_data.js";
 import navUser from "./navigation/user_navigation_data.js";
 import navUserEdit from "./navigation/user_navigation_data_edit.js";
 import navUserInsert from "./navigation/user_navigation_insert.js";
+import navRoleSave from "./navigation/role_navigation_save.js";
 
 import configCreate from './config/config_create.js'
 import configData from './config/config_data.js'
@@ -45,5 +46,6 @@ router.use("/nav/base-data", navBase);
 router.use("/nav/user-data", navUser);
 router.use("/nav/user-data-edit", navUserEdit);
 router.use("/nav/user-insert", navUserInsert);
+router.use("/nav/role-save", navRoleSave);
 
 export default router;
