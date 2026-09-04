@@ -27,6 +27,7 @@ export interface AntrianLayananData {
     kode_karyawan?: string | null;
     nama_petugas?: string | null;
     jabatan_petugas?: string | null;
+    kelurahan_desa?: string | null;
 }
 
 export interface RuanganFormField {

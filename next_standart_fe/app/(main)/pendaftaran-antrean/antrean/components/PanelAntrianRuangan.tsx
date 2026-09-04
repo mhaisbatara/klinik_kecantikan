@@ -812,49 +812,20 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
                                             }}
                                         />
 
-                                        {/* Status Tag Column */}
+                                        {/* Kelurahan / Desa Column */}
                                         <Column
-                                            field="status"
-                                            header="Status"
+                                            field="kelurahan_desa"
+                                            header="Kelurahan / Desa"
                                             sortable
-                                            headerStyle={{ fontWeight: 'bold', width: '6.5rem' }}
-                                            body={(r: AntrianLayananData) => {
-                                                const sev =
-                                                    r.status === 'menunggu' ? 'warning' :
-                                                    r.status === 'dipanggil' ? 'info' :
-                                                    r.status === 'selesai' ? 'success' : 'danger';
-                                                const lbl =
-                                                    r.status === 'menunggu' ? 'Menunggu' :
-                                                    r.status === 'dipanggil' ? 'Dipanggil' :
-                                                    r.status === 'selesai' ? 'Selesai' : 'Batal';
-                                                return <Tag value={lbl} severity={sev} className="text-xs font-semibold px-2 py-0.5" />;
-                                            }}
-                                        />
-
-                                        {/* Aksi Column */}
-                                        <Column
-                                            header="Aksi"
-                                            align="center"
-                                            headerStyle={{ width: '4.5rem', textAlign: 'center' }}
-                                            body={(r: AntrianLayananData) => {
-                                                const isSelected = r.kode_antrian_layanan === currentItem?.kode_antrian_layanan;
-                                                return (
-                                                    <Button
-                                                        icon={isSelected ? "pi pi-check" : "pi pi-chevron-right"}
-                                                        size="small"
-                                                        outlined={!isSelected}
-                                                        severity={isSelected ? undefined : "secondary"}
-                                                        tooltip={isSelected ? "Sedang Ditampilkan" : "Pilih Antrean Ini"}
-                                                        tooltipOptions={{ position: 'left' }}
-                                                        className="p-button-sm border-round-md"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            const idx = roomFilteredItems.findIndex((i) => i.kode_antrian_layanan === r.kode_antrian_layanan);
-                                                            if (idx !== -1) setCurrentIndex(idx);
-                                                        }}
-                                                    />
-                                                );
-                                            }}
+                                            headerStyle={{ fontWeight: 'bold', minWidth: '10rem' }}
+                                            body={(r: AntrianLayananData) => (
+                                                <div className="flex align-items-center gap-1.5 text-xs text-700">
+                                                    <i className="pi pi-map-marker text-teal-600" style={{ fontSize: '12px' }} />
+                                                    <span className="font-medium text-900" title={r.kelurahan_desa || '-'}>
+                                                        {r.kelurahan_desa || '-'}
+                                                    </span>
+                                                </div>
+                                            )}
                                         />
                                     </DataTable>
                                 </div>

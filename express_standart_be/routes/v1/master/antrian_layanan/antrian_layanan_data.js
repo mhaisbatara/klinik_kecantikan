@@ -63,6 +63,7 @@ const handleGetData = async (req, res) => {
               .orWhereRaw("LOWER(al.kode_kunjungan) LIKE ?", [`%${lower}%`])
               .orWhereRaw("LOWER(k.no_rm) LIKE ?", [`%${lower}%`])
               .orWhereRaw("LOWER(p.nama) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(p.kelurahan_desa) LIKE ?", [`%${lower}%`])
               .orWhereRaw("LOWER(kar.nama) LIKE ?", [`%${lower}%`])
               .orWhereRaw("LOWER(dal.nama_layanan) LIKE ?", [`%${lower}%`]);
           });
@@ -92,6 +93,7 @@ const handleGetData = async (req, res) => {
       "k.jam_datang",
       "p.nama as nama_pasien",
       "p.no_hp",
+      "p.kelurahan_desa",
       "rm_asal.keluhan as data_konsultasi_keluhan",
       "rm_asal.durasi_keluhan as data_konsultasi_durasi_keluhan",
       "rm_asal.riwayat_alergi as data_konsultasi_riwayat_alergi",
