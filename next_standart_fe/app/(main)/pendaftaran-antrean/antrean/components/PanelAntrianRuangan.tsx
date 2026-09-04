@@ -7,6 +7,8 @@ import { Dropdown } from 'primereact/dropdown';
 import { InputText } from 'primereact/inputtext';
 import { IconField } from 'primereact/iconfield';
 import { InputIcon } from 'primereact/inputicon';
+import { DataTable } from 'primereact/datatable';
+import { Column } from 'primereact/column';
 import { Paginator, PaginatorPageChangeEvent } from 'primereact/paginator';
 import { ProgressSpinner } from 'primereact/progressspinner';
 import { Toast } from 'primereact/toast';
@@ -264,23 +266,28 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
 
     const [currentIndex, setCurrentIndex] = useState<number>(0);
 
-    // Filter gridData based on selected room and status filter
+    // Filter gridData based on selected room and search query
     const allGridData = state.gridData || [];
     const activeRoomObj = ruanganList.find((r) => r.kode_ruangan === selectedRuangan);
     const isKonsul = typeParam === 'konsul' || Boolean(activeRoomObj?.is_konsultasi);
     const isLayananOrKonsul = typeParam === 'layanan' || typeParam === 'konsul';
 
-    const roomFilteredItems = allGridData.filter((item) => {
+    // Base items for the room + search (for accurate pill count badges)
+    const roomAllItems = allGridData.filter((item) => {
         const matchRoom = selectedRuangan
             ? (item.kode_ruangan === selectedRuangan || (!item.kode_ruangan && selectedRuangan === ruanganList[0]?.kode_ruangan))
             : true;
-        const matchStatus = statusFilter ? item.status === statusFilter : true;
         const matchSearch = queueSearch
             ? (item.nama_pasien?.toLowerCase().includes(queueSearch.toLowerCase()) ||
                item.nomor_antrian?.toLowerCase().includes(queueSearch.toLowerCase()) ||
                item.no_rm?.toLowerCase().includes(queueSearch.toLowerCase()))
             : true;
-        return matchRoom && matchStatus && matchSearch;
+        return matchRoom && matchSearch;
+    });
+
+    // Filtered by selected status pill
+    const roomFilteredItems = roomAllItems.filter((item) => {
+        return statusFilter ? item.status === statusFilter : true;
     });
 
     // Otomatis arahkan ke antrean pertama yang belum selesai (menunggu / dipanggil)
@@ -318,436 +325,551 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
         }
     };
 
-    const activeDipanggilPatient = roomFilteredItems.find((i) => i.status === 'dipanggil') || null;
-    const nextWaitingPatient = roomFilteredItems.find((i) => i.status === 'menunggu') || null;
-
-    const mCount = roomFilteredItems.filter((i) => i.status === 'menunggu').length;
-    const pCount = roomFilteredItems.filter((i) => i.status === 'dipanggil').length;
-    const sCount = roomFilteredItems.filter((i) => i.status === 'selesai').length;
-    const bCount = roomFilteredItems.filter((i) => i.status === 'batal').length;
+    const totalCount = roomAllItems.length;
+    const mCount = roomAllItems.filter((i) => i.status === 'menunggu').length;
+    const pCount = roomAllItems.filter((i) => i.status === 'dipanggil').length;
+    const sCount = roomAllItems.filter((i) => i.status === 'selesai').length;
+    const bCount = roomAllItems.filter((i) => i.status === 'batal').length;
 
     return (
-        <div>
+        <div className="flex flex-column gap-3">
             <ConfirmDialog />
 
-            {/* HEADER RUANGAN CARD SELECTOR — hanya tampil jika TIDAK dari sidebar */}
+            {/* HEADER RUANGAN CARD SELECTOR — hanya tampil jika TIDAK dari sidebar spesifik */}
             {!initialRuangan && (
-            <div className="card shadow-1 border-round-xl p-4 mb-4 surface-card">
-                <div className="flex flex-column md:flex-row align-items-start md:align-items-center justify-content-between gap-3 mb-3 border-bottom-1 surface-border pb-3">
-                    <div>
-                        <h4 className="text-xl font-bold text-900 m-0 flex align-items-center gap-2">
-                            <i className="pi pi-building text-teal-600 text-2xl" />
-                            Antrean per Ruangan Tindakan
-                        </h4>
-                        <p className="text-500 text-xs m-0 mt-1">
-                            Pilih salah satu ruangan di bawah ini untuk melihat dan memanggil nomor antrean di ruangan tersebut.
-                        </p>
+                <div className="surface-card border-round-xl border-1 surface-border shadow-1 p-3 md:p-4 mb-1">
+                    <div className="flex flex-column sm:flex-row align-items-start sm:align-items-center justify-content-between gap-3 mb-3 pb-2 border-bottom-1 surface-border">
+                        <div>
+                            <h4 className="text-lg font-bold text-900 m-0 flex align-items-center gap-2">
+                                <i className="pi pi-building text-teal-600" />
+                                Ruangan Tindakan & Konsultasi
+                            </h4>
+                            <p className="text-500 text-xs m-0 mt-0.5">
+                                Pilih ruangan untuk memantau dan memanggil nomor antrean pasien secara langsung.
+                            </p>
+                        </div>
+                        <Button
+                            label="Refresh"
+                            icon="pi pi-refresh"
+                            outlined
+                            size="small"
+                            severity="secondary"
+                            onClick={getGridData}
+                            loading={state.loadGrid}
+                            className="font-semibold text-xs border-round-lg"
+                        />
                     </div>
 
-                    <Button
-                        label="Refresh Data"
-                        icon="pi pi-refresh"
-                        outlined
-                        size="small"
-                        severity="secondary"
-                        onClick={getGridData}
-                        loading={state.loadGrid}
-                    />
-                </div>
+                    {loadingRuangan ? (
+                        <div className="flex align-items-center justify-content-center py-4">
+                            <ProgressSpinner style={{ width: '30px', height: '30px' }} />
+                            <span className="ml-2 text-xs text-500">Memuat ruangan...</span>
+                        </div>
+                    ) : (
+                        <div className="grid">
+                            {ruanganList.map((ruang) => {
+                                const isSelected = ruang.kode_ruangan === selectedRuangan;
+                                const roomItems = allGridData.filter((i) => i.kode_ruangan === ruang.kode_ruangan);
+                                const totalRuang = roomItems.length;
+                                const mRuang = roomItems.filter((i) => i.status === 'menunggu').length;
+                                const pRuang = roomItems.filter((i) => i.status === 'dipanggil').length;
 
-                {loadingRuangan ? (
-                    <div className="flex align-items-center justify-content-center py-4">
-                        <ProgressSpinner style={{ width: '35px', height: '35px' }} />
-                        <span className="ml-2 text-sm text-500">Memuat daftar ruangan...</span>
-                    </div>
-                ) : (
-                    <div className="grid">
-                        {ruanganList.map((ruang) => {
-                            const isSelected = ruang.kode_ruangan === selectedRuangan;
-                            const roomItems = allGridData.filter((i) => i.kode_ruangan === ruang.kode_ruangan);
-                            const totalRuang = roomItems.length;
-                            const mRuang = roomItems.filter((i) => i.status === 'menunggu').length;
-                            const pRuang = roomItems.filter((i) => i.status === 'dipanggil').length;
+                                return (
+                                    <div key={ruang.kode_ruangan} className="col-12 sm:col-6 md:col-4 lg:col-3">
+                                        <div
+                                            className={`p-3 border-round-xl border-2 cursor-pointer transition-all transition-duration-200 relative overflow-hidden ${
+                                                isSelected
+                                                    ? 'border-teal-500 bg-teal-50 shadow-2'
+                                                    : 'surface-border surface-card hover:surface-50 shadow-1'
+                                            }`}
+                                            onClick={() => setSelectedRuangan(ruang.kode_ruangan)}
+                                        >
+                                            <div className="flex align-items-center justify-content-between mb-2">
+                                                <Tag value={ruang.kode_ruangan} severity={isSelected ? 'success' : 'info'} className="text-xs font-bold" />
+                                                {totalRuang > 0 && (
+                                                    <span className="text-xs font-bold text-teal-700 bg-teal-100 px-2 py-0.5 border-round-md">
+                                                        {totalRuang} Pasien
+                                                    </span>
+                                                )}
+                                            </div>
 
-                            return (
-                                <div key={ruang.kode_ruangan} className="col-12 sm:col-6 md:col-4 lg:col-3">
-                                    <div
-                                        className={`p-3 border-round-xl border-2 cursor-pointer transition-all transition-duration-200 ${
-                                            isSelected
-                                                ? 'border-teal-500 bg-teal-50 shadow-3'
-                                                : 'surface-border surface-card hover:border-300 shadow-1'
-                                        }`}
-                                        onClick={() => setSelectedRuangan(ruang.kode_ruangan)}
-                                    >
-                                        <div className="flex align-items-center justify-content-between mb-2">
-                                            <Tag value={ruang.kode_ruangan} severity={isSelected ? 'success' : 'info'} className="text-xs font-bold" />
-                                            {totalRuang > 0 && (
-                                                <span className="text-xs font-bold text-teal-700 bg-teal-100 px-2 py-1 border-round-md">
-                                                    {totalRuang} Antrean
-                                                </span>
-                                            )}
-                                        </div>
+                                            <h4 className="font-bold text-sm text-900 m-0 mb-2 flex align-items-center gap-1.5 text-truncate">
+                                                <i className="pi pi-home text-teal-600 text-xs" />
+                                                {ruang.nama_ruangan}
+                                            </h4>
 
-                                        <h4 className="font-extrabold text-base text-900 m-0 mb-2 flex align-items-center gap-2">
-                                            <i className="pi pi-home text-teal-600" />
-                                            {ruang.nama_ruangan}
-                                        </h4>
-
-                                        <div className="flex align-items-center gap-2 text-xs">
-                                            <span className="text-amber-700 font-semibold">⏳ Menunggu: {mRuang}</span>
-                                            <span className="text-blue-700 font-semibold">📢 Call: {pRuang}</span>
+                                            <div className="flex align-items-center gap-2 text-xs">
+                                                <span className="text-amber-700 font-semibold">⏳ Menunggu: {mRuang}</span>
+                                                <span className="text-blue-700 font-semibold">📢 Call: {pRuang}</span>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
-            </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
             )}
 
             {/* DETAIL ANTREAN UNTUK RUANGAN TERPILIH */}
             {selectedRuangan && (
-                <div className="flex flex-column gap-4">
-                    {/* 1. DAFTAR KARTU NOMOR ANTREAN PASIEN RUANGAN */}
-                    <div className="card shadow-1 border-round-xl p-4 surface-card border-top-3 border-teal-500 mb-0">
-                        <div className="flex flex-column gap-3 mb-4 border-bottom-1 surface-border pb-3">
-                            {/* ROW 1: TITLE & ACTION BUTTONS */}
-                            <div className="flex flex-column sm:flex-row align-items-start sm:align-items-center justify-content-between gap-3">
-                                <div>
-                                    <span className="text-xs text-500 font-medium block uppercase tracking-wider mb-1">
-                                        {initialRuangan ? 'Layanan Ruangan' : 'Ruangan Terpilih'}
-                                    </span>
-                                    <h3 className="text-2xl font-extrabold text-teal-900 m-0 flex align-items-center gap-2">
-                                        <i className="pi pi-building text-teal-600 text-2xl" />
-                                        {activeRoomObj ? activeRoomObj.nama_ruangan : selectedRuangan}
-                                    </h3>
-                                </div>
-
-                                <div className="flex align-items-center gap-2">
-                                    <Button
-                                        label="Refresh Data"
-                                        icon="pi pi-refresh"
-                                        outlined
-                                        size="small"
-                                        severity="secondary"
-                                        className="font-bold text-xs border-round-lg"
-                                        onClick={getGridData}
-                                        loading={state.loadGrid}
-                                    />
-                                </div>
-                            </div>
-
-                            {/* ROW 2: FILTER DROPDOWN, SEARCH & STATUS BADGES */}
-                            <div className="flex flex-column lg:flex-row align-items-start lg:align-items-center justify-content-between gap-3 pt-1">
-                                <div className="flex flex-column sm:flex-row align-items-stretch sm:align-items-center gap-2 w-full lg:w-auto">
-                                    <Dropdown
-                                        value={statusFilter}
-                                        options={[
-                                            { label: 'Semua Status', value: '' },
-                                            { label: '⏳ Menunggu', value: 'menunggu' },
-                                            { label: '📢 Dipanggil', value: 'dipanggil' },
-                                            { label: '✅ Selesai', value: 'selesai' },
-                                            { label: '❌ Batal', value: 'batal' },
-                                        ]}
-                                        onChange={(e) => setStatusFilter(e.value)}
-                                        placeholder="Filter Status"
-                                        className="p-inputtext-sm w-full sm:w-12rem border-round-lg"
-                                    />
-
-                                    <IconField iconPosition="left" className="w-full sm:w-16rem">
-                                        <InputIcon className="pi pi-search" />
-                                        <InputText
-                                            value={queueSearch}
-                                            onChange={(e) => setQueueSearch(e.target.value)}
-                                            placeholder="Cari pasien / no. antrean..."
-                                            className="p-inputtext-sm w-full border-round-lg"
-                                        />
-                                    </IconField>
-                                </div>
-
-                                <div className="flex gap-2 flex-wrap align-items-center">
-                                    {[
-                                        { color: '#f59e0b', label: 'Menunggu',  count: mCount },
-                                        { color: '#3b82f6', label: 'Dipanggil', count: pCount },
-                                        { color: '#22c55e', label: 'Selesai',   count: sCount },
-                                        { color: '#ef4444', label: 'Batal',     count: bCount },
-                                        { color: '#6b7280', label: 'Total',     count: roomFilteredItems.length },
-                                    ].map((item) => (
-                                        <span
-                                            key={item.label}
-                                            className="flex align-items-center gap-2 px-3 py-2 border-round-lg text-sm font-semibold"
-                                            style={{
-                                                background: `${item.color}18`,
-                                                border: `1.5px solid ${item.color}55`,
-                                                color: item.color,
-                                            }}
-                                        >
-                                            <span style={{
-                                                display: 'inline-block',
-                                                width: '14px', height: '14px',
-                                                borderRadius: '4px',
-                                                backgroundColor: item.color,
-                                                boxShadow: `0 1px 4px ${item.color}55`,
-                                                flexShrink: 0,
-                                            }} />
-                                            {item.label}: <strong>{item.count}</strong>
+                <div className="flex flex-column gap-3">
+                    {/* CONTAINER UTAMA ANTREAN RUANGAN */}
+                    <div className="surface-card border-round-xl border-1 surface-border shadow-1 p-3 md:p-4">
+                        {/* ── HEADER RUANGAN TERPILIH & SEARCH TOOLBAR ── */}
+                        <div className="flex flex-column md:flex-row align-items-start md:align-items-center justify-content-between gap-3 pb-3 border-bottom-1 surface-border">
+                            <div>
+                                <div className="flex align-items-center gap-2 mb-1">
+                                    <Tag value={activeRoomObj?.kode_ruangan || selectedRuangan} severity="success" className="font-bold text-xs" />
+                                    {selectedPetugasJaga && (
+                                        <span className="text-xs text-600 font-medium flex align-items-center gap-1">
+                                            <i className="pi pi-user text-teal-600 text-xs" />
+                                            Petugas: <strong>{selectedPetugasJaga}</strong>
                                         </span>
-                                    ))}
+                                    )}
                                 </div>
+                                <h3 className="text-2xl font-bold text-900 m-0 flex align-items-center gap-2">
+                                    <i className="pi pi-building text-teal-600" />
+                                    {activeRoomObj ? activeRoomObj.nama_ruangan : selectedRuangan}
+                                </h3>
                             </div>
 
-                            {/* BARIS KETERANGAN STATUS LEGEND */}
-                            <div className="flex flex-wrap align-items-center gap-3 px-2 py-2 border-round-md surface-100 text-xs font-medium text-color-secondary mt-3">
-                                <span className="flex align-items-center gap-1">
-                                    <i className="pi pi-info-circle" />
-                                    <span className="font-semibold">KETERANGAN STATUS:</span>
-                                </span>
-                                {[
-                                    { color: '#f59e0b', label: 'Menunggu = klik kartu untuk panggil' },
-                                    { color: '#3b82f6', label: 'Dipanggil = pasien sedang ditangani' },
-                                    { color: '#22c55e', label: 'Selesai = tindakan selesai' },
-                                    { color: '#ef4444', label: 'Batal = antrean dibatalkan' },
-                                ].map((s) => (
-                                    <span key={s.label} className="flex align-items-center gap-1">
-                                        <span style={{
-                                            display: 'inline-block',
-                                            width: '12px', height: '12px',
-                                            borderRadius: '3px',
-                                            backgroundColor: s.color,
-                                            boxShadow: `0 1px 3px ${s.color}55`,
-                                            flexShrink: 0,
-                                        }} />
-                                        {s.label}
-                                    </span>
-                                ))}
+                            {/* SEARCH & RESET TOOLBAR (FORMAT PERSIS MASTER DATA) */}
+                            <div className="flex align-items-center gap-2 w-full md:w-auto">
+                                <IconField iconPosition="left" className="flex-1 md:w-18rem">
+                                    <InputIcon className="pi pi-search" />
+                                    <InputText
+                                        value={queueSearch}
+                                        onChange={(e) => setQueueSearch(e.target.value)}
+                                        placeholder="Cari Data..."
+                                        className="p-inputtext-sm w-full border-round-lg text-sm"
+                                    />
+                                </IconField>
+
+                                <Button
+                                    type="button"
+                                    icon="pi pi-filter-slash"
+                                    outlined
+                                    severity="danger"
+                                    tooltip="Reset Filter"
+                                    tooltipOptions={{ position: 'bottom' }}
+                                    className="border-round-lg flex-shrink-0"
+                                    onClick={() => {
+                                        setQueueSearch('');
+                                        setStatusFilter('');
+                                    }}
+                                />
+
+                                <Button
+                                    type="button"
+                                    icon="pi pi-refresh"
+                                    outlined
+                                    severity="success"
+                                    tooltip="Refresh"
+                                    tooltipOptions={{ position: 'bottom' }}
+                                    className="border-round-lg flex-shrink-0"
+                                    onClick={getGridData}
+                                    loading={state.loadGrid}
+                                />
                             </div>
                         </div>
 
-                        {/* ── TAMPILAN SINGLE ANTREAN SPOTLIGHT (HANYA 1 KARTU + NAVIGATION NEXT/PREV) ── */}
-                        {!currentItem ? (
-                            <div className="text-center py-6 text-500 border-1 border-dashed border-round-xl surface-50">
-                                <i className="pi pi-inbox text-5xl mb-3 text-400 block" />
-                                <p className="font-bold text-base m-0 text-700">Belum Ada Nomor Antrean pada Ruangan Ini</p>
-                                <p className="text-xs text-500 m-0 mt-1">Nomor antrean yang didaftarkan akan muncul di sini secara otomatis.</p>
-                            </div>
-                        ) : (() => {
-                            const cfg = STATUS_CONFIG[currentItem.status] || STATUS_CONFIG.menunggu;
-                            const isDipanggil = currentItem.status === 'dipanggil';
-                            const isPaket = currentItem.jenis_layanan === 'paket';
+                        {/* ── KETERANGAN STATUS (FORMAT & JARAK PERSIS MASTER DATA) ── */}
+                        <div className="flex flex-wrap align-items-center gap-3 px-1 py-2 border-round-md surface-100 text-xs font-medium text-color-secondary mt-2">
+                            <span className="flex align-items-center gap-1">
+                                <i className="pi pi-info-circle" />
+                                <span className="font-semibold">KETERANGAN STATUS:</span>
+                            </span>
 
-                            return (
-                                <div className="flex flex-column align-items-center text-center p-4 border-round-2xl surface-50 border-1 surface-border shadow-1 relative">
-                                    <style>{`
-                                        @keyframes switchCardAnim {
-                                            0% {
-                                                opacity: 0.1;
-                                                transform: scale(0.88) translateY(14px);
-                                            }
-                                            60% {
-                                                transform: scale(1.03) translateY(-4px);
-                                            }
-                                            100% {
-                                                opacity: 1;
-                                                transform: scale(1) translateY(0);
-                                            }
-                                        }
-                                        .card-switch-animation {
-                                            animation: switchCardAnim 0.38s cubic-bezier(0.34, 1.56, 0.64, 1);
-                                        }
-                                    `}</style>
+                            <span
+                                className={`flex align-items-center gap-1 cursor-pointer transition-colors ${
+                                    statusFilter === '' ? 'font-bold text-900' : 'hover:text-900'
+                                }`}
+                                onClick={() => setStatusFilter('')}
+                            >
+                                Semua ({totalCount})
+                            </span>
 
-                                    {/* ── BARIS INDIKATOR ANTREAN ── */}
-                                    <div className="flex flex-column sm:flex-row align-items-center justify-content-between w-full max-w-30rem gap-2 mb-2">
-                                        <Tag
-                                            value={`Antrean Ke-${currentIndex + 1} dari ${roomFilteredItems.length}`}
-                                            severity="secondary"
-                                            className="text-xs font-extrabold px-3 py-2 border-round-md"
-                                        />
-                                        <div className="flex gap-2 flex-wrap justify-content-center">
-                                            <Tag value={`Menunggu: ${mCount}`} severity="warning" className="text-xs font-bold px-2 py-1" />
-                                            <Tag value={`Dipanggil: ${pCount}`} severity="info" className="text-xs font-bold px-2 py-1" />
-                                            <Tag value={`Selesai: ${sCount}`} severity="success" className="text-xs font-bold px-2 py-1" />
-                                        </div>
+                            <span
+                                className={`flex align-items-center gap-1 cursor-pointer transition-colors ${
+                                    statusFilter === 'menunggu' ? 'font-bold text-900' : 'hover:text-900'
+                                }`}
+                                onClick={() => setStatusFilter(statusFilter === 'menunggu' ? '' : 'menunggu')}
+                            >
+                                <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', backgroundColor: '#f59e0b', boxShadow: '0 1px 3px #f59e0b55' }} />
+                                Menunggu ({mCount})
+                            </span>
+
+                            <span
+                                className={`flex align-items-center gap-1 cursor-pointer transition-colors ${
+                                    statusFilter === 'dipanggil' ? 'font-bold text-900' : 'hover:text-900'
+                                }`}
+                                onClick={() => setStatusFilter(statusFilter === 'dipanggil' ? '' : 'dipanggil')}
+                            >
+                                <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', backgroundColor: '#3b82f6', boxShadow: '0 1px 3px #3b82f655' }} />
+                                Dipanggil ({pCount})
+                            </span>
+
+                            <span
+                                className={`flex align-items-center gap-1 cursor-pointer transition-colors ${
+                                    statusFilter === 'selesai' ? 'font-bold text-900' : 'hover:text-900'
+                                }`}
+                                onClick={() => setStatusFilter(statusFilter === 'selesai' ? '' : 'selesai')}
+                            >
+                                <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', backgroundColor: '#22c55e', boxShadow: '0 1px 3px #22c55e55' }} />
+                                Selesai ({sCount})
+                            </span>
+
+                            {bCount > 0 && (
+                                <span
+                                    className={`flex align-items-center gap-1 cursor-pointer transition-colors ${
+                                        statusFilter === 'batal' ? 'font-bold text-900' : 'hover:text-900'
+                                    }`}
+                                    onClick={() => setStatusFilter(statusFilter === 'batal' ? '' : 'batal')}
+                                >
+                                    <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', backgroundColor: '#ef4444', boxShadow: '0 1px 3px #ef444455' }} />
+                                    Batal ({bCount})
+                                </span>
+                            )}
+                        </div>
+
+                        {/* ── WORKSPACE 2 KOLOM (SEJAJAR DI DESKTOP: SPOTLIGHT DI KIRI + TABEL ANTREAN DI KANAN) ── */}
+                        <div className="grid pt-4">
+                            {/* KOLOM 1: SPOTLIGHT KARTU PANGGILAN ANTREAN (KIRI) */}
+                            <div className="col-12 lg:col-5 xl:col-5">
+                                {!currentItem ? (
+                                    <div className="flex flex-column align-items-center justify-content-center text-center p-6 border-round-xl surface-50 border-1 border-dashed surface-border" style={{ height: '480px' }}>
+                                        <i className="pi pi-inbox text-5xl text-400 mb-3 block" />
+                                        <h4 className="text-base font-bold text-700 m-0">Tidak Ada Antrean pada Kriteria Ini</h4>
+                                        <p className="text-xs text-500 m-0 mt-1 max-w-20rem">
+                                            Nomor antrean yang didaftarkan ke ruangan ini akan muncul secara otomatis di panel ini.
+                                        </p>
                                     </div>
+                                ) : (() => {
+                                    const isDipanggil = currentItem.status === 'dipanggil';
+                                    const isPaket = currentItem.jenis_layanan === 'paket';
 
-                                    {/* ── KARTU SINGLE ANTREAN UTAMA (KOTAK DI TENGAH) ── */}
-                                    <div
-                                        key={`${currentItem.kode_antrian_layanan}_${currentIndex}`}
-                                        className="w-full max-w-30rem p-4 border-round-2xl border-3 shadow-3 my-2 card-switch-animation text-center"
-                                        style={{
-                                            background: cfg.bg,
-                                            borderColor: cfg.border,
-                                            color: cfg.color,
-                                        }}
-                                    >
-                                        <div className="text-xs font-extrabold uppercase tracking-widest mb-1 opacity-80">
-                                            NOMOR ANTREAN AKTIF
-                                        </div>
-                                        <div className="text-6xl sm:text-7xl font-black my-2" style={{ lineHeight: 1, letterSpacing: '-1px' }}>
-                                            {currentItem.nomor_antrian}
-                                        </div>
+                                    return (
+                                        <div className="surface-50 border-round-xl border-1 surface-border p-3 flex flex-column shadow-1" style={{ height: '480px' }}>
+                                            {/* Header Status & Sequence */}
+                                            <div className="flex align-items-center justify-content-between gap-2 mb-2 flex-shrink-0">
+                                                {currentItem.status === 'dipanggil' ? (
+                                                    <Tag value="Sedang Dipanggil" icon="pi pi-volume-up" severity="info" className="font-bold text-xs px-3 py-1.5 border-round-pill" />
+                                                ) : currentItem.status === 'menunggu' ? (
+                                                    <Tag value="Menunggu Pemanggilan" icon="pi pi-clock" severity="warning" className="font-bold text-xs px-3 py-1.5 border-round-pill" />
+                                                ) : currentItem.status === 'selesai' ? (
+                                                    <Tag value="Tindakan Selesai" icon="pi pi-check-circle" severity="success" className="font-bold text-xs px-3 py-1.5 border-round-pill" />
+                                                ) : (
+                                                    <Tag value="Dibatalkan" icon="pi pi-times-circle" severity="danger" className="font-bold text-xs px-3 py-1.5 border-round-pill" />
+                                                )}
 
-                                        <div className="text-xl font-extrabold text-truncate px-2 mb-2" title={currentItem.nama_pasien}>
-                                            {currentItem.nama_pasien || '-'}
-                                        </div>
+                                                <span className="text-xs font-bold text-600 bg-white border-1 surface-border px-2.5 py-1 border-round-md">
+                                                    Urutan {currentIndex + 1} dari {roomFilteredItems.length}
+                                                </span>
+                                            </div>
 
-                                        <div
-                                            className="inline-block text-xs font-bold px-3 py-1 border-round-lg mb-2"
-                                            style={{
-                                                background: 'rgba(255,255,255,0.9)',
-                                                color: cfg.color,
-                                                border: `1px solid ${cfg.border}44`,
-                                            }}
-                                        >
-                                            {isPaket ? '📦 Paket: ' : '💆 Layanan: '} {currentItem.nama_layanan || '-'}
-                                        </div>
+                                            {/* Antrean Info Card - Expands (flex-1) to fill middle space */}
+                                            <div className="surface-card border-round-xl border-1 surface-border shadow-1 p-3 text-center flex-1 flex flex-column justify-content-center align-items-center my-1 overflow-hidden">
+                                                <span className="text-xs font-bold text-500 uppercase tracking-widest block mb-1">
+                                                    NOMOR ANTREAN
+                                                </span>
+                                                <div className="text-6xl sm:text-7xl font-black text-teal-700 my-1" style={{ lineHeight: 1 }}>
+                                                    {currentItem.nomor_antrian}
+                                                </div>
 
-                                        <div className="mt-1">
-                                            <span
-                                                className="inline-block text-xs font-extrabold px-3 py-1 border-round-xl uppercase"
-                                                style={{
-                                                    background: 'rgba(255,255,255,0.85)',
-                                                    color: cfg.color,
-                                                    border: `1px solid ${cfg.border}44`,
-                                                }}
-                                            >
-                                                {cfg.label}
-                                            </span>
-                                        </div>
-                                    </div>
+                                                <div className="text-2xl font-bold text-900 mt-2 mb-1 text-truncate px-2" title={currentItem.nama_pasien}>
+                                                    {currentItem.nama_pasien || '-'}
+                                                </div>
 
-                                    {/* ── KONTROL AKSI & NAVIGASI DI BAWAH KARTU (RAPI & TERPISAH) ── */}
-                                    <div className="w-full max-w-30rem mt-3 flex flex-column gap-3">
-                                        {/* BARIS TOMBOL AKSI UTAMA & RIWAYAT PASIEN */}
-                                        {currentItem.status === 'menunggu' ? (
-                                            <div className="flex gap-2 w-full">
-                                                <Button
-                                                    label="📢 Panggil Pasien Ini"
-                                                    icon="pi pi-megaphone"
-                                                    severity="info"
-                                                    size="large"
-                                                    className="font-bold border-round-lg flex-1 shadow-2 text-sm py-3"
-                                                    onClick={() => handleAksi(currentItem, 'dipanggil')}
-                                                />
-                                                <Button
-                                                    label="Riwayat"
-                                                    icon="pi pi-history"
-                                                    severity="help"
-                                                    outlined
-                                                    className="font-bold border-round-lg shadow-1 text-xs px-3"
-                                                    tooltip="Lihat Riwayat Kunjungan Pasien"
-                                                    onClick={() => {
-                                                        setSelectedPatientForRiwayat(currentItem);
-                                                        setDrawerRiwayatVisible(true);
-                                                    }}
+                                                <div className="flex flex-wrap align-items-center justify-content-center gap-2 text-xs text-600 mb-2">
+                                                    {currentItem.no_rm && (
+                                                        <span className="bg-surface-50 border-1 surface-border px-2 py-0.5 border-round">
+                                                            No. RM: <strong>{currentItem.no_rm}</strong>
+                                                        </span>
+                                                    )}
+                                                    {currentItem.jam_datang && (
+                                                        <span className="bg-surface-50 border-1 surface-border px-2 py-0.5 border-round">
+                                                            🕒 Datang: <strong>{currentItem.jam_datang}</strong>
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                <Tag
+                                                    value={`${isPaket ? 'Paket: ' : 'Layanan: '}${currentItem.nama_layanan || '-'}`}
+                                                    icon={isPaket ? 'pi pi-box' : 'pi pi-sparkles'}
+                                                    severity={isPaket ? 'warning' : 'info'}
+                                                    className="font-bold text-xs px-3 py-1.5 border-round-pill max-w-full text-truncate"
                                                 />
                                             </div>
-                                        ) : isDipanggil ? (
-                                            <div className="flex flex-column gap-2 w-full">
-                                                <div className="grid grid-nogutter gap-2 align-items-center">
-                                                    <div className="col">
+
+                                            {/* Action Buttons Hub */}
+                                            <div className="flex flex-column gap-2 flex-shrink-0 mt-1">
+                                                {currentItem.status === 'menunggu' ? (
+                                                    <Button
+                                                        label="Panggil Pasien Ini"
+                                                        icon="pi pi-megaphone"
+                                                        size="large"
+                                                        className="font-bold border-round-xl w-full py-3 text-base shadow-2 bg-teal-600 hover:bg-teal-700 border-none text-white"
+                                                        onClick={() => handleAksi(currentItem, 'dipanggil')}
+                                                    />
+                                                ) : isDipanggil ? (
+                                                    <div className="flex flex-column gap-2 w-full">
                                                         <Button
-                                                            label="Panggil Ulang"
-                                                            icon="pi pi-volume-up"
-                                                            severity="info"
-                                                            className="font-bold border-round-lg w-full shadow-2 text-xs py-2 px-2 white-space-nowrap"
-                                                            onClick={() => {
-                                                                playChime();
-                                                                speakNomorLayanan(currentItem.nomor_antrian, currentItem.nama_pasien, currentItem.nama_ruangan || currentItem.nama_layanan);
-                                                            }}
-                                                        />
-                                                    </div>
-                                                    <div className="col">
-                                                        <Button
-                                                            label="Riwayat Pasien"
-                                                            icon="pi pi-history"
-                                                            severity="help"
-                                                            outlined
-                                                            className="font-bold border-round-lg w-full shadow-1 text-xs py-2 px-2 white-space-nowrap"
-                                                            onClick={() => {
-                                                                setSelectedPatientForRiwayat(currentItem);
-                                                                setDrawerRiwayatVisible(true);
-                                                            }}
-                                                        />
-                                                    </div>
-                                                </div>
-                                                <div className="grid grid-nogutter gap-2 align-items-center">
-                                                    <div className="col-fixed" style={{ width: '38%' }}>
-                                                        <Button
-                                                            label="Batalkan"
-                                                            icon="pi pi-times"
-                                                            severity="danger"
-                                                            outlined
-                                                            className="font-bold border-round-lg w-full shadow-1 text-xs py-2 px-2 white-space-nowrap"
-                                                            onClick={() => handleAksi(currentItem, 'batal')}
-                                                        />
-                                                    </div>
-                                                    <div className="col">
-                                                        <Button
-                                                            label="Selesai"
+                                                            label="Selesaikan Penanganan"
                                                             icon="pi pi-check-circle"
                                                             severity="success"
-                                                            className="font-bold border-round-lg w-full shadow-2 text-xs py-2 px-2 white-space-nowrap"
+                                                            size="large"
+                                                            className="font-bold border-round-xl w-full py-3 text-base shadow-2"
                                                             onClick={() => handleAksi(currentItem, 'selesai')}
                                                         />
+
+                                                        <div className="flex gap-2 w-full">
+                                                            <Button
+                                                                label="Panggil Ulang"
+                                                                icon="pi pi-volume-up"
+                                                                severity="info"
+                                                                outlined
+                                                                className="font-semibold border-round-lg flex-1 text-xs py-2"
+                                                                onClick={() => {
+                                                                    playChime();
+                                                                    speakNomorLayanan(
+                                                                        currentItem.nomor_antrian,
+                                                                        currentItem.nama_pasien,
+                                                                        currentItem.nama_ruangan || currentItem.nama_layanan
+                                                                    );
+                                                                }}
+                                                            />
+                                                            <Button
+                                                                label="Batal"
+                                                                icon="pi pi-times"
+                                                                severity="danger"
+                                                                outlined
+                                                                className="font-semibold border-round-lg w-7rem text-xs py-2"
+                                                                onClick={() => handleAksi(currentItem, 'batal')}
+                                                            />
+                                                        </div>
                                                     </div>
+                                                ) : (
+                                                    <div className="w-full">
+                                                        {currentItem.status === 'selesai' ? (
+                                                            <Button
+                                                                label="Tindakan Selesai"
+                                                                icon="pi pi-check-circle"
+                                                                severity="success"
+                                                                size="large"
+                                                                className="font-bold border-round-xl w-full py-3 text-base shadow-1 pointer-events-none"
+                                                            />
+                                                        ) : (
+                                                            <Button
+                                                                label="Antrean Dibatalkan"
+                                                                icon="pi pi-times-circle"
+                                                                severity="danger"
+                                                                size="large"
+                                                                className="font-bold border-round-xl w-full py-3 text-base shadow-1 pointer-events-none"
+                                                            />
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                {/* Navigator Prev / Next */}
+                                                <div className="flex align-items-center justify-content-between gap-2 pt-2 border-top-1 surface-border">
+                                                    <Button
+                                                        label="Sebelumnya"
+                                                        icon="pi pi-chevron-left"
+                                                        outlined
+                                                        size="small"
+                                                        severity="secondary"
+                                                        disabled={currentIndex === 0}
+                                                        onClick={handlePrevPatient}
+                                                        className="font-semibold border-round-lg text-xs"
+                                                    />
+                                                    <span className="text-xs text-600 font-bold">
+                                                        {currentIndex + 1} dari {roomFilteredItems.length}
+                                                    </span>
+                                                    <Button
+                                                        label="Berikutnya"
+                                                        iconPos="right"
+                                                        icon="pi pi-chevron-right"
+                                                        outlined
+                                                        size="small"
+                                                        severity="secondary"
+                                                        disabled={currentIndex >= roomFilteredItems.length - 1}
+                                                        onClick={handleNextPatient}
+                                                        className="font-semibold border-round-lg text-xs"
+                                                    />
                                                 </div>
                                             </div>
-                                        ) : (
-                                            <div className="flex align-items-center gap-2 w-full">
-                                                <Tag value={cfg.label} severity={currentItem.status === 'selesai' ? 'success' : 'danger'} className="text-sm font-bold py-2 px-4 flex-1 text-center" />
-                                                <Button
-                                                    label="Riwayat"
-                                                    icon="pi pi-history"
-                                                    severity="help"
-                                                    outlined
-                                                    className="font-bold border-round-lg shadow-1 text-xs py-2 px-3 white-space-nowrap"
-                                                    tooltip="Lihat Riwayat Kunjungan Pasien"
-                                                    onClick={() => {
-                                                        setSelectedPatientForRiwayat(currentItem);
-                                                        setDrawerRiwayatVisible(true);
-                                                    }}
-                                                />
-                                            </div>
-                                        )}
-
-                                        {/* BARIS NAVIGASI PREV & NEXT */}
-                                        <div className="flex align-items-center justify-content-between gap-3 pt-2 border-top-1 surface-border">
-                                            <Button
-                                                label="‹ Prev"
-                                                icon="pi pi-chevron-left"
-                                                outlined
-                                                severity="secondary"
-                                                disabled={currentIndex === 0}
-                                                onClick={handlePrevPatient}
-                                                className="font-bold border-round-lg px-3 py-2 text-xs"
-                                            />
-                                            <span className="text-xs font-bold text-500">
-                                                Antrean {currentIndex + 1} dari {roomFilteredItems.length}
-                                            </span>
-                                            <Button
-                                                label="Next ›"
-                                                iconPos="right"
-                                                icon="pi pi-chevron-right"
-                                                outlined
-                                                severity="secondary"
-                                                disabled={currentIndex >= roomFilteredItems.length - 1}
-                                                onClick={handleNextPatient}
-                                                className="font-bold border-round-lg px-3 py-2 text-xs"
-                                            />
                                         </div>
+                                    );
+                                })()}
+                            </div>
+
+                            {/* KOLOM 2: DAFTAR SELURUH ANTREAN RUANGAN DALAM FORMAT TABEL MASTER DATA (KANAN) */}
+                            <div className="col-12 lg:col-7 xl:col-7">
+                                <div className="surface-card border-round-xl border-1 surface-border p-3 flex flex-column shadow-1" style={{ height: '480px' }}>
+                                    {/* Table Top Header */}
+                                    <div className="flex align-items-center justify-content-between mb-2 pb-2 border-bottom-1 surface-border flex-shrink-0">
+                                        <span className="text-base font-bold text-900 flex align-items-center gap-2">
+                                            <i className="pi pi-list text-teal-600" />
+                                            Daftar Antrean Pasien
+                                        </span>
                                     </div>
+
+                                    {/* DATATABLE ANTREAN PASIEN DALAM WADAH FLEKSIBEL TERKUNCI */}
+                                    <div className="flex-1 overflow-hidden flex flex-column">
+                                        <DataTable
+                                            value={roomFilteredItems}
+                                            scrollable
+                                            scrollHeight="flex"
+                                            paginator
+                                            rows={5}
+                                            rowsPerPageOptions={[5, 10, 20]}
+                                            className="p-datatable-sm text-xs flex-1 flex flex-column"
+                                            emptyMessage="Data antrean tidak ditemukan."
+                                        dataKey="kode_antrian_layanan"
+                                        selectionMode="single"
+                                        selection={currentItem}
+                                        onSelectionChange={(e: any) => {
+                                            if (e.value) {
+                                                const idx = roomFilteredItems.findIndex((i) => i.kode_antrian_layanan === e.value.kode_antrian_layanan);
+                                                if (idx !== -1) setCurrentIndex(idx);
+                                            }
+                                        }}
+                                        rowClassName={(data) => ({
+                                            'bg-teal-50 font-semibold cursor-pointer': data.kode_antrian_layanan === currentItem?.kode_antrian_layanan,
+                                            'cursor-pointer': data.kode_antrian_layanan !== currentItem?.kode_antrian_layanan,
+                                        })}
+                                        paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
+                                        currentPageReportTemplate="Menampilkan {first} - {last} dari {totalRecords} data"
+                                    >
+                                        {/* Status Color Square Column */}
+                                        <Column
+                                            header=""
+                                            headerStyle={{ width: '2.5rem' }}
+                                            align="center"
+                                            body={(r: AntrianLayananData) => {
+                                                const color =
+                                                    r.status === 'menunggu' ? '#f59e0b' :
+                                                    r.status === 'dipanggil' ? '#3b82f6' :
+                                                    r.status === 'selesai' ? '#22c55e' : '#ef4444';
+                                                return (
+                                                    <span
+                                                        style={{
+                                                            display: 'inline-block',
+                                                            width: '12px',
+                                                            height: '12px',
+                                                            borderRadius: '3px',
+                                                            backgroundColor: color,
+                                                            boxShadow: `0 1px 3px ${color}55`,
+                                                        }}
+                                                        title={`Status: ${r.status}`}
+                                                    />
+                                                );
+                                            }}
+                                        />
+
+                                        {/* Nomor Antrean Column */}
+                                        <Column
+                                            field="nomor_antrian"
+                                            header="No. Antrean"
+                                            sortable
+                                            headerStyle={{ fontWeight: 'bold', width: '6.5rem' }}
+                                            body={(r: AntrianLayananData) => (
+                                                <span className="font-bold text-xs text-teal-800 bg-teal-100 px-2 py-0.5 border-round">
+                                                    #{r.nomor_antrian}
+                                                </span>
+                                            )}
+                                        />
+
+                                        {/* Pasien Column */}
+                                        <Column
+                                            field="nama_pasien"
+                                            header="Pasien"
+                                            sortable
+                                            headerStyle={{ fontWeight: 'bold' }}
+                                            body={(r: AntrianLayananData) => (
+                                                <div>
+                                                    <div className="font-bold text-xs text-900">{r.nama_pasien || '-'}</div>
+                                                    {r.no_rm && <div className="text-500 text-xs">RM: {r.no_rm}</div>}
+                                                </div>
+                                            )}
+                                        />
+
+                                        {/* Layanan Column */}
+                                        <Column
+                                            field="nama_layanan"
+                                            header="Layanan / Tindakan"
+                                            sortable
+                                            headerStyle={{ fontWeight: 'bold' }}
+                                            body={(r: AntrianLayananData) => {
+                                                const isPaket = r.jenis_layanan === 'paket';
+                                                return (
+                                                    <div className="flex flex-column gap-0.5">
+                                                        <span className="text-xs text-700">{r.nama_layanan || '-'}</span>
+                                                        {isPaket && <Tag value="Paket" severity="warning" className="text-xs px-1.5 py-0" style={{ fontSize: '10px' }} />}
+                                                    </div>
+                                                );
+                                            }}
+                                        />
+
+                                        {/* Status Tag Column */}
+                                        <Column
+                                            field="status"
+                                            header="Status"
+                                            sortable
+                                            headerStyle={{ fontWeight: 'bold', width: '6.5rem' }}
+                                            body={(r: AntrianLayananData) => {
+                                                const sev =
+                                                    r.status === 'menunggu' ? 'warning' :
+                                                    r.status === 'dipanggil' ? 'info' :
+                                                    r.status === 'selesai' ? 'success' : 'danger';
+                                                const lbl =
+                                                    r.status === 'menunggu' ? 'Menunggu' :
+                                                    r.status === 'dipanggil' ? 'Dipanggil' :
+                                                    r.status === 'selesai' ? 'Selesai' : 'Batal';
+                                                return <Tag value={lbl} severity={sev} className="text-xs font-semibold px-2 py-0.5" />;
+                                            }}
+                                        />
+
+                                        {/* Aksi Column */}
+                                        <Column
+                                            header="Aksi"
+                                            align="center"
+                                            headerStyle={{ width: '4.5rem', textAlign: 'center' }}
+                                            body={(r: AntrianLayananData) => {
+                                                const isSelected = r.kode_antrian_layanan === currentItem?.kode_antrian_layanan;
+                                                return (
+                                                    <Button
+                                                        icon={isSelected ? "pi pi-check" : "pi pi-chevron-right"}
+                                                        size="small"
+                                                        outlined={!isSelected}
+                                                        severity={isSelected ? undefined : "secondary"}
+                                                        tooltip={isSelected ? "Sedang Ditampilkan" : "Pilih Antrean Ini"}
+                                                        tooltipOptions={{ position: 'left' }}
+                                                        className="p-button-sm border-round-md"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            const idx = roomFilteredItems.findIndex((i) => i.kode_antrian_layanan === r.kode_antrian_layanan);
+                                                            if (idx !== -1) setCurrentIndex(idx);
+                                                        }}
+                                                    />
+                                                );
+                                            }}
+                                        />
+                                    </DataTable>
                                 </div>
-                            );
-                        })()}
+                            </div>
+                        </div>
                     </div>
+                </div>
 
                     {/* FORM PENANGANAN MEDIS & HASIL TREATMENT HANYA TAMPIL DI MENU TINDAKAN & KONSULTASI */}
                     {isLayananOrKonsul && Boolean(selectedRuangan) && (() => {
                         const selectedRuanganObj = ruanganList.find((r) => r.kode_ruangan === selectedRuangan);
                         const isRoomKonsul = Boolean(selectedRuanganObj?.is_konsultasi) || typeParam === 'konsul';
-                        const activeDipanggilPatient = roomFilteredItems.find((item) => item.status === 'dipanggil') || (currentItem?.status === 'dipanggil' ? currentItem : null);
+                        const activeDipanggilPatient =
+                            roomFilteredItems.find((item) => item.status === 'dipanggil') ||
+                            (currentItem?.status === 'dipanggil' ? currentItem : null);
                         const nextWaitingPatient = roomFilteredItems.find((item) => item.status === 'menunggu') || null;
 
                         return (

@@ -12,7 +12,6 @@ import { initValue, State } from './components/interfaces';
 import { apiEndpointData } from './components/endpoints';
 import Table from './components/display/table';
 import GridPanggil from './components/display/grid_panggil';
-import TabCetakAntrean from './components/display/tab_cetak_antrean';
 import { TabPanel, TabView } from 'primereact/tabview';
 
 const Page = () => {
@@ -141,7 +140,7 @@ const Page = () => {
                         Antrean Pendaftaran
                     </h2>
                     <p className="text-color-secondary m-0">
-                        Kelola tiket fisik nomor antrean pendaftaran pasien, pencetakan struk, dan pemanggilan pasien ke loket.
+                        Kelola kartu fisik nomor antrean pendaftaran pasien dan pemanggilan pasien ke loket.
                     </p>
                 </div>
             </div>
@@ -151,20 +150,8 @@ const Page = () => {
                 onTabChange={(e) => setState((p) => ({ ...p, activeTab: e.index }))}
             >
                 <TabPanel
-                    header="Antrean Digital"
-                    leftIcon="pi pi-print mr-2"
-                >
-                    <TabCetakAntrean
-                        state={state}
-                        setState={setState}
-                        toast={toast}
-                        getGridData={getGridData}
-                    />
-                </TabPanel>
-
-                <TabPanel
-                    header="Antrean Manual"
-                    leftIcon="pi pi-bell mr-2"
+                    header="Pemanggilan Antrean"
+                    leftIcon="pi pi-volume-up mr-2"
                 >
                     <GridPanggil
                         state={state}
