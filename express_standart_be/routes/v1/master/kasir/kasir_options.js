@@ -8,6 +8,7 @@ import DB from "../../../../core/config/knex.js";
 import { formatDateSystem } from "../../components/tools/date_tools.js";
 import { Logging } from "../../components/tools/servertool.js";
 import { status } from "../../components/tools/general.js";
+import { getCompletedItemsForKasir } from "./kasir_sync_service.js";
 
 const router = express.Router();
 
@@ -47,29 +48,11 @@ router.post("/", async (req, res) => {
 
     const vaKunjungan = await kunjunganQuery;
 
-    // Ambil SEMUA antrean layanan yang statusnya 'selesai' (asal maupun rujukan)
+    // Ambil SEMUA antrean layanan yang statusnya 'selesai' dengan deduplikasi rujukan terpusat
     const kodeKunjunganList = vaKunjungan.map((k) => k.kode_kunjungan).filter(Boolean);
     let vaLayananPendaftaran = [];
     if (kodeKunjunganList.length > 0) {
-      vaLayananPendaftaran = await DB("trx_detail_antrian_layanan as dal")
-        .join("trx_antrian_layanan as al", "dal.kode_antrian_layanan", "al.kode_antrian_layanan")
-        .whereIn("al.kode_kunjungan", kodeKunjunganList)
-        .where("al.status", "selesai")
-        .select(
-          "al.kode_kunjungan",
-          "dal.id",
-          "dal.kode_detail_antrian_layanan",
-          "dal.kode_antrian_layanan",
-          "dal.kode_layanan",
-          "dal.nama_layanan",
-          "dal.harga",
-          "dal.jenis_layanan",
-          "dal.kode_promo",
-          "dal.nama_promo",
-          "dal.jenis_diskon",
-          "dal.nilai_diskon"
-        )
-        .orderBy("dal.id", "asc");
+      vaLayananPendaftaran = await getCompletedItemsForKasir(DB, kodeKunjunganList);
     }
 
     const kunjunganMapped = vaKunjungan.map((k) => {
