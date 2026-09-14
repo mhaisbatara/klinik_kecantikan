@@ -40,7 +40,7 @@ router.post("/", async (req, res) => {
 
     const todayStr = formatDateSystem(new Date(), "yyyy-MM-dd");
 
-    // Auto-sync status semua paket berdasarkan status layanannya & tanggal expired
+    // Auto-sync status: jika layanan di dalamnya ada yang nonaktif atau paket sudah expired, otomatis nonaktifkan paket
     const allPakets = await DB("mst_paket_layanan").select("kode_paket_layanan", "status", "tanggal_selesai", "is_selamanya");
     for (const pkt of allPakets) {
       const inactiveCount = await DB("mst_detail_paket_layanan as d")
@@ -52,12 +52,12 @@ router.post("/", async (req, res) => {
 
       const hasInactive = parseInt(inactiveCount?.cnt || 0) > 0;
       const isExpired = !Boolean(pkt.is_selamanya) && pkt.tanggal_selesai && pkt.tanggal_selesai < todayStr;
-      const targetStatus = (hasInactive || isExpired) ? "nonaktif" : "aktif";
 
-      if (pkt.status !== targetStatus) {
+      // Hanya auto-nonaktifkan jika paket berstatus aktif tapi layanannya nonaktif atau tanggalnya sudah lewat
+      if ((hasInactive || isExpired) && pkt.status === "aktif") {
         await DB("mst_paket_layanan")
           .where("kode_paket_layanan", pkt.kode_paket_layanan)
-          .update({ status: targetStatus, updated_at: formatDateSystem() });
+          .update({ status: "nonaktif", updated_at: formatDateSystem() });
       }
     }
 

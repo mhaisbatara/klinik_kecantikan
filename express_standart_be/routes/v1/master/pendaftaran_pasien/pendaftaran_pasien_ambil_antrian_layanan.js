@@ -188,6 +188,19 @@ router.post("/", async (req, res) => {
           .where("status", "aktif")
           .first();
 
+        // Ambil durasi sesi konsultasi dari master layanan aktif di ruang konsul
+        let durasiSesiKonsulMenit = 15;
+        if (ruangKonsul) {
+          const defaultLayKonsul = await trx("mst_layanan")
+            .where("kode_ruangan", ruangKonsul.kode_ruangan)
+            .where("status", "aktif")
+            .orderBy("id", "asc")
+            .first();
+          if (defaultLayKonsul && defaultLayKonsul.durasi_menit) {
+            durasiSesiKonsulMenit = parseInt(defaultLayKonsul.durasi_menit, 10) || 15;
+          }
+        }
+
         // 1. Validasi & Ambil Detail Semua Item (harga ASLI dari master, promo disimpan sebagai referensi)
         const checkedRoomsToday = new Map();
         const processedItems = [];
@@ -484,12 +497,17 @@ router.post("/", async (req, res) => {
           const promoKey1 = `${jenis}_${kodeLayanan}`;
           const promoItem = promoMap[promoKey1] || null;
 
+          const finalDurasiMenit = (needsConsult && kodeRuanganFinal === ruangKonsul?.kode_ruangan)
+            ? durasiSesiKonsulMenit
+            : durasiItem;
+
           processedItems.push({
             jenis_layanan: jenis,
             kode_layanan: kodeLayanan,
             nama_layanan: namaLayanan,
             harga: hargaLayanan,         // harga ASLI — diskon diterapkan di kasir
-            durasi_menit: durasiItem,
+            durasi_menit: finalDurasiMenit,
+            durasi_tindakan: durasiItem,
             kode_promo: promoItem?.kode_promo || null,
             nama_promo: promoItem?.nama_promo || null,
             jenis_diskon: promoItem?.jenis_diskon || null,
@@ -630,7 +648,7 @@ router.post("/", async (req, res) => {
                 targetRooms.set(trKode, {
                   kode: trKode,
                   nama: trNama,
-                  durasi: curDur + (parseInt(item.durasi_menit, 10) || 30),
+                  durasi: curDur + (parseInt(item.durasi_tindakan || item.durasi_menit, 10) || 30),
                 });
               }
             }
@@ -673,6 +691,9 @@ router.post("/", async (req, res) => {
                     durasiWalkinMenit: tr.durasi,
                     sisaAntreanMenit: sisaTarget,
                     antreanBerjalanCount: countTarget,
+                    isLanjutanKonsultasi: true,
+                    durasiKonsultasiMenit: totalBebanRuanganMenit,
+                    durasiTindakanMenit: tr.durasi,
                   };
                   break;
                 }
@@ -727,6 +748,9 @@ router.post("/", async (req, res) => {
                 buffer_menit: bufferMenit,
                 antrean_berjalan_count: collisionTarget.antreanBerjalanCount,
                 total_booking_hari_ini: totalBkgCount,
+                is_lanjutan_konsultasi: Boolean(collisionTarget.isLanjutanKonsultasi),
+                durasi_konsultasi_menit: collisionTarget.durasiKonsultasiMenit || 0,
+                durasi_tindakan_menit: collisionTarget.durasiTindakanMenit || collisionTarget.durasiWalkinMenit || 0,
               };
               throw warnErr;
             }

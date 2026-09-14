@@ -619,15 +619,34 @@ export const StepPilihLayanan: React.FC<Props> = ({
             </div>
 
             <div className="p-3 surface-50 border-round-xl border-1 surface-border">
-              <span className="text-xs font-bold text-700 block mb-2">Rincian Beban Antrean Ruangan:</span>
-              <div className="flex justify-content-between text-xs text-600 mb-1">
-                <span>Sisa antrean berjalan ({warningBookingData.antrean_berjalan_count || 0} pasien):</span>
-                <span className="font-semibold text-900">{warningBookingData.sisa_antrean_menit || 0} menit</span>
-              </div>
-              <div className="flex justify-content-between text-xs text-600 mb-1">
-                <span>Durasi layanan pasien baru:</span>
-                <span className="font-semibold text-900">{warningBookingData.durasi_walkin_menit || 0} menit</span>
-              </div>
+              <span className="text-xs font-bold text-700 block mb-2">Rincian Beban Antrean:</span>
+              {warningBookingData.is_lanjutan_konsultasi ? (
+                <>
+                  <div className="flex justify-content-between text-xs text-600 mb-1">
+                    <span>1. Estimasi sesi konsultasi dokter:</span>
+                    <span className="font-semibold text-900">{warningBookingData.durasi_konsultasi_menit || 30} menit</span>
+                  </div>
+                  <div className="flex justify-content-between text-xs text-600 mb-1">
+                    <span>2. Sisa antrean berjalan di {warningBookingData.nama_ruangan} ({warningBookingData.antrean_berjalan_count || 0} pasien):</span>
+                    <span className="font-semibold text-900">{warningBookingData.sisa_antrean_menit || 0} menit</span>
+                  </div>
+                  <div className="flex justify-content-between text-xs text-600 mb-1">
+                    <span>3. Durasi tindakan layanan ({warningBookingData.nama_ruangan}):</span>
+                    <span className="font-semibold text-900">{warningBookingData.durasi_tindakan_menit || warningBookingData.durasi_walkin_menit || 30} menit</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex justify-content-between text-xs text-600 mb-1">
+                    <span>Sisa antrean berjalan ({warningBookingData.antrean_berjalan_count || 0} pasien):</span>
+                    <span className="font-semibold text-900">{warningBookingData.sisa_antrean_menit || 0} menit</span>
+                  </div>
+                  <div className="flex justify-content-between text-xs text-600 mb-1">
+                    <span>Durasi tindakan layanan pasien baru:</span>
+                    <span className="font-semibold text-900">{warningBookingData.durasi_walkin_menit || 0} menit</span>
+                  </div>
+                </>
+              )}
               <div className="flex justify-content-between text-xs text-600 mb-1">
                 <span>Buffer proteksi booking:</span>
                 <span className="font-semibold text-900">+{warningBookingData.buffer_menit || 15} menit</span>

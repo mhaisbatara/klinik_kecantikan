@@ -35,12 +35,21 @@ router.post("/", async (req, res) => {
       }
 
       // Cek apakah layanan ini dipakai di transaksi antrian layanan
-      const usedInAntrian = await trx("trx_antrian_layanan")
+      const usedInAntrian = await trx("trx_detail_antrian_layanan")
         .whereIn("kode_layanan", oPayload.kode_layanan)
         .where("jenis_layanan", "layanan")
         .first();
       if (usedInAntrian) {
-        const e = new Error("Tidak dapat menghapus, layanan ini sudah memiliki riwayat antrean layanan"); e.statusCode = 422; throw e;
+        const e = new Error("Tidak dapat menghapus, layanan ini sudah memiliki riwayat antrean layanan. Anda dapat menonaktifkan status layanan ini."); e.statusCode = 422; throw e;
+      }
+
+      // Cek apakah layanan ini terdaftar di booking
+      const usedInBooking = await trx("trx_detail_booking")
+        .whereIn("kode_layanan", oPayload.kode_layanan)
+        .where("jenis_layanan", "layanan")
+        .first();
+      if (usedInBooking) {
+        const e = new Error("Tidak dapat menghapus, layanan ini terdaftar dalam reservasi booking."); e.statusCode = 422; throw e;
       }
 
       await trx("mst_layanan").whereIn("kode_layanan", oPayload.kode_layanan).del();

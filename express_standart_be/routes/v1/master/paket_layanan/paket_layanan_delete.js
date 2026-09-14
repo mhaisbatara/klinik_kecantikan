@@ -23,13 +23,36 @@ router.post("/", async (req, res) => {
       const records = await trx("mst_paket_layanan").whereIn("kode_paket_layanan", oPayload.kode_paket_layanan).forUpdate();
       if (!records || records.length < 1) { const e = new Error("Data tidak ditemukan"); e.statusCode = 404; throw e; }
 
-      // Cek apakah paket layanan ini pernah dipakai di transaksi antrian layanan (jenis_layanan = 'paket')
-      const usedInAntrian = await trx("trx_antrian_layanan")
+      // 1. Cek apakah paket layanan ini pernah dibeli / dimiliki pasien
+      const usedInKepemilikan = await trx("trx_kepemilikan_paket_layanan")
+        .whereIn("kode_paket_layanan", oPayload.kode_paket_layanan)
+        .first();
+      if (usedInKepemilikan) {
+        const e = new Error("Tidak dapat menghapus, paket layanan ini sudah memiliki riwayat pembelian oleh pasien. Anda dapat menonaktifkan status paket ini.");
+        e.statusCode = 422;
+        throw e;
+      }
+
+      // 2. Cek apakah paket layanan ini pernah dipakai di transaksi antrian layanan
+      const usedInAntrian = await trx("trx_detail_antrian_layanan")
         .whereIn("kode_layanan", oPayload.kode_paket_layanan)
         .where("jenis_layanan", "paket")
         .first();
       if (usedInAntrian) {
-        const e = new Error("Tidak dapat menghapus, paket layanan ini sudah memiliki riwayat antrean layanan"); e.statusCode = 422; throw e;
+        const e = new Error("Tidak dapat menghapus, paket layanan ini sudah memiliki riwayat antrean layanan. Anda dapat menonaktifkan status paket ini.");
+        e.statusCode = 422;
+        throw e;
+      }
+
+      // 3. Cek apakah paket layanan ini terdaftar di booking
+      const usedInBooking = await trx("trx_detail_booking")
+        .whereIn("kode_layanan", oPayload.kode_paket_layanan)
+        .where("jenis_layanan", "paket")
+        .first();
+      if (usedInBooking) {
+        const e = new Error("Tidak dapat menghapus, paket layanan ini terdaftar dalam reservasi booking.");
+        e.statusCode = 422;
+        throw e;
       }
 
       await trx("mst_detail_paket_layanan").whereIn("kode_paket_layanan", oPayload.kode_paket_layanan).del();

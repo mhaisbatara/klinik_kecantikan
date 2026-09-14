@@ -100,100 +100,117 @@ export const DialogSemuaBookingRuangan: React.FC<Props> = ({
             </div>
           </div>
         ) : (
-          <div className="flex flex-column gap-2 pr-1" style={{ maxHeight: '420px', overflowY: 'auto' }}>
+          <div className="flex flex-column gap-3 pr-1" style={{ maxHeight: '440px', overflowY: 'auto' }}>
             {bookings.map((b, idx) => {
               const isNearestUpcoming = b.is_upcoming && b.jam_booking === ruangan?.jam_booking_terdekat;
 
               return (
                 <div
                   key={b.kode_booking || idx}
-                  className={`p-3 border-round-xl border-1 transition-all flex flex-column sm:flex-row align-items-start sm:align-items-center justify-content-between gap-3 ${
+                  className={`p-3 border-round-xl border-1 transition-all flex align-items-stretch ${
                     isNearestUpcoming
-                      ? 'bg-amber-50/60 border-amber-300 shadow-1'
+                      ? 'bg-amber-50/70 border-amber-300 shadow-1'
                       : 'surface-card surface-border hover:surface-50'
                   }`}
+                  style={{ gap: '14px' }}
                 >
-                  <div className="flex align-items-start sm:align-items-center gap-3 flex-1 min-w-0">
-                    {/* Badge Jam */}
-                    <div
-                      className={`flex flex-column align-items-center justify-content-center border-1 border-round-lg px-2.5 py-1.5 text-center flex-shrink-0 ${
-                        isNearestUpcoming
-                          ? 'bg-amber-100 text-amber-900 border-amber-300'
-                          : b.is_upcoming
-                          ? 'bg-blue-50 text-blue-900 border-blue-200'
-                          : 'surface-100 text-600 surface-border'
-                      }`}
-                      style={{ minWidth: '70px' }}
-                    >
-                      <span className="text-sm font-bold leading-none font-mono">
-                        {b.jam_booking}
-                      </span>
-                      <span className="text-[10px] text-500 font-medium mt-0.5">WIB</span>
-                    </div>
+                  {/* Kotak Jam (Kiri, Sejajar Tinggi Penuh) */}
+                  <div
+                    className={`flex flex-column align-items-center justify-content-center border-1 border-round-lg px-2.5 py-2 text-center flex-shrink-0 align-self-stretch ${
+                      isNearestUpcoming
+                        ? 'bg-amber-100 text-amber-900 border-amber-300'
+                        : b.is_upcoming
+                        ? 'bg-blue-50 text-blue-900 border-blue-200'
+                        : 'surface-100 text-600 surface-border'
+                    }`}
+                    style={{ minWidth: '78px', alignSelf: 'stretch' }}
+                  >
+                    <span className="text-base font-bold leading-none font-mono">
+                      {b.jam_booking}
+                    </span>
+                    <span className="text-[10px] text-500 font-semibold tracking-wider mt-1">
+                      WIB
+                    </span>
+                  </div>
 
-                    {/* Informasi Utama */}
-                    <div className="flex-1 min-w-0 flex flex-column gap-1">
-                      {/* Baris 1: Nama Pasien, No RM, Tag Status */}
-                      <div className="flex align-items-center gap-2 flex-wrap">
+                  {/* Konten Utama (Kanan) */}
+                  <div className="flex-1 min-w-0 flex flex-column justify-content-between" style={{ gap: '8px' }}>
+                    {/* Baris 1: Identitas Pasien (Kiri) ... Status Badge & Kode Booking (Kanan) */}
+                    <div className="flex align-items-center justify-content-between gap-2 flex-wrap">
+                      {/* Identitas: Nama Pasien + No. RM */}
+                      <div className="flex align-items-center min-w-0" style={{ gap: '8px' }}>
                         <span className="font-bold text-sm text-900 truncate">
                           {b.nama_pasien}
                         </span>
                         {b.no_rm && (
-                          <span className="text-[10px] font-mono bg-blue-50 text-blue-700 border-1 border-blue-200 px-1.5 py-0.5 border-round font-medium">
+                          <span className="text-[11px] font-mono bg-blue-50 text-blue-700 border-1 border-blue-200 px-2 py-0.5 border-round font-semibold flex-shrink-0">
                             {b.no_rm}
                           </span>
                         )}
+                      </div>
+
+                      {/* Status Badge + Kode Booking */}
+                      <div className="flex align-items-center flex-shrink-0" style={{ gap: '8px' }}>
                         {isNearestUpcoming ? (
                           <Tag
                             value="Sesi Terdekat"
                             severity="warning"
                             icon="pi pi-clock"
-                            className="text-[10px] py-0 px-1.5 font-bold"
+                            className="text-[11px] py-0.5 px-2 font-bold"
                           />
                         ) : b.is_upcoming ? (
                           <Tag
                             value="Akan Datang"
                             severity="info"
-                            className="text-[10px] py-0 px-1.5 font-semibold"
+                            className="text-[11px] py-0.5 px-2 font-semibold"
                           />
                         ) : (
                           <Tag
                             value="Sesi Lewat"
                             severity="secondary"
-                            className="text-[10px] py-0 px-1.5 font-normal"
+                            className="text-[11px] py-0.5 px-2 font-normal"
                           />
                         )}
+
+                        {b.kode_booking && (
+                          <span className="text-[11px] font-mono text-500 bg-surface-100 border-1 surface-border px-2 py-0.5 border-round inline-flex align-items-center">
+                            <span className="text-400 mr-1">Kode:</span>
+                            {b.kode_booking}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Baris 2: Layanan & Estimasi Durasi */}
+                    <div className="flex align-items-center text-xs text-700 flex-wrap" style={{ rowGap: '4px' }}>
+                      {/* Item Layanan */}
+                      <div className="flex align-items-center font-medium text-800">
+                        <Sparkles size={14} className="text-amber-600 flex-shrink-0" style={{ marginRight: '6px' }} />
+                        <span className="truncate">{b.layanan_summary || 'Layanan / Paket'}</span>
                       </div>
 
-                      {/* Baris 2: Layanan & Estimasi Durasi */}
-                      <div className="flex align-items-center gap-1.5 text-xs text-600 flex-wrap">
-                        <Sparkles size={12} className="text-amber-600 flex-shrink-0" />
-                        <span className="font-medium text-700 truncate">
-                          {b.layanan_summary || 'Layanan / Paket'}
-                        </span>
-                        <span className="text-300">•</span>
-                        <span className="text-500 flex align-items-center gap-1">
-                          <Clock size={11} />
-                          Estimasi <strong>{b.durasi_menit || 30} menit</strong>
-                        </span>
-                      </div>
+                      {/* Titik Pemisah Tebal */}
+                      <span className="text-400 font-bold" style={{ margin: '0 10px' }}>•</span>
 
-                      {/* Baris 3: Dokter / Petugas Bertugas */}
-                      <div className="flex align-items-center gap-1 text-xs text-500">
-                        <User size={12} className="text-indigo-500 flex-shrink-0" />
+                      {/* Item Estimasi */}
+                      <div className="flex align-items-center text-600">
+                        <Clock size={14} className="text-blue-600 flex-shrink-0" style={{ marginRight: '6px' }} />
                         <span>
-                          Petugas: <strong className="text-700">{b.nama_petugas || '-'}</strong>
-                          {b.jabatan_petugas ? ` (${b.jabatan_petugas})` : ''}
+                          Estimasi <strong className="text-800 font-semibold">{b.durasi_menit || 30} menit</strong>
                         </span>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Kode Booking */}
-                  <div className="text-right self-end sm:self-center flex-shrink-0">
-                    <span className="text-[10px] text-400 font-mono block">
-                      {b.kode_booking}
-                    </span>
+                    {/* Baris 3: Petugas Bertugas */}
+                    <div className="flex align-items-center text-xs text-600">
+                      <User size={14} className="text-teal-600 flex-shrink-0" style={{ marginRight: '6px' }} />
+                      <span>
+                        Petugas: <strong className="text-800 font-semibold">{b.nama_petugas || '-'}</strong>
+                        {b.jabatan_petugas ? (
+                          <span className="text-500 font-normal"> ({b.jabatan_petugas})</span>
+                        ) : null}
+                      </span>
+                    </div>
                   </div>
                 </div>
               );
