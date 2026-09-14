@@ -6,7 +6,6 @@ import { InputText } from 'primereact/inputtext';
 import { InputTextarea } from 'primereact/inputtextarea';
 import { InputNumber } from 'primereact/inputnumber';
 import { Dropdown } from 'primereact/dropdown';
-import { MultiSelect } from 'primereact/multiselect';
 import { Checkbox } from 'primereact/checkbox';
 import { Tag } from 'primereact/tag';
 import { Toast } from 'primereact/toast';
@@ -93,12 +92,10 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
     const [lanjutKeTindakan, setLanjutKeTindakan] = useState<boolean>(true);
     const [uploadingBefore, setUploadingBefore] = useState<boolean>(false);
 
-    // Dropdown Petugas / Dokter (SIP) State
-    const [karyawanOptions, setKaryawanOptions] = useState<any[]>([]);
+    // State Jadwal Karyawan Ruangan Aktif (Auto-loaded dari Master Jadwal Karyawan)
+    const [roomScheduleList, setRoomScheduleList] = useState<any[]>([]);
+    const [loadingSchedule, setLoadingSchedule] = useState<boolean>(false);
     const [selectedPetugas, setSelectedPetugas] = useState<string>('');
-    const [isEditingBookingPetugas, setIsEditingBookingPetugas] = useState<boolean>(false);
-
-    // Multi-Select Terapis / Petugas Pendamping State
     const [selectedTerapisList, setSelectedTerapisList] = useState<Array<{
         no_sip: string;
         nama: string;
@@ -111,493 +108,181 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
     }>>([]);
 
     const isBookingPatient = useMemo(() => Boolean(activePatient?.kode_booking), [activePatient?.kode_booking]);
-    const bookingNoSip = useMemo(() => (activePatient as any)?.booking_no_sip || (isBookingPatient ? activePatient?.kode_karyawan : null), [activePatient?.kode_karyawan, (activePatient as any)?.booking_no_sip, isBookingPatient]);
-    const bookingNamaPetugas = useMemo(() => (activePatient as any)?.booking_nama_petugas || (isBookingPatient ? activePatient?.nama_petugas : null), [activePatient?.nama_petugas, (activePatient as any)?.booking_nama_petugas, isBookingPatient]);
-    const bookingKodeJadwal = (activePatient as any)?.booking_kode_jadwal;
-    const bookingJabatanPetugas = (activePatient as any)?.booking_jabatan_petugas;
 
-    // State & Ref Petugas Pendamping
-    const [companionList, setCompanionList] = useState<any[]>([]);
-    const companionOpRef = useRef<OverlayPanel>(null);
-
-    // Helper untuk mengekstrak no_sip murni dari value option (bisa berupa no_sip atau no_sip#kode_jadwal)
-    const extractNoSip = (val?: string) => (val ? String(val).split('#')[0] : '');
-
-    const isDoctorChangedFromBooking = isBookingPatient && Boolean(selectedPetugas) && extractNoSip(selectedPetugas) !== bookingNoSip;
-
-    // Hitung options petugas: prioritaskan petugas piket hari ini di ruangan ini & dokter booking
-    const availablePetugasOptions = useMemo(() => {
-        let baseList: any[] = [];
-        if (petugasJagaList && petugasJagaList.length > 0) {
-            // Deduplikasi defensif per sesi (no_sip + jam_mulai + jam_selesai)
-            const shiftMap = new Map<string, any>();
-            for (const p of petugasJagaList) {
-                const jmMulai = (p.jam_mulai || '').slice(0, 5);
-                const jmSelesai = (p.jam_selesai || '').slice(0, 5);
-                const shiftKey = `${p.no_sip || p.kode_jadwal}_${jmMulai}_${jmSelesai}`;
-                if (!shiftMap.has(shiftKey)) {
-                    shiftMap.set(shiftKey, { ...p, jam_mulai_clean: jmMulai, jam_selesai_clean: jmSelesai });
-                } else {
-                    const existing = shiftMap.get(shiftKey);
-                    if ((p.is_penanggung_jawab === 1 || p.is_penanggung_jawab === true) && !existing.is_penanggung_jawab) {
-                        existing.is_penanggung_jawab = 1;
-                    }
-                }
-            }
-
-            baseList = Array.from(shiftMap.values()).map((p: any) => {
-                const isPj = p.is_penanggung_jawab === 1 || p.is_penanggung_jawab === true;
-                const isBooking = isBookingPatient && bookingNoSip && p.no_sip === bookingNoSip;
-                const jamLabel = p.jam_mulai_clean && p.jam_selesai_clean ? ` [${p.jam_mulai_clean} - ${p.jam_selesai_clean}]` : '';
-
-                let tagStr = '';
-                if (isBooking) tagStr += ' ★ [Pilihan Booking]';
-                if (isPj) tagStr += ' ★ [PJ]';
-
-                const optValue = p.kode_jadwal ? `${p.no_sip}#${p.kode_jadwal}` : p.no_sip;
-
-                return {
-                    label: `${p.nama_karyawan || p.nama}${p.jabatan ? ` (${p.jabatan.toUpperCase()})` : ''}${jamLabel}${tagStr}`,
-                    value: optValue,
-                    nama: p.nama_karyawan || p.nama,
-                    jabatan: p.jabatan,
-                    no_sip: p.no_sip,
-                    kode_jadwal: p.kode_jadwal,
-                    jam_mulai: p.jam_mulai,
-                    jam_selesai: p.jam_selesai,
-                    is_penanggung_jawab: isPj,
-                    is_booking_choice: Boolean(isBooking),
-                };
-            });
-        } else {
-            baseList = (karyawanOptions || []).map((k: any) => {
-                const isBooking = isBookingPatient && bookingNoSip && k.value === bookingNoSip;
-                return {
-                    ...k,
-                    label: `${k.nama}${k.jabatan ? ` (${k.jabatan.toUpperCase()})` : ''}${isBooking ? ' ★ [Pilihan Booking]' : ''}`,
-                    is_booking_choice: Boolean(isBooking),
-                };
-            });
-        }
-
-        // Jika pasien berasal dari booking dan dokter booking belum ada di baseList, sisipkan di awal
-        if (isBookingPatient && bookingNoSip && !baseList.some((opt) => (opt.no_sip || opt.value) === bookingNoSip)) {
-            baseList.unshift({
-                label: `${bookingNamaPetugas || 'Petugas/Dokter Booking'}${bookingJabatanPetugas ? ` (${bookingJabatanPetugas.toUpperCase()})` : ''} ★ [Pilihan Booking]`,
-                value: bookingNoSip,
-                nama: bookingNamaPetugas || 'Petugas/Dokter Booking',
-                jabatan: bookingJabatanPetugas || 'Dokter',
-                no_sip: bookingNoSip,
-                is_penanggung_jawab: false,
-                is_booking_choice: true,
-            });
-        }
-
-        return baseList;
-    }, [petugasJagaList, karyawanOptions, isBookingPatient, bookingNoSip, bookingNamaPetugas, bookingJabatanPetugas]);
-
-    const currentSelectedOfficer = useMemo(() => {
-        const selNoSip = extractNoSip(selectedPetugas);
-        return (
-            availablePetugasOptions.find((opt) => opt.value === selectedPetugas) ||
-            availablePetugasOptions.find((opt) => opt.no_sip === selNoSip || opt.value === selNoSip) ||
-            karyawanOptions.find((k) => k.value === selNoSip || k.no_sip === selNoSip) ||
-            (selNoSip && selNoSip === bookingNoSip ? {
-                nama: bookingNamaPetugas || 'Dokter Pilihan Booking',
-                value: bookingNoSip,
-                no_sip: bookingNoSip,
-                jabatan: bookingJabatanPetugas || 'Dokter',
-                is_booking_choice: true,
-                is_penanggung_jawab: false,
-            } : null)
-        );
-    }, [availablePetugasOptions, karyawanOptions, selectedPetugas, bookingNoSip, bookingNamaPetugas, bookingJabatanPetugas]);
-
-    // Primitive / stable values for loadCompanions dependencies
-    const patientKodeAntrian = activePatient?.kode_antrian_layanan || '';
-    const roomForCompanions = kodeRuangan || activePatient?.kode_ruangan || (activePatient as any)?.booking_kode_ruangan || '';
-    const bookingHariForCompanions = (activePatient as any)?.booking_hari || '';
-    const bookingTglForCompanions = (activePatient as any)?.booking_tanggal_booking || '';
-    const officerJamMulai = currentSelectedOfficer?.jam_mulai || (activePatient as any)?.booking_jam_mulai || '';
-    const officerJamSelesai = currentSelectedOfficer?.jam_selesai || (activePatient as any)?.booking_jam_selesai || '';
-    const officerNoSip = currentSelectedOfficer?.no_sip || bookingNoSip || '';
-    const directCompanionsJson = JSON.stringify((activePatient as any)?.booking_petugas_pendamping || []);
-
-    // Load Daftar Petugas / Terapis Pendamping untuk sesi ini
+    // Query data Jadwal Karyawan aktif berdasarkan ruangan & hari kunjungan
     useEffect(() => {
         let isMounted = true;
-
-        const loadCompanions = async () => {
-            // 1. Inisialisasi awal dari field booking_petugas_pendamping jika sudah dibawa oleh activePatient
-            const directCompanions = (activePatient as any)?.booking_petugas_pendamping;
-            if (Array.isArray(directCompanions) && directCompanions.length > 0) {
-                if (isMounted) {
-                    setCompanionList((prev) => {
-                        if (
-                            prev.length === directCompanions.length &&
-                            prev.every((p, idx) => (p.no_sip || p.kode_jadwal) === (directCompanions[idx]?.no_sip || directCompanions[idx]?.kode_jadwal))
-                        ) {
-                            return prev;
-                        }
-                        return directCompanions;
-                    });
-                }
+        const loadSchedule = async () => {
+            const room = kodeRuangan || activePatient?.kode_ruangan || (activePatient as any)?.booking_kode_ruangan;
+            if (!room) {
+                if (isMounted) setRoomScheduleList([]);
+                return;
             }
 
-            // 2. Query data petugas pendamping dari jadwal ruangan & hari ini
+            const days = ['minggu', 'senin', 'selasa', 'rabu', 'kamis', 'jumat', 'sabtu'];
+            let dayName = (activePatient as any)?.booking_hari;
+            const visitDate = (activePatient as any)?.booking_tanggal_booking || activePatient?.created_at;
+            if (!dayName && visitDate) {
+                const parsedDate = new Date(visitDate);
+                if (!isNaN(parsedDate.getTime())) {
+                    dayName = days[parsedDate.getDay()];
+                }
+            }
+            if (!dayName) {
+                dayName = days[new Date().getDay()];
+            }
+
+            setLoadingSchedule(true);
             try {
-                const room = roomForCompanions;
-                const days = ['minggu', 'senin', 'selasa', 'rabu', 'kamis', 'jumat', 'sabtu'];
-                let dayName = bookingHariForCompanions;
-                if (!dayName && bookingTglForCompanions) {
-                    dayName = days[new Date(bookingTglForCompanions).getDay()];
-                }
-                if (!dayName) {
-                    dayName = days[new Date().getDay()];
-                }
-
-                if (!room || !dayName) return;
-
                 const res = await postData('/master/jadwal-karyawan-data', {
                     kode_ruangan: room,
                     hari: dayName.toLowerCase(),
                     status: 'aktif',
                 });
-
-                if (!isMounted) return;
-
-                const allSchedules: any[] = res.data?.data || [];
-                const targetSip = officerNoSip;
-                const matched = allSchedules.filter((item: any) => {
-                    const itmSip = item.no_sip;
-                    return itmSip !== targetSip;
-                });
-
-                // Deduplikasi unik berdasarkan no_sip / kode_jadwal
-                const seen = new Set<string>();
-                const deduped: any[] = [];
-                for (const c of matched) {
-                    const key = c.no_sip || c.kode_jadwal || c.nama_karyawan;
-                    if (key && !seen.has(key)) {
-                        seen.add(key);
-                        deduped.push({
-                            kode_jadwal: c.kode_jadwal,
-                            no_sip: c.no_sip,
-                            nama_petugas: c.nama_karyawan || c.nama,
-                            jabatan_petugas: c.jabatan,
-                            jam_mulai: c.jam_mulai,
-                            jam_selesai: c.jam_selesai,
-                        });
+                const fetchedList: any[] = res.data?.data || [];
+                if (isMounted) {
+                    if (fetchedList.length > 0) {
+                        setRoomScheduleList(fetchedList);
+                    } else if (petugasJagaList && petugasJagaList.length > 0) {
+                        setRoomScheduleList(petugasJagaList);
+                    } else {
+                        setRoomScheduleList([]);
                     }
-                }
-
-                if (isMounted && deduped.length > 0) {
-                    setCompanionList((prev) => {
-                        if (
-                            prev.length === deduped.length &&
-                            prev.every((p, idx) => (p.no_sip || p.kode_jadwal) === (deduped[idx]?.no_sip || deduped[idx]?.kode_jadwal))
-                        ) {
-                            return prev;
-                        }
-                        return deduped;
-                    });
                 }
             } catch (_) {
-                // Fallback ke petugasJagaList jika query jadwal gagal
-                if (petugasJagaList && petugasJagaList.length > 0) {
-                    const targetSip = officerNoSip;
-
-                    const matched = petugasJagaList.filter((item: any) => {
-                        const itmSip = item.no_sip;
-                        return itmSip !== targetSip;
-                    }).map((c: any) => ({
-                        kode_jadwal: c.kode_jadwal,
-                        no_sip: c.no_sip,
-                        nama_petugas: c.nama_karyawan || c.nama,
-                        jabatan_petugas: c.jabatan,
-                        jam_mulai: c.jam_mulai,
-                        jam_selesai: c.jam_selesai,
-                    }));
-
-                    if (isMounted) {
-                        setCompanionList((prev) => {
-                            if (
-                                prev.length === matched.length &&
-                                prev.every((p, idx) => (p.no_sip || p.kode_jadwal) === (matched[idx]?.no_sip || matched[idx]?.kode_jadwal))
-                            ) {
-                                return prev;
-                            }
-                            return matched;
-                        });
-                    }
+                if (isMounted) {
+                    setRoomScheduleList(petugasJagaList || []);
                 }
+            } finally {
+                if (isMounted) setLoadingSchedule(false);
             }
         };
 
-        loadCompanions();
-
+        loadSchedule();
         return () => {
             isMounted = false;
         };
     }, [
-        isBookingPatient,
-        patientKodeAntrian,
-        roomForCompanions,
-        bookingHariForCompanions,
-        bookingTglForCompanions,
-        officerJamMulai,
-        officerJamSelesai,
-        officerNoSip,
-        directCompanionsJson,
-        petugasJagaList,
+        kodeRuangan,
+        activePatient?.kode_ruangan,
+        (activePatient as any)?.booking_kode_ruangan,
+        (activePatient as any)?.booking_hari,
+        (activePatient as any)?.booking_tanggal_booking,
+        activePatient?.created_at,
+        petugasJagaList
     ]);
 
-    // Dokter & Terapis yang Terjadwal (dari Booking atau Jadwal Piket Ruangan Hari Ini)
-    const scheduledDoctor = useMemo(() => {
-        if (isBookingPatient && bookingNoSip) {
-            return {
-                nama: bookingNamaPetugas || 'Dokter Booking',
-                no_sip: bookingNoSip,
-                jabatan: bookingJabatanPetugas || 'Dokter',
-                jam_mulai: (activePatient as any)?.booking_jam_mulai,
-                jam_selesai: (activePatient as any)?.booking_jam_selesai,
-                source: 'booking' as const,
-            };
-        }
-        if (petugasJagaList && petugasJagaList.length > 0) {
-            const docPj = petugasJagaList.find((p: any) => (p.is_penanggung_jawab === 1 || p.is_penanggung_jawab === true) && String(p.jabatan || '').toLowerCase().includes('dokter'));
-            const docAny = petugasJagaList.find((p: any) => String(p.jabatan || '').toLowerCase().includes('dokter'));
-            const pj = petugasJagaList.find((p: any) => p.is_penanggung_jawab === 1 || p.is_penanggung_jawab === true) || petugasJagaList[0];
-            const target = docPj || docAny || pj;
-            return {
-                nama: target.nama_karyawan || target.nama,
-                no_sip: target.no_sip,
-                jabatan: target.jabatan || 'Dokter',
-                jam_mulai: target.jam_mulai,
-                jam_selesai: target.jam_selesai,
-                source: 'shift' as const,
-            };
-        }
-        return null;
-    }, [isBookingPatient, bookingNoSip, bookingNamaPetugas, bookingJabatanPetugas, activePatient, petugasJagaList]);
-
-    const scheduledTherapist = useMemo(() => {
-        // 1. Dari booking
-        const directCompanions = (activePatient as any)?.booking_petugas_pendamping;
-        if (Array.isArray(directCompanions) && directCompanions.length > 0) {
-            const c = directCompanions[0];
-            return {
-                nama: c.nama_petugas || c.nama_karyawan || c.nama,
-                no_sip: c.no_sip,
-                kode_jadwal: c.kode_jadwal,
-                jabatan: c.jabatan_petugas || c.jabatan || 'Terapis',
-                jam_mulai: c.jam_mulai || (activePatient as any)?.booking_jam_mulai,
-                jam_selesai: c.jam_selesai || (activePatient as any)?.booking_jam_selesai,
-                source: 'booking' as const,
-            };
-        }
-        // 2. Dari companionList (jadwal shift pendamping di ruangan & hari ini)
-        if (companionList && companionList.length > 0) {
-            const c = companionList[0];
-            return {
-                nama: c.nama_petugas || c.nama_karyawan || c.nama,
-                no_sip: c.no_sip,
-                kode_jadwal: c.kode_jadwal,
-                jabatan: c.jabatan_petugas || c.jabatan || 'Terapis',
-                jam_mulai: c.jam_mulai,
-                jam_selesai: c.jam_selesai,
-                source: 'shift' as const,
-            };
-        }
-        // 3. Dari petugasJagaList yang bertipe terapis/perawat/beautician (atau non-PJ/non-dokter)
-        if (petugasJagaList && petugasJagaList.length > 0) {
-            const docSip = scheduledDoctor?.no_sip;
-            const nonDoc = petugasJagaList.find((p: any) => p.no_sip !== docSip && ['terapis', 'beautician', 'perawat'].includes(String(p.jabatan || '').toLowerCase()));
-            const nonPj = petugasJagaList.find((p: any) => p.no_sip !== docSip && !p.is_penanggung_jawab);
-            const target = nonDoc || nonPj || petugasJagaList.find((p: any) => p.no_sip !== docSip);
-            if (target) {
-                return {
-                    nama: target.nama_karyawan || target.nama,
-                    no_sip: target.no_sip,
-                    kode_jadwal: target.kode_jadwal,
-                    jabatan: target.jabatan || 'Terapis',
-                    jam_mulai: target.jam_mulai,
-                    jam_selesai: target.jam_selesai,
-                    source: 'shift' as const,
-                };
-            }
-        }
-        return null;
-    }, [activePatient, companionList, petugasJagaList, scheduledDoctor]);
-
-    // Opsi Lengkap untuk Dropdown Terapis / Petugas Pendamping
-    const availableTerapisOptions = useMemo(() => {
-        const list: any[] = [];
-        const seen = new Set<string>();
-
-        // 1. Prioritas Utama: Terapis yang Terjadwal di Sesi / Shift Ini
-        if (scheduledTherapist && (scheduledTherapist.no_sip || scheduledTherapist.kode_jadwal)) {
-            const val = scheduledTherapist.no_sip || scheduledTherapist.kode_jadwal;
-            seen.add(val);
-            const jamLabel = scheduledTherapist.jam_mulai && scheduledTherapist.jam_selesai ? ` [${scheduledTherapist.jam_mulai.slice(0, 5)} - ${scheduledTherapist.jam_selesai.slice(0, 5)}]` : '';
-            list.push({
-                label: `⭐ [Terjadwal ${scheduledTherapist.source === 'booking' ? 'Booking' : 'Shift Ini'}] ${scheduledTherapist.nama} (${(scheduledTherapist.jabatan || 'TERAPIS').toUpperCase()})${jamLabel}`,
-                value: val,
-                nama: scheduledTherapist.nama,
-                jabatan: scheduledTherapist.jabatan || 'terapis',
-                no_sip: scheduledTherapist.no_sip || '',
-                kode_jadwal: scheduledTherapist.kode_jadwal,
-                is_scheduled: true,
-                is_shift_companion: true,
-                jam_mulai: scheduledTherapist.jam_mulai,
-                jam_selesai: scheduledTherapist.jam_selesai,
-            });
+    // Kelompokkan dan Tentukan PJ serta Petugas Pendamping (Helper) Otomatis dari Jadwal Karyawan
+    const { activePJ, activeHelpers } = useMemo(() => {
+        const rawList = roomScheduleList.length > 0 ? roomScheduleList : (petugasJagaList || []);
+        if (rawList.length === 0) {
+            return { activePJ: null, activeHelpers: [] };
         }
 
-        // 2. Prioritas 2: Companion list yang bertugas di ruangan & jam yang sama
-        for (const c of companionList) {
-            const val = c.no_sip || c.kode_jadwal;
-            if (val && !seen.has(val)) {
-                seen.add(val);
-                const jamLabel = c.jam_mulai && c.jam_selesai ? ` [${c.jam_mulai.slice(0, 5)} - ${c.jam_selesai.slice(0, 5)}]` : '';
-                list.push({
-                    label: `[Shift Ini] ${c.nama_petugas || c.nama_karyawan || c.nama} (${(c.jabatan_petugas || c.jabatan || 'TERAPIS').toUpperCase()})${jamLabel}`,
-                    value: val,
-                    nama: c.nama_petugas || c.nama_karyawan || c.nama,
-                    jabatan: c.jabatan_petugas || c.jabatan || 'terapis',
-                    no_sip: c.no_sip || '',
-                    kode_jadwal: c.kode_jadwal,
-                    is_shift_companion: true,
-                    jam_mulai: c.jam_mulai,
-                    jam_selesai: c.jam_selesai,
+        // Deduplikasi defensif per karyawan + shift
+        const shiftMap = new Map<string, any>();
+        for (const item of rawList) {
+            const jmMulai = (item.jam_mulai || '').slice(0, 5);
+            const jmSelesai = (item.jam_selesai || '').slice(0, 5);
+            const key = `${item.no_sip || item.kode_jadwal}_${jmMulai}_${jmSelesai}`;
+            if (!shiftMap.has(key)) {
+                shiftMap.set(key, {
+                    ...item,
+                    nama: item.nama_karyawan || item.nama || 'Petugas',
+                    jabatan: item.jabatan || 'Petugas',
+                    no_sip: item.no_sip || '',
+                    jam_mulai: item.jam_mulai || '',
+                    jam_selesai: item.jam_selesai || '',
+                    kode_jadwal: item.kode_jadwal || '',
+                    is_penanggung_jawab: item.is_penanggung_jawab === 1 || item.is_penanggung_jawab === true || item.is_penanggung_jawab === '1',
                 });
-            }
-        }
-
-        // 3. Prioritas 3: Petugas piket ruangan hari ini yang bukan PJ utama
-        if (petugasJagaList && petugasJagaList.length > 0) {
-            for (const p of petugasJagaList) {
-                const val = p.no_sip || p.kode_jadwal;
-                if (val && !seen.has(val)) {
-                    seen.add(val);
-                    const jamLabel = p.jam_mulai && p.jam_selesai ? ` [${p.jam_mulai.slice(0, 5)} - ${p.jam_selesai.slice(0, 5)}]` : '';
-                    list.push({
-                        label: `[Shift Ini] ${p.nama_karyawan || p.nama} (${(p.jabatan || 'TERAPIS').toUpperCase()})${jamLabel}`,
-                        value: val,
-                        nama: p.nama_karyawan || p.nama,
-                        jabatan: p.jabatan || 'terapis',
-                        no_sip: p.no_sip || '',
-                        kode_jadwal: p.kode_jadwal,
-                        is_shift_companion: true,
-                        jam_mulai: p.jam_mulai,
-                        jam_selesai: p.jam_selesai,
-                    });
+            } else {
+                const existing = shiftMap.get(key);
+                if ((item.is_penanggung_jawab === 1 || item.is_penanggung_jawab === true || item.is_penanggung_jawab === '1') && !existing.is_penanggung_jawab) {
+                    existing.is_penanggung_jawab = true;
                 }
             }
         }
+        const deduped = Array.from(shiftMap.values());
 
-        // 4. Prioritas 4: Semua karyawan (Terapis, Perawat, Beautician, dll)
-        for (const k of karyawanOptions) {
-            const val = k.value || k.no_sip;
-            if (val && !seen.has(val)) {
-                seen.add(val);
-                list.push({
-                    label: `${k.nama} (${(k.jabatan || 'Karyawan').toUpperCase()})`,
-                    value: val,
-                    nama: k.nama,
-                    jabatan: k.jabatan || 'terapis',
-                    no_sip: k.no_sip || val,
-                    is_shift_companion: false,
-                });
-            }
+        // Cari shift yang aktif saat ini atau matching booking
+        const now = new Date();
+        const currentHours = String(now.getHours()).padStart(2, '0');
+        const currentMinutes = String(now.getMinutes()).padStart(2, '0');
+        const currentTimeStr = `${currentHours}:${currentMinutes}`;
+
+        const bookingJamMulai = (activePatient as any)?.booking_jam_mulai?.slice(0, 5);
+        let activeShiftList: any[] = [];
+
+        if (bookingJamMulai) {
+            activeShiftList = deduped.filter((i) => (i.jam_mulai || '').slice(0, 5) === bookingJamMulai);
         }
 
-        return list;
-    }, [scheduledTherapist, companionList, petugasJagaList, karyawanOptions]);
-
-    // Helper untuk menambah terapis ke multi-select list (mencegah duplikasi)
-    const addTerapis = (optionOrObj: any) => {
-        if (!optionOrObj) return;
-        const sip = optionOrObj.no_sip || extractNoSip(optionOrObj.value) || optionOrObj.value || '';
-        const kodeJadwal = optionOrObj.kode_jadwal || '';
-        const targetName = optionOrObj.nama || optionOrObj.nama_petugas || optionOrObj.nama_karyawan || 'Terapis';
-
-        setSelectedTerapisList((prev) => {
-            const exists = prev.some((t) => (sip && t.no_sip === sip) || (kodeJadwal && t.kode_jadwal === kodeJadwal) || (t.nama === targetName && sip === t.no_sip));
-            if (exists) return prev;
-
-            const jamMulai = optionOrObj.jam_mulai || '';
-            const jamSelesai = optionOrObj.jam_selesai || '';
-            const shiftStr = jamMulai && jamSelesai ? `${jamMulai.slice(0, 5)} - ${jamSelesai.startsWith('24:00') ? '00:00' : jamSelesai.slice(0, 5)}` : (optionOrObj.shift || '');
-            const role = (optionOrObj.role || optionOrObj.jabatan || 'TERAPIS').toUpperCase();
-
-            return [
-                ...prev,
-                {
-                    no_sip: sip,
-                    nama: targetName,
-                    jabatan: optionOrObj.jabatan || 'terapis',
-                    role: role,
-                    jam_mulai: jamMulai,
-                    jam_selesai: jamSelesai,
-                    shift: shiftStr,
-                    kode_jadwal: kodeJadwal,
-                },
-            ];
-        });
-    };
-
-    // Helper untuk menghapus terapis dari list
-    const removeTerapis = (indexOrSip: number | string) => {
-        setSelectedTerapisList((prev) => {
-            if (typeof indexOrSip === 'number') {
-                return prev.filter((_, idx) => idx !== indexOrSip);
-            }
-            return prev.filter((t) => t.no_sip !== indexOrSip && t.kode_jadwal !== indexOrSip);
-        });
-    };
-
-    // Filtered options: sembunyikan terapis yang sudah masuk ke daftar terpilih
-    const unselectedTerapisOptions = useMemo(() => {
-        const selectedSips = new Set(selectedTerapisList.map((t) => t.no_sip || t.kode_jadwal).filter(Boolean));
-        return availableTerapisOptions.filter((opt) => !selectedSips.has(opt.no_sip || opt.value || opt.kode_jadwal));
-    }, [availableTerapisOptions, selectedTerapisList]);
-
-    // Value array untuk PrimeReact MultiSelect Terapis
-    const selectedTerapisValues = useMemo(() => {
-        return selectedTerapisList.map((t) => t.no_sip || t.kode_jadwal || t.nama).filter(Boolean);
-    }, [selectedTerapisList]);
-
-    const handleMultiSelectTerapisChange = (newValues: any[]) => {
-        if (!Array.isArray(newValues)) return;
-        const updatedList: any[] = [];
-        for (const val of newValues) {
-            const foundOpt = availableTerapisOptions.find((o) => (o.no_sip && o.no_sip === val) || o.value === val || (o.kode_jadwal && o.kode_jadwal === val));
-            if (foundOpt) {
-                const jamMulai = foundOpt.jam_mulai || '';
-                const jamSelesai = foundOpt.jam_selesai || '';
-                const shiftStr = jamMulai && jamSelesai ? `${jamMulai.slice(0, 5)} - ${jamSelesai.startsWith('24:00') ? '00:00' : jamSelesai.slice(0, 5)}` : (foundOpt.shift || '');
-                const role = (foundOpt.role || foundOpt.jabatan || 'TERAPIS').toUpperCase();
-                updatedList.push({
-                    no_sip: foundOpt.no_sip || val,
-                    nama: foundOpt.nama || foundOpt.label,
-                    jabatan: foundOpt.jabatan || 'terapis',
-                    role: role,
-                    jam_mulai: jamMulai,
-                    jam_selesai: jamSelesai,
-                    shift: shiftStr,
-                    kode_jadwal: foundOpt.kode_jadwal || '',
-                });
-            } else {
-                const existing = selectedTerapisList.find((t) => (t.no_sip || t.kode_jadwal || t.nama) === val);
-                if (existing) updatedList.push(existing);
-            }
+        if (activeShiftList.length === 0) {
+            activeShiftList = deduped.filter((i) => {
+                const start = (i.jam_mulai || '00:00').slice(0, 5);
+                const end = (i.jam_selesai || '23:59').slice(0, 5);
+                return currentTimeStr >= start && (end === '00:00' || currentTimeStr <= end);
+            });
         }
-        setSelectedTerapisList(updatedList);
-    };
 
-    // Backward-compat reference ke terapis pertama jika ada
-    const currentSelectedTerapis = selectedTerapisList.length > 0 ? selectedTerapisList[0] : null;
+        const candidateList = activeShiftList.length > 0 ? activeShiftList : deduped;
+
+        // Tentukan PJ (Penanggung Jawab):
+        // 1. Yang is_penanggung_jawab = true
+        // 2. Jika tidak ada, yang jabatannya mengandung 'dokter'
+        // 3. Jika tidak ada dokter, karyawan pertama
+        let pj = candidateList.find((i) => i.is_penanggung_jawab);
+        if (!pj) {
+            pj = candidateList.find((i) => String(i.jabatan || '').toLowerCase().includes('dokter'));
+        }
+        if (!pj && candidateList.length > 0) {
+            pj = candidateList[0];
+        }
+
+        // Tentukan Helper (Petugas Pendamping):
+        // Semua karyawan lain di candidateList yang BUKAN PJ (tidak boleh duplikat dengan PJ)
+        const pjSip = pj?.no_sip;
+        const pjKodeJadwal = pj?.kode_jadwal;
+        const pjNama = pj?.nama ? String(pj.nama).trim().toLowerCase() : '';
+        const helpers = candidateList.filter((i) => {
+            if (pjSip && i.no_sip && i.no_sip === pjSip) return false;
+            if (pjKodeJadwal && i.kode_jadwal && i.kode_jadwal === pjKodeJadwal) return false;
+            if (pjNama && i.nama && String(i.nama).trim().toLowerCase() === pjNama) return false;
+            return true;
+        });
+
+        return {
+            activePJ: pj || null,
+            activeHelpers: helpers,
+        };
+    }, [roomScheduleList, petugasJagaList, activePatient]);
+
+    // Sinkronkan state selectedPetugas dan selectedTerapisList otomatis dari activePJ & activeHelpers
+    useEffect(() => {
+        if (activePJ?.no_sip) {
+            setSelectedPetugas(activePJ.no_sip);
+        } else {
+            setSelectedPetugas('');
+        }
+
+        const autoHelpers = activeHelpers.map((h: any) => {
+            const jMulai = h.jam_mulai ? h.jam_mulai.slice(0, 5) : '';
+            const jSelesai = h.jam_selesai ? (h.jam_selesai.startsWith('24:00') ? '00:00' : h.jam_selesai.slice(0, 5)) : '';
+            const jamText = jMulai && jSelesai ? `${jMulai} - ${jSelesai}` : '';
+            return {
+                no_sip: h.no_sip || '-',
+                nama: h.nama,
+                jabatan: h.jabatan || 'petugas',
+                role: (h.jabatan || 'PENDAMPING').toUpperCase(),
+                jam_mulai: h.jam_mulai || '',
+                jam_selesai: h.jam_selesai || '',
+                shift: jamText,
+                kode_jadwal: h.kode_jadwal || '',
+            };
+        });
+        setSelectedTerapisList(autoHelpers);
+    }, [activePJ, activeHelpers]);
 
     // Step state: 'form' (Form Penanganan) vs 'hasil' (Hasil Treatment & Produk Kasir)
     const [activeStep, setActiveStep] = useState<'form' | 'hasil'>('form');
@@ -614,43 +299,22 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
     const [hasilNoRm, setHasilNoRm] = useState<string>('');
 
     useEffect(() => {
-        loadKaryawan();
-    }, []);
-
-    useEffect(() => {
         if (kodeRuangan) {
             loadFormFields();
         }
     }, [kodeRuangan]);
 
-    // Refs for reading latest values inside useEffects without subscribing to them
-    const availablePetugasOptionsRef = useRef<any[]>([]);
-    const selectedPetugasRef = useRef<string>('');
-    const isFormSavedRef = useRef<boolean>(false);
-
-    // Keep refs in sync on every render (before effects run)
-    availablePetugasOptionsRef.current = availablePetugasOptions;
-    selectedPetugasRef.current = selectedPetugas;
-    isFormSavedRef.current = isFormSaved;
-
     const [currentAntrianId, setCurrentAntrianId] = useState<string>('');
 
     // ── Patient-init effect ──────────────────────────────────────────────────
-    // Only re-runs when the patient ID actually changes (or isKonsultasi changes).
-    // Does NOT list selectedPetugas / availablePetugasOptions / currentAntrianId
-    // as deps → those are read via refs to avoid the infinite loop.
     useEffect(() => {
         const antrianId = activePatient?.kode_antrian_layanan;
         if (antrianId) {
             const ap = activePatient as any;
-            const isBooking = Boolean(ap.kode_booking);
-            const bookingSip = ap.booking_no_sip || (isBooking ? ap.kode_karyawan : null);
-            const opts = availablePetugasOptionsRef.current;
 
             if (antrianId !== currentAntrianId) {
-                // New patient in the panel — reset everything
+                // New patient in the panel — reset form state
                 setCurrentAntrianId(antrianId);
-                setIsEditingBookingPetugas(false);
 
                 let initialForm: any = {};
                 let hasForm = false;
@@ -664,89 +328,6 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                 }
                 setFormData(initialForm);
                 setCatatanPetugas(activePatient.catatan_petugas || '');
-
-                // Determine default petugas (Dokter / Pelaksana Utama)
-                let defaultPetugas = '';
-                if (isBooking && bookingSip) {
-                    const matched = opts.find((opt) =>
-                        (bookingKodeJadwal && opt.kode_jadwal === bookingKodeJadwal) ||
-                        (opt.no_sip === bookingSip)
-                    );
-                    defaultPetugas = matched?.value || bookingSip;
-                } else if (activePatient.kode_karyawan) {
-                    const matched = opts.find((opt) => opt.no_sip === activePatient.kode_karyawan);
-                    defaultPetugas = matched?.value || activePatient.kode_karyawan;
-                } else if (opts.length > 0) {
-                    const docPj = opts.find((p: any) => String(p.jabatan || '').toLowerCase().includes('dokter') && p.is_penanggung_jawab);
-                    const docAny = opts.find((p: any) => String(p.jabatan || '').toLowerCase().includes('dokter'));
-                    const pj = opts.find((p: any) => p.is_penanggung_jawab);
-                    defaultPetugas = (docPj || docAny || pj || opts[0])?.value || '';
-                }
-                setSelectedPetugas(defaultPetugas);
-
-                // Determine default terapis pendamping (Multi-Terapis / Helper)
-                let defaultTerapisList: Array<{
-                    no_sip: string;
-                    nama: string;
-                    jabatan?: string;
-                    role?: string;
-                    jam_mulai?: string;
-                    jam_selesai?: string;
-                    shift?: string;
-                    kode_jadwal?: string;
-                }> = [];
-
-                if (Array.isArray(initialForm?.terapis_pendamping) && initialForm.terapis_pendamping.length > 0) {
-                    defaultTerapisList = initialForm.terapis_pendamping.map((t: any) => ({
-                        no_sip: extractNoSip(t.no_sip || t.sip || t.value) || t.no_sip || t.sip || '-',
-                        nama: t.nama || t.nama_petugas || 'Terapis',
-                        jabatan: t.jabatan || t.role || 'terapis',
-                        role: (t.role || t.jabatan || 'TERAPIS').toUpperCase(),
-                        jam_mulai: t.jam_mulai || '',
-                        jam_selesai: t.jam_selesai || '',
-                        shift: t.shift || (t.jam_mulai && t.jam_selesai ? `${t.jam_mulai.slice(0, 5)} - ${t.jam_selesai.slice(0, 5)}` : ''),
-                        kode_jadwal: t.kode_jadwal || '',
-                    }));
-                } else if (initialForm?.terapis_pendamping?.no_sip || initialForm?.terapis_pendamping?.nama) {
-                    const t = initialForm.terapis_pendamping;
-                    defaultTerapisList = [{
-                        no_sip: extractNoSip(t.no_sip || t.sip || t.value) || t.no_sip || t.sip || '-',
-                        nama: t.nama || t.nama_petugas || 'Terapis',
-                        jabatan: t.jabatan || t.role || 'terapis',
-                        role: (t.role || t.jabatan || 'TERAPIS').toUpperCase(),
-                        jam_mulai: t.jam_mulai || '',
-                        jam_selesai: t.jam_selesai || '',
-                        shift: t.shift || '',
-                        kode_jadwal: t.kode_jadwal || '',
-                    }];
-                } else if (Array.isArray(ap.booking_petugas_pendamping) && ap.booking_petugas_pendamping.length > 0) {
-                    defaultTerapisList = ap.booking_petugas_pendamping.map((c: any) => ({
-                        no_sip: extractNoSip(c.no_sip || c.sip || c.value) || c.no_sip || '',
-                        nama: c.nama_petugas || c.nama_karyawan || c.nama || 'Terapis',
-                        jabatan: c.jabatan_petugas || c.jabatan || 'terapis',
-                        role: (c.jabatan_petugas || c.jabatan || 'TERAPIS').toUpperCase(),
-                        jam_mulai: c.jam_mulai || ap.booking_jam_mulai || '',
-                        jam_selesai: c.jam_selesai || ap.booking_jam_selesai || '',
-                        shift: c.jam_mulai && c.jam_selesai ? `${c.jam_mulai.slice(0, 5)} - ${c.jam_selesai.slice(0, 5)}` : '',
-                        kode_jadwal: c.kode_jadwal || '',
-                    }));
-                } else if (petugasJagaList && petugasJagaList.length > 0) {
-                    const docSip = extractNoSip(defaultPetugas);
-                    const helpers = petugasJagaList.filter((p: any) => p.no_sip !== docSip && (!p.is_penanggung_jawab || !String(p.jabatan || '').toLowerCase().includes('dokter')));
-                    if (helpers.length > 0) {
-                        defaultTerapisList = helpers.map((h: any) => ({
-                            no_sip: extractNoSip(h.no_sip || h.sip || h.value) || h.no_sip || '',
-                            nama: h.nama_karyawan || h.nama || 'Terapis',
-                            jabatan: h.jabatan || 'terapis',
-                            role: (h.jabatan || 'TERAPIS').toUpperCase(),
-                            jam_mulai: h.jam_mulai || '',
-                            jam_selesai: h.jam_selesai || '',
-                            shift: h.jam_mulai && h.jam_selesai ? `${h.jam_mulai.slice(0, 5)} - ${h.jam_selesai.slice(0, 5)}` : '',
-                            kode_jadwal: h.kode_jadwal || '',
-                        }));
-                    }
-                }
-                setSelectedTerapisList(defaultTerapisList);
 
                 setHeaderRMData({
                     foto_before: ap.foto_before || ap.data_konsultasi_foto_before || '',
@@ -779,39 +360,14 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
         } else {
             // No patient — clear panel
             setCurrentAntrianId('');
-            setIsEditingBookingPetugas(false);
             setFormData({});
             setCatatanPetugas('');
             setRekomendasiItems([]);
-            setSelectedPetugas('');
-            setSelectedTerapisList([]);
             setActiveStep('form');
             setIsFormSaved(false);
             setIsHasilSaved(false);
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activePatient?.kode_antrian_layanan, isKonsultasi]);
-
-    // ── Petugas fallback effect ──────────────────────────────────────────────
-    // Runs whenever the options list changes (e.g. after jadwal loaded).
-    // Reads selectedPetugas via ref so it never lists it as a dep.
-    useEffect(() => {
-        if (availablePetugasOptions.length === 0) return;
-        const current = selectedPetugasRef.current;
-        if (current) return; // already set — nothing to do
-
-        if (isBookingPatient && bookingNoSip) {
-            const matched = availablePetugasOptions.find((opt) =>
-                (bookingKodeJadwal && opt.kode_jadwal === bookingKodeJadwal) ||
-                (opt.no_sip === bookingNoSip)
-            );
-            setSelectedPetugas(matched?.value || bookingNoSip);
-        } else {
-            const pj = availablePetugasOptions.find((p: any) => p.is_penanggung_jawab) || availablePetugasOptions[0];
-            if (pj?.value) setSelectedPetugas(pj.value);
-        }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [availablePetugasOptions, isBookingPatient, bookingNoSip, bookingKodeJadwal]);
 
     const loadPendaftaranItems = async (kodeKunjungan?: string) => {
         if (!kodeKunjungan) return;
@@ -864,22 +420,6 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
         }
     };
 
-    const loadKaryawan = async () => {
-        try {
-            const res = await postData('/master/karyawan-data', { page: 1, perPage: 100 });
-            const list = res.data?.data || [];
-            const opts = list.map((k: any) => ({
-                label: `${k.nama}${k.jabatan ? ` (${k.jabatan.toUpperCase()})` : ''}`,
-                value: k.no_sip,
-                nama: k.nama,
-                jabatan: k.jabatan,
-                no_sip: k.no_sip,
-            }));
-            setKaryawanOptions(opts);
-        } catch (_) {
-            // silent fail
-        }
-    };
 
     const loadFormFields = async () => {
         if (!kodeRuangan) return;
@@ -903,26 +443,35 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
         if (!activePatient) return;
         setSaving(true);
         try {
-            const cleanSip = extractNoSip(currentSelectedOfficer?.no_sip || selectedPetugas);
-            const finalNoSip = cleanSip || (currentSelectedOfficer?.no_sip || selectedPetugas);
-            const finalTerapisList = selectedTerapisList.map((t: any) => ({
-                no_sip: extractNoSip(t.no_sip || t.sip || t.value) || t.no_sip || t.sip || '-',
-                sip: extractNoSip(t.no_sip || t.sip || t.value) || t.no_sip || t.sip || '-',
-                nama: t.nama,
-                jabatan: t.jabatan || 'terapis',
-                role: t.role || (t.jabatan || 'TERAPIS').toUpperCase(),
-                jam_mulai: t.jam_mulai || '',
-                jam_selesai: t.jam_selesai || '',
-                shift: t.shift || (t.jam_mulai && t.jam_selesai ? `${t.jam_mulai.slice(0, 5)} - ${t.jam_selesai.slice(0, 5)}` : ''),
-                kode_jadwal: t.kode_jadwal || '',
-            }));
+            const finalNoSip = activePJ?.no_sip || selectedPetugas || '';
+            const dokterNama = activePJ?.nama || (activePatient as any)?.nama_petugas || 'Dokter PJ';
+            const dokterJabatan = activePJ?.jabatan || 'Dokter';
 
-            const dokterNama = currentSelectedOfficer?.nama || bookingNamaPetugas || availablePetugasOptions.find((k) => k.value === selectedPetugas)?.nama || selectedPetugas;
+            const finalTerapisList = activeHelpers.map((t: any) => {
+                const jMulai = t.jam_mulai || '';
+                const jSelesai = t.jam_selesai || '';
+                const shiftStr = jMulai && jSelesai ? `${jMulai.slice(0, 5)} - ${jSelesai.startsWith('24:00') ? '00:00' : jSelesai.slice(0, 5)}` : (t.shift || '');
+                return {
+                    no_sip: t.no_sip || '-',
+                    sip: t.no_sip || '-',
+                    nama: t.nama,
+                    jabatan: t.jabatan || 'petugas',
+                    role: (t.jabatan || 'PENDAMPING').toUpperCase(),
+                    jam_mulai: jMulai,
+                    jam_selesai: jSelesai,
+                    shift: shiftStr,
+                    kode_jadwal: t.kode_jadwal || '',
+                };
+            });
+
             const dokterPelaksanaObj = {
                 nama: dokterNama,
                 no_sip: finalNoSip,
-                jabatan: currentSelectedOfficer?.jabatan || bookingJabatanPetugas || 'Dokter',
-                role: (currentSelectedOfficer?.jabatan || 'DOKTER').toUpperCase(),
+                jabatan: dokterJabatan,
+                role: dokterJabatan.toUpperCase(),
+                jam_mulai: activePJ?.jam_mulai || '',
+                jam_selesai: activePJ?.jam_selesai || '',
+                is_penanggung_jawab: true,
             };
 
             const updatedFormData = {
@@ -944,13 +493,6 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                 dokter_pelaksana: dokterPelaksanaObj,
                 terapis_pendamping: finalTerapisList,
                 petugas_pendamping: finalTerapisList,
-                diubah_dari_booking: isDoctorChangedFromBooking,
-                petugas_asal_booking: bookingNamaPetugas || null,
-                no_sip_asal_booking: bookingNoSip || null,
-                petugas_pengganti: currentSelectedOfficer?.nama || selectedPetugas,
-                catatan_perubahan_petugas: isDoctorChangedFromBooking
-                    ? `Petugas diubah dari jadwal booking (${bookingNamaPetugas} - ${bookingNoSip}) ke (${currentSelectedOfficer?.nama || selectedPetugas} - ${finalNoSip})`
-                    : null,
             };
             if (targetStatus) {
                 payload.status_tindakan = targetStatus;
@@ -973,8 +515,8 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
             }
 
             // Update local officer info so header badge displays doctor name immediately
-            if (selectedPetugas) {
-                activePatient.nama_petugas = currentSelectedOfficer?.nama || activePatient.nama_petugas;
+            if (finalNoSip) {
+                activePatient.nama_petugas = dokterNama;
                 activePatient.kode_karyawan = finalNoSip;
             }
 
@@ -1001,9 +543,9 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
     const handleSaveForm = (targetStatus?: string) => {
         if (!activePatient) return;
 
-        // Validation: Petugas / Dokter Examiner wajib dipilih
-        if (!selectedPetugas) {
-            showError(toast, 'Petugas / Dokter Penanggung Jawab wajib dipilih!');
+        // Validation: Petugas / Dokter PJ wajib dijadwalkan
+        if (!activePJ && !selectedPetugas) {
+            showError(toast, 'Belum ada Dokter / PJ yang dijadwalkan untuk ruangan ini pada Jadwal Karyawan!');
             return;
         }
 
@@ -1108,537 +650,219 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
         } catch (_) {}
     }
 
-    const renderPetugasSelector = () => {
-        const isDoctorMatchingSchedule = scheduledDoctor && (
-            extractNoSip(selectedPetugas) === scheduledDoctor.no_sip ||
-            currentSelectedOfficer?.no_sip === scheduledDoctor.no_sip ||
-            (!selectedPetugas && !scheduledDoctor.no_sip)
-        );
+    const formatJamOperasional = (mulai?: string, selesai?: string) => {
+        if (!mulai && !selesai) return '';
+        const start = mulai ? mulai.slice(0, 5) : '08:00';
+        const end = selesai ? (selesai.startsWith('24:00') ? '00:00' : selesai.slice(0, 5)) : '16:00';
+        return `${start} - ${end}`;
+    };
 
-        const isTherapistMatchingSchedule = scheduledTherapist && (
-            selectedTerapisList.some(
-                (t) => (scheduledTherapist.no_sip && t.no_sip === scheduledTherapist.no_sip) ||
-                       (scheduledTherapist.kode_jadwal && t.kode_jadwal === scheduledTherapist.kode_jadwal)
-            )
-        );
+    const formatJabatan = (jabatan?: string) => {
+        if (!jabatan) return 'Petugas';
+        const raw = String(jabatan).trim();
+        if (raw.toLowerCase() === 'dokter') return 'Dokter';
+        if (raw.toLowerCase() === 'perawat') return 'Perawat';
+        if (raw.toLowerCase() === 'terapis') return 'Terapis';
+        return raw.charAt(0).toUpperCase() + raw.slice(1);
+    };
+
+    const renderPetugasSelector = () => {
+        const pjJamText = activePJ ? formatJamOperasional(activePJ.jam_mulai, activePJ.jam_selesai) : '';
+        const helperCount = activeHelpers.length;
 
         return (
-            <div className="p-3 sm:p-4 border-round-xl border-1 surface-border bg-white shadow-1">
+            <div className="p-3 sm:p-4 border-round-xl border-1 surface-border bg-white shadow-1 mb-3">
                 {/* ═══════════════════════════════════════════════════════════ */}
-                {/* HEADER: TITLE, ROOM & BOOKING BADGE                        */}
+                {/* HEADER: TITLE & ROOM BADGE                                 */}
                 {/* ═══════════════════════════════════════════════════════════ */}
                 <div className="flex flex-column sm:flex-row sm:align-items-center justify-content-between gap-2 mb-3 pb-2.5 border-bottom-1 surface-border">
-                    <label className="text-xs font-extrabold text-700 uppercase tracking-wider flex align-items-center gap-2 m-0">
-                        <i className={`pi ${isKonsultasi ? 'pi-user-edit' : 'pi-shield'} text-teal-600 text-sm`} />
-                        <span>{isKonsultasi ? 'DOKTER KONSULTASI & TERAPIS PENDAMPING' : 'DOKTER PELAKSANA & TERAPIS PENDAMPING'}</span>
-                    </label>
+                    <div className="flex align-items-center gap-2">
+                        <i className="pi pi-id-card text-teal-600 text-sm" />
+                        <span className="text-xs font-extrabold text-800 uppercase tracking-wider">
+                            DOKTER &amp; PETUGAS RUANGAN
+                        </span>
+                    </div>
                     <div className="flex align-items-center gap-2 flex-wrap">
-                        {isBookingPatient && (
-                            <Tag severity="info" value={`Booking: ${activePatient?.kode_booking || '-'}`} icon="pi pi-bookmark" className="text-xs font-medium" />
-                        )}
-                        <Tag severity="secondary" value={namaRuangan || 'Ruangan'} icon="pi pi-building" className="text-xs font-medium" />
+                        <span
+                            className="text-white font-semibold inline-flex align-items-center justify-content-center gap-1.5"
+                            style={{
+                                backgroundColor: '#0d9488',
+                                fontSize: '11px',
+                                lineHeight: 1,
+                                padding: '3px 8px',
+                                borderRadius: '5px'
+                            }}
+                        >
+                            <i className="pi pi-building text-[10px]" />
+                            <span>{namaRuangan || 'Ruangan'}</span>
+                        </span>
+                        <span className="text-xs text-500 font-medium">
+                            Sesuai Jadwal Karyawan
+                        </span>
                     </div>
                 </div>
 
                 {/* ═══════════════════════════════════════════════════════════ */}
-                {/* BANNER JADWAL PIKET / REFERENSI (COMPACT & HIERARKI JELAS)  */}
-                {/* ═══════════════════════════════════════════════════════════ */}
-                {(scheduledDoctor || scheduledTherapist) && (
-                    <div className="surface-50 border-1 surface-border border-round-lg p-2.5 mb-3">
-                        <div className="grid formgrid m-0">
-                            {/* Dokter Piket Ref */}
-                            <div className="col-12 md:col-6 p-2 flex align-items-center justify-content-between gap-2 border-bottom-1 md:border-bottom-none md:border-right-1 surface-border">
-                                <div className="flex align-items-start gap-2.5 min-w-0">
-                                    <div className="w-2rem h-2rem border-round-md bg-teal-50 border-1 border-teal-100 text-teal-700 flex align-items-center justify-content-center text-xs flex-shrink-0 mt-0.5">
-                                        👨‍⚕️
-                                    </div>
-                                    <div className="min-w-0">
-                                        <span className="text-[10px] font-bold text-500 uppercase tracking-wider block">
-                                            JADWAL DOKTER
-                                        </span>
-                                        <span className="text-sm font-bold text-900 block text-overflow-ellipsis overflow-hidden mt-0.5">
-                                            {scheduledDoctor ? scheduledDoctor.nama : 'Tidak ada jadwal dokter'}
-                                        </span>
-                                        {scheduledDoctor?.jam_mulai && scheduledDoctor?.jam_selesai ? (
-                                            <span className="text-xs text-500 font-medium block mt-0.5">
-                                                {scheduledDoctor.jam_mulai.slice(0, 5)} - {scheduledDoctor.jam_selesai.startsWith('24:00') ? '00:00' : scheduledDoctor.jam_selesai.slice(0, 5)}
-                                            </span>
-                                        ) : (
-                                            <span className="text-xs text-400 block mt-0.5">-</span>
-                                        )}
-                                    </div>
-                                </div>
-                                {scheduledDoctor && (
-                                    <div className="flex-shrink-0">
-                                        {isDoctorMatchingSchedule ? (
-                                            <Tag severity="success" value="Sesuai" icon="pi pi-check" className="text-xs font-medium" />
-                                        ) : (
-                                            !isFormSaved && (
-                                                <Button
-                                                    type="button"
-                                                    label="Terapkan"
-                                                    icon="pi pi-plus"
-                                                    size="small"
-                                                    outlined
-                                                    severity="info"
-                                                    className="text-xs py-1 px-2.5 font-medium border-round-md"
-                                                    onClick={() => {
-                                                        const match = availablePetugasOptions.find(
-                                                            (o) => o.no_sip === scheduledDoctor.no_sip || extractNoSip(o.value) === scheduledDoctor.no_sip
-                                                        );
-                                                        setSelectedPetugas(match?.value || scheduledDoctor.no_sip || '');
-                                                        setIsEditingBookingPetugas(false);
-                                                    }}
-                                                />
-                                            )
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Terapis Piket Ref */}
-                            <div className="col-12 md:col-6 p-2 flex align-items-center justify-content-between gap-2">
-                                <div className="flex align-items-start gap-2.5 min-w-0">
-                                    <div className="w-2rem h-2rem border-round-md bg-purple-50 border-1 border-purple-100 text-purple-700 flex align-items-center justify-content-center text-xs flex-shrink-0 mt-0.5">
-                                        💆‍♀️
-                                    </div>
-                                    <div className="min-w-0">
-                                        <span className="text-[10px] font-bold text-500 uppercase tracking-wider block">
-                                            JADWAL TERAPIS
-                                        </span>
-                                        <span className="text-sm font-bold text-900 block text-overflow-ellipsis overflow-hidden mt-0.5">
-                                            {scheduledTherapist ? scheduledTherapist.nama : 'Tidak ada jadwal terapis'}
-                                        </span>
-                                        {scheduledTherapist?.jam_mulai && scheduledTherapist?.jam_selesai ? (
-                                            <span className="text-xs text-500 font-medium block mt-0.5">
-                                                {scheduledTherapist.jam_mulai.slice(0, 5)} - {scheduledTherapist.jam_selesai.startsWith('24:00') ? '00:00' : scheduledTherapist.jam_selesai.slice(0, 5)}
-                                            </span>
-                                        ) : (
-                                            <span className="text-xs text-400 block mt-0.5">-</span>
-                                        )}
-                                    </div>
-                                </div>
-                                {scheduledTherapist && (
-                                    <div className="flex-shrink-0">
-                                        {isTherapistMatchingSchedule ? (
-                                            <Tag severity="success" value="Terpilih" icon="pi pi-check" className="text-xs font-medium" />
-                                        ) : (
-                                            !isFormSaved && (
-                                                <Button
-                                                    type="button"
-                                                    label="Terapkan"
-                                                    icon="pi pi-plus"
-                                                    size="small"
-                                                    outlined
-                                                    severity="info"
-                                                    className="text-xs py-1 px-2.5 font-medium border-round-md"
-                                                    onClick={() => {
-                                                        const found = availableTerapisOptions.find(
-                                                            (o) => (scheduledTherapist.no_sip && o.no_sip === scheduledTherapist.no_sip) ||
-                                                                   (scheduledTherapist.kode_jadwal && o.kode_jadwal === scheduledTherapist.kode_jadwal)
-                                                        );
-                                                        if (found) {
-                                                            addTerapis(found);
-                                                        } else {
-                                                            addTerapis({
-                                                                no_sip: scheduledTherapist.no_sip || '',
-                                                                nama: scheduledTherapist.nama || '',
-                                                                jabatan: scheduledTherapist.jabatan || 'TERAPIS',
-                                                                role: 'TERAPIS',
-                                                                jam_mulai: scheduledTherapist.jam_mulai,
-                                                                jam_selesai: scheduledTherapist.jam_selesai,
-                                                                shift: scheduledTherapist.jam_mulai && scheduledTherapist.jam_selesai ? `${scheduledTherapist.jam_mulai.slice(0, 5)} - ${scheduledTherapist.jam_selesai.startsWith('24:00') ? '00:00' : scheduledTherapist.jam_selesai.slice(0, 5)}` : '',
-                                                                kode_jadwal: scheduledTherapist.kode_jadwal
-                                                            });
-                                                        }
-                                                    }}
-                                                />
-                                            )
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* ═══════════════════════════════════════════════════════════ */}
-                {/* TWO-COLUMN FORM SELECTOR: DOKTER UTAMA & TERAPIS MULTI      */}
+                {/* TWO-COLUMN GRID LAYOUT                                      */}
                 {/* ═══════════════════════════════════════════════════════════ */}
                 <div className="grid formgrid m-0 align-items-stretch">
                     {/* ───────────────────────────────────────────────────────── */}
-                    {/* COLUMN 1: DOKTER / PETUGAS PELAKSANA UTAMA (PJ MEDIS)      */}
+                    {/* COLUMN 1: PJ / DOKTER UTAMA (LEFT)                         */}
                     {/* ───────────────────────────────────────────────────────── */}
-                    <div className="col-12 md:col-6 p-2 flex flex-column">
-                        <div className="surface-50 border-1 surface-border border-round-lg p-3 h-full flex flex-column justify-content-start gap-2.5">
-                            <div className="flex align-items-center justify-content-between mb-1">
+                    <div className="col-12 md:col-6 p-1.5 flex flex-column">
+                        <div className="surface-50 border-1 surface-border border-round-xl p-3 flex flex-column gap-2.5 h-full">
+                            {/* Column Header: PJ Ruangan (Orange Badge) */}
+                            <div className="flex align-items-center justify-content-between mb-2">
                                 <span className="text-xs font-bold text-700 uppercase tracking-wider flex align-items-center gap-1.5">
                                     <i className="pi pi-user text-teal-600 text-xs" />
-                                    1. {isKonsultasi ? 'Dokter Konsultasi' : 'Dokter / Pelaksana Utama'}
+                                    <span>PJ / DOKTER UTAMA</span>
                                 </span>
-                                <Tag severity="secondary" value="Wajib (PJ Medis)" className="text-[11px] font-medium" />
+                                <span
+                                    className="text-white font-semibold inline-flex align-items-center justify-content-center"
+                                    style={{
+                                        backgroundColor: '#f97316',
+                                        fontSize: '10px',
+                                        lineHeight: 1,
+                                        padding: '2.5px 7px',
+                                        borderRadius: '4px'
+                                    }}
+                                >
+                                    PJ Ruangan
+                                </span>
                             </div>
 
-                            {/* Pilihan Dokter dari Booking / Searchable Dropdown */}
-                            {isBookingPatient && !isEditingBookingPetugas ? (
-                                <div className="surface-card border-1 border-teal-200 border-round-lg p-3 flex flex-column gap-2.5 shadow-xs">
-                                    <div className="flex align-items-start gap-3">
-                                        <div className="w-2.4rem h-2.4rem border-round-md bg-teal-50 border-1 border-teal-100 text-teal-700 flex align-items-center justify-content-center text-base flex-shrink-0 mt-0.5">
+                            {/* Content Card: Clean White Card (Sejajar dengan Card Kanan) */}
+                            {activePJ ? (
+                                <div className="bg-white border-1 surface-border border-round-lg p-3 flex align-items-center justify-content-between gap-3 shadow-xs">
+                                    <div className="flex align-items-center gap-3 min-w-0 flex-1">
+                                        {/* Avatar Icon Box */}
+                                        <div className="w-2.5rem h-2.5rem border-round-lg bg-teal-50 border-1 border-teal-100 text-teal-700 flex align-items-center justify-content-center text-sm flex-shrink-0">
                                             👨‍⚕️
                                         </div>
                                         <div className="min-w-0 flex-1">
-                                            {/* Baris 1: Nama & Badges */}
-                                            <div className="flex align-items-center gap-2 flex-wrap">
-                                                <span className="font-bold text-900 text-base">
-                                                    {currentSelectedOfficer?.nama || bookingNamaPetugas || 'Dokter Pemeriksa'}
-                                                </span>
-                                                {currentSelectedOfficer?.jabatan && (
-                                                    <Tag severity="info" value={currentSelectedOfficer.jabatan.toUpperCase()} className="text-[10px] py-0.5 px-2" />
-                                                )}
-                                                {currentSelectedOfficer?.is_penanggung_jawab && (
-                                                    <Tag severity="warning" value="PJ Ruangan" className="text-[10px] py-0.5 px-2" />
-                                                )}
-                                                {!isDoctorChangedFromBooking ? (
-                                                    <Tag severity="success" value="Sesuai Booking" icon="pi pi-check" className="text-[10px] py-0.5 px-2" />
-                                                ) : (
-                                                    <Tag severity="warning" value="Diubah" icon="pi pi-pencil" className="text-[10px] py-0.5 px-2" />
-                                                )}
+                                            {/* Nama Dokter (Informasi Utama) */}
+                                            <div className="font-bold text-900 text-sm line-height-2 text-overflow-ellipsis overflow-hidden" title={activePJ.nama}>
+                                                {activePJ.nama}
                                             </div>
-
-                                            {/* Baris 2: SIP & Shift */}
-                                            <div className="flex align-items-center gap-2 mt-1 text-xs text-500 flex-wrap">
-                                                <span>SIP: <strong className="text-700 font-medium">{currentSelectedOfficer?.no_sip || extractNoSip(selectedPetugas) || bookingNoSip || '-'}</strong></span>
-                                                {currentSelectedOfficer?.jam_mulai && currentSelectedOfficer?.jam_selesai && (
+                                            {/* Jabatan dan Jam Operasional di bawah nama (Tanpa Duplikat Badge) */}
+                                            <div className="text-xs text-500 flex align-items-center gap-2 mt-1 flex-wrap">
+                                                <span className="font-semibold text-700">
+                                                    {formatJabatan(activePJ.jabatan)}
+                                                </span>
+                                                {pjJamText && (
                                                     <>
                                                         <span className="text-300">•</span>
-                                                        <span className="text-teal-700 font-medium inline-flex align-items-center gap-1">
-                                                            <i className="pi pi-clock text-[10px]" />
-                                                            <span>{currentSelectedOfficer.jam_mulai.slice(0, 5)} - {currentSelectedOfficer.jam_selesai.startsWith('24:00') ? '00:00' : currentSelectedOfficer.jam_selesai.slice(0, 5)}</span>
+                                                        <span className="inline-flex align-items-center gap-1 text-500 font-normal">
+                                                            <i className="pi pi-clock text-[10px] text-gray-400" />
+                                                            <span>{pjJamText}</span>
                                                         </span>
                                                     </>
                                                 )}
                                             </div>
                                         </div>
                                     </div>
-
-                                    {!isFormSaved && (
-                                        <div className="flex align-items-center justify-content-end gap-2 pt-2 border-top-1 surface-border">
-                                            {isDoctorChangedFromBooking && (
-                                                <Button
-                                                    type="button"
-                                                    label="Kembalikan ke Booking"
-                                                    icon="pi pi-replay"
-                                                    size="small"
-                                                    text
-                                                    severity="secondary"
-                                                    className="text-xs p-1 px-2.5 font-medium"
-                                                    onClick={() => {
-                                                        const bookingOpt = availablePetugasOptions.find((opt) => opt.no_sip === bookingNoSip);
-                                                        setSelectedPetugas(bookingOpt?.value || bookingNoSip || '');
-                                                    }}
-                                                />
-                                            )}
-                                            <Button
-                                                type="button"
-                                                label="Ubah Dokter"
-                                                icon="pi pi-user-edit"
-                                                size="small"
-                                                outlined
-                                                severity="secondary"
-                                                className="text-xs p-1 px-2.5 font-medium border-round-md"
-                                                onClick={() => setIsEditingBookingPetugas(true)}
-                                            />
-                                        </div>
-                                    )}
                                 </div>
                             ) : (
-                                <div className="flex flex-column gap-1.5">
-                                    <div className="flex align-items-center gap-1.5">
-                                        <div className="flex-1 p-fluid">
-                                            <Dropdown
-                                                value={selectedPetugas}
-                                                options={availablePetugasOptions}
-                                                optionLabel="label"
-                                                optionValue="value"
-                                                onChange={(e) => {
-                                                    if (e.value) {
-                                                        setSelectedPetugas(e.value);
-                                                        if (isBookingPatient) {
-                                                            setIsEditingBookingPetugas(false);
-                                                        }
-                                                    }
-                                                }}
-                                                placeholder="-- Pilih Dokter / Petugas Pelaksana --"
-                                                filter
-                                                filterPlaceholder="Cari dokter..."
-                                                filterBy="label,value,nama,no_sip,jabatan"
-                                                scrollHeight="280px"
-                                                panelClassName="shadow-4 border-round-xl border-1 surface-border"
-                                                appendTo={typeof document !== 'undefined' ? document.body : undefined}
-                                                showClear={false}
-                                                disabled={isFormSaved}
-                                                className="w-full text-sm border-round-md"
-                                                valueTemplate={(option) => {
-                                                    if (option) {
-                                                        return (
-                                                            <div className="flex align-items-center gap-2 overflow-hidden py-0.5">
-                                                                <span className="text-sm flex-shrink-0">👨‍⚕️</span>
-                                                                <div className="flex align-items-center gap-2 flex-wrap min-w-0">
-                                                                    <span className="font-bold text-900 text-sm white-space-nowrap">{option.nama || option.label}</span>
-                                                                    {option.jabatan && (
-                                                                        <Tag severity="info" value={option.jabatan.toUpperCase()} className="text-[10px] py-0 px-1.5 line-height-2" />
-                                                                    )}
-                                                                    {option.is_penanggung_jawab && (
-                                                                        <Tag severity="warning" value="PJ Ruangan" className="text-[10px] py-0 px-1.5 line-height-2" />
-                                                                    )}
-                                                                    {option.is_booking_choice && (
-                                                                        <Tag severity="info" value="Booking" className="text-[10px] py-0 px-1.5 line-height-2" />
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    }
-                                                    return <span className="text-500 text-sm">-- Pilih Dokter / Petugas Pelaksana --</span>;
-                                                }}
-                                                itemTemplate={(option) => {
-                                                    const isSelected = selectedPetugas === option.value || (option.no_sip && extractNoSip(selectedPetugas) === option.no_sip);
-                                                    return (
-                                                        <div className={`p-2 border-round-md flex align-items-center justify-content-between gap-2 transition-colors w-full ${isSelected ? 'bg-teal-50 text-teal-900 font-medium' : 'hover:surface-hover'}`}>
-                                                            <div className="flex align-items-start gap-2.5 min-w-0">
-                                                                <div className={`w-2.2rem h-2.2rem border-round-md flex align-items-center justify-content-center text-sm flex-shrink-0 mt-0.5 ${isSelected ? 'bg-teal-100 text-teal-700' : 'bg-surface-100 surface-border border-1 text-600'}`}>
-                                                                    👨‍⚕️
-                                                                </div>
-                                                                <div className="min-w-0 flex-1">
-                                                                    {/* Baris 1: Nama Dokter */}
-                                                                    <div className="text-sm font-bold text-900 text-overflow-ellipsis overflow-hidden">
-                                                                        {option.nama || option.label}
-                                                                    </div>
-                                                                    {/* Baris 2: Badge Jabatan & Status */}
-                                                                    <div className="flex align-items-center gap-1.5 flex-wrap mt-1">
-                                                                        {option.jabatan && (
-                                                                            <Tag severity="info" value={option.jabatan.toUpperCase()} className="text-[10px] py-0 px-1.5 line-height-2" />
-                                                                        )}
-                                                                        {option.is_penanggung_jawab && (
-                                                                            <Tag severity="warning" value="PJ Ruangan" className="text-[10px] py-0 px-1.5 line-height-2" />
-                                                                        )}
-                                                                        {option.is_booking_choice && (
-                                                                            <Tag severity="info" value="Booking" className="text-[10px] py-0 px-1.5 line-height-2" />
-                                                                        )}
-                                                                    </div>
-                                                                    {/* Baris 3: SIP & Shift */}
-                                                                    <div className="text-xs text-500 flex align-items-center gap-1.5 mt-1 flex-wrap">
-                                                                        <span>SIP: <strong className="text-700 font-medium">{option.no_sip || extractNoSip(option.value) || '-'}</strong></span>
-                                                                        {option.jam_mulai && option.jam_selesai && (
-                                                                            <>
-                                                                                <span className="text-300">•</span>
-                                                                                <span className="text-teal-700 font-medium inline-flex align-items-center gap-1">
-                                                                                    <i className="pi pi-clock text-[10px]" />
-                                                                                    <span>{option.jam_mulai.slice(0, 5)} - {option.jam_selesai.startsWith('24:00') ? '00:00' : option.jam_selesai.slice(0, 5)}</span>
-                                                                                </span>
-                                                                            </>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                            {isSelected && (
-                                                                <div className="flex-shrink-0 text-teal-600 pr-1">
-                                                                    <i className="pi pi-check text-base font-bold" />
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    );
-                                                }}
-                                            />
-                                        </div>
-                                        {isBookingPatient && (
-                                            <Button
-                                                type="button"
-                                                icon="pi pi-times"
-                                                size="small"
-                                                outlined
-                                                severity="secondary"
-                                                className="text-xs p-2 border-round-md flex-shrink-0"
-                                                tooltip="Batal ubah"
-                                                tooltipOptions={{ position: 'bottom' }}
-                                                onClick={() => setIsEditingBookingPetugas(false)}
-                                            />
-                                        )}
-                                    </div>
+                                <div
+                                    className="bg-white border-1 border-dashed border-gray-300 border-round-lg p-3 text-center flex flex-column align-items-center justify-content-center gap-1"
+                                    style={{ minHeight: '66px' }}
+                                >
+                                    <i className="pi pi-info-circle text-gray-400 text-xs" />
+                                    <span className="text-xs font-semibold text-gray-600">
+                                        Belum ada PJ yang dijadwalkan untuk ruangan ini.
+                                    </span>
                                 </div>
                             )}
                         </div>
                     </div>
 
                     {/* ───────────────────────────────────────────────────────── */}
-                    {/* COLUMN 2: TERAPIS / PETUGAS PENDAMPING (MULTI-SELECT)       */}
+                    {/* COLUMN 2: PETUGAS PENDAMPING (RIGHT)                       */}
                     {/* ───────────────────────────────────────────────────────── */}
-                    <div className="col-12 md:col-6 p-2 flex flex-column">
-                        <div className="surface-50 border-1 surface-border border-round-lg p-3 h-full flex flex-column justify-content-start gap-2.5">
-                            <div className="flex align-items-center justify-content-between mb-1">
+                    <div className="col-12 md:col-6 p-1.5 flex flex-column">
+                        <div className="surface-50 border-1 surface-border border-round-xl p-3 flex flex-column gap-2.5 h-full">
+                            {/* Column Header: Jumlah Petugas (Blue Badge) */}
+                            <div className="flex align-items-center justify-content-between mb-2">
                                 <span className="text-xs font-bold text-700 uppercase tracking-wider flex align-items-center gap-1.5">
-                                    <i className="pi pi-users text-purple-600 text-xs" />
-                                    <span>2. Terapis / Petugas Pendamping</span>
+                                    <i className="pi pi-users text-teal-600 text-xs" />
+                                    <span>PETUGAS PENDAMPING</span>
                                 </span>
-                                <Tag severity="secondary" value={`${selectedTerapisList.length} dipilih`} className="text-[11px] font-medium" />
+                                <span
+                                    className="text-white font-semibold inline-flex align-items-center justify-content-center"
+                                    style={{
+                                        backgroundColor: '#0284c7',
+                                        fontSize: '10px',
+                                        lineHeight: 1,
+                                        padding: '2.5px 7px',
+                                        borderRadius: '4px'
+                                    }}
+                                >
+                                    {helperCount} Petugas
+                                </span>
                             </div>
 
-                            {/* Dropdown MultiSelect Terapis */}
-                            <div className="p-fluid">
-                                <MultiSelect
-                                    value={selectedTerapisValues}
-                                    options={availableTerapisOptions}
-                                    optionLabel="label"
-                                    optionValue="value"
-                                    onChange={(e) => handleMultiSelectTerapisChange(e.value)}
-                                    placeholder={
-                                        availableTerapisOptions.length > 0
-                                            ? `Tambah Terapis Pendamping (${availableTerapisOptions.length} Tersedia)`
-                                            : 'Tidak ada terapis tersedia'
-                                    }
-                                    filter
-                                    filterPlaceholder="Cari terapis..."
-                                    filterBy="label,value,nama,no_sip,jabatan"
-                                    scrollHeight="280px"
-                                    panelClassName="shadow-4 border-round-xl border-1 surface-border"
-                                    appendTo={typeof document !== 'undefined' ? document.body : undefined}
-                                    disabled={isFormSaved}
-                                    className="w-full text-sm border-round-md"
-                                    maxSelectedLabels={0}
-                                    selectedItemsLabel={
-                                        selectedTerapisList.length > 0
-                                            ? `${selectedTerapisList.length} Terapis Terpilih`
-                                            : undefined
-                                    }
-                                    selectedItemTemplate={() => {
-                                        if (selectedTerapisList.length > 0) {
-                                            return (
-                                                <div className="flex align-items-center gap-2 overflow-hidden py-0.5">
-                                                    <span className="text-sm flex-shrink-0">💆‍♀️</span>
-                                                    <span className="font-semibold text-900 text-sm">
-                                                        {selectedTerapisList.length} Terapis Terpilih
-                                                    </span>
-                                                    <span className="text-xs text-500 font-normal">
-                                                        (Klik untuk tambah / ubah)
-                                                    </span>
-                                                </div>
-                                            );
-                                        }
-                                        return (
-                                            <span className="text-500 text-sm">
-                                                {availableTerapisOptions.length > 0
-                                                    ? `Tambah Terapis Pendamping (${availableTerapisOptions.length} Tersedia)`
-                                                    : 'Tidak ada terapis tersedia'}
-                                            </span>
-                                        );
-                                    }}
-                                    itemTemplate={(option) => {
-                                        return (
-                                            <div className="py-1 px-1 flex flex-column gap-1 min-w-0 w-full">
-                                                <div className="flex align-items-center gap-2 flex-wrap">
-                                                    <span className="font-bold text-900 text-sm">{option.nama || option.label}</span>
-                                                    {option.jabatan && (
-                                                        <Tag severity="info" value={option.jabatan.toUpperCase()} className="text-[10px] py-0 px-1.5 line-height-2" />
-                                                    )}
-                                                    {option.is_scheduled && (
-                                                        <Tag severity="success" value="⭐ Terjadwal" className="text-[10px] py-0 px-1.5 line-height-2" />
-                                                    )}
-                                                    {option.is_shift_companion && !option.is_scheduled && (
-                                                        <Tag severity="info" value="Shift Ruangan" className="text-[10px] py-0 px-1.5 line-height-2" />
-                                                    )}
-                                                </div>
-                                                <div className="text-xs text-500 flex align-items-center gap-1.5 flex-wrap">
-                                                    <span>SIP: <strong className="text-700 font-medium">{option.no_sip || '-'}</strong></span>
-                                                    {option.jam_mulai && option.jam_selesai && (
-                                                        <>
-                                                            <span className="text-300">•</span>
-                                                            <span className="text-600 font-normal inline-flex align-items-center gap-1">
-                                                                <i className="pi pi-clock text-[10px] text-400" />
-                                                                <span>{option.jam_mulai.slice(0, 5)} - {option.jam_selesai.startsWith('24:00') ? '00:00' : option.jam_selesai.slice(0, 5)}</span>
-                                                            </span>
-                                                        </>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        );
-                                    }}
-                                />
-                            </div>
-
-                            {/* Multi-Chip / Card List Terapis Terpilih */}
-                            {selectedTerapisList.length > 0 ? (
-                                <div className="flex flex-column gap-2 max-h-18rem overflow-y-auto pr-1 mt-0.5">
-                                    {selectedTerapisList.map((terapis, idx) => {
-                                        const roleBadge = (terapis.role || terapis.jabatan || 'TERAPIS').toUpperCase();
-
-                                        let jamText = '';
-                                        if (terapis.jam_mulai && terapis.jam_selesai) {
-                                            const start = terapis.jam_mulai.slice(0, 5);
-                                            const end = terapis.jam_selesai.startsWith('24:00') ? '00:00' : terapis.jam_selesai.slice(0, 5);
-                                            jamText = `${start} - ${end}`;
-                                        } else if (terapis.shift) {
-                                            jamText = String(terapis.shift).replace(/[\[\]]/g, '').trim();
-                                        }
-
+                            {/* Content Cards */}
+                            {helperCount > 0 ? (
+                                <div className="flex flex-column gap-2">
+                                    {activeHelpers.map((helper: any, idx: number) => {
+                                        const helperJam = formatJamOperasional(helper.jam_mulai, helper.jam_selesai);
                                         return (
                                             <div
-                                                key={`terapis-${terapis.no_sip || terapis.kode_jadwal || idx}`}
-                                                className="surface-card border-1 surface-border border-round-lg p-2.5 flex align-items-center justify-content-between gap-2.5 shadow-xs hover:surface-hover transition-colors"
+                                                key={`helper-row-${helper.no_sip || helper.kode_jadwal || idx}`}
+                                                className="bg-white border-1 surface-border border-round-lg p-3 flex align-items-center justify-content-between gap-3 shadow-xs"
                                             >
-                                                <div className="flex align-items-center gap-2.5 min-w-0 flex-1">
-                                                    <div className="w-2.2rem h-2.2rem min-w-[2.2rem] border-round-md bg-purple-50 border-1 border-purple-100 text-purple-700 flex align-items-center justify-content-center text-sm flex-shrink-0 self-center">
-                                                        💆‍♀️
+                                                <div className="flex align-items-center gap-3 min-w-0 flex-1">
+                                                    {/* Avatar Icon Box */}
+                                                    <div className="w-2.5rem h-2.5rem border-round-lg bg-blue-50 border-1 border-blue-100 text-blue-600 flex align-items-center justify-content-center text-sm flex-shrink-0">
+                                                        👤
                                                     </div>
                                                     <div className="min-w-0 flex-1">
-                                                        {/* Baris 1: Nama + Role Badge */}
-                                                        <div className="flex align-items-center gap-2 flex-wrap">
-                                                            <span className="font-bold text-900 text-sm line-height-2 text-overflow-ellipsis overflow-hidden">
-                                                                {terapis.nama}
-                                                            </span>
-                                                            <Tag severity="info" value={roleBadge} className="text-[10px] py-0.5 px-2 line-height-1 font-semibold border-round" />
+                                                        {/* Nama Petugas (Informasi Utama) */}
+                                                        <div className="font-bold text-900 text-sm line-height-2 text-overflow-ellipsis overflow-hidden" title={helper.nama}>
+                                                            {helper.nama}
                                                         </div>
-                                                        {/* Baris 2: SIP + Shift */}
+                                                        {/* Jabatan & Jam Operasional di bawah nama */}
                                                         <div className="text-xs text-500 flex align-items-center gap-2 mt-1 flex-wrap">
-                                                            <span>SIP: <strong className="text-700 font-medium">{terapis.no_sip || '-'}</strong></span>
-                                                            {jamText && (
+                                                            <span className="font-semibold text-700">
+                                                                {formatJabatan(helper.jabatan)}
+                                                            </span>
+                                                            {helperJam && (
                                                                 <>
                                                                     <span className="text-300">•</span>
-                                                                    <span className="inline-flex align-items-center gap-1 text-600 font-normal">
-                                                                        <i className="pi pi-clock text-[10px] text-400" />
-                                                                        <span>{jamText}</span>
+                                                                    <span className="inline-flex align-items-center gap-1 text-500 font-normal">
+                                                                        <i className="pi pi-clock text-[10px] text-gray-400" />
+                                                                        <span>{helperJam}</span>
                                                                     </span>
                                                                 </>
                                                             )}
                                                         </div>
                                                     </div>
                                                 </div>
-                                                {!isFormSaved && (
-                                                    <Button
-                                                        type="button"
-                                                        icon="pi pi-times"
-                                                        rounded
-                                                        text
-                                                        severity="danger"
-                                                        size="small"
-                                                        className="w-2rem h-2rem p-0 flex-shrink-0 flex align-items-center justify-content-center text-red-500 hover:bg-red-50 border-circle transition-colors"
-                                                        tooltip="Hapus terapis"
-                                                        tooltipOptions={{ position: 'left' }}
-                                                        onClick={() => removeTerapis(idx)}
-                                                    />
-                                                )}
+                                                {/* Badge Pendamping (Biru, Rapi, Sisi Kanan, Tidak Menempel / Bertabrakan) */}
+                                                <span
+                                                    className="text-white font-semibold inline-flex align-items-center justify-content-center flex-shrink-0"
+                                                    style={{
+                                                        backgroundColor: '#0ea5e9',
+                                                        fontSize: '10px',
+                                                        lineHeight: 1,
+                                                        padding: '2.5px 7px',
+                                                        borderRadius: '4px'
+                                                    }}
+                                                >
+                                                    Pendamping
+                                                </span>
                                             </div>
                                         );
                                     })}
                                 </div>
                             ) : (
-                                <div className="surface-card border-1 border-dashed surface-border border-round-lg p-3 text-center flex flex-column align-items-center justify-content-center gap-1.5 mt-0.5">
-                                    <div className="w-2rem h-2rem border-round-circle bg-surface-100 flex align-items-center justify-content-center text-400">
-                                        <i className="pi pi-users text-sm" />
-                                    </div>
-                                    <span className="text-xs font-semibold text-700">
-                                        Belum ada terapis pendamping dipilih
-                                    </span>
-                                    <span className="text-[11px] text-500">
-                                        Pilih terapis pada dropdown di atas jika tindakan membutuhkan pendamping.
+                                <div
+                                    className="bg-white border-1 border-dashed border-gray-300 border-round-lg p-3 text-center flex flex-column align-items-center justify-content-center gap-1"
+                                    style={{ minHeight: '66px' }}
+                                >
+                                    <i className="pi pi-info-circle text-gray-400 text-xs" />
+                                    <span className="text-xs font-semibold text-gray-600">
+                                        Tidak ada petugas pendamping yang dijadwalkan.
                                     </span>
                                 </div>
                             )}
@@ -1745,7 +969,7 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                                     <Building2 size={14} style={{ color: '#a7f3d0' }} className="flex-shrink-0" />
                                     <span>{namaRuangan}</span>
                                 </span>
-                                {(currentSelectedOfficer?.nama || activePatient.nama_petugas || availablePetugasOptions.find((k) => k.value === selectedPetugas)?.nama) && (
+                                {(activePJ?.nama || activePatient.nama_petugas) && (
                                     <span
                                         className="inline-flex align-items-center gap-2 px-3 py-1.5 font-medium"
                                         style={{
@@ -1756,12 +980,7 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                                         }}
                                     >
                                         <Stethoscope size={14} style={{ color: '#a7f3d0' }} className="flex-shrink-0" />
-                                        <span>Dokter: <strong className="text-white">{currentSelectedOfficer?.nama || activePatient.nama_petugas}</strong></span>
-                                        {isDoctorChangedFromBooking && (
-                                            <span className="text-[10px] bg-amber-500 text-white font-bold px-1.5 py-0.2 border-round">
-                                                (Diubah)
-                                            </span>
-                                        )}
+                                        <span>Dokter: <strong className="text-white">{activePJ?.nama || activePatient.nama_petugas}</strong></span>
                                     </span>
                                 )}
                                 {selectedTerapisList.length > 0 && (
@@ -1778,7 +997,7 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                                         <span>
                                             Terapis ({selectedTerapisList.length}):{' '}
                                             <strong className="text-white">
-                                                {selectedTerapisList.map((t) => t.nama).join(', ')}
+                                                {selectedTerapisList.map((t: any) => t.nama).join(', ')}
                                             </strong>
                                         </span>
                                     </span>
@@ -2426,7 +1645,7 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                                 namaRuangan={namaRuangan}
                                 savedFormData={{ ...formData, foto_before: headerRMData.foto_before }}
                                 savedCatatanPetugas={catatanPetugas}
-                                savedPetugasNama={karyawanOptions.find((k) => k.value === selectedPetugas)?.nama}
+                                savedPetugasNama={activePJ?.nama || activePatient?.nama_petugas}
                                 selectedPetugas={selectedPetugas}
                                 initialFotoBeforeUrl={headerRMData.foto_before}
                                 onFotoBeforeChange={(url) => setHeaderRMData((prev) => ({ ...prev, foto_before: url }))}
