@@ -91,12 +91,8 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
     const [lanjutKeTindakan, setLanjutKeTindakan] = useState<boolean>(true);
     const [uploadingBefore, setUploadingBefore] = useState<boolean>(false);
 
-    // Dropdown Petugas / Dokter (SIP) State
-    const [karyawanOptions, setKaryawanOptions] = useState<any[]>([]);
+    // State Petugas Terpilih (disinkronkan otomatis dari Jadwal Karyawan)
     const [selectedPetugas, setSelectedPetugas] = useState<string>('');
-    const [isEditingBookingPetugas, setIsEditingBookingPetugas] = useState<boolean>(false);
-
-    // Multi-Select Terapis / Petugas Pendamping State
     const [selectedTerapisList, setSelectedTerapisList] = useState<Array<{
         no_sip: string;
         nama: string;
@@ -109,6 +105,7 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
     }>>([]);
 
     const isBookingPatient = useMemo(() => Boolean(activePatient?.kode_booking), [activePatient?.kode_booking]);
+
     const bookingNoSip = useMemo(() => (activePatient as any)?.booking_no_sip || (isBookingPatient ? activePatient?.kode_karyawan : null), [activePatient?.kode_karyawan, (activePatient as any)?.booking_no_sip, isBookingPatient]);
     const bookingNamaPetugas = useMemo(() => (activePatient as any)?.booking_nama_petugas || (isBookingPatient ? activePatient?.nama_petugas : null), [activePatient?.nama_petugas, (activePatient as any)?.booking_nama_petugas, isBookingPatient]);
     const bookingKodeJadwal = (activePatient as any)?.booking_kode_jadwal;
@@ -287,43 +284,22 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
     const [hasilNoRm, setHasilNoRm] = useState<string>('');
 
     useEffect(() => {
-        loadKaryawan();
-    }, []);
-
-    useEffect(() => {
         if (kodeRuangan) {
             loadFormFields();
         }
     }, [kodeRuangan]);
 
-    // Refs for reading latest values inside useEffects without subscribing to them
-    const availablePetugasOptionsRef = useRef<any[]>([]);
-    const selectedPetugasRef = useRef<string>('');
-    const isFormSavedRef = useRef<boolean>(false);
-
-    // Keep refs in sync on every render (before effects run)
-    availablePetugasOptionsRef.current = availablePetugasOptions;
-    selectedPetugasRef.current = selectedPetugas;
-    isFormSavedRef.current = isFormSaved;
-
     const [currentAntrianId, setCurrentAntrianId] = useState<string>('');
 
     // ── Patient-init effect ──────────────────────────────────────────────────
-    // Only re-runs when the patient ID actually changes (or isKonsultasi changes).
-    // Does NOT list selectedPetugas / availablePetugasOptions / currentAntrianId
-    // as deps → those are read via refs to avoid the infinite loop.
     useEffect(() => {
         const antrianId = activePatient?.kode_antrian_layanan;
         if (antrianId) {
             const ap = activePatient as any;
-            const isBooking = Boolean(ap.kode_booking);
-            const bookingSip = ap.booking_no_sip || (isBooking ? ap.kode_karyawan : null);
-            const opts = availablePetugasOptionsRef.current;
 
             if (antrianId !== currentAntrianId) {
-                // New patient in the panel — reset everything
+                // New patient in the panel — reset form state
                 setCurrentAntrianId(antrianId);
-                setIsEditingBookingPetugas(false);
 
                 let initialForm: any = {};
                 let hasForm = false;
@@ -395,17 +371,13 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
         } else {
             // No patient — clear panel
             setCurrentAntrianId('');
-            setIsEditingBookingPetugas(false);
             setFormData({});
             setCatatanPetugas('');
             setRekomendasiItems([]);
-            setSelectedPetugas('');
-            setSelectedTerapisList([]);
             setActiveStep('form');
             setIsFormSaved(false);
             setIsHasilSaved(false);
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activePatient?.kode_antrian_layanan, isKonsultasi]);
 
     // ── Petugas fallback effect ──────────────────────────────────────────────
@@ -466,22 +438,6 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
         }
     };
 
-    const loadKaryawan = async () => {
-        try {
-            const res = await postData('/master/karyawan-data', { page: 1, perPage: 100 });
-            const list = res.data?.data || [];
-            const opts = list.map((k: any) => ({
-                label: `${k.nama}${k.jabatan ? ` (${k.jabatan.toUpperCase()})` : ''}`,
-                value: k.no_sip,
-                nama: k.nama,
-                jabatan: k.jabatan,
-                no_sip: k.no_sip,
-            }));
-            setKaryawanOptions(opts);
-        } catch (_) {
-            // silent fail
-        }
-    };
 
     const loadFormFields = async () => {
         if (!kodeRuangan) return;
@@ -573,8 +529,8 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
             }
 
             // Update local officer info so header badge displays doctor name immediately
-            if (selectedPetugas) {
-                activePatient.nama_petugas = currentSelectedOfficer?.nama || activePatient.nama_petugas;
+            if (finalNoSip) {
+                activePatient.nama_petugas = dokterNama;
                 activePatient.kode_karyawan = finalNoSip;
             }
 
@@ -601,9 +557,9 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
     const handleSaveForm = (targetStatus?: string) => {
         if (!activePatient) return;
 
-        // Validation: Petugas / Dokter Examiner wajib dipilih
-        if (!selectedPetugas) {
-            showError(toast, 'Petugas / Dokter Penanggung Jawab wajib dipilih!');
+        // Validation: Petugas / Dokter PJ wajib dijadwalkan
+        if (!scheduledPj && !selectedPetugas) {
+            showError(toast, 'Belum ada Dokter / PJ yang dijadwalkan untuk ruangan ini pada Jadwal Karyawan!');
             return;
         }
 
@@ -963,7 +919,7 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                                     <Building2 size={14} style={{ color: '#a7f3d0' }} className="flex-shrink-0" />
                                     <span>{namaRuangan}</span>
                                 </span>
-                                {(currentSelectedOfficer?.nama || activePatient.nama_petugas || availablePetugasOptions.find((k) => k.value === selectedPetugas)?.nama) && (
+                                {(scheduledPj?.nama_karyawan || scheduledPj?.nama || activePatient.nama_petugas) && (
                                     <span
                                         className="inline-flex align-items-center gap-2 px-3 py-1.5 font-medium"
                                         style={{
@@ -974,12 +930,7 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                                         }}
                                     >
                                         <Stethoscope size={14} style={{ color: '#a7f3d0' }} className="flex-shrink-0" />
-                                        <span>Dokter: <strong className="text-white">{currentSelectedOfficer?.nama || activePatient.nama_petugas}</strong></span>
-                                        {isDoctorChangedFromBooking && (
-                                            <span className="text-[10px] bg-amber-500 text-white font-bold px-1.5 py-0.2 border-round">
-                                                (Diubah)
-                                            </span>
-                                        )}
+                                        <span>Dokter: <strong className="text-white">{scheduledPj?.nama_karyawan || scheduledPj?.nama || activePatient.nama_petugas}</strong></span>
                                     </span>
                                 )}
                                 {selectedTerapisList.length > 0 && (
@@ -996,7 +947,7 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                                         <span>
                                             Terapis ({selectedTerapisList.length}):{' '}
                                             <strong className="text-white">
-                                                {selectedTerapisList.map((t) => t.nama).join(', ')}
+                                                {selectedTerapisList.map((t: any) => t.nama).join(', ')}
                                             </strong>
                                         </span>
                                     </span>
@@ -1644,7 +1595,7 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                                 namaRuangan={namaRuangan}
                                 savedFormData={{ ...formData, foto_before: headerRMData.foto_before }}
                                 savedCatatanPetugas={catatanPetugas}
-                                savedPetugasNama={karyawanOptions.find((k) => k.value === selectedPetugas)?.nama}
+                                savedPetugasNama={scheduledPj?.nama_karyawan || scheduledPj?.nama || activePatient?.nama_petugas}
                                 selectedPetugas={selectedPetugas}
                                 initialFotoBeforeUrl={headerRMData.foto_before}
                                 onFotoBeforeChange={(url) => setHeaderRMData((prev) => ({ ...prev, foto_before: url }))}
