@@ -35,7 +35,7 @@ router.post("/role-data", async (req, res) => {
     const pelunasanToday = await DB("trx_transaksi")
       .whereRaw("DATE(tanggal_transaksi) = ?", [todayStr])
       .whereIn("status", ["lunas", "selesai"])
-      .sum(DB.raw("COALESCE(sisa_bayar, total_bayar) as total"))
+      .select(DB.raw("SUM(COALESCE(sisa_bayar, total_bayar)) as total"))
       .first();
 
     const dpReceivedToday = await DB("trx_booking")

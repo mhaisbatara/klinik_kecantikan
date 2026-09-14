@@ -123,6 +123,7 @@ const authOptions: NextAuthConfig = {
             }
         }
     },
+    secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || "random",
     debug: process.env.NODE_ENV === 'development',
 };
 

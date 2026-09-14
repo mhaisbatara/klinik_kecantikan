@@ -82,6 +82,7 @@ const handleGetData = async (req, res) => {
       "al.kode_antrian_layanan",
       "al.kode_antrian_asal",
       "al.lanjut_ke_tindakan",
+      "al.kode_ruangan_tujuan_lanjutan",
       "al.kode_kunjungan",
       "al.nomor_antrian",
       "al.status",

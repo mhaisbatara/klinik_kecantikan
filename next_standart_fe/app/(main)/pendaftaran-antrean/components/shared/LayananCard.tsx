@@ -59,6 +59,24 @@ export interface RuanganGroup {
     jam_selesai?: string;
   } | null;
   petugas_jaga_names?: string[];
+  antrean_aktif_count?: number;
+  jam_booking_terdekat?: string | null;
+  nama_pasien_booking_terdekat?: string | null;
+  total_booking_hari_ini?: number;
+  daftar_booking_hari_ini?: BookingItemDetail[];
+}
+
+export interface BookingItemDetail {
+  kode_booking: string;
+  jam_booking: string;
+  jam_booking_full?: string;
+  nama_pasien: string;
+  no_rm?: string;
+  nama_petugas?: string;
+  jabatan_petugas?: string;
+  durasi_menit?: number;
+  layanan_summary?: string;
+  is_upcoming?: boolean;
 }
 
 export const getItemConsultType = (item: ServiceItem) => {

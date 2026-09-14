@@ -204,6 +204,7 @@ router.post("/", async (req, res) => {
           let kodeRuanganTarget = "";
           let namaRuanganTarget = "";
           let tipeLayanan = "";
+          let durasiItem = 30;
 
           if (jenis === "klaim_paket" || item.is_klaim === true || item.kode_kepemilikan_paket_layanan) {
             const kodeKpl = item.kode_kepemilikan_paket_layanan || item.kode_kepemilikan;
@@ -275,7 +276,7 @@ router.post("/", async (req, res) => {
             const lay = await trx("mst_layanan as l")
               .leftJoin("mst_ruangan as r", "l.kode_ruangan", "r.kode_ruangan")
               .where("l.kode_layanan", targetLayKode)
-              .select("l.nama", "l.tipe", "l.kode_ruangan", "r.nama_ruangan as nama_ruangan")
+              .select("l.nama", "l.tipe", "l.kode_ruangan", "l.durasi_menit", "r.nama_ruangan as nama_ruangan")
               .first();
 
             const pktAsal = await trx("mst_paket_layanan as p")
@@ -289,12 +290,13 @@ router.post("/", async (req, res) => {
             tipeLayanan = (pktAsal?.tipe || lay?.tipe || "BEAUTY TREATMENT").toUpperCase();
             kodeRuanganTarget = lay?.kode_ruangan || pktAsal?.kode_ruangan || "RNG-002";
             namaRuanganTarget = lay?.nama_ruangan || pktAsal?.nama_ruangan || "Ruangan Facial & Peeling";
+            durasiItem = parseInt(lay?.durasi_menit || 45, 10);
           } else if (jenis === "layanan") {
             const lay = await trx("mst_layanan as l")
               .leftJoin("mst_ruangan as r", "l.kode_ruangan", "r.kode_ruangan")
               .where("l.kode_layanan", kodeLayanan)
               .where("l.status", "aktif")
-              .select("l.nama", "l.harga", "l.tipe", "l.kode_ruangan", "l.wajib_konsultasi", "l.kode_ruangan_konsultasi", "r.nama_ruangan as nama_ruangan")
+              .select("l.nama", "l.harga", "l.tipe", "l.kode_ruangan", "l.durasi_menit", "l.wajib_konsultasi", "l.kode_ruangan_konsultasi", "r.nama_ruangan as nama_ruangan")
               .first();
 
             if (!lay) {
@@ -307,6 +309,7 @@ router.post("/", async (req, res) => {
             tipeLayanan = (lay.tipe || "BEAUTY TREATMENT").toUpperCase();
             kodeRuanganTarget = lay.kode_ruangan || "";
             namaRuanganTarget = lay.nama_ruangan || lay.kode_ruangan || "Ruang Treatment";
+            durasiItem = parseInt(lay.durasi_menit || 30, 10);
           } else {
             const pkt = await trx("mst_paket_layanan as p")
               .leftJoin("mst_ruangan as r", "p.kode_ruangan", "r.kode_ruangan")
@@ -327,9 +330,16 @@ router.post("/", async (req, res) => {
             namaRuanganTarget = pkt.nama_ruangan || pkt.kode_ruangan || "Ruang Treatment";
 
             // Catat Kepemilikan Paket ke DB jika item ini ber-jenis "paket"
-            const pktDetails = await trx("mst_detail_paket_layanan")
-              .where("kode_paket_layanan", kodeLayanan)
-              .select("kode_layanan", "jumlah_sesi");
+            const pktDetails = await trx("mst_detail_paket_layanan as dp")
+              .leftJoin("mst_layanan as l", "dp.kode_layanan", "l.kode_layanan")
+              .where("dp.kode_paket_layanan", kodeLayanan)
+              .select("dp.kode_layanan", "dp.jumlah_sesi", "l.durasi_menit");
+
+            let pktDurasi = 0;
+            for (const d of pktDetails) {
+              pktDurasi += parseInt(d.durasi_menit || 30, 10);
+            }
+            durasiItem = pktDurasi > 0 ? pktDurasi : 60;
 
             const totalSesiPaket = pktDetails.reduce((sum, d) => sum + parseInt(d.jumlah_sesi || 0, 10), 0);
 
@@ -479,6 +489,7 @@ router.post("/", async (req, res) => {
             kode_layanan: kodeLayanan,
             nama_layanan: namaLayanan,
             harga: hargaLayanan,         // harga ASLI — diskon diterapkan di kasir
+            durasi_menit: durasiItem,
             kode_promo: promoItem?.kode_promo || null,
             nama_promo: promoItem?.nama_promo || null,
             jenis_diskon: promoItem?.jenis_diskon || null,
@@ -506,7 +517,227 @@ router.post("/", async (req, res) => {
           groupsByRuangan[key].items.push(pi);
         }
 
-        // 3. Insert trx_antrian_layanan per kelompok ruangan
+        // 3. Validasi estimasi beban antrean terhadap booking terdekat (Soft Warning Collision Protection)
+        const cfgBuffer = await trx("config").where("kode", "buffer_waktu_booking_menit").first();
+        const bufferMenit = cfgBuffer ? parseInt(cfgBuffer.keterangan || 15, 10) : 15;
+
+        const cfgToleransi = await trx("config").where("kode", "toleransi_keterlambatan_menit").first();
+        const toleransiMenit = cfgToleransi ? parseInt(cfgToleransi.keterangan || 30, 10) : 30;
+
+        const minRelevantBookingDate = new Date(now.getTime() - toleransiMenit * 60000);
+        const minRelevantBookingTimeStr = minRelevantBookingDate.toTimeString().slice(0, 8); // "HH:mm:ss"
+
+        // Helper untuk menghitung sisa beban antrean aktif di suatu ruangan
+        const getSisaBebanRuangan = async (kodeRuangan) => {
+          const activeQueues = await trx("trx_antrian_layanan as al")
+            .where("al.created_at", ">=", `${todayYmd} 00:00:00`)
+            .where("al.kode_ruangan", kodeRuangan)
+            .whereIn("al.status", ["dipanggil", "menunggu"])
+            .select("al.id", "al.kode_antrian_layanan", "al.status", "al.dipanggil_at");
+
+          let queueDetails = [];
+          if (activeQueues.length > 0) {
+            const queueCodes = activeQueues.map((q) => q.kode_antrian_layanan);
+            queueDetails = await trx("trx_detail_antrian_layanan")
+              .whereIn("kode_antrian_layanan", queueCodes)
+              .select("kode_antrian_layanan", "durasi_menit");
+          }
+
+          const queueDurationMap = new Map();
+          queueDetails.forEach((d) => {
+            const cur = queueDurationMap.get(d.kode_antrian_layanan) || 0;
+            queueDurationMap.set(d.kode_antrian_layanan, cur + (parseInt(d.durasi_menit, 10) || 30));
+          });
+
+          let sisaBebanMenit = 0;
+          for (const q of activeQueues) {
+            const totalDurasiAntrean = queueDurationMap.get(q.kode_antrian_layanan) || 30;
+            if (q.status === "dipanggil") {
+              const dipanggilTime = q.dipanggil_at ? new Date(q.dipanggil_at).getTime() : now.getTime();
+              const elapsedMin = Math.max(0, Math.floor((now.getTime() - dipanggilTime) / 60000));
+              const remainingActive = Math.max(0, totalDurasiAntrean - elapsedMin);
+              sisaBebanMenit += remainingActive;
+            } else if (q.status === "menunggu") {
+              sisaBebanMenit += totalDurasiAntrean;
+            }
+          }
+
+          return { sisaBebanMenit, activeCount: activeQueues.length };
+        };
+
+        for (const key of Object.keys(groupsByRuangan)) {
+          const group = groupsByRuangan[key];
+          const groupItems = group.items;
+          if (!group.kode_ruangan) continue;
+
+          const walkinDurasiMenit = groupItems.reduce(
+            (sum, item) => sum + (parseInt(item.durasi_menit, 10) || 30),
+            0
+          );
+
+          // 1. Cek Ruangan Pertama (group.kode_ruangan, misal RNG-007 atau RNG-001)
+          const { sisaBebanMenit, activeCount } = await getSisaBebanRuangan(group.kode_ruangan);
+          const totalBebanRuanganMenit = sisaBebanMenit + walkinDurasiMenit;
+          const estimasiSelesaiDate = new Date(now.getTime() + totalBebanRuanganMenit * 60000);
+          const batasAmanDate = new Date(estimasiSelesaiDate.getTime() + bufferMenit * 60000);
+
+          const batasAmanStr = batasAmanDate.toTimeString().slice(0, 8);
+          const estimasiSelesaiStr = estimasiSelesaiDate.toTimeString().slice(0, 5);
+
+          // Cari booking terdekat di ruangan pertama
+          const nearestBooking = await trx("trx_booking as b")
+            .leftJoin("mst_pasien as p", "b.no_rm", "p.no_rm")
+            .leftJoin("mst_jadwal_karyawan as j", "b.kode_jadwal", "j.kode_jadwal")
+            .where("b.tanggal_booking", todayYmd)
+            .where("b.status", "dikonfirmasi")
+            .where("b.jam_booking", ">=", minRelevantBookingTimeStr)
+            .where(function () {
+              this.where("b.kode_ruangan", group.kode_ruangan)
+                .orWhere("j.kode_ruangan", group.kode_ruangan);
+            })
+            .orderBy("b.jam_booking", "asc")
+            .select("b.kode_booking", "b.jam_booking", "b.no_rm", "p.nama as nama_pasien")
+            .first();
+
+          let collisionTarget = null;
+
+          if (nearestBooking) {
+            const bkgTime = String(nearestBooking.jam_booking || "").slice(0, 8);
+            if (batasAmanStr > bkgTime) {
+              collisionTarget = {
+                booking: nearestBooking,
+                kode_ruangan: group.kode_ruangan,
+                nama_ruangan: group.nama_ruangan,
+                bkgTime,
+                estimasiSelesaiStr,
+                batasAmanDate,
+                totalBebanMenit: totalBebanRuanganMenit,
+                durasiWalkinMenit: walkinDurasiMenit,
+                sisaAntreanMenit: sisaBebanMenit,
+                antreanBerjalanCount: activeCount,
+              };
+            }
+          }
+
+          // 2. Cek Ruangan Tujuan Lanjutan (jika group adalah Ruang Konsultasi dan item memiliki kode_ruangan_tujuan berbeda)
+          if (!collisionTarget) {
+            const targetRooms = new Map();
+            for (const item of groupItems) {
+              if (item.kode_ruangan_tujuan && item.kode_ruangan_tujuan !== group.kode_ruangan) {
+                const trKode = item.kode_ruangan_tujuan;
+                const trNama = item.nama_ruangan_tujuan || `Ruangan ${trKode}`;
+                const curDur = targetRooms.get(trKode)?.durasi || 0;
+                targetRooms.set(trKode, {
+                  kode: trKode,
+                  nama: trNama,
+                  durasi: curDur + (parseInt(item.durasi_menit, 10) || 30),
+                });
+              }
+            }
+
+            for (const tr of targetRooms.values()) {
+              const { sisaBebanMenit: sisaTarget, activeCount: countTarget } = await getSisaBebanRuangan(tr.kode);
+              // Estimasi selesai di ruangan tujuan = waktu sekarang + beban konsultasi + sisa antrean ruangan tujuan + durasi tindakan
+              const totalBebanTargetMenit = totalBebanRuanganMenit + sisaTarget + tr.durasi;
+              const estimasiSelesaiTargetDate = new Date(now.getTime() + totalBebanTargetMenit * 60000);
+              const batasAmanTargetDate = new Date(estimasiSelesaiTargetDate.getTime() + bufferMenit * 60000);
+
+              const batasAmanTargetStr = batasAmanTargetDate.toTimeString().slice(0, 8);
+              const estimasiSelesaiTargetStr = estimasiSelesaiTargetDate.toTimeString().slice(0, 5);
+
+              const nearestBookingTarget = await trx("trx_booking as b")
+                .leftJoin("mst_pasien as p", "b.no_rm", "p.no_rm")
+                .leftJoin("mst_jadwal_karyawan as j", "b.kode_jadwal", "j.kode_jadwal")
+                .where("b.tanggal_booking", todayYmd)
+                .where("b.status", "dikonfirmasi")
+                .where("b.jam_booking", ">=", minRelevantBookingTimeStr)
+                .where(function () {
+                  this.where("b.kode_ruangan", tr.kode)
+                    .orWhere("j.kode_ruangan", tr.kode);
+                })
+                .orderBy("b.jam_booking", "asc")
+                .select("b.kode_booking", "b.jam_booking", "b.no_rm", "p.nama as nama_pasien")
+                .first();
+
+              if (nearestBookingTarget) {
+                const bkgTimeTarget = String(nearestBookingTarget.jam_booking || "").slice(0, 8);
+                if (batasAmanTargetStr > bkgTimeTarget) {
+                  collisionTarget = {
+                    booking: nearestBookingTarget,
+                    kode_ruangan: tr.kode,
+                    nama_ruangan: tr.nama,
+                    bkgTime: bkgTimeTarget,
+                    estimasiSelesaiStr: estimasiSelesaiTargetStr,
+                    batasAmanDate: batasAmanTargetDate,
+                    totalBebanMenit: totalBebanTargetMenit,
+                    durasiWalkinMenit: tr.durasi,
+                    sisaAntreanMenit: sisaTarget,
+                    antreanBerjalanCount: countTarget,
+                  };
+                  break;
+                }
+              }
+            }
+          }
+
+          let isCollision = false;
+          let catatanOverride = null;
+
+          if (collisionTarget) {
+            const bookingTimeFormatted = collisionTarget.bkgTime.slice(0, 5);
+            isCollision = true;
+            const namaPasienBooking = collisionTarget.booking.nama_pasien || collisionTarget.booking.no_rm;
+            catatanOverride = `Override benturan booking ${bookingTimeFormatted} WIB (${namaPasienBooking}) di ${collisionTarget.nama_ruangan}`;
+
+            const isOverridden =
+              oPayload.override_peringatan_booking === true ||
+              oPayload.override_peringatan_booking === 1 ||
+              oPayload.override_peringatan_booking === "true";
+
+            if (!isOverridden) {
+              const totalBookingRow = await trx("trx_booking as b")
+                .leftJoin("mst_jadwal_karyawan as j", "b.kode_jadwal", "j.kode_jadwal")
+                .where("b.tanggal_booking", todayYmd)
+                .where("b.status", "dikonfirmasi")
+                .where(function () {
+                  this.where("b.kode_ruangan", collisionTarget.kode_ruangan)
+                    .orWhere("j.kode_ruangan", collisionTarget.kode_ruangan);
+                })
+                .count("b.id as total")
+                .first();
+
+              const totalBkgCount = parseInt(totalBookingRow?.total || 1, 10);
+
+              const warnErr = new Error(
+                `Estimasi antrean di ${collisionTarget.nama_ruangan} (selesai ±${collisionTarget.estimasiSelesaiStr}) ditambah buffer ${bufferMenit} menit berpotensi melewati jadwal booking pasien ${namaPasienBooking} pukul ${bookingTimeFormatted} WIB.`
+              );
+              warnErr.isWarning = true;
+              warnErr.dataPeringatan = {
+                kode_ruangan: collisionTarget.kode_ruangan,
+                nama_ruangan: collisionTarget.nama_ruangan,
+                estimasi_selesai: collisionTarget.estimasiSelesaiStr,
+                batas_aman: collisionTarget.batasAmanDate.toTimeString().slice(0, 5),
+                jam_booking: bookingTimeFormatted,
+                nama_pasien_booking: namaPasienBooking,
+                no_rm_booking: collisionTarget.booking.no_rm,
+                kode_booking: collisionTarget.booking.kode_booking,
+                total_beban_menit: collisionTarget.totalBebanMenit,
+                durasi_walkin_menit: collisionTarget.durasiWalkinMenit,
+                sisa_antrean_menit: collisionTarget.sisaAntreanMenit,
+                buffer_menit: bufferMenit,
+                antrean_berjalan_count: collisionTarget.antreanBerjalanCount,
+                total_booking_hari_ini: totalBkgCount,
+              };
+              throw warnErr;
+            }
+          }
+
+          group.isCollision = isCollision;
+          group.catatanOverride = catatanOverride;
+          group.estimasiSelesaiStr = estimasiSelesaiStr;
+        }
+
+        // 4. Insert trx_antrian_layanan per kelompok ruangan
         for (const key of Object.keys(groupsByRuangan)) {
           const group = groupsByRuangan[key];
           const groupItems = group.items;
@@ -555,6 +786,13 @@ router.post("/", async (req, res) => {
           const combinedKodeLayanan = groupItems.map((d) => d.kode_layanan).join(", ");
           const totalHargaGroup = groupItems.reduce((sum, d) => sum + d.harga, 0);
 
+          const hasTindakanLanjutan = groupItems.some(
+            (item) => Boolean(item.needs_consult) && Boolean(item.kode_ruangan_tujuan) && item.kode_ruangan_tujuan !== group.kode_ruangan
+          );
+          const targetRuangLanjutan = hasTindakanLanjutan
+            ? groupItems.find((item) => item.kode_ruangan_tujuan && item.kode_ruangan_tujuan !== group.kode_ruangan)?.kode_ruangan_tujuan || null
+            : null;
+
           const oInsertLayanan = {
             kode_antrian_layanan: cKodeAntrianLayanan,
             kode_kunjungan: cKodeKunjungan,
@@ -562,6 +800,10 @@ router.post("/", async (req, res) => {
             kode_ruangan: group.kode_ruangan,
             nama_ruangan: group.nama_ruangan,
             status: "menunggu",
+            lanjut_ke_tindakan: hasTindakanLanjutan ? 1 : 0,
+            kode_ruangan_tujuan_lanjutan: targetRuangLanjutan,
+            override_peringatan_booking: group.isCollision ? 1 : 0,
+            catatan_override_booking: group.catatanOverride || null,
             tz: oPayload.tz || "Asia/Jakarta",
             created_by: username,
             created_at: formatDateSystem(),
@@ -585,6 +827,7 @@ router.post("/", async (req, res) => {
               kode_layanan: item.kode_layanan,
               nama_layanan: item.nama_layanan,
               harga: item.harga || 0,         // harga ASLI — diskon diterapkan di kasir
+              durasi_menit: item.durasi_menit || 30,
               kode_promo: item.kode_promo || null,
               nama_promo: item.nama_promo || null,
               jenis_diskon: item.jenis_diskon || null,
@@ -613,9 +856,14 @@ router.post("/", async (req, res) => {
       }
 
       // Audit Log
+      const isAnyOverride = vaCreatedAntrianLayanan.some((a) => a.override_peringatan_booking === 1);
+      const overrideNote = isAnyOverride
+        ? ` [OVERRIDE PERINGATAN BOOKING: ${vaCreatedAntrianLayanan.map((a) => a.catatan_override_booking).filter(Boolean).join("; ")}]`
+        : "";
+
       await ChangesLog(
         {
-          description: `Pendaftaran Kunjungan Pasien (${pasien.no_rm} - ${pasien.nama}) Kunjungan (${cKodeKunjungan}) Total ${vaCreatedAntrianLayanan.length} Layanan/Paket`,
+          description: `Pendaftaran Kunjungan Pasien (${pasien.no_rm} - ${pasien.nama}) Kunjungan (${cKodeKunjungan}) Total ${vaCreatedAntrianLayanan.length} Layanan/Paket${overrideNote}`,
           tableName: "trx_kunjungan",
           referenceCode: cKodeKunjungan,
           action: "CREATE",
@@ -654,6 +902,16 @@ router.post("/", async (req, res) => {
       data: resultData,
     });
   } catch (error) {
+    if (error.isWarning) {
+      return res.status(200).json({
+        status: "WARN_BOOKING_COLLISION",
+        peringatan: true,
+        message: error.message,
+        data_peringatan: error.dataPeringatan,
+        datetime: formatDateSystem(),
+      });
+    }
+
     if (error.statusCode === 422) {
       return res.status(422).json({
         status: status.BAD_REQUEST,

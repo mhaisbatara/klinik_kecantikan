@@ -697,16 +697,23 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                 }> = [];
 
                 if (Array.isArray(initialForm?.terapis_pendamping) && initialForm.terapis_pendamping.length > 0) {
-                    defaultTerapisList = initialForm.terapis_pendamping.map((t: any) => ({
-                        no_sip: extractNoSip(t.no_sip || t.sip || t.value) || t.no_sip || t.sip || '-',
-                        nama: t.nama || t.nama_petugas || 'Terapis',
-                        jabatan: t.jabatan || t.role || 'terapis',
-                        role: (t.role || t.jabatan || 'TERAPIS').toUpperCase(),
-                        jam_mulai: t.jam_mulai || '',
-                        jam_selesai: t.jam_selesai || '',
-                        shift: t.shift || (t.jam_mulai && t.jam_selesai ? `${t.jam_mulai.slice(0, 5)} - ${t.jam_selesai.slice(0, 5)}` : ''),
-                        kode_jadwal: t.kode_jadwal || '',
-                    }));
+                    const seenSips = new Set<string>();
+                    for (const t of initialForm.terapis_pendamping) {
+                        const sipKey = extractNoSip(t.no_sip || t.sip || t.value) || t.no_sip || t.sip || t.nama || t.nama_petugas || '';
+                        if (sipKey && !seenSips.has(sipKey)) {
+                            seenSips.add(sipKey);
+                            defaultTerapisList.push({
+                                no_sip: extractNoSip(t.no_sip || t.sip || t.value) || t.no_sip || t.sip || '-',
+                                nama: t.nama || t.nama_petugas || 'Terapis',
+                                jabatan: t.jabatan || t.role || 'terapis',
+                                role: (t.role || t.jabatan || 'TERAPIS').toUpperCase(),
+                                jam_mulai: t.jam_mulai || '',
+                                jam_selesai: t.jam_selesai || '',
+                                shift: t.shift || (t.jam_mulai && t.jam_selesai ? `${t.jam_mulai.slice(0, 5)} - ${t.jam_selesai.slice(0, 5)}` : ''),
+                                kode_jadwal: t.kode_jadwal || '',
+                            });
+                        }
+                    }
                 } else if (initialForm?.terapis_pendamping?.no_sip || initialForm?.terapis_pendamping?.nama) {
                     const t = initialForm.terapis_pendamping;
                     defaultTerapisList = [{
@@ -720,21 +727,37 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                         kode_jadwal: t.kode_jadwal || '',
                     }];
                 } else if (Array.isArray(ap.booking_petugas_pendamping) && ap.booking_petugas_pendamping.length > 0) {
-                    defaultTerapisList = ap.booking_petugas_pendamping.map((c: any) => ({
-                        no_sip: extractNoSip(c.no_sip || c.sip || c.value) || c.no_sip || '',
-                        nama: c.nama_petugas || c.nama_karyawan || c.nama || 'Terapis',
-                        jabatan: c.jabatan_petugas || c.jabatan || 'terapis',
-                        role: (c.jabatan_petugas || c.jabatan || 'TERAPIS').toUpperCase(),
-                        jam_mulai: c.jam_mulai || ap.booking_jam_mulai || '',
-                        jam_selesai: c.jam_selesai || ap.booking_jam_selesai || '',
-                        shift: c.jam_mulai && c.jam_selesai ? `${c.jam_mulai.slice(0, 5)} - ${c.jam_selesai.slice(0, 5)}` : '',
-                        kode_jadwal: c.kode_jadwal || '',
-                    }));
+                    const seenSips = new Set<string>();
+                    for (const c of ap.booking_petugas_pendamping) {
+                        const sipKey = extractNoSip(c.no_sip || c.sip || c.value) || c.no_sip || c.nama_petugas || c.nama_karyawan || c.nama || '';
+                        if (sipKey && !seenSips.has(sipKey)) {
+                            seenSips.add(sipKey);
+                            defaultTerapisList.push({
+                                no_sip: extractNoSip(c.no_sip || c.sip || c.value) || c.no_sip || '',
+                                nama: c.nama_petugas || c.nama_karyawan || c.nama || 'Terapis',
+                                jabatan: c.jabatan_petugas || c.jabatan || 'terapis',
+                                role: (c.jabatan_petugas || c.jabatan || 'TERAPIS').toUpperCase(),
+                                jam_mulai: c.jam_mulai || ap.booking_jam_mulai || '',
+                                jam_selesai: c.jam_selesai || ap.booking_jam_selesai || '',
+                                shift: c.jam_mulai && c.jam_selesai ? `${c.jam_mulai.slice(0, 5)} - ${c.jam_selesai.slice(0, 5)}` : '',
+                                kode_jadwal: c.kode_jadwal || '',
+                            });
+                        }
+                    }
                 } else if (petugasJagaList && petugasJagaList.length > 0) {
                     const docSip = extractNoSip(defaultPetugas);
                     const helpers = petugasJagaList.filter((p: any) => p.no_sip !== docSip && (!p.is_penanggung_jawab || !String(p.jabatan || '').toLowerCase().includes('dokter')));
                     if (helpers.length > 0) {
-                        defaultTerapisList = helpers.map((h: any) => ({
+                        const seenSips = new Set<string>();
+                        const uniqueHelpers: any[] = [];
+                        for (const h of helpers) {
+                            const sipKey = extractNoSip(h.no_sip || h.sip || h.value) || h.no_sip || h.nama_karyawan || h.nama || '';
+                            if (sipKey && !seenSips.has(sipKey)) {
+                                seenSips.add(sipKey);
+                                uniqueHelpers.push(h);
+                            }
+                        }
+                        defaultTerapisList = uniqueHelpers.map((h: any) => ({
                             no_sip: extractNoSip(h.no_sip || h.sip || h.value) || h.no_sip || '',
                             nama: h.nama_karyawan || h.nama || 'Terapis',
                             jabatan: h.jabatan || 'terapis',
@@ -1581,7 +1604,7 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
 
                                         return (
                                             <div
-                                                key={`terapis-${terapis.no_sip || terapis.kode_jadwal || idx}`}
+                                                key={`terapis-${terapis.no_sip || 'no-sip'}-${terapis.kode_jadwal || terapis.jam_mulai || idx}`}
                                                 className="surface-card border-1 surface-border border-round-lg p-2.5 flex align-items-center justify-content-between gap-2.5 shadow-xs hover:surface-hover transition-colors"
                                             >
                                                 <div className="flex align-items-center gap-2.5 min-w-0 flex-1">

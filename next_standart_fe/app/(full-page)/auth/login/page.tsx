@@ -44,7 +44,7 @@ export default function LoginPage() {
     setState((p) => ({ ...p, load: true }));
     try {
       const { data: vaLogin } = await axios.post('/api/auth/login', {
-        username: data.username,
+        username: data.username.trim(),
         password: data.password,
         remember_me: data.remember_me ? '1' : '0',
       });
@@ -55,7 +55,11 @@ export default function LoginPage() {
       });
 
       if (nAuth?.error) {
-        showError(toast, 'Username atau kata sandi tidak sesuai.');
+        console.error('NextAuth signIn error:', nAuth);
+        showError(
+          toast,
+          `Sesi login gagal dibuat (${nAuth.error}). Silakan refresh browser atau bersihkan cookie browser Anda.`
+        );
       } else {
         showSuccess(toast, 'Login Berhasil! Mengalihkan ke Dashboard...');
         setTimeout(() => router.push('/dashboard'), 400);
