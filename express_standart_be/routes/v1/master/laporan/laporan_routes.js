@@ -384,8 +384,8 @@ router.post("/paket", async (req, res) => {
         "pl.kode_ruangan",
         "r.nama_ruangan",
         DB.raw("COALESCE(DATE_FORMAT(pl.tanggal_mulai, '%Y-%m-%d'), DATE_FORMAT(pl.created_at, '%Y-%m-%d')) as tanggal_mulai"),
-        DB.raw("COALESCE(DATE_FORMAT(pl.tanggal_selesai, '%Y-%m-%d'), DATE_FORMAT(DATE_ADD(COALESCE(pl.tanggal_mulai, pl.created_at), INTERVAL pl.masa_berlaku_hari DAY), '%Y-%m-%d')) as tanggal_selesai"),
-        DB.raw("GREATEST(0, DATEDIFF(COALESCE(pl.tanggal_selesai, DATE_ADD(COALESCE(pl.tanggal_mulai, pl.created_at), INTERVAL pl.masa_berlaku_hari DAY)), CURDATE())) as sisa_hari")
+        DB.raw("DATE_FORMAT(pl.tanggal_selesai, '%Y-%m-%d') as tanggal_selesai"),
+        DB.raw("CASE WHEN pl.is_selamanya = 1 THEN 99999 WHEN pl.tanggal_selesai IS NOT NULL THEN GREATEST(0, DATEDIFF(pl.tanggal_selesai, CURDATE())) ELSE 99999 END as sisa_hari")
       )
       .orderBy("pl.created_at", "desc");
 

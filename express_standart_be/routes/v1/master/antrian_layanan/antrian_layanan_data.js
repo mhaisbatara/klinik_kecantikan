@@ -136,7 +136,9 @@ const handleGetData = async (req, res) => {
     ];
 
     if (hasPagination) {
-      const countResult = await baseQuery.clone().count("al.id as total").first();
+      const countResult = await DB.count("* as total")
+        .from(baseQuery.clone().select("al.id").as("cnt_sub"))
+        .first();
       totalRecords = parseInt(countResult?.total || 0, 10);
 
       const page = Math.max(1, parseInt(oPayload.page || 1, 10));
@@ -194,7 +196,7 @@ const handleGetData = async (req, res) => {
           "dal.nama_layanan as nama_produk",
           "dal.harga",
           "p.satuan",
-          "p.foto"
+          DB.raw("NULL as foto")
         );
 
       const produkMap = {};

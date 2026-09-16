@@ -91,27 +91,10 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
     });
     const [lanjutKeTindakan, setLanjutKeTindakan] = useState<boolean>(true);
     const [uploadingBefore, setUploadingBefore] = useState<boolean>(false);
+    const [resepProdukDokter, setResepProdukDokter] = useState<any[]>([]);
+    const [loadingResepProduk, setLoadingResepProduk] = useState<boolean>(false);
 
     const [selectedPetugas, setSelectedPetugas] = useState<string>('');
-    const [resepProdukDokter, setResepProdukDokter] = useState<any[]>([]);
-
-    useEffect(() => {
-        if (activePatient?.rekomendasi_produk_dokter && activePatient.rekomendasi_produk_dokter.length > 0) {
-            setResepProdukDokter(activePatient.rekomendasi_produk_dokter);
-        } else if (activePatient?.kode_kunjungan) {
-            postData('/master/kunjungan-produk-rekomendasi', { kode_kunjungan: activePatient.kode_kunjungan })
-                .then((res) => {
-                    if (res.data?.data?.length > 0) {
-                        setResepProdukDokter(res.data.data);
-                    } else {
-                        setResepProdukDokter([]);
-                    }
-                })
-                .catch(() => setResepProdukDokter([]));
-        } else {
-            setResepProdukDokter([]);
-        }
-    }, [activePatient?.kode_antrian_layanan, activePatient?.kode_kunjungan, activePatient?.rekomendasi_produk_dokter]);
 
     const [selectedTerapisList, setSelectedTerapisList] = useState<Array<{
         no_sip: string;
