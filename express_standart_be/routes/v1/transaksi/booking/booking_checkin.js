@@ -292,7 +292,8 @@ router.post("/", async (req, res) => {
 
             let tglExpired = "2099-12-31";
             const masaBerlakuHari = parseInt(pkt?.masa_berlaku_hari || 0, 10);
-            if (!Boolean(pkt?.is_selamanya) && masaBerlakuHari > 0) {
+            const isMasaBerlakuSelamanya = Boolean(pkt?.is_masa_berlaku_selamanya) || masaBerlakuHari === 0;
+            if (!isMasaBerlakuSelamanya && masaBerlakuHari > 0) {
               const dExp = new Date();
               dExp.setDate(dExp.getDate() + masaBerlakuHari);
               tglExpired = `${dExp.getFullYear()}-${String(dExp.getMonth() + 1).padStart(2, "0")}-${String(dExp.getDate()).padStart(2, "0")}`;

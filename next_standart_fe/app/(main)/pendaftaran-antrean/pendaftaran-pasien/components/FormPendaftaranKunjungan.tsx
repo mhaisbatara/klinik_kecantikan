@@ -131,6 +131,9 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
     buffer_menit?: number;
     antrean_berjalan_count?: number;
     total_booking_hari_ini?: number;
+    is_lanjutan_konsultasi?: boolean;
+    durasi_konsultasi_menit?: number;
+    durasi_tindakan_menit?: number;
   } | null>(null);
 
   // 5b. Dialog Semua Jadwal Booking Hari Ini

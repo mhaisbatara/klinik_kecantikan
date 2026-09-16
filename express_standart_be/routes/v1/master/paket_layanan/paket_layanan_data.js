@@ -31,6 +31,13 @@ router.post("/", async (req, res) => {
       });
     }
 
+    const hasIsMasaBerlakuSelamanya = await DB.schema.hasColumn("mst_paket_layanan", "is_masa_berlaku_selamanya");
+    if (!hasIsMasaBerlakuSelamanya) {
+      await DB.schema.table("mst_paket_layanan", (table) => {
+        table.boolean("is_masa_berlaku_selamanya").defaultTo(false);
+      });
+    }
+
     const hasPaketTipe = await DB.schema.hasColumn("mst_paket_layanan", "tipe");
     if (!hasPaketTipe) {
       await DB.schema.table("mst_paket_layanan", (table) => {
@@ -81,10 +88,11 @@ router.post("/", async (req, res) => {
       "p.tipe",
       "p.harga_paket",
       "p.masa_berlaku_hari",
+      "p.is_masa_berlaku_selamanya",
       "p.is_selamanya",
       DB.raw("COALESCE(DATE_FORMAT(p.tanggal_mulai, '%Y-%m-%d'), DATE_FORMAT(p.created_at, '%Y-%m-%d')) as tanggal_mulai"),
-      DB.raw("COALESCE(DATE_FORMAT(p.tanggal_selesai, '%Y-%m-%d'), DATE_FORMAT(DATE_ADD(COALESCE(p.tanggal_mulai, p.created_at), INTERVAL p.masa_berlaku_hari DAY), '%Y-%m-%d')) as tanggal_selesai"),
-      DB.raw("GREATEST(0, DATEDIFF(COALESCE(p.tanggal_selesai, DATE_ADD(COALESCE(p.tanggal_mulai, p.created_at), INTERVAL p.masa_berlaku_hari DAY)), CURDATE())) as sisa_hari"),
+      DB.raw("DATE_FORMAT(p.tanggal_selesai, '%Y-%m-%d') as tanggal_selesai"),
+      DB.raw("CASE WHEN p.is_selamanya = 1 THEN 99999 WHEN p.tanggal_selesai IS NOT NULL THEN GREATEST(0, DATEDIFF(p.tanggal_selesai, CURDATE())) ELSE 99999 END as sisa_hari"),
       "p.kode_ruangan",
       "r.nama_ruangan as nama_ruangan",
       "p.status",
