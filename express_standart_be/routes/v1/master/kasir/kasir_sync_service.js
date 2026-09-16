@@ -212,25 +212,43 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
         if (currentCount > 0) {
           existingProductCounts[item.kode_layanan]--;
         } else {
-          const cKodeDetail = `${prefixDetail}${String(nextDetailSeq).padStart(3, "0")}`;
-          nextDetailSeq++;
-          const hargaSatuan = parseFloat(item.harga || 0);
+          const existRow = await trx("trx_detail_transaksi")
+            .where("kode_transaksi", createdTransaksiKode)
+            .where("kode_produk", item.kode_layanan)
+            .first();
 
-          await trx("trx_detail_transaksi").insert({
-            kode_detail_transaksi: cKodeDetail,
-            kode_transaksi: createdTransaksiKode,
-            kode_layanan: null,
-            kode_produk: item.kode_layanan,
-            qty: 1,
-            harga_satuan: hargaSatuan,
-            subtotal: hargaSatuan,
-            is_from_pendaftaran: 0,
-            tz: tz || "Asia/Jakarta",
-            created_by: username,
-            created_at: formatDateSystem(),
-            updated_by: username,
-            updated_at: formatDateSystem(),
-          });
+          if (existRow) {
+            const newQty = parseInt(existRow.qty || 1, 10) + 1;
+            const hrg = parseFloat(existRow.harga_satuan || item.harga || 0);
+            await trx("trx_detail_transaksi")
+              .where("id", existRow.id)
+              .update({
+                qty: newQty,
+                subtotal: newQty * hrg,
+                updated_by: username,
+                updated_at: formatDateSystem(),
+              });
+          } else {
+            const cKodeDetail = `${prefixDetail}${String(nextDetailSeq).padStart(3, "0")}`;
+            nextDetailSeq++;
+            const hargaSatuan = parseFloat(item.harga || 0);
+
+            await trx("trx_detail_transaksi").insert({
+              kode_detail_transaksi: cKodeDetail,
+              kode_transaksi: createdTransaksiKode,
+              kode_layanan: null,
+              kode_produk: item.kode_layanan,
+              qty: 1,
+              harga_satuan: hargaSatuan,
+              subtotal: hargaSatuan,
+              is_from_pendaftaran: 0,
+              tz: tz || "Asia/Jakarta",
+              created_by: username,
+              created_at: formatDateSystem(),
+              updated_by: username,
+              updated_at: formatDateSystem(),
+            });
+          }
         }
       } else {
         const currentCount = existingServiceCounts[item.kode_layanan] || 0;

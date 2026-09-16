@@ -178,6 +178,51 @@ const handleGetData = async (req, res) => {
       }));
     }
 
+    // Attach dokter rekomendasi produk dari antrean konsultasi / kunjungan ini
+    const kodeKunjunganList = vaData.map((d) => d.kode_kunjungan).filter(Boolean);
+    if (kodeKunjunganList.length > 0) {
+      const produkList = await DB("trx_detail_antrian_layanan as dal")
+        .leftJoin("mst_produk as p", "dal.kode_layanan", "p.kode_produk")
+        .whereIn("dal.kode_kunjungan", kodeKunjunganList)
+        .whereIn("dal.jenis_layanan", ["produk", "paket_produk"])
+        .select(
+          "dal.id",
+          "dal.kode_kunjungan",
+          "dal.kode_antrian_layanan",
+          "dal.jenis_layanan",
+          "dal.kode_layanan as kode_produk",
+          "dal.nama_layanan as nama_produk",
+          "dal.harga",
+          "p.satuan",
+          "p.foto"
+        );
+
+      const produkMap = {};
+      for (const prd of produkList) {
+        if (!produkMap[prd.kode_kunjungan]) {
+          produkMap[prd.kode_kunjungan] = [];
+        }
+        const exist = produkMap[prd.kode_kunjungan].find((p) => p.kode_produk === prd.kode_produk);
+        if (exist) {
+          exist.qty = (exist.qty || 1) + 1;
+          exist.subtotal = exist.qty * parseFloat(exist.harga || 0);
+        } else {
+          produkMap[prd.kode_kunjungan].push({
+            ...prd,
+            qty: 1,
+            harga: parseFloat(prd.harga || 0),
+            subtotal: parseFloat(prd.harga || 0),
+            satuan: prd.satuan || "pcs",
+          });
+        }
+      }
+
+      vaData = vaData.map((item) => ({
+        ...item,
+        rekomendasi_produk_dokter: produkMap[item.kode_kunjungan] || [],
+      }));
+    }
+
     // Attach companion staff (petugas pendamping) for booking antrian
     const bookingJadwals = vaData.filter(
       (d) => d.kode_booking && d.booking_kode_ruangan && d.booking_hari && d.booking_jam_mulai && d.booking_jam_selesai

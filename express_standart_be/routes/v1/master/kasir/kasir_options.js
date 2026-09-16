@@ -58,19 +58,20 @@ router.post("/", async (req, res) => {
     const kunjunganMapped = vaKunjungan.map((k) => {
       const roomItems = vaLayananPendaftaran.filter((l) => l.kode_kunjungan === k.kode_kunjungan);
       const mappedItems = roomItems.map((l) => {
+        const isProduct = ["produk", "paket_produk"].includes((l.jenis_layanan || "").toLowerCase());
         const isKlaim = (l.jenis_layanan || "").toLowerCase() === "klaim_paket";
         const itemHarga = isKlaim ? 0 : parseFloat(l.harga || 0);
         return {
           id: l.id,
           kode_detail_antrian_layanan: l.kode_detail_antrian_layanan,
-          jenis: isKlaim ? "klaim_paket" : "layanan",
+          jenis: isProduct ? "produk" : (isKlaim ? "klaim_paket" : "layanan"),
           kode: l.kode_layanan,
           nama: l.nama_layanan,
-          satuan: "tindakan",
+          satuan: isProduct ? "pcs" : "tindakan",
           qty: 1,
           harga_satuan: itemHarga,
           subtotal: itemHarga,
-          is_from_pendaftaran: true,
+          is_from_pendaftaran: isProduct ? false : true,
           is_klaim_paket: isKlaim,
           kode_promo: l.kode_promo || null,
           nama_promo: l.nama_promo || null,

@@ -357,6 +357,76 @@ router.post("/antrian-layanan-simpan-rekomendasi", async (req, res) => {
         }
       });
 
+      // ─── B.1. SIMPAN REKOMENDASI PRODUK KE trx_detail_antrian_layanan (ANTREAN KONSULTASI ASAL) ───
+      // Produk dicatat pada antrean konsultasi saat ini agar tersimpan permanen di riwayat kunjungan.
+      // Ketika pasien selesai (baik langsung atau setelah tindakan lanjutan di ruang rujukan),
+      // sinkronisasi Kasir akan otomatis membaca produk ini dari antrean konsultasi yang sudah 'selesai'.
+      if (kodeKunjungan) {
+        // Hapus produk lama di antrean ini untuk mencegah duplikasi jika form disimpan ulang
+        await trx("trx_detail_antrian_layanan")
+          .where("kode_antrian_layanan", kode_antrian_layanan)
+          .whereIn("jenis_layanan", ["produk", "paket_produk"])
+          .del();
+
+        if (produkItems.length > 0) {
+          const todayStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+          const alParts = kode_antrian_layanan.split("-");
+          const seqPadded = alParts.length >= 3 ? alParts[2] : "001";
+
+          // Ambil urutan sub-seq detail terakhir untuk antrean ini
+          const existingDetails = await trx("trx_detail_antrian_layanan")
+            .where("kode_antrian_layanan", kode_antrian_layanan)
+            .select("kode_detail_antrian_layanan");
+
+          let maxSubSeq = 0;
+          existingDetails.forEach((d) => {
+            if (d.kode_detail_antrian_layanan) {
+              const parts = d.kode_detail_antrian_layanan.split("-");
+              const sub = parseInt(parts[parts.length - 1], 10);
+              if (!isNaN(sub) && sub > maxSubSeq) maxSubSeq = sub;
+            }
+          });
+
+          const vaInsertProdukDetail = [];
+          for (const prd of produkItems) {
+            const qty = Math.max(1, parseInt(prd.qty || 1, 10));
+            const kdPrd = prd.kode || prd.kode_produk || prd.kode_layanan;
+            const nmPrd = prd.nama || prd.nama_produk || prd.nama_layanan || "Produk";
+            const hrgPrd = parseFloat(prd.harga || prd.harga_jual || prd.harga_satuan || 0);
+
+            for (let q = 0; q < qty; q++) {
+              maxSubSeq++;
+              const cKodeDetailAntrian = `DAL-${todayStr}-${seqPadded}-${String(maxSubSeq).padStart(2, "0")}`;
+              vaInsertProdukDetail.push({
+                kode_detail_antrian_layanan: cKodeDetailAntrian,
+                kode_antrian_layanan: kode_antrian_layanan,
+                kode_kunjungan: kodeKunjungan,
+                jenis_layanan: (prd.jenis || "").toLowerCase() === "paket_produk" ? "paket_produk" : "produk",
+                kode_layanan: kdPrd,
+                nama_layanan: nmPrd,
+                harga: hrgPrd,
+                durasi_menit: 0,
+                kode_promo: prd.kode_promo || null,
+                nama_promo: prd.nama_promo || null,
+                jenis_diskon: prd.jenis_diskon || null,
+                nilai_diskon: prd.nilai_diskon ?? null,
+                kode_ruangan: currentAntrian.kode_ruangan || null,
+                nama_ruangan: currentAntrian.nama_ruangan || null,
+                tz: currentAntrian.tz || oPayload.tz || "Asia/Jakarta",
+                created_by: username,
+                created_at: formatDateSystem(),
+                updated_by: username,
+                updated_at: formatDateSystem(),
+              });
+            }
+          }
+
+          if (vaInsertProdukDetail.length > 0) {
+            await trx("trx_detail_antrian_layanan").insert(vaInsertProdukDetail);
+          }
+        }
+      }
+
       // ─── C. PROSES REKOMENDASI LAYANAN → TERBITKAN NOMOR ANTREAN KHUSUS PER RUANGAN ───
       // Antrean rujukan HANYA diterbitkan jika isLanjut === 1 dan terdapat layanan tindakan ke ruang yang valid & berbeda
       let createdReferrals = [];
@@ -593,6 +663,82 @@ router.post("/antrian-layanan-pendaftaran-items", async (req, res) => {
     return res.status(500).json({
       status: status.BAD_REQUEST,
       message: "Gagal mengambil data item pendaftaran",
+      datetime: formatDateSystem(),
+    });
+  }
+});
+
+/**
+ * ─── 4. FETCH PRODUK REKOMENDASI DOKTER PADA KUNJUNGAN PASIEN ───
+ */
+router.post("/kunjungan-produk-rekomendasi", async (req, res) => {
+  const { kode_kunjungan, kode_antrian_layanan } = req.body || {};
+  const username = req?.auth?.username || "system";
+
+  try {
+    if (!kode_kunjungan && !kode_antrian_layanan) {
+      return res.status(422).json({
+        status: status.BAD_REQUEST,
+        message: "kode_kunjungan atau kode_antrian_layanan wajib diisi",
+        datetime: formatDateSystem(),
+      });
+    }
+
+    let query = DB("trx_detail_antrian_layanan as dal")
+      .leftJoin("mst_produk as p", "dal.kode_layanan", "p.kode_produk")
+      .whereIn("dal.jenis_layanan", ["produk", "paket_produk"]);
+
+    if (kode_kunjungan) {
+      query = query.where("dal.kode_kunjungan", kode_kunjungan);
+    } else {
+      query = query.where("dal.kode_antrian_layanan", kode_antrian_layanan);
+    }
+
+    const rawRows = await query.select(
+      "dal.id",
+      "dal.kode_detail_antrian_layanan",
+      "dal.kode_kunjungan",
+      "dal.kode_antrian_layanan",
+      "dal.jenis_layanan",
+      "dal.kode_layanan as kode_produk",
+      "dal.nama_layanan as nama",
+      "dal.harga as harga_jual",
+      "p.satuan",
+      "p.foto"
+    );
+
+    // Group & aggregate by kode_produk
+    const groupedMap = new Map();
+    for (const r of rawRows) {
+      const kd = r.kode_produk;
+      if (groupedMap.has(kd)) {
+        const item = groupedMap.get(kd);
+        item.qty = (item.qty || 1) + 1;
+        item.subtotal = item.qty * parseFloat(item.harga_jual || 0);
+      } else {
+        groupedMap.set(kd, {
+          kode_produk: kd,
+          nama: r.nama,
+          harga_jual: parseFloat(r.harga_jual || 0),
+          satuan: r.satuan || "pcs",
+          qty: 1,
+          subtotal: parseFloat(r.harga_jual || 0),
+          foto: r.foto || null,
+        });
+      }
+    }
+
+    return res.status(200).json({
+      status: status.SUKSES,
+      message: "Data rekomendasi produk berhasil dimuat",
+      datetime: formatDateSystem(),
+      data: Array.from(groupedMap.values()),
+    });
+  } catch (error) {
+    Logging(error, { file: "/master/ruangan/ruangan_rekomendasi.js", func: "kunjungan-produk-rekomendasi", user: username });
+    return res.status(500).json({
+      status: status.BAD_REQUEST,
+      message: "Gagal memuat data rekomendasi produk",
       datetime: formatDateSystem(),
     });
   }

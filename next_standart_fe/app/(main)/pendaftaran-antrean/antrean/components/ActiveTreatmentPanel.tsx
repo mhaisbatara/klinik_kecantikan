@@ -32,6 +32,7 @@ import {
     Sparkles,
     Stethoscope,
     Clock,
+    ShoppingBag,
 } from 'lucide-react';
 
 interface ActiveTreatmentPanelProps {
@@ -91,8 +92,27 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
     const [lanjutKeTindakan, setLanjutKeTindakan] = useState<boolean>(true);
     const [uploadingBefore, setUploadingBefore] = useState<boolean>(false);
 
-    // State Petugas Terpilih (disinkronkan otomatis dari Jadwal Karyawan)
     const [selectedPetugas, setSelectedPetugas] = useState<string>('');
+    const [resepProdukDokter, setResepProdukDokter] = useState<any[]>([]);
+
+    useEffect(() => {
+        if (activePatient?.rekomendasi_produk_dokter && activePatient.rekomendasi_produk_dokter.length > 0) {
+            setResepProdukDokter(activePatient.rekomendasi_produk_dokter);
+        } else if (activePatient?.kode_kunjungan) {
+            postData('/master/kunjungan-produk-rekomendasi', { kode_kunjungan: activePatient.kode_kunjungan })
+                .then((res) => {
+                    if (res.data?.data?.length > 0) {
+                        setResepProdukDokter(res.data.data);
+                    } else {
+                        setResepProdukDokter([]);
+                    }
+                })
+                .catch(() => setResepProdukDokter([]));
+        } else {
+            setResepProdukDokter([]);
+        }
+    }, [activePatient?.kode_antrian_layanan, activePatient?.kode_kunjungan, activePatient?.rekomendasi_produk_dokter]);
+
     const [selectedTerapisList, setSelectedTerapisList] = useState<Array<{
         no_sip: string;
         nama: string;
@@ -282,6 +302,8 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
     const [hasilKodeKunjungan, setHasilKodeKunjungan] = useState<string>('');
     const [hasilPasienNama, setHasilPasienNama] = useState<string>('');
     const [hasilNoRm, setHasilNoRm] = useState<string>('');
+    const [resepProdukDokter, setResepProdukDokter] = useState<any[]>([]);
+    const [loadingResepProduk, setLoadingResepProduk] = useState<boolean>(false);
 
     useEffect(() => {
         if (kodeRuangan) {
@@ -467,6 +489,41 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
             setRekomendasiItems([]);
         }
     };
+
+    const loadResepProdukDokter = async (kodeKunjungan?: string, kodeAntrian?: string) => {
+        if (!kodeKunjungan && !kodeAntrian) {
+            setResepProdukDokter([]);
+            return;
+        }
+        if (Array.isArray(activePatient?.rekomendasi_produk_dokter) && activePatient.rekomendasi_produk_dokter.length > 0) {
+            setResepProdukDokter(activePatient.rekomendasi_produk_dokter);
+            return;
+        }
+        setLoadingResepProduk(true);
+        try {
+            const res = await postData('/master/kunjungan-produk-rekomendasi', {
+                kode_kunjungan: kodeKunjungan,
+                kode_antrian_layanan: kodeAntrian,
+            });
+            if (['00', '0000', 200].includes(res.data?.status) || res.status === 200) {
+                setResepProdukDokter(res.data?.data || []);
+            } else {
+                setResepProdukDokter([]);
+            }
+        } catch (_) {
+            setResepProdukDokter([]);
+        } finally {
+            setLoadingResepProduk(false);
+        }
+    };
+
+    useEffect(() => {
+        if (activePatient?.kode_kunjungan || activePatient?.kode_antrian_layanan) {
+            loadResepProdukDokter(activePatient.kode_kunjungan, activePatient.kode_antrian_layanan);
+        } else {
+            setResepProdukDokter([]);
+        }
+    }, [activePatient?.kode_antrian_layanan, activePatient?.kode_kunjungan, activePatient?.rekomendasi_produk_dokter]);
 
     const handleBeforePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -708,7 +765,8 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
         dataKonsul?.kode_antrian_asal ||
         (dataKonsul?.data_konsultasi_keluhan && dataKonsul?.data_konsultasi_keluhan !== '-') ||
         (dataKonsul?.data_konsultasi_diagnosis && dataKonsul?.data_konsultasi_diagnosis !== '-') ||
-        dataKonsul?.data_konsultasi_hasil_form
+        dataKonsul?.data_konsultasi_hasil_form ||
+        resepProdukDokter.length > 0
     );
 
     let extraFormFields: Array<{ label: string; value: any }> = [];
@@ -1014,6 +1072,20 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                                                 {selectedTerapisList.map((t: any) => t.nama).join(', ')}
                                             </strong>
                                         </span>
+                                    </span>
+                                )}
+                                {resepProdukDokter.length > 0 && (
+                                    <span
+                                        className="inline-flex align-items-center gap-2 px-3 py-1.5 font-medium"
+                                        style={{
+                                            background: 'rgba(245, 158, 11, 0.18)',
+                                            border: '1px solid rgba(251, 191, 36, 0.4)',
+                                            borderRadius: '6px',
+                                            color: '#fef3c7'
+                                        }}
+                                    >
+                                        <ShoppingBag size={14} style={{ color: '#fbbf24' }} className="flex-shrink-0" />
+                                        <span>Resep Dokter: <strong className="text-white">{resepProdukDokter.length} Produk</strong></span>
                                     </span>
                                 )}
                             </div>
@@ -1609,6 +1681,70 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                                                 ))}
                                             </div>
                                         )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* 2. DISPLAY PRODUK PILIHAN DOKTER KONSULTASI */}
+                            {resepProdukDokter.length > 0 && (
+                                <div className="p-3 border-round-xl border-1 surface-border bg-white shadow-xs">
+                                    <div className="flex align-items-center justify-content-between mb-3 pb-2 border-bottom-1 surface-border">
+                                        <div className="flex align-items-center gap-2">
+                                            <div className="w-2rem h-2rem border-round-md bg-amber-50 text-amber-600 flex align-items-center justify-content-center flex-shrink-0">
+                                                <i className="pi pi-shopping-bag text-sm" />
+                                            </div>
+                                            <div>
+                                                <span className="font-extrabold text-700 text-xs uppercase tracking-wider block">
+                                                    PRODUK &amp; RESEP PILIHAN DOKTER KONSULTASI
+                                                </span>
+                                                <span className="text-[11px] text-500">
+                                                    Direkomendasikan oleh dokter untuk pasien ini &amp; otomatis diteruskan ke kasir
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <Tag
+                                            severity="warning"
+                                            value={`${resepProdukDokter.length} Produk`}
+                                            icon="pi pi-sparkles"
+                                            className="text-xs font-bold px-2.5 py-1"
+                                        />
+                                    </div>
+
+                                    <div className="grid">
+                                        {resepProdukDokter.map((prod: any, idx: number) => {
+                                            const hrg = parseFloat(prod.harga || prod.harga_jual || 0);
+                                            const qty = parseInt(prod.qty || 1, 10);
+                                            const total = prod.subtotal ? parseFloat(prod.subtotal) : hrg * qty;
+                                            return (
+                                                <div key={idx} className="col-12 md:col-6 mb-2">
+                                                    <div className="p-2.5 border-round-lg border-1 border-amber-200 bg-amber-50/50 flex align-items-center justify-content-between gap-2">
+                                                        <div className="flex align-items-center gap-2.5 min-w-0">
+                                                            <div className="w-2.2rem h-2.2rem border-round-md bg-white border-1 border-amber-200 text-amber-700 flex align-items-center justify-content-center font-bold text-xs flex-shrink-0">
+                                                                <i className="pi pi-box text-sm" />
+                                                            </div>
+                                                            <div className="min-w-0">
+                                                                <span className="font-bold text-xs text-900 block truncate" title={prod.nama_produk || prod.nama}>
+                                                                    {prod.nama_produk || prod.nama}
+                                                                </span>
+                                                                <span className="text-[11px] text-600 block">
+                                                                    {prod.kode_produk} • {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(hrg)}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right flex-shrink-0">
+                                                            <span className="inline-block bg-amber-600 text-white font-bold text-xs px-2 py-0.5 border-round-md">
+                                                                {qty} {prod.satuan || 'pcs'}
+                                                            </span>
+                                                            {total > 0 && (
+                                                                <span className="text-[10px] text-amber-900 font-bold block mt-0.5">
+                                                                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(total)}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             )}
