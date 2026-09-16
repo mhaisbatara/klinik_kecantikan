@@ -13,6 +13,7 @@ import { InputIcon } from 'primereact/inputicon';
 import { IconField } from 'primereact/iconfield';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
+import { ClipboardList } from 'lucide-react';
 
 interface MenuState {
     searchVal: string;
@@ -26,6 +27,29 @@ interface RuanganItem {
     nama_ruangan: string;
 }
 
+const LAPORAN_MENU_ITEMS = [
+    { id: 'penjualan', label: 'Laporan Penjualan', icon: 'pi-shopping-cart' },
+    { id: 'treatment', label: 'Laporan Treatment', icon: 'pi-sparkles' },
+    { id: 'produk', label: 'Laporan Produk', icon: 'pi-box' },
+    { id: 'paket', label: 'Laporan Paket', icon: 'pi-tags' },
+    { id: 'pasien', label: 'Laporan Pasien', icon: 'pi-users' },
+    { id: 'kunjungan', label: 'Laporan Kunjungan', icon: 'pi-calendar' },
+    { id: 'dokter', label: 'Laporan Dokter', icon: 'pi-heart' },
+    { id: 'beautician', label: 'Laporan Beautician', icon: 'pi-star' },
+    { id: 'inventory', label: 'Laporan Inventory', icon: 'pi-database' },
+    { id: 'keuangan', label: 'Laporan Keuangan', icon: 'pi-wallet' },
+    { id: 'voucher', label: 'Laporan Voucher', icon: 'pi-ticket' },
+    { id: 'rekam_medis', label: 'Laporan RME', icon: 'ClipboardList' },
+    { id: 'membership', label: 'Laporan Membership', icon: 'pi-id-card' },
+    { id: 'appointment', label: 'Laporan Appointment', icon: 'pi-clock' },
+    { id: 'komisi', label: 'Laporan Komisi', icon: 'pi-percentage' },
+    { id: 'stok_opname', label: 'Laporan Stok Opname', icon: 'pi-check-square' },
+    { id: 'pembelian', label: 'Laporan Pembelian', icon: 'pi-truck' },
+    { id: 'expired', label: 'Laporan Expired', icon: 'pi-exclamation-triangle' },
+    { id: 'deposit', label: 'Laporan Deposit', icon: 'pi-money-bill' },
+    { id: 'crm', label: 'Laporan CRM', icon: 'pi-comments' },
+];
+
 const AppMenu = () => {
     const { data: session } = useSession();
     const { layoutConfig } = useContext(LayoutContext);
@@ -35,12 +59,39 @@ const AppMenu = () => {
     const searchParams = useSearchParams();
     const activeRuangan = searchParams.get('ruangan') || '';
 
+    const isLaporanPage = pathname === '/riwayat/rekam-medis';
+    const activeReportTab = isLaporanPage ? (searchParams.get('tab') || 'penjualan') : '';
+    const [isLaporanOpen, setIsLaporanOpen] = useState<boolean>(true);
+
+    useEffect(() => {
+        if (isLaporanPage) {
+            setIsLaporanOpen(true);
+        }
+    }, [isLaporanPage, pathname, searchParams]);
+
     const [state, setState] = useState<MenuState>({
         searchVal: "",
         filteredMenu: [],
         load: true,
         menu: []
     });
+
+    useEffect(() => {
+        if (state.searchVal.trim()) {
+            const hasMatch = LAPORAN_MENU_ITEMS.some((item) =>
+                item.label.toLowerCase().includes(state.searchVal.toLowerCase())
+            );
+            if (hasMatch) {
+                setIsLaporanOpen(true);
+            }
+        }
+    }, [state.searchVal]);
+
+    const filteredReports = state.searchVal.trim()
+        ? LAPORAN_MENU_ITEMS.filter((it) =>
+              it.label.toLowerCase().includes(state.searchVal.toLowerCase())
+          )
+        : LAPORAN_MENU_ITEMS;
 
     const [ruanganList, setRuanganList] = useState<RuanganItem[]>([]);
     const [loadRuangan, setLoadRuangan] = useState<boolean>(true);
@@ -556,26 +607,109 @@ const AppMenu = () => {
                                     <li className="layout-root-menuitem" key="riwayat-section">
                                         <div className="layout-menuitem-root-text">LAPORAN</div>
                                         <ul>
-                                            <li className={pathname === '/riwayat/rekam-medis' ? 'active-menuitem' : ''}>
-                                                <Link
-                                                    href="/riwayat/rekam-medis"
-                                                    className={`p-ripple flex align-items-center gap-2${pathname === '/riwayat/rekam-medis' ? ' active-route' : ''}`}
-                                                    style={{ padding: '0.75rem 1.25rem', borderRadius: '6px', transition: 'background 0.2s' }}
+                                            <li className={isLaporanPage ? 'active-menuitem' : ''}>
+                                                {/* Parent Laporan Accordion Button */}
+                                                <a
+                                                    role="button"
+                                                    tabIndex={0}
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        setIsLaporanOpen(prev => !prev);
+                                                    }}
+                                                    className={`p-ripple flex align-items-center justify-content-between cursor-pointer${isLaporanPage ? ' active-route' : ''}`}
+                                                    style={{
+                                                        padding: '0.75rem 1.25rem',
+                                                        borderRadius: '6px',
+                                                        transition: 'background 0.2s',
+                                                        userSelect: 'none'
+                                                    }}
                                                 >
+                                                    <div className="flex align-items-center gap-2">
+                                                        <i
+                                                            className={`layout-menuitem-icon pi ${isLaporanOpen ? 'pi-folder-open' : 'pi-folder'}`}
+                                                            style={{ color: isLaporanPage ? 'var(--primary-color)' : undefined }}
+                                                        />
+                                                        <span
+                                                            className="layout-menuitem-text"
+                                                            style={{
+                                                                fontWeight: isLaporanPage ? 700 : undefined,
+                                                                color: isLaporanPage ? 'var(--primary-color)' : undefined,
+                                                            }}
+                                                        >
+                                                            Laporan
+                                                        </span>
+                                                    </div>
                                                     <i
-                                                        className="layout-menuitem-icon pi pi-folder-open"
-                                                        style={{ color: pathname === '/riwayat/rekam-medis' ? 'var(--primary-color)' : undefined }}
-                                                    />
-                                                    <span
-                                                        className="layout-menuitem-text"
+                                                        className="pi pi-angle-down layout-submenu-toggler"
                                                         style={{
-                                                            fontWeight: pathname === '/riwayat/rekam-medis' ? 700 : undefined,
-                                                            color: pathname === '/riwayat/rekam-medis' ? 'var(--primary-color)' : undefined,
+                                                            fontSize: '0.85rem',
+                                                            transform: isLaporanOpen ? 'rotate(-180deg)' : 'rotate(0deg)',
+                                                            transition: 'transform 0.25s ease',
+                                                            color: isLaporanPage ? 'var(--primary-color)' : '#94a3b8'
+                                                        }}
+                                                    />
+                                                </a>
+
+                                                {/* Submenu Dropdown List Seluruh Jenis Laporan */}
+                                                {isLaporanOpen && (
+                                                    <ul
+                                                        className="layout-submenu"
+                                                        style={{
+                                                            listStyle: 'none',
+                                                            margin: '0.25rem 0 0.5rem 0',
+                                                            padding: '0 0 0 0.5rem',
+                                                            maxHeight: '380px',
+                                                            overflowY: 'auto',
+                                                            scrollbarWidth: 'thin'
                                                         }}
                                                     >
-                                                        Laporan
-                                                    </span>
-                                                </Link>
+                                                        {filteredReports.map((item) => {
+                                                            const isTabActive = isLaporanPage && activeReportTab === item.id;
+                                                            return (
+                                                                <li key={item.id} className={isTabActive ? 'active-menuitem' : ''}>
+                                                                    <Link
+                                                                        href={`/riwayat/rekam-medis?tab=${item.id}`}
+                                                                        className={`p-ripple flex align-items-center gap-2 laporan-subitem${isTabActive ? ' active-route' : ''}`}
+                                                                        style={{
+                                                                            padding: '0.625rem 0.95rem',
+                                                                            borderRadius: '6px',
+                                                                            fontSize: '0.92rem',
+                                                                            lineHeight: 1.4,
+                                                                            transition: 'all 0.18s ease-in-out',
+                                                                            border: isTabActive ? '1px solid #bbf7d0' : '1px solid transparent',
+                                                                            background: isTabActive ? '#f0fdf4' : 'transparent',
+                                                                            color: isTabActive ? '#15803d' : '#475569',
+                                                                            fontWeight: isTabActive ? 600 : 500,
+                                                                        }}
+                                                                    >
+                                                                        <span className="flex align-items-center justify-content-center flex-shrink-0" style={{ width: '18px', height: '18px' }}>
+                                                                            {item.icon === 'ClipboardList' ? (
+                                                                                <ClipboardList
+                                                                                    size={15}
+                                                                                    className="layout-menuitem-icon"
+                                                                                    style={{
+                                                                                        color: isTabActive ? '#16a34a' : '#94a3b8',
+                                                                                        transition: 'color 0.18s ease-in-out',
+                                                                                    }}
+                                                                                />
+                                                                            ) : (
+                                                                                <i
+                                                                                    className={`layout-menuitem-icon pi ${item.icon}`}
+                                                                                    style={{
+                                                                                        fontSize: '0.92rem',
+                                                                                        color: isTabActive ? '#16a34a' : '#94a3b8',
+                                                                                        transition: 'color 0.18s ease-in-out',
+                                                                                    }}
+                                                                                />
+                                                                            )}
+                                                                        </span>
+                                                                        <span className="layout-menuitem-text">{item.label}</span>
+                                                                    </Link>
+                                                                </li>
+                                                            );
+                                                        })}
+                                                    </ul>
+                                                )}
                                             </li>
                                         </ul>
                                     </li>
