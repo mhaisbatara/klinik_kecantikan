@@ -1,10 +1,18 @@
-import DB from './express_standart_be/core/config/knex.js';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+
+const { default: DB } = await import('../../core/config/knex.js');
 
 async function main() {
   const targetVisits = [
     'KJ-20260909-003',
     'KJ-20260909-001',
-    'KJ-20260910-005', // requested by user (check if exists)
+    'KJ-20260910-005',
     'KJ-20260908-001',
     'KJ-20260908-002',
     'KJ-20260907-005',

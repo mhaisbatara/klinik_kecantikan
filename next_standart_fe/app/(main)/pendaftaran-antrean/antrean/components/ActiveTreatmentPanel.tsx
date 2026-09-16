@@ -283,8 +283,6 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
     const [hasilKodeKunjungan, setHasilKodeKunjungan] = useState<string>('');
     const [hasilPasienNama, setHasilPasienNama] = useState<string>('');
     const [hasilNoRm, setHasilNoRm] = useState<string>('');
-    const [resepProdukDokter, setResepProdukDokter] = useState<any[]>([]);
-    const [loadingResepProduk, setLoadingResepProduk] = useState<boolean>(false);
 
     useEffect(() => {
         if (kodeRuangan) {

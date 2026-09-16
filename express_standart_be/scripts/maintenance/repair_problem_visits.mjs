@@ -1,5 +1,13 @@
-import DB from './express_standart_be/core/config/knex.js';
-import { formatDateSystem } from './express_standart_be/routes/v1/components/tools/date_tools.js';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+
+const { default: DB } = await import('../../core/config/knex.js');
+const { formatDateSystem } = await import('../../routes/v1/components/tools/date_tools.js');
 
 /**
  * Script perbaikan data SATU KALI untuk kunjungan bermasalah:
