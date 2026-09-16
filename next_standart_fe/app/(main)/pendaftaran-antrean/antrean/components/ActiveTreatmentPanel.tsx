@@ -91,6 +91,8 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
     });
     const [lanjutKeTindakan, setLanjutKeTindakan] = useState<boolean>(true);
     const [uploadingBefore, setUploadingBefore] = useState<boolean>(false);
+    const [resepProdukDokter, setResepProdukDokter] = useState<any[]>([]);
+    const [loadingResepProduk, setLoadingResepProduk] = useState<boolean>(false);
 
     const [selectedPetugas, setSelectedPetugas] = useState<string>('');
 
