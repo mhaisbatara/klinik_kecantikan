@@ -258,6 +258,34 @@ const AppMenu = () => {
                             }
                         }
                     }
+
+                    if (groupLabel.includes('pengaturan') || groupLabel.includes('master data & user') || groupLabel.includes('setup')) {
+                        const isSuperAdminRole = (session?.user?.role || '').toLowerCase() === 'superadmin';
+                        if (isSuperAdminRole) {
+                            const hasMonitoring = subItems.some((it) => it.to === '/setup/monitoring-cabang');
+                            if (!hasMonitoring) {
+                                subItems.unshift(
+                                    {
+                                        label: 'Monitoring Cabang',
+                                        to: '/setup/monitoring-cabang',
+                                        icon: 'pi pi-fw pi-chart-line',
+                                    },
+                                    {
+                                        label: 'Manajemen Cabang',
+                                        to: '/setup/cabang',
+                                        icon: 'pi pi-fw pi-building',
+                                    }
+                                );
+                            }
+                            // Hapus menu "Data Pasien" untuk superadmin
+                            subItems = subItems.filter((it) => {
+                                const lbl = (it.label || '').trim().toLowerCase();
+                                const to = (it.to || '').trim().toLowerCase();
+                                return lbl !== 'data pasien' && !to.includes('/data-pasien');
+                            });
+                        }
+                    }
+
                     newItem.items = subItems;
                 }
                 return newItem;
@@ -470,20 +498,22 @@ const AppMenu = () => {
                             state.menu.flatMap((group) => (group.items || []).map((it) => it.to))
                         );
                         const userRole = (session?.user?.role || '').toLowerCase();
-                        const isSuperAdmin = ['admin', 'superadmin', 'master', 'owner', 'manager', 'kasir', 'dokter', 'perawat', 'staff'].includes(userRole) || !userRole;
+                        const isSuperAdminRole = userRole === 'superadmin';
+
+                        // Superadmin difokuskan untuk manajemen & monitoring cabang; tidak mengakses operasional (layanan, kasir, laporan)
                         const canAccessTindakan =
-                            isSuperAdmin ||
-                            allowedPaths.has('/pendaftaran-antrean/antrean?type=layanan') ||
-                            allowedPaths.has('/pendaftaran-antrean/antrean') ||
-                            true;
+                            !isSuperAdminRole &&
+                            (allowedPaths.has('/pendaftaran-antrean/antrean?type=layanan') ||
+                                allowedPaths.has('/pendaftaran-antrean/antrean') ||
+                                true);
                         const canAccessKonsul =
-                            isSuperAdmin ||
-                            allowedPaths.has('/pendaftaran-antrean/antrean?type=konsul') ||
-                            allowedPaths.has('/pendaftaran-antrean/antrean') ||
-                            true;
-                        const canAccessLayanan = canAccessTindakan || canAccessKonsul;
-                        const canAccessLaporan = isSuperAdmin || allowedPaths.has('/riwayat/rekam-medis') || true;
-                        const canAccessKasir = isSuperAdmin || allowedPaths.has('/kasir') || true;
+                            !isSuperAdminRole &&
+                            (allowedPaths.has('/pendaftaran-antrean/antrean?type=konsul') ||
+                                allowedPaths.has('/pendaftaran-antrean/antrean') ||
+                                true);
+                        const canAccessLayanan = !isSuperAdminRole && (canAccessTindakan || canAccessKonsul);
+                        const canAccessLaporan = !isSuperAdminRole && (allowedPaths.has('/riwayat/rekam-medis') || true);
+                        const canAccessKasir = !isSuperAdminRole && (allowedPaths.has('/kasir') || true);
 
                         let idx = 0;
                         return (

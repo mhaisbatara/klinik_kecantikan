@@ -1,7 +1,8 @@
 'use client';
 
-import React, { Suspense } from 'react';
+import React, { Suspense, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { LaporanModuleId } from './components/LaporanNavCard';
 import {
   LaporanPenjualanView,
@@ -21,9 +22,16 @@ import ModulWipCard from './components/ModulWipCard';
 import { Skeleton } from 'primereact/skeleton';
 
 const LaporanContent: React.FC = () => {
+  const { data: session } = useSession();
   const searchParams = useSearchParams();
   const router = useRouter();
   const activeModule = (searchParams.get('tab') as LaporanModuleId) || 'penjualan';
+
+  useEffect(() => {
+    if (session?.user?.role === 'superadmin') {
+      router.replace('/setup/monitoring-cabang');
+    }
+  }, [session, router]);
 
   const navigateToActive = (tab: LaporanModuleId = 'penjualan') => {
     router.push(`/riwayat/rekam-medis?tab=${tab}`);

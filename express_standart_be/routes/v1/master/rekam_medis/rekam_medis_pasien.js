@@ -10,6 +10,7 @@ import DB from "../../../../core/config/knex.js";
 import { formatDateSystem } from "../../components/tools/date_tools.js";
 import { Logging } from "../../components/tools/servertool.js";
 import { status } from "../../components/tools/general.js";
+import { getBranchScope } from "../../components/tools/branch_scope.js";
 
 const router = express.Router();
 
@@ -42,6 +43,7 @@ export const validateKaryawanPenanggungJawab = async (kode_karyawan, expectedRol
 const handleGetRekamMedis = async (req, res) => {
   const oPayload = { ...req.query, ...req.body, ...req.params };
   const username = req?.auth?.username || "";
+  const branchCode = getBranchScope(req, oPayload.kode_cabang);
 
   const no_rm = (oPayload.no_rm || "").trim();
   const page = parseInt(oPayload.page, 10) || 1;
@@ -72,6 +74,7 @@ const handleGetRekamMedis = async (req, res) => {
       .leftJoin("trx_rekam_medis as rm", "k.kode_kunjungan", "rm.kode_kunjungan")
       .leftJoin("trx_rekam_medis_ruangan as rmr", "k.kode_kunjungan", "rmr.kode_kunjungan")
       .modify((qb) => {
+        if (branchCode) qb.where("k.kode_cabang", branchCode);
         if (no_rm) qb.where("k.no_rm", no_rm);
         if (exclude_kode_kunjungan) qb.whereNot("k.kode_kunjungan", exclude_kode_kunjungan);
         if (only_selesai) {
@@ -116,6 +119,7 @@ const handleGetRekamMedis = async (req, res) => {
       .leftJoin("trx_rekam_medis_ruangan as rmr", "k.kode_kunjungan", "rmr.kode_kunjungan")
       .groupBy("k.id", "p.id")
       .modify((qb) => {
+        if (branchCode) qb.where("k.kode_cabang", branchCode);
         if (no_rm) qb.where("k.no_rm", no_rm);
         if (exclude_kode_kunjungan) qb.whereNot("k.kode_kunjungan", exclude_kode_kunjungan);
         if (only_selesai) {

@@ -13,12 +13,14 @@ import DB from "../../../../core/config/knex.js";
 import { formatDateSystem } from "../../components/tools/date_tools.js";
 import { Logging } from "../../components/tools/servertool.js";
 import { status } from "../../components/tools/general.js";
+import { getBranchScope } from "../../components/tools/branch_scope.js";
 
 const router = express.Router();
 
 const handleGetData = async (req, res) => {
   const oPayload = { ...req.query, ...req.body };
   const username = req?.auth?.username || "";
+  const branchCode = getBranchScope(req, oPayload.kode_cabang);
 
   const hasPagination = oPayload.page !== undefined || oPayload.perPage !== undefined;
   const keyword = (oPayload.keyword || "").trim();
@@ -49,6 +51,9 @@ const handleGetData = async (req, res) => {
       })
       .groupBy("al.id", "k.id", "p.id", "b.id", "j_book.id", "kar_book.id", "rm_asal.id", "rmf.id", "al_asal.id", "ral.id", "kar.id")
       .modify((qb) => {
+        if (branchCode) {
+          qb.where("al.kode_cabang", branchCode);
+        }
         if (filterTanggal) {
           qb.whereRaw("DATE(al.created_at) = ?", [filterTanggal]);
         }
@@ -233,12 +238,20 @@ const handleGetData = async (req, res) => {
       const roomCodes = [...new Set(bookingJadwals.map((b) => b.booking_kode_ruangan))];
       const hariList = [...new Set(bookingJadwals.map((b) => b.booking_hari))];
 
-      const companionRows = await DB("mst_jadwal_karyawan as j")
+      const qCompanion = DB("mst_jadwal_karyawan as j")
         .leftJoin("mst_karyawan as k", "j.no_sip", "k.no_sip")
         .whereIn("j.kode_ruangan", roomCodes)
         .whereIn("j.hari", hariList)
         .where("j.is_penanggung_jawab", 0)
-        .where("j.status", "aktif")
+        .where("j.status", "aktif");
+
+      if (branchCode) {
+        qCompanion.where(function () {
+          this.where("j.kode_cabang", branchCode).orWhere("k.kode_cabang", branchCode);
+        });
+      }
+
+      const companionRows = await qCompanion
         .select(
           "j.kode_jadwal",
           "j.no_sip",
