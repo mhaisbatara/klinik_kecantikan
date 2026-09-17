@@ -40,15 +40,15 @@ export const PaymentDonutPanel: React.FC<PaymentDonutPanelProps> = ({
   const getMethodStyle = (name: string, idx: number) => {
     const n = name.toUpperCase();
     if (n.includes('QRIS')) {
-      return { color: '#1F6F52', label: 'QRIS' }; // Deep Emerald
+      return { color: '#10b981', label: 'QRIS' }; // Primary Emerald
     }
     if (n.includes('DEBIT') || n.includes('TRANSFER')) {
       return { color: '#B3873F', label: 'Debit' }; // Amber Gold
     }
     if (n.includes('TUNAI') || n.includes('CASH')) {
-      return { color: '#52B788', label: 'Tunai' }; // High-contrast Jade Green (kontras jelas di atas putih)
+      return { color: '#34d399', label: 'Tunai' }; // Light Emerald Green
     }
-    const fallbacks = ['#1F6F52', '#B3873F', '#52B788', '#2D6A4F'];
+    const fallbacks = ['#10b981', '#B3873F', '#34d399', '#059669'];
     return { color: fallbacks[idx % fallbacks.length], label: name };
   };
 
@@ -183,7 +183,7 @@ export const PaymentDonutPanel: React.FC<PaymentDonutPanelProps> = ({
                 <span
                   className="font-bold tabular-nums"
                   style={{
-                    color: '#154F3B',
+                    color: '#1e293b',
                     fontSize: '12px',
                     lineHeight: 1.2,
                     whiteSpace: 'nowrap',
@@ -208,7 +208,7 @@ export const PaymentDonutPanel: React.FC<PaymentDonutPanelProps> = ({
                 <span
                   className="font-bold tabular-nums"
                   style={{
-                    color: '#154F3B',
+                    color: '#1e293b',
                     fontSize: '13px',
                     lineHeight: 1.2,
                     whiteSpace: 'nowrap',
@@ -328,7 +328,7 @@ export const PaymentDonutPanel: React.FC<PaymentDonutPanelProps> = ({
         }}
       >
         <span style={{ color: '#6F7A74' }}>Total transaksi tercatat</span>
-        <span className="font-bold tabular-nums text-sm" style={{ color: '#154F3B', whiteSpace: 'nowrap' }}>
+        <span className="font-bold tabular-nums text-sm" style={{ color: '#1e293b', whiteSpace: 'nowrap' }}>
           {formatRupiah(finalTotal)}
         </span>
       </div>

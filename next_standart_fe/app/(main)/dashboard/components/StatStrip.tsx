@@ -65,7 +65,7 @@ export const StatStrip: React.FC<StatStripProps> = ({
         <div
           className="text-xs font-medium"
           style={{
-            color: '#1F6F52',
+            color: 'var(--primary-700, #047857)',
             marginTop: '16px',
             paddingTop: '12px',
             minHeight: '20px',
@@ -103,7 +103,7 @@ export const StatStrip: React.FC<StatStripProps> = ({
         <div
           className="text-xs font-medium"
           style={{
-            color: '#1F6F52',
+            color: 'var(--primary-700, #047857)',
             marginTop: '16px',
             paddingTop: '12px',
             minHeight: '20px',
@@ -140,7 +140,7 @@ export const StatStrip: React.FC<StatStripProps> = ({
         <div
           className="text-xs font-medium"
           style={{
-            color: stokMenipis > 0 ? '#B3873F' : '#1F6F52',
+            color: stokMenipis > 0 ? '#B3873F' : 'var(--primary-700, #047857)',
             marginTop: '16px',
             paddingTop: '12px',
             minHeight: '20px',
