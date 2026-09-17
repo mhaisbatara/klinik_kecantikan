@@ -205,7 +205,6 @@ router.post("/", async (req, res) => {
           const defaultLayKonsul = await trx("mst_layanan")
             .where(function () {
               this.where("kode_ruangan", ruangKonsul.kode_ruangan)
-                .orWhere("is_konsultasi", 1)
                 .orWhereRaw("LOWER(nama) LIKE '%konsul%'");
             })
             .where("status", "aktif")
