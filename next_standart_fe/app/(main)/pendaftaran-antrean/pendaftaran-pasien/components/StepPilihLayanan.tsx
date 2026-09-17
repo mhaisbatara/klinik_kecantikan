@@ -622,9 +622,15 @@ export const StepPilihLayanan: React.FC<Props> = ({
               <span className="text-xs font-bold text-700 block mb-2">Rincian Beban Antrean:</span>
               {warningBookingData.is_lanjutan_konsultasi ? (
                 <>
+                  {(warningBookingData.sisa_antrean_konsul_menit || 0) > 0 && (
+                    <div className="flex justify-content-between text-xs text-600 mb-1">
+                      <span>Sisa antrean di Ruang Konsultasi ({warningBookingData.antrean_konsul_count || 0} pasien):</span>
+                      <span className="font-semibold text-900">{warningBookingData.sisa_antrean_konsul_menit} menit</span>
+                    </div>
+                  )}
                   <div className="flex justify-content-between text-xs text-600 mb-1">
                     <span>1. Estimasi sesi konsultasi dokter:</span>
-                    <span className="font-semibold text-900">{warningBookingData.durasi_konsultasi_menit || 30} menit</span>
+                    <span className="font-semibold text-900">{warningBookingData.durasi_konsultasi_menit || 10} menit</span>
                   </div>
                   <div className="flex justify-content-between text-xs text-600 mb-1">
                     <span>2. Sisa antrean berjalan di {warningBookingData.nama_ruangan} ({warningBookingData.antrean_berjalan_count || 0} pasien):</span>

@@ -199,11 +199,15 @@ router.post("/", async (req, res) => {
           })
           .first();
 
-        // Ambil durasi sesi konsultasi dari master layanan aktif di ruang konsul
-        let durasiSesiKonsulMenit = 15;
+        // Ambil durasi sesi konsultasi dari master layanan aktif di ruang konsul (misal LAY-011 = 10 menit)
+        let durasiSesiKonsulMenit = 10;
         if (ruangKonsul) {
           const defaultLayKonsul = await trx("mst_layanan")
-            .where("kode_ruangan", ruangKonsul.kode_ruangan)
+            .where(function () {
+              this.where("kode_ruangan", ruangKonsul.kode_ruangan)
+                .orWhere("is_konsultasi", 1)
+                .orWhereRaw("LOWER(nama) LIKE '%konsul%'");
+            })
             .where("status", "aktif")
             .modify((qb) => {
               if (branchCode) qb.where("kode_cabang", branchCode);
@@ -211,7 +215,7 @@ router.post("/", async (req, res) => {
             .orderBy("id", "asc")
             .first();
           if (defaultLayKonsul && defaultLayKonsul.durasi_menit) {
-            durasiSesiKonsulMenit = parseInt(defaultLayKonsul.durasi_menit, 10) || 15;
+            durasiSesiKonsulMenit = parseInt(defaultLayKonsul.durasi_menit, 10) || 10;
           }
         }
 
@@ -559,6 +563,17 @@ router.post("/", async (req, res) => {
         const hasAnyConsult = processedItems.some((item) => Boolean(item.needs_consult));
 
         if (hasAnyConsult && ruangKonsul) {
+          // Cari apakah ada layanan konsultasi spesifik yang dipilih dalam transaksi ini
+          const directConsultItem = processedItems.find(
+            (pi) => (pi.nama_layanan || "").toLowerCase().includes("konsul") || pi.kode_ruangan_tujuan === ruangKonsul.kode_ruangan
+          );
+          if (directConsultItem && directConsultItem.durasi_tindakan) {
+            const durDirect = parseInt(directConsultItem.durasi_tindakan, 10);
+            if (!isNaN(durDirect) && durDirect > 0) {
+              durasiSesiKonsulMenit = durDirect;
+            }
+          }
+
           // Validasi ketersediaan dokter jaga di Ruang Konsultasi hari ini
           if (!checkedRoomsToday.has(ruangKonsul.kode_ruangan)) {
             const activeSchedulesInKonsul = await trx("mst_jadwal_karyawan")
@@ -794,7 +809,9 @@ router.post("/", async (req, res) => {
                     sisaAntreanMenit: sisaTarget,
                     antreanBerjalanCount: countTarget,
                     isLanjutanKonsultasi: true,
-                    durasiKonsultasiMenit: totalBebanRuanganMenit,
+                    durasiKonsultasiMenit: walkinDurasiMenit,
+                    sisaAntreanKonsulMenit: sisaBebanMenit,
+                    antreanKonsulCount: activeCount,
                     durasiTindakanMenit: tr.durasi,
                   };
                   break;
@@ -852,6 +869,8 @@ router.post("/", async (req, res) => {
                 total_booking_hari_ini: totalBkgCount,
                 is_lanjutan_konsultasi: Boolean(collisionTarget.isLanjutanKonsultasi),
                 durasi_konsultasi_menit: collisionTarget.durasiKonsultasiMenit || 0,
+                sisa_antrean_konsul_menit: collisionTarget.sisaAntreanKonsulMenit || 0,
+                antrean_konsul_count: collisionTarget.antreanKonsulCount || 0,
                 durasi_tindakan_menit: collisionTarget.durasiTindakanMenit || collisionTarget.durasiWalkinMenit || 0,
               };
               throw warnErr;
