@@ -80,7 +80,7 @@ const DashboardPage: React.FC = () => {
       >
         <div>
           <h1
-            className="font-fraunces text-2xl md:text-3xl font-medium m-0 tracking-tight"
+            className="text-2xl md:text-3xl font-bold m-0 tracking-tight"
             style={{ color: '#154F3B' }}
           >
             Klinik Kecantikan

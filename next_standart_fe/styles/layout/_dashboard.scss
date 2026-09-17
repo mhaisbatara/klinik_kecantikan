@@ -4,8 +4,6 @@
    Card/Panel: #FFFFFF dengan border #E5E7EB dan soft shadow
    ========================================================================= */
 
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
-
 :root {
   --clinic-paper: #FFFFFF;
   --clinic-panel: #FFFFFF;
@@ -31,19 +29,18 @@
 .clinic-dashboard {
   background-color: #FFFFFF;
   color: var(--clinic-ink);
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: var(--font-family, 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif);
   min-height: 100vh;
   zoom: 0.9;
 }
 
-/* Typography tokens */
+/* Typography tokens - Harmonized with app standard font */
 .font-fraunces {
-  font-family: 'Fraunces', serif;
-  font-optical-sizing: auto;
+  font-family: var(--font-family, 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif);
 }
 
 .font-inter {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-family, 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif);
 }
 
 .tabular-nums {

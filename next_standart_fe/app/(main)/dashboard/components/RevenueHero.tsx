@@ -35,7 +35,7 @@ export const RevenueHero: React.FC<RevenueHeroProps> = ({ totalOmzet, omzetHariI
         </span>
 
         <div
-          className="font-fraunces text-3xl lg:text-4xl font-medium tracking-tight my-1 tabular-nums flex align-items-baseline"
+          className="text-3xl lg:text-4xl font-bold tracking-tight my-1 tabular-nums flex align-items-baseline"
           style={{ color: '#154F3B', lineHeight: 1.1, minHeight: '40px' }}
         >
           {formatRupiah(totalOmzet)}

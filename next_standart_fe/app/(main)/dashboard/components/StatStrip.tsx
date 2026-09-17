@@ -51,7 +51,7 @@ export const StatStrip: React.FC<StatStripProps> = ({
           </span>
           <div className="flex align-items-baseline gap-2 my-1" style={{ minHeight: '40px' }}>
             <span
-              className="font-fraunces text-3xl lg:text-4xl font-medium tabular-nums"
+              className="text-3xl lg:text-4xl font-bold tabular-nums"
               style={{ color: '#202A26', lineHeight: 1.1 }}
             >
               {totalPasien || 0}
@@ -89,7 +89,7 @@ export const StatStrip: React.FC<StatStripProps> = ({
           </span>
           <div className="flex align-items-baseline gap-2 my-1" style={{ minHeight: '40px' }}>
             <span
-              className="font-fraunces text-3xl lg:text-4xl font-medium tabular-nums"
+              className="text-3xl lg:text-4xl font-bold tabular-nums"
               style={{ color: '#202A26', lineHeight: 1.1 }}
             >
               {totalLayanan || 0}
@@ -126,7 +126,7 @@ export const StatStrip: React.FC<StatStripProps> = ({
           </span>
           <div className="flex align-items-baseline gap-2 my-1" style={{ minHeight: '40px' }}>
             <span
-              className="font-fraunces text-3xl lg:text-4xl font-medium tabular-nums"
+              className="text-3xl lg:text-4xl font-bold tabular-nums"
               style={{ color: '#202A26', lineHeight: 1.1 }}
             >
               {totalSku || 0}
@@ -163,7 +163,7 @@ export const StatStrip: React.FC<StatStripProps> = ({
           </span>
           <div className="flex align-items-baseline gap-2 my-1" style={{ minHeight: '40px' }}>
             <span
-              className="font-fraunces text-3xl lg:text-4xl font-medium tabular-nums"
+              className="text-3xl lg:text-4xl font-bold tabular-nums"
               style={{ color: '#202A26', lineHeight: 1.1 }}
             >
               {totalStaf || 0}
