@@ -52,6 +52,8 @@ const handleGetRekamMedis = async (req, res) => {
 
   const tanggal_dari = oPayload.tanggal_dari || null;
   const tanggal_sampai = oPayload.tanggal_sampai || null;
+  const filterDokter = oPayload.kode_dokter || null;
+  const filterStatus = oPayload.status || null;
 
   const keyword = (oPayload.keyword || "").trim();
   const exclude_kode_kunjungan = (oPayload.exclude_kode_kunjungan || "").trim();
@@ -68,19 +70,56 @@ const handleGetRekamMedis = async (req, res) => {
       }
     });
 
+    // Resolusi dokter identifier (kode_karyawan dan no_sip) agar filter dokter akurat
+    let dokterIdentifiers = [];
+    if (filterDokter) {
+      dokterIdentifiers.push(filterDokter);
+      const dokterRow = await DB("mst_karyawan")
+        .where("kode_karyawan", filterDokter)
+        .orWhere("no_sip", filterDokter)
+        .first();
+      if (dokterRow) {
+        if (dokterRow.kode_karyawan) dokterIdentifiers.push(dokterRow.kode_karyawan);
+        if (dokterRow.no_sip) dokterIdentifiers.push(dokterRow.no_sip);
+      }
+      dokterIdentifiers = [...new Set(dokterIdentifiers.filter(Boolean))];
+    }
+
     // 2. Count total kunjungan pasien (driving table trx_kunjungan)
     const countQuery = DB("trx_kunjungan as k")
       .leftJoin("mst_pasien as p", "k.no_rm", "p.no_rm")
       .leftJoin("trx_rekam_medis as rm", "k.kode_kunjungan", "rm.kode_kunjungan")
       .leftJoin("trx_rekam_medis_ruangan as rmr", "k.kode_kunjungan", "rmr.kode_kunjungan")
+      .leftJoin("trx_antrian_layanan as al", "k.kode_kunjungan", "al.kode_kunjungan")
       .modify((qb) => {
         if (branchCode) qb.where("k.kode_cabang", branchCode);
         if (no_rm) qb.where("k.no_rm", no_rm);
         if (exclude_kode_kunjungan) qb.whereNot("k.kode_kunjungan", exclude_kode_kunjungan);
         if (only_selesai) {
           qb.where("k.status", "selesai");
+        } else if (filterStatus) {
+          if (Array.isArray(filterStatus) && filterStatus.length > 0) {
+            qb.whereIn("k.status", filterStatus);
+          } else if (typeof filterStatus === "string" && filterStatus.trim()) {
+            qb.where("k.status", filterStatus.trim());
+          }
         } else {
           qb.where("k.status", "!=", "batal");
+        }
+        if (filterDokter && dokterIdentifiers.length > 0) {
+          qb.where(function () {
+            this.whereIn("rm.kode_karyawan", dokterIdentifiers)
+              .orWhereIn("rm.no_sip", dokterIdentifiers)
+              .orWhereIn("rmr.kode_karyawan", dokterIdentifiers)
+              .orWhereIn("al.kode_karyawan", dokterIdentifiers);
+
+            dokterIdentifiers.forEach((idVal) => {
+              this.orWhereRaw("rm.no_sip LIKE ?", [`${idVal}%`])
+                .orWhereRaw("rm.kode_karyawan LIKE ?", [`${idVal}%`])
+                .orWhereRaw("rmr.kode_karyawan LIKE ?", [`${idVal}%`])
+                .orWhereRaw("al.kode_karyawan LIKE ?", [`${idVal}%`]);
+            });
+          });
         }
         if (tanggal_dari) {
           qb.where("k.tanggal_kunjungan", ">=", tanggal_dari);
@@ -117,6 +156,7 @@ const handleGetRekamMedis = async (req, res) => {
       .leftJoin("mst_pasien as p", "k.no_rm", "p.no_rm")
       .leftJoin("trx_rekam_medis as rm", "k.kode_kunjungan", "rm.kode_kunjungan")
       .leftJoin("trx_rekam_medis_ruangan as rmr", "k.kode_kunjungan", "rmr.kode_kunjungan")
+      .leftJoin("trx_antrian_layanan as al", "k.kode_kunjungan", "al.kode_kunjungan")
       .groupBy("k.id", "p.id")
       .modify((qb) => {
         if (branchCode) qb.where("k.kode_cabang", branchCode);
@@ -124,8 +164,29 @@ const handleGetRekamMedis = async (req, res) => {
         if (exclude_kode_kunjungan) qb.whereNot("k.kode_kunjungan", exclude_kode_kunjungan);
         if (only_selesai) {
           qb.where("k.status", "selesai");
+        } else if (filterStatus) {
+          if (Array.isArray(filterStatus) && filterStatus.length > 0) {
+            qb.whereIn("k.status", filterStatus);
+          } else if (typeof filterStatus === "string" && filterStatus.trim()) {
+            qb.where("k.status", filterStatus.trim());
+          }
         } else {
           qb.where("k.status", "!=", "batal");
+        }
+        if (filterDokter && dokterIdentifiers.length > 0) {
+          qb.where(function () {
+            this.whereIn("rm.kode_karyawan", dokterIdentifiers)
+              .orWhereIn("rm.no_sip", dokterIdentifiers)
+              .orWhereIn("rmr.kode_karyawan", dokterIdentifiers)
+              .orWhereIn("al.kode_karyawan", dokterIdentifiers);
+
+            dokterIdentifiers.forEach((idVal) => {
+              this.orWhereRaw("rm.no_sip LIKE ?", [`${idVal}%`])
+                .orWhereRaw("rm.kode_karyawan LIKE ?", [`${idVal}%`])
+                .orWhereRaw("rmr.kode_karyawan LIKE ?", [`${idVal}%`])
+                .orWhereRaw("al.kode_karyawan LIKE ?", [`${idVal}%`]);
+            });
+          });
         }
         if (tanggal_dari) {
           qb.where("k.tanggal_kunjungan", ">=", tanggal_dari);

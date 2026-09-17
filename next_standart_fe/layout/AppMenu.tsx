@@ -50,6 +50,29 @@ const LAPORAN_MENU_ITEMS = [
     { id: 'crm', label: 'Laporan CRM', icon: 'pi-comments' },
 ];
 
+const DEFAULT_MASTER_DATA_ITEMS: AppMenuItem[] = [
+    { label: 'Kategori Layanan', icon: 'pi pi-fw pi-tags', to: '/master-data/kategori-layanan' },
+    { label: 'Data Layanan', icon: 'pi pi-fw pi-briefcase', to: '/master-data/layanan' },
+    { label: 'Paket Layanan', icon: 'pi pi-fw pi-box', to: '/master-data/paket-layanan' },
+    { label: 'Kategori Produk', icon: 'pi pi-fw pi-tags', to: '/master-data/kategori-produk' },
+    { label: 'Data Produk', icon: 'pi pi-fw pi-box', to: '/master-data/produk' },
+    { label: 'Paket Produk', icon: 'pi pi-fw pi-inbox', to: '/master-data/paket-produk' },
+    { label: 'Inventori', icon: 'pi pi-fw pi-box', to: '/master-data/inventori' },
+    { label: 'Supplier', icon: 'pi pi-fw pi-truck', to: '/master-data/supplier' },
+    { label: 'Karyawan', icon: 'pi pi-fw pi-users', to: '/master-data/karyawan' },
+    { label: 'Jadwal Karyawan', icon: 'pi pi-fw pi-calendar-times', to: '/master-data/jadwal-karyawan' },
+    { label: 'Alat & Peralatan', icon: 'pi pi-fw pi-wrench', to: '/master-data/alat' },
+    { label: 'Data Ruangan', icon: 'pi pi-fw pi-building', to: '/master-data/ruangan' },
+    { label: 'Data Promo', icon: 'pi pi-fw pi-percentage', to: '/master-data/promo' },
+    { label: 'Detail Promo', icon: 'pi pi-fw pi-tags', to: '/master-data/detail-promo' },
+];
+
+const DEFAULT_PENDAFTARAN_ITEMS: AppMenuItem[] = [
+    { label: 'Antrean Pendaftaran', icon: 'pi pi-fw pi-ticket', to: '/antrian-awal' },
+    { label: 'Pasien Baru', icon: 'UserPlus', to: '/pendaftaran-antrean/registrasi-pasien' },
+    { label: 'Pendaftaran Kunjungan', icon: 'ClipboardList', to: '/pendaftaran-antrean/pendaftaran-pasien' },
+];
+
 const AppMenu = () => {
     const { data: session } = useSession();
     const { layoutConfig } = useContext(LayoutContext);
@@ -69,6 +92,10 @@ const AppMenu = () => {
         }
     }, [isLaporanPage, pathname, searchParams]);
 
+    const toggleLaporanAccordion = () => {
+        setIsLaporanOpen((prev) => !prev);
+    };
+
     const [state, setState] = useState<MenuState>({
         searchVal: "",
         filteredMenu: [],
@@ -78,9 +105,10 @@ const AppMenu = () => {
 
     useEffect(() => {
         if (state.searchVal.trim()) {
+            const searchLower = state.searchVal.toLowerCase();
             const hasMatch = LAPORAN_MENU_ITEMS.some((item) =>
-                item.label.toLowerCase().includes(state.searchVal.toLowerCase())
-            );
+                item.label.toLowerCase().includes(searchLower)
+            ) || 'data laporan'.includes(searchLower);
             if (hasMatch) {
                 setIsLaporanOpen(true);
             }
@@ -220,43 +248,14 @@ const AppMenu = () => {
                         subItems.sort((a, b) => getOrderScore(a) - getOrderScore(b));
                     }
                     if (groupLabel.includes('master data')) {
-                        const hasInventori = subItems.some(
-                            (it) => (it.label || '').toLowerCase() === 'inventori' || it.to === '/master-data/inventori'
-                        );
-                        if (!hasInventori) {
-                            const inventoriItem: AppMenuItem = {
-                                label: 'Inventori',
-                                to: '/master-data/inventori',
-                                icon: 'pi pi-fw pi-box',
-                            };
-                            const supIdx = subItems.findIndex(
-                                (it) => (it.label || '').toLowerCase().includes('supplier') || it.to === '/master-data/supplier'
+                        DEFAULT_MASTER_DATA_ITEMS.forEach((defItem) => {
+                            const exists = subItems.some(
+                                (it) => it.to === defItem.to || (it.label || '').toLowerCase() === defItem.label.toLowerCase()
                             );
-                            if (supIdx !== -1) {
-                                subItems.splice(supIdx, 0, inventoriItem);
-                            } else {
-                                subItems.push(inventoriItem);
+                            if (!exists) {
+                                subItems.push(defItem);
                             }
-                        }
-
-                        const hasDetailPromo = subItems.some(
-                            (it) => (it.label || '').toLowerCase().includes('detail promo') || it.to === '/master-data/detail-promo'
-                        );
-                        if (!hasDetailPromo) {
-                            const detailPromoItem: AppMenuItem = {
-                                label: 'Detail Promo',
-                                to: '/master-data/detail-promo',
-                                icon: 'pi pi-fw pi-tags',
-                            };
-                            const promoIdx = subItems.findIndex(
-                                (it) => (it.label || '').toLowerCase().includes('promo') || it.to === '/master-data/promo'
-                            );
-                            if (promoIdx !== -1) {
-                                subItems.splice(promoIdx + 1, 0, detailPromoItem);
-                            } else {
-                                subItems.push(detailPromoItem);
-                            }
-                        }
+                        });
                     }
 
                     if (groupLabel.includes('pengaturan') || groupLabel.includes('master data & user') || groupLabel.includes('setup')) {
@@ -277,12 +276,6 @@ const AppMenu = () => {
                                     }
                                 );
                             }
-                            // Hapus menu "Data Pasien" untuk superadmin
-                            subItems = subItems.filter((it) => {
-                                const lbl = (it.label || '').trim().toLowerCase();
-                                const to = (it.to || '').trim().toLowerCase();
-                                return lbl !== 'data pasien' && !to.includes('/data-pasien');
-                            });
                         }
                     }
 
@@ -290,13 +283,70 @@ const AppMenu = () => {
                 }
                 return newItem;
             };
-            const transformedMenu = rawMenu
+            let transformedMenu = rawMenu
                 .filter((item) => {
                     const lbl = (item.label || '').trim().toLowerCase();
                     const to = (item.to || '').trim().toLowerCase();
                     return lbl !== 'antrean' && to !== '/pendaftaran-antrean/antrean';
                 })
                 .map(transformItem);
+
+            const isSuperAdminRole = (session?.user?.role || '').toLowerCase() === 'superadmin';
+
+            if (!isSuperAdminRole) {
+                // Garansi Master Data selalu ada di sidebar (khusus pengguna non-superadmin seperti Manager)
+                const hasMasterData = transformedMenu.some(
+                    (it) => (it.label || '').toLowerCase().includes('master data') && !(it.label || '').toLowerCase().includes('pengaturan')
+                );
+                if (!hasMasterData) {
+                    const homeIdx = transformedMenu.findIndex(
+                        (it) => {
+                            const lbl = (it.label || '').toLowerCase();
+                            return lbl === 'home' || lbl === 'beranda' || lbl.includes('dashboard') || it.to === '/';
+                        }
+                    );
+                    const masterGroup: AppMenuItem = {
+                        label: 'MASTER DATA',
+                        icon: 'pi pi-fw pi-database',
+                        items: DEFAULT_MASTER_DATA_ITEMS,
+                    };
+                    if (homeIdx !== -1) {
+                        transformedMenu.splice(homeIdx + 1, 0, transformItem(masterGroup));
+                    } else {
+                        transformedMenu.unshift(transformItem(masterGroup));
+                    }
+                }
+
+                // Garansi Pendaftaran & Antrean selalu ada di sidebar
+                const hasPendaftaran = transformedMenu.some(
+                    (it) => {
+                        const lbl = (it.label || '').toLowerCase();
+                        return (lbl.includes('pendaftaran') || lbl.includes('antrean')) && !lbl.includes('master data') && !lbl.includes('pengaturan');
+                    }
+                );
+                if (!hasPendaftaran) {
+                    const pendaftaranGroup: AppMenuItem = {
+                        label: 'Pendaftaran & Antrean',
+                        icon: 'pi pi-fw pi-calendar',
+                        items: DEFAULT_PENDAFTARAN_ITEMS,
+                    };
+                    const masterIdx = transformedMenu.findIndex(
+                        (it) => (it.label || '').toLowerCase().includes('master data') && !(it.label || '').toLowerCase().includes('pengaturan')
+                    );
+                    if (masterIdx !== -1) {
+                        transformedMenu.splice(masterIdx + 1, 0, transformItem(pendaftaranGroup));
+                    } else {
+                        transformedMenu.push(transformItem(pendaftaranGroup));
+                    }
+                }
+            } else {
+                // Khusus Superadmin: HANYA Dashboard dan Pengaturan
+                transformedMenu = transformedMenu.filter((it) => {
+                    const lbl = (it.label || '').toLowerCase();
+                    return lbl === 'home' || lbl === 'beranda' || lbl.includes('dashboard') || lbl.includes('pengaturan') || lbl.includes('setup');
+                });
+            }
+
             const menu2: AppMenuItem[] = JSON.parse(JSON.stringify(transformedMenu));
 
             setState(prev => ({
@@ -306,10 +356,55 @@ const AppMenu = () => {
             }));
         } catch (error) {
             console.error("Error loading menu:", error);
+            const isSuperAdminRole = (session?.user?.role || '').toLowerCase() === 'superadmin';
+            const fallbackMenu: AppMenuItem[] = isSuperAdminRole
+                ? [
+                    {
+                        label: 'HOME',
+                        icon: 'pi pi-fw pi-home',
+                        items: [{ label: 'Dashboard', icon: 'pi pi-fw pi-home', to: '/dashboard' }]
+                    },
+                    {
+                        label: 'PENGATURAN',
+                        icon: 'pi pi-fw pi-cog',
+                        items: [
+                            { label: 'Monitoring Cabang', icon: 'pi pi-fw pi-chart-line', to: '/setup/monitoring-cabang' },
+                            { label: 'Manajemen Cabang', icon: 'pi pi-fw pi-building', to: '/setup/cabang' },
+                            { label: 'Manajemen Menu', icon: 'pi pi-fw pi-bars', to: '/setup/navigation' },
+                            { label: 'Manajemen User', icon: 'pi pi-fw pi-users', to: '/setup/users' }
+                        ]
+                    }
+                ]
+                : [
+                    {
+                        label: 'HOME',
+                        icon: 'pi pi-fw pi-home',
+                        items: [{ label: 'Dashboard', icon: 'pi pi-fw pi-home', to: '/dashboard' }]
+                    },
+                    {
+                        label: 'MASTER DATA',
+                        icon: 'pi pi-fw pi-database',
+                        items: DEFAULT_MASTER_DATA_ITEMS
+                    },
+                    {
+                        label: 'Pendaftaran & Antrean',
+                        icon: 'pi pi-fw pi-calendar',
+                        items: DEFAULT_PENDAFTARAN_ITEMS
+                    },
+                    {
+                        label: 'PENGATURAN',
+                        icon: 'pi pi-fw pi-cog',
+                        items: [
+                            { label: 'Data Pasien', icon: 'pi pi-fw pi-user', to: '/master-data-user/data-pasien' },
+                            { label: 'Manajemen Menu', icon: 'pi pi-fw pi-bars', to: '/setup/navigation' },
+                            { label: 'Manajemen User', icon: 'pi pi-fw pi-users', to: '/setup/users' }
+                        ]
+                    }
+                ];
             setState(prev => ({
                 ...prev,
-                filteredMenu: [],
-                menu: []
+                filteredMenu: fallbackMenu,
+                menu: fallbackMenu
             }));
         } finally {
             setState(prev => ({ ...prev, load: false }));
@@ -398,18 +493,7 @@ const AppMenu = () => {
 
     return (
         <MenuProvider>
-            <div
-                style={{
-                    display: "flex",
-                    width: "100%",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    position: "sticky",
-                    top: "0",
-                    padding: "10px 0",
-                    zIndex: "9999"
-                }}
-            >
+            <div className="layout-sidebar-search">
                 <span className="block w-full p-input-icon-left">
                     <IconField iconPosition="left">
                         <InputIcon className="pi pi-search" />
@@ -432,7 +516,8 @@ const AppMenu = () => {
                     </IconField>
                 </span>
             </div>
-            <ul className="layout-menu">
+            <div className="layout-menu-container">
+                <ul className="layout-menu">
                 {state.load
                     ? [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1].map((item, i) => (
                         <li key={i} className="my-3">
@@ -464,12 +549,15 @@ const AppMenu = () => {
                             return lbl.includes('pengaturan') || lbl.includes('master data & user') || lbl.includes('setup');
                         };
 
+                        const userRole = (session?.user?.role || '').toLowerCase();
+                        const isSuperAdminRole = userRole === 'superadmin';
+
                         // 1. Home / Dashboard
                         const homeItems = state.filteredMenu.filter(isHomeItem);
-                        // 2. Master Data
-                        const masterDataItems = state.filteredMenu.filter(isMasterDataItem);
-                        // 3. Pendaftaran
-                        const pendaftaranItems = state.filteredMenu.filter(isPendaftaranItem);
+                        // 2. Master Data (hanya untuk non-superadmin seperti Manager)
+                        const masterDataItems = !isSuperAdminRole ? state.filteredMenu.filter(isMasterDataItem) : [];
+                        // 3. Pendaftaran (hanya untuk non-superadmin seperti Manager)
+                        const pendaftaranItems = !isSuperAdminRole ? state.filteredMenu.filter(isPendaftaranItem) : [];
                         // 7. Pengaturan
                         const pengaturanItems = state.filteredMenu.filter(isPengaturanItem);
 
@@ -493,27 +581,13 @@ const AppMenu = () => {
                                 <li className="menu-separator" key={`separator-${i}`}></li>
                             );
 
-                        // Periksa izin akses berdasarkan konfigurasi menu role user
-                        const allowedPaths = new Set(
-                            state.menu.flatMap((group) => (group.items || []).map((it) => it.to))
-                        );
-                        const userRole = (session?.user?.role || '').toLowerCase();
-                        const isSuperAdminRole = userRole === 'superadmin';
-
-                        // Superadmin difokuskan untuk manajemen & monitoring cabang; tidak mengakses operasional (layanan, kasir, laporan)
-                        const canAccessTindakan =
-                            !isSuperAdminRole &&
-                            (allowedPaths.has('/pendaftaran-antrean/antrean?type=layanan') ||
-                                allowedPaths.has('/pendaftaran-antrean/antrean') ||
-                                true);
-                        const canAccessKonsul =
-                            !isSuperAdminRole &&
-                            (allowedPaths.has('/pendaftaran-antrean/antrean?type=konsul') ||
-                                allowedPaths.has('/pendaftaran-antrean/antrean') ||
-                                true);
-                        const canAccessLayanan = !isSuperAdminRole && (canAccessTindakan || canAccessKonsul);
-                        const canAccessLaporan = !isSuperAdminRole && (allowedPaths.has('/riwayat/rekam-medis') || true);
-                        const canAccessKasir = !isSuperAdminRole && (allowedPaths.has('/kasir') || true);
+                        // Superadmin HANYA mengakses Dashboard & Pengaturan (tidak mengakses operasional layanan, kasir, laporan).
+                        // Manager dan peran lainnya dapat mengakses semuanya (Layanan, Kasir, Laporan).
+                        const canAccessTindakan = !isSuperAdminRole;
+                        const canAccessKonsul = !isSuperAdminRole;
+                        const canAccessLayanan = !isSuperAdminRole;
+                        const canAccessLaporan = !isSuperAdminRole;
+                        const canAccessKasir = !isSuperAdminRole;
 
                         let idx = 0;
                         return (
@@ -642,9 +716,20 @@ const AppMenu = () => {
                                                 <a
                                                     role="button"
                                                     tabIndex={0}
+                                                    onMouseDown={(e) => {
+                                                        // Mencegah browser melakukan auto-scroll karena focus event saat diklik mouse
+                                                        e.preventDefault();
+                                                    }}
                                                     onClick={(e) => {
                                                         e.preventDefault();
-                                                        setIsLaporanOpen(prev => !prev);
+                                                        e.stopPropagation();
+                                                        toggleLaporanAccordion();
+                                                    }}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter' || e.key === ' ') {
+                                                            e.preventDefault();
+                                                            toggleLaporanAccordion();
+                                                        }
                                                     }}
                                                     className={`p-ripple flex align-items-center justify-content-between cursor-pointer${isLaporanPage ? ' active-route' : ''}`}
                                                     style={{
@@ -666,7 +751,7 @@ const AppMenu = () => {
                                                                 color: isLaporanPage ? 'var(--primary-color)' : undefined,
                                                             }}
                                                         >
-                                                            Laporan
+                                                            Data Laporan
                                                         </span>
                                                     </div>
                                                     <i
@@ -674,72 +759,72 @@ const AppMenu = () => {
                                                         style={{
                                                             fontSize: '0.85rem',
                                                             transform: isLaporanOpen ? 'rotate(-180deg)' : 'rotate(0deg)',
-                                                            transition: 'transform 0.25s ease',
+                                                            transition: 'transform 0.32s cubic-bezier(0.25, 1, 0.5, 1)',
                                                             color: isLaporanPage ? 'var(--primary-color)' : '#94a3b8'
                                                         }}
                                                     />
                                                 </a>
 
                                                 {/* Submenu Dropdown List Seluruh Jenis Laporan */}
-                                                {isLaporanOpen && (
-                                                    <ul
-                                                        className="layout-submenu"
-                                                        style={{
-                                                            listStyle: 'none',
-                                                            margin: '0.25rem 0 0.5rem 0',
-                                                            padding: '0 0 0 0.5rem',
-                                                            maxHeight: '380px',
-                                                            overflowY: 'auto',
-                                                            scrollbarWidth: 'thin'
-                                                        }}
-                                                    >
-                                                        {filteredReports.map((item) => {
-                                                            const isTabActive = isLaporanPage && activeReportTab === item.id;
-                                                            return (
-                                                                <li key={item.id} className={isTabActive ? 'active-menuitem' : ''}>
-                                                                    <Link
-                                                                        href={`/riwayat/rekam-medis?tab=${item.id}`}
-                                                                        className={`p-ripple flex align-items-center gap-2 laporan-subitem${isTabActive ? ' active-route' : ''}`}
-                                                                        style={{
-                                                                            padding: '0.625rem 0.95rem',
-                                                                            borderRadius: '6px',
-                                                                            fontSize: '0.92rem',
-                                                                            lineHeight: 1.4,
-                                                                            transition: 'all 0.18s ease-in-out',
-                                                                            border: isTabActive ? '1px solid #bbf7d0' : '1px solid transparent',
-                                                                            background: isTabActive ? '#f0fdf4' : 'transparent',
-                                                                            color: isTabActive ? '#15803d' : '#475569',
-                                                                            fontWeight: isTabActive ? 600 : 500,
-                                                                        }}
-                                                                    >
-                                                                        <span className="flex align-items-center justify-content-center flex-shrink-0" style={{ width: '18px', height: '18px' }}>
-                                                                            {item.icon === 'ClipboardList' ? (
-                                                                                <ClipboardList
-                                                                                    size={15}
-                                                                                    className="layout-menuitem-icon"
-                                                                                    style={{
-                                                                                        color: isTabActive ? '#16a34a' : '#94a3b8',
-                                                                                        transition: 'color 0.18s ease-in-out',
-                                                                                    }}
-                                                                                />
-                                                                            ) : (
-                                                                                <i
-                                                                                    className={`layout-menuitem-icon pi ${item.icon}`}
-                                                                                    style={{
-                                                                                        fontSize: '0.92rem',
-                                                                                        color: isTabActive ? '#16a34a' : '#94a3b8',
-                                                                                        transition: 'color 0.18s ease-in-out',
-                                                                                    }}
-                                                                                />
-                                                                            )}
-                                                                        </span>
-                                                                        <span className="layout-menuitem-text">{item.label}</span>
-                                                                    </Link>
-                                                                </li>
-                                                            );
-                                                        })}
-                                                    </ul>
-                                                )}
+                                                <div className={`laporan-accordion-wrapper ${isLaporanOpen ? 'is-open' : 'is-closed'}`}>
+                                                    <div className="laporan-accordion-inner">
+                                                        <ul
+                                                            className="layout-submenu laporan-dropdown-submenu"
+                                                            style={{
+                                                                listStyle: 'none',
+                                                                margin: '0.25rem 0 0.5rem 0',
+                                                                padding: '0 0 0 0.5rem',
+                                                            }}
+                                                        >
+                                                            {filteredReports.map((item) => {
+                                                                const isTabActive = isLaporanPage && activeReportTab === item.id;
+                                                                return (
+                                                                    <li key={item.id} className={isTabActive ? 'active-menuitem' : ''}>
+                                                                        <Link
+                                                                            href={`/riwayat/rekam-medis?tab=${item.id}`}
+                                                                            scroll={false}
+                                                                            className={`p-ripple flex align-items-center gap-2 laporan-subitem${isTabActive ? ' active-route' : ''}`}
+                                                                            style={{
+                                                                                padding: '0.55rem 0.85rem',
+                                                                                borderRadius: '6px',
+                                                                                fontSize: '0.92rem',
+                                                                                lineHeight: 1.4,
+                                                                                transition: 'all 0.18s ease-in-out',
+                                                                                border: isTabActive ? '1px solid #bbf7d0' : '1px solid transparent',
+                                                                                background: isTabActive ? '#f0fdf4' : 'transparent',
+                                                                                color: isTabActive ? '#15803d' : '#475569',
+                                                                                fontWeight: isTabActive ? 600 : 500,
+                                                                            }}
+                                                                        >
+                                                                            <span className="flex align-items-center justify-content-center flex-shrink-0" style={{ width: '18px', height: '18px' }}>
+                                                                                {item.icon === 'ClipboardList' ? (
+                                                                                    <ClipboardList
+                                                                                        size={15}
+                                                                                        className="layout-menuitem-icon"
+                                                                                        style={{
+                                                                                            color: isTabActive ? '#16a34a' : '#94a3b8',
+                                                                                            transition: 'color 0.18s ease-in-out',
+                                                                                        }}
+                                                                                    />
+                                                                                ) : (
+                                                                                    <i
+                                                                                        className={`layout-menuitem-icon pi ${item.icon}`}
+                                                                                        style={{
+                                                                                            fontSize: '0.92rem',
+                                                                                            color: isTabActive ? '#16a34a' : '#94a3b8',
+                                                                                            transition: 'color 0.18s ease-in-out',
+                                                                                        }}
+                                                                                    />
+                                                                                )}
+                                                                            </span>
+                                                                            <span className="layout-menuitem-text">{item.label}</span>
+                                                                        </Link>
+                                                                    </li>
+                                                                );
+                                                            })}
+                                                        </ul>
+                                                    </div>
+                                                </div>
                                             </li>
                                         </ul>
                                     </li>
@@ -752,6 +837,7 @@ const AppMenu = () => {
                     })()
                 }
             </ul>
+            </div>
 
         </MenuProvider>
     );

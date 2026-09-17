@@ -218,6 +218,71 @@ export const LaporanLegendBox: React.FC<LaporanLegendBoxProps> = ({ items }) => 
 /**
  * 5. KONTROL FILTER & PENCARIAN HEADER DATATABLE
  */
+export interface LaporanFilterPopupProps {
+  title?: string;
+  onClose: () => void;
+  onApply: () => void;
+  onReset: () => void;
+  children: React.ReactNode;
+}
+
+export const LaporanFilterPopup: React.FC<LaporanFilterPopupProps> = ({
+  title = "Filter Laporan",
+  onClose,
+  onApply,
+  onReset,
+  children,
+}) => {
+  return (
+    <div className="flex flex-column gap-3 p-1" style={{ width: '360px', maxWidth: '90vw' }}>
+      {/* Header Popup dengan Tombol Close (✕) Sesuai Mockup */}
+      <div className="flex align-items-center justify-content-between border-bottom-1 border-200 pb-2">
+        <span className="font-bold text-base text-800 flex align-items-center gap-2">
+          <i className="pi pi-filter text-primary" />
+          <span>{title}</span>
+        </span>
+        <Button
+          type="button"
+          icon="pi pi-times"
+          className="p-button-rounded p-button-text p-button-secondary p-0"
+          style={{ width: '28px', height: '28px' }}
+          onClick={onClose}
+        />
+      </div>
+
+      {/* Grid 2 Kolom Kontrol Filter */}
+      <div className="grid formgrid p-fluid">
+        {children}
+      </div>
+
+      {/* Tombol Aksi di Bawah Panel */}
+      <div className="border-top-1 border-200 pt-3 flex justify-content-between align-items-center gap-2">
+        <Button
+          type="button"
+          label="Reset Filter"
+          icon="pi pi-filter-slash"
+          size="small"
+          outlined
+          severity="danger"
+          className="text-xs"
+          onClick={onReset}
+        />
+        <Button
+          type="button"
+          label="Terapkan Filter"
+          icon="pi pi-check"
+          size="small"
+          className="text-xs"
+          onClick={() => {
+            onApply();
+            onClose();
+          }}
+        />
+      </div>
+    </div>
+  );
+};
+
 export interface LaporanTableHeaderFilterProps {
   tanggalAwal?: Date | null;
   setTanggalAwal?: (d: Date | null) => void;
@@ -231,7 +296,7 @@ export interface LaporanTableHeaderFilterProps {
   onFilterClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
   filterLoading?: boolean;
   isFiltered?: boolean;
-  filterOverlay?: React.ReactNode;
+  filterOverlay?: React.ReactNode | ((close: () => void) => React.ReactNode);
   extraFilterButton?: React.ReactNode;
 }
 
@@ -270,28 +335,7 @@ export const LaporanTableHeaderFilter: React.FC<LaporanTableHeaderFilterProps> =
     }
   };
 
-  const applyPresetDate = (daysAgo: number) => {
-    if (!setTanggalAwal || !setTanggalAkhir) return;
-    const now = new Date();
-    if (daysAgo === 0) {
-      setTanggalAwal(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
-      setTanggalAkhir(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
-    } else if (daysAgo === -1) {
-      const start = new Date(now.getFullYear(), now.getMonth(), 1);
-      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-      setTanggalAwal(start);
-      setTanggalAkhir(end);
-    } else if (daysAgo === -2) {
-      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const end = new Date(now.getFullYear(), now.getMonth(), 0);
-      setTanggalAwal(start);
-      setTanggalAkhir(end);
-    } else {
-      const start = new Date(now);
-      start.setDate(now.getDate() - daysAgo);
-      setTanggalAwal(start);
-      setTanggalAkhir(now);
-    }
+  const closeOverlay = () => {
     op.current?.hide();
   };
 
@@ -367,15 +411,15 @@ export const LaporanTableHeaderFilter: React.FC<LaporanTableHeaderFilterProps> =
         />
       </div>
 
-      {/* Panel Overlay Filter (Custom atau Preset Rentang Tanggal) */}
-      <OverlayPanel ref={op} style={{ width: filterOverlay ? 'auto' : '320px', maxWidth: '95vw' }}>
+      {/* Panel Overlay Filter Tambahan Laporan */}
+      <OverlayPanel ref={op} style={{ width: filterOverlay ? 'auto' : '360px', maxWidth: '95vw' }}>
         {filterOverlay ? (
-          filterOverlay
+          typeof filterOverlay === 'function' ? filterOverlay(closeOverlay) : filterOverlay
         ) : (
           <div className="flex flex-column gap-3 p-1">
             <div className="flex align-items-center justify-content-between border-bottom-1 border-200 pb-2">
               <span className="font-bold text-sm text-800 flex align-items-center gap-2">
-                <i className="pi pi-filter text-primary" /> Filter Cepat Laporan
+                <i className="pi pi-filter text-primary" /> Filter Tambahan Laporan
               </span>
               {hasActiveFilter && (
                 <span className="text-xs text-orange-600 font-semibold bg-orange-50 px-2 py-0.5 border-round">
@@ -385,61 +429,28 @@ export const LaporanTableHeaderFilter: React.FC<LaporanTableHeaderFilterProps> =
             </div>
 
             {setTanggalAwal && setTanggalAkhir ? (
-              <div className="flex flex-column gap-2">
-                <label className="text-xs font-semibold text-600 uppercase tracking-wider">
-                  Preset Rentang Tanggal:
-                </label>
-                <div className="grid grid-nogutter gap-1">
-                  <div className="col-6 p-1">
-                    <Button
-                      label="Hari Ini"
-                      icon="pi pi-calendar"
-                      size="small"
-                      outlined
-                      className="w-full text-xs"
-                      onClick={() => applyPresetDate(0)}
-                    />
-                  </div>
-                  <div className="col-6 p-1">
-                    <Button
-                      label="7 Hari Terakhir"
-                      icon="pi pi-calendar"
-                      size="small"
-                      outlined
-                      className="w-full text-xs"
-                      onClick={() => applyPresetDate(7)}
-                    />
-                  </div>
-                  <div className="col-6 p-1">
-                    <Button
-                      label="30 Hari Terakhir"
-                      icon="pi pi-calendar"
-                      size="small"
-                      outlined
-                      className="w-full text-xs"
-                      onClick={() => applyPresetDate(30)}
-                    />
-                  </div>
-                  <div className="col-6 p-1">
-                    <Button
-                      label="Bulan Ini"
-                      icon="pi pi-calendar"
-                      size="small"
-                      outlined
-                      className="w-full text-xs"
-                      onClick={() => applyPresetDate(-1)}
-                    />
-                  </div>
-                  <div className="col-12 p-1">
-                    <Button
-                      label="Bulan Lalu"
-                      icon="pi pi-calendar"
-                      size="small"
-                      outlined
-                      className="w-full text-xs"
-                      onClick={() => applyPresetDate(-2)}
-                    />
-                  </div>
+              <div className="flex flex-column gap-3">
+                <div className="flex flex-column gap-1">
+                  <label className="text-xs font-semibold text-600">Tanggal Mulai:</label>
+                  <Calendar
+                    value={tanggalAwal || null}
+                    onChange={(e) => setTanggalAwal(e.value as Date)}
+                    dateFormat="yy-mm-dd"
+                    showIcon
+                    placeholder="Pilih Tanggal Mulai"
+                    className="w-full text-sm"
+                  />
+                </div>
+                <div className="flex flex-column gap-1">
+                  <label className="text-xs font-semibold text-600">Tanggal Selesai:</label>
+                  <Calendar
+                    value={tanggalAkhir || null}
+                    onChange={(e) => setTanggalAkhir(e.value as Date)}
+                    dateFormat="yy-mm-dd"
+                    showIcon
+                    placeholder="Pilih Tanggal Selesai"
+                    className="w-full text-sm"
+                  />
                 </div>
               </div>
             ) : (
@@ -448,7 +459,7 @@ export const LaporanTableHeaderFilter: React.FC<LaporanTableHeaderFilterProps> =
               </div>
             )}
 
-            <div className="border-top-1 border-200 pt-2 flex justify-content-end">
+            <div className="border-top-1 border-200 pt-2 flex justify-content-between align-items-center gap-2">
               <Button
                 label="Reset Filter"
                 icon="pi pi-filter-slash"
@@ -458,6 +469,15 @@ export const LaporanTableHeaderFilter: React.FC<LaporanTableHeaderFilterProps> =
                 className="text-xs"
                 onClick={() => {
                   onReset();
+                  op.current?.hide();
+                }}
+              />
+              <Button
+                label="Terapkan"
+                icon="pi pi-check"
+                size="small"
+                className="text-xs"
+                onClick={() => {
                   op.current?.hide();
                 }}
               />
