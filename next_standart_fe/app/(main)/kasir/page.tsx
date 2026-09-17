@@ -167,12 +167,12 @@ export default function KasirPage() {
           minHeight: '600px',
           overflow: 'hidden',
         }}
-        className="flex gap-2 p-2 surface-ground border-round-xl"
+        className="flex gap-3 h-full overflow-hidden"
       >
         <Toast ref={toast} position="top-right" />
 
         {/* SIDEBAR KIRI: Daftar Transaksi & Stat */}
-        <div style={{ width: '290px', flexShrink: 0 }} className="h-full overflow-hidden border-round-xl shadow-1">
+        <div style={{ width: '290px', flexShrink: 0 }} className="h-full overflow-hidden border-round-xl shadow-1 border-1 surface-border">
           <KasirSidebar
             toast={toast}
             selectedKodeTrx={selectedKodeTrx}
