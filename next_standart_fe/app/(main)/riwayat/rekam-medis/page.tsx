@@ -38,7 +38,7 @@ const LaporanContent: React.FC = () => {
   };
 
   return (
-    <div className="p-4">
+    <div className="w-full">
       {/* ─── MODUL OPERASIONAL AKTIF DARI DATABASE ─── */}
       {activeModule === 'penjualan' && <LaporanPenjualanView />}
       {activeModule === 'treatment' && <LaporanTreatmentView />}

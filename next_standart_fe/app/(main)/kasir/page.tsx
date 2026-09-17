@@ -160,10 +160,10 @@ export default function KasirPage() {
   };
 
   return (
-    <div className="p-4">
+    <div className="w-full">
       <div
         style={{
-          height: 'calc(100vh - 12rem)',
+          height: 'calc(100vh - 9rem)',
           minHeight: '600px',
           overflow: 'hidden',
         }}
