@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Dialog } from 'primereact/dialog';
 import { Button } from 'primereact/button';
 import { Printer, Download, X, FileText, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
+import postData from '@/lib/axios/postData';
 
 import { IconMedicalRecord } from './DrawerRiwayatPasien';
 
@@ -20,6 +21,43 @@ export const RMEReportPrint: React.FC<RMEReportPrintProps> = ({
     visitData,
 }) => {
     const printRef = useRef<HTMLDivElement>(null);
+
+    const [clinicConfig, setClinicConfig] = useState<any>({
+        msNamaPerusahaan: 'KLINIK KECANTIKAN ESTETIKA',
+        msIzinOperasional: 'No. 440/012/Dinkes/Klinik-Estetika/2026',
+        msAlamatPerusahaan: 'Jl. Boulevard Raya Barat Blok A No. 18',
+        msKotaPerusahaan: 'Kota Madiun 63126',
+        msTeleponPerusahaan: '(0351) 456-789',
+        msWaKlinik: '0812-3456-7890',
+        msEmailPerusahaan: 'info@klinikkecantikan.co.id',
+        msWebsitePerusahaan: 'www.klinikkecantikan.co.id',
+        msLogoPerusahaan: '',
+    });
+
+    useEffect(() => {
+        if (visible) {
+            postData('/setup/config-data', {
+                kode: [
+                    'msNamaPerusahaan',
+                    'msIzinOperasional',
+                    'msAlamatPerusahaan',
+                    'msKotaPerusahaan',
+                    'msTeleponPerusahaan',
+                    'msWaKlinik',
+                    'msEmailPerusahaan',
+                    'msWebsitePerusahaan',
+                    'msLogoPerusahaan',
+                ]
+            }).then((res) => {
+                if (res?.data?.data) {
+                    setClinicConfig((prev: any) => ({
+                        ...prev,
+                        ...res.data.data
+                    }));
+                }
+            }).catch(() => {});
+        }
+    }, [visible]);
 
     const handlePrint = useReactToPrint({
         contentRef: printRef,
@@ -282,36 +320,56 @@ export const RMEReportPrint: React.FC<RMEReportPrintProps> = ({
                     {/* 1. HEADER / KOP KLINIK */}
                     <div className="flex align-items-center justify-content-between pb-2 mb-2" style={{ borderBottom: '2px solid #0f172a' }}>
                         <div className="flex align-items-center gap-3">
-                            <div
-                                style={{
-                                    width: '48px',
-                                    height: '48px',
-                                    borderRadius: '12px',
-                                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    color: '#ffffff',
-                                    boxShadow: '0 3px 10px rgba(16, 185, 129, 0.28)',
-                                    flexShrink: 0,
-                                }}
-                            >
-                                <span className="material-symbols-outlined" style={{ fontSize: '26px' }}>
-                                    spa
-                                </span>
-                            </div>
+                            {clinicConfig.msLogoPerusahaan ? (
+                                <img
+                                    src={clinicConfig.msLogoPerusahaan}
+                                    alt="Logo Klinik"
+                                    style={{
+                                        width: '48px',
+                                        height: '48px',
+                                        borderRadius: '10px',
+                                        objectFit: 'contain',
+                                        flexShrink: 0,
+                                    }}
+                                    onError={(e: any) => {
+                                        e.target.style.display = 'none';
+                                    }}
+                                />
+                            ) : (
+                                <div
+                                    style={{
+                                        width: '48px',
+                                        height: '48px',
+                                        borderRadius: '12px',
+                                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        color: '#ffffff',
+                                        boxShadow: '0 3px 10px rgba(16, 185, 129, 0.28)',
+                                        flexShrink: 0,
+                                    }}
+                                >
+                                    <span className="material-symbols-outlined" style={{ fontSize: '26px' }}>
+                                        spa
+                                    </span>
+                                </div>
+                            )}
                             <div>
                                 <h1 style={{ margin: 0, fontSize: '18px', fontWeight: 800, letterSpacing: '0.5px', color: '#0f172a' }}>
-                                    KLINIK KECANTIKAN ESTETIKA
+                                    {clinicConfig.msNamaPerusahaan || 'KLINIK KECANTIKAN ESTETIKA'}
                                 </h1>
                                 <p style={{ margin: '1px 0', fontSize: '9.5px', color: '#475569', fontWeight: 600 }}>
-                                    Izin Operasional Klinik: No. 440/012/Dinkes/Klinik-Estetika/2026
+                                    {clinicConfig.msIzinOperasional ? `Izin Operasional Klinik: ${clinicConfig.msIzinOperasional}` : 'Izin Operasional Klinik: No. 440/012/Dinkes/Klinik-Estetika/2026'}
                                 </p>
                                 <p style={{ margin: 0, fontSize: '9px', color: '#64748b' }}>
-                                    Jl. Boulevard Raya Barat Blok A No. 18, Kota Madiun 63126 • Telp: (0351) 456-789 • WA: 0812-3456-7890
+                                    {[clinicConfig.msAlamatPerusahaan, clinicConfig.msKotaPerusahaan].filter(Boolean).join(', ') || 'Jl. Boulevard Raya Barat Blok A No. 18, Kota Madiun 63126'}
+                                    {clinicConfig.msTeleponPerusahaan ? ` • Telp: ${clinicConfig.msTeleponPerusahaan}` : ' • Telp: (0351) 456-789'}
+                                    {clinicConfig.msWaKlinik ? ` • WA: ${clinicConfig.msWaKlinik}` : ' • WA: 0812-3456-7890'}
                                 </p>
                                 <p style={{ margin: 0, fontSize: '9px', color: '#64748b' }}>
-                                    Email: info@klinikkecantikan.co.id • Website: www.klinikkecantikan.co.id
+                                    {clinicConfig.msEmailPerusahaan ? `Email: ${clinicConfig.msEmailPerusahaan}` : 'Email: info@klinikkecantikan.co.id'}
+                                    {clinicConfig.msWebsitePerusahaan ? ` • Website: ${clinicConfig.msWebsitePerusahaan}` : ' • Website: www.klinikkecantikan.co.id'}
                                 </p>
                             </div>
                         </div>
@@ -669,7 +727,7 @@ export const RMEReportPrint: React.FC<RMEReportPrintProps> = ({
 
                             <div className="text-center" style={{ minWidth: '220px' }}>
                                 <div style={{ fontSize: '10px', color: '#475569' }}>
-                                    Kota Madiun, {formatDateSimple(new Date().toISOString())}
+                                    {clinicConfig.msKotaPerusahaan || 'Kota Madiun'}, {formatDateSimple(new Date().toISOString())}
                                 </div>
                                 <div style={{ fontSize: '10px', fontWeight: 600, color: '#334155', marginTop: '2px' }}>
                                     Dokter Penanggung Jawab Pasien

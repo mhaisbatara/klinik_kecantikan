@@ -73,6 +73,21 @@ const DEFAULT_PENDAFTARAN_ITEMS: AppMenuItem[] = [
     { label: 'Pendaftaran Kunjungan', icon: 'ClipboardList', to: '/pendaftaran-antrean/pendaftaran-pasien' },
 ];
 
+const DEFAULT_PENGATURAN_ITEMS: AppMenuItem[] = [
+    { label: 'Pengaturan Klinik', icon: 'pi pi-fw pi-sliders-h', to: '/setup/config' },
+    { label: 'Data Pasien', icon: 'pi pi-fw pi-user', to: '/master-data-user/data-pasien' },
+    { label: 'Manajemen User', icon: 'pi pi-fw pi-users', to: '/setup/users' },
+    { label: 'Manajemen Menu', icon: 'pi pi-fw pi-bars', to: '/setup/navigation' },
+];
+
+const DEFAULT_SUPERADMIN_PENGATURAN_ITEMS: AppMenuItem[] = [
+    { label: 'Monitoring Cabang', icon: 'pi pi-fw pi-chart-line', to: '/setup/monitoring-cabang' },
+    { label: 'Manajemen Cabang', icon: 'pi pi-fw pi-building', to: '/setup/cabang' },
+    { label: 'Pengaturan Klinik', icon: 'pi pi-fw pi-sliders-h', to: '/setup/config' },
+    { label: 'Manajemen User', icon: 'pi pi-fw pi-users', to: '/setup/users' },
+    { label: 'Manajemen Menu', icon: 'pi pi-fw pi-bars', to: '/setup/navigation' },
+];
+
 const AppMenu = () => {
     const { data: session } = useSession();
     const { layoutConfig } = useContext(LayoutContext);
@@ -159,9 +174,10 @@ const AppMenu = () => {
                 if (
                     newItem.label &&
                     (newItem.label.toLowerCase().includes('master data & user') ||
-                        newItem.label.toLowerCase().includes('pengaturan'))
+                        newItem.label.toLowerCase().includes('pengaturan') ||
+                        newItem.label.toLowerCase().includes('setup'))
                 ) {
-                    newItem.label = 'PENGATURAN';
+                    newItem.label = 'PENGATURAN KLINIK';
                 }
                 if (
                     (newItem.label && (newItem.label.toLowerCase() === 'antrean awal' || newItem.label.toLowerCase() === 'antrian awal')) ||
@@ -260,23 +276,58 @@ const AppMenu = () => {
 
                     if (groupLabel.includes('pengaturan') || groupLabel.includes('master data & user') || groupLabel.includes('setup')) {
                         const isSuperAdminRole = (session?.user?.role || '').toLowerCase() === 'superadmin';
+                        const configItem: AppMenuItem = {
+                            label: 'Pengaturan Klinik',
+                            to: '/setup/config',
+                            icon: 'pi pi-fw pi-sliders-h',
+                        };
+                        const hasConfig = subItems.some(
+                            (it) => it.to === '/setup/config' || (it.label || '').toLowerCase().includes('pengaturan klinik') || (it.label || '').toLowerCase().includes('profil')
+                        );
+
                         if (isSuperAdminRole) {
                             const hasMonitoring = subItems.some((it) => it.to === '/setup/monitoring-cabang');
+                            const hasCabang = subItems.some((it) => it.to === '/setup/cabang');
                             if (!hasMonitoring) {
-                                subItems.unshift(
-                                    {
-                                        label: 'Monitoring Cabang',
-                                        to: '/setup/monitoring-cabang',
-                                        icon: 'pi pi-fw pi-chart-line',
-                                    },
-                                    {
-                                        label: 'Manajemen Cabang',
-                                        to: '/setup/cabang',
-                                        icon: 'pi pi-fw pi-building',
-                                    }
-                                );
+                                subItems.unshift({
+                                    label: 'Monitoring Cabang',
+                                    to: '/setup/monitoring-cabang',
+                                    icon: 'pi pi-fw pi-chart-line',
+                                });
+                            }
+                            if (!hasCabang) {
+                                const monIdx = subItems.findIndex((it) => it.to === '/setup/monitoring-cabang');
+                                subItems.splice(monIdx + 1, 0, {
+                                    label: 'Manajemen Cabang',
+                                    to: '/setup/cabang',
+                                    icon: 'pi pi-fw pi-building',
+                                });
+                            }
+                            if (!hasConfig) {
+                                const cabIdx = subItems.findIndex((it) => it.to === '/setup/cabang');
+                                if (cabIdx !== -1) {
+                                    subItems.splice(cabIdx + 1, 0, configItem);
+                                } else {
+                                    subItems.unshift(configItem);
+                                }
+                            }
+                        } else {
+                            if (!hasConfig) {
+                                subItems.unshift(configItem);
                             }
                         }
+
+                        // Standarisasi label dan ikon menu pengaturan
+                        subItems = subItems.map((it) => {
+                            const to = (it.to || '').toLowerCase();
+                            if (to === '/setup/config') return { ...it, label: 'Pengaturan Klinik', icon: 'pi pi-fw pi-sliders-h' };
+                            if (to === '/setup/monitoring-cabang') return { ...it, label: 'Monitoring Cabang', icon: 'pi pi-fw pi-chart-line' };
+                            if (to === '/setup/cabang') return { ...it, label: 'Manajemen Cabang', icon: 'pi pi-fw pi-building' };
+                            if (to === '/master-data-user/data-pasien') return { ...it, label: 'Data Pasien', icon: 'pi pi-fw pi-user' };
+                            if (to === '/setup/users') return { ...it, label: 'Manajemen User', icon: 'pi pi-fw pi-users' };
+                            if (to === '/setup/navigation') return { ...it, label: 'Manajemen Menu', icon: 'pi pi-fw pi-bars' };
+                            return it;
+                        });
                     }
 
                     newItem.items = subItems;
@@ -339,8 +390,21 @@ const AppMenu = () => {
                         transformedMenu.push(transformItem(pendaftaranGroup));
                     }
                 }
+
+                // Garansi Pengaturan Klinik selalu ada di sidebar
+                const hasPengaturan = transformedMenu.some(
+                    (it) => (it.label || '').toLowerCase().includes('pengaturan') || (it.label || '').toLowerCase().includes('setup')
+                );
+                if (!hasPengaturan) {
+                    const pengaturanGroup: AppMenuItem = {
+                        label: 'PENGATURAN KLINIK',
+                        icon: 'pi pi-fw pi-cog',
+                        items: DEFAULT_PENGATURAN_ITEMS,
+                    };
+                    transformedMenu.push(transformItem(pengaturanGroup));
+                }
             } else {
-                // Khusus Superadmin: HANYA Dashboard dan Pengaturan
+                // Khusus Superadmin: HANYA Dashboard dan Pengaturan Klinik
                 transformedMenu = transformedMenu.filter((it) => {
                     const lbl = (it.label || '').toLowerCase();
                     return lbl === 'home' || lbl === 'beranda' || lbl.includes('dashboard') || lbl.includes('pengaturan') || lbl.includes('setup');
@@ -365,14 +429,9 @@ const AppMenu = () => {
                         items: [{ label: 'Dashboard', icon: 'pi pi-fw pi-home', to: '/dashboard' }]
                     },
                     {
-                        label: 'PENGATURAN',
+                        label: 'PENGATURAN KLINIK',
                         icon: 'pi pi-fw pi-cog',
-                        items: [
-                            { label: 'Monitoring Cabang', icon: 'pi pi-fw pi-chart-line', to: '/setup/monitoring-cabang' },
-                            { label: 'Manajemen Cabang', icon: 'pi pi-fw pi-building', to: '/setup/cabang' },
-                            { label: 'Manajemen Menu', icon: 'pi pi-fw pi-bars', to: '/setup/navigation' },
-                            { label: 'Manajemen User', icon: 'pi pi-fw pi-users', to: '/setup/users' }
-                        ]
+                        items: DEFAULT_SUPERADMIN_PENGATURAN_ITEMS
                     }
                 ]
                 : [
@@ -392,13 +451,9 @@ const AppMenu = () => {
                         items: DEFAULT_PENDAFTARAN_ITEMS
                     },
                     {
-                        label: 'PENGATURAN',
+                        label: 'PENGATURAN KLINIK',
                         icon: 'pi pi-fw pi-cog',
-                        items: [
-                            { label: 'Data Pasien', icon: 'pi pi-fw pi-user', to: '/master-data-user/data-pasien' },
-                            { label: 'Manajemen Menu', icon: 'pi pi-fw pi-bars', to: '/setup/navigation' },
-                            { label: 'Manajemen User', icon: 'pi pi-fw pi-users', to: '/setup/users' }
-                        ]
+                        items: DEFAULT_PENGATURAN_ITEMS
                     }
                 ];
             setState(prev => ({
