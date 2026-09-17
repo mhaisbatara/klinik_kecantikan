@@ -215,6 +215,7 @@ export const RMEReportPrint: React.FC<RMEReportPrintProps> = ({
                 >
                     {/* CSS FOR PRINT */}
                     <style>{`
+                        @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
                         @media print {
                             @page {
                                 size: A4 portrait;
@@ -283,19 +284,21 @@ export const RMEReportPrint: React.FC<RMEReportPrintProps> = ({
                         <div className="flex align-items-center gap-3">
                             <div
                                 style={{
-                                    width: '52px',
-                                    height: '52px',
+                                    width: '48px',
+                                    height: '48px',
                                     borderRadius: '12px',
-                                    background: 'linear-gradient(135deg, #0d9488 0%, #047857 100%)',
+                                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
                                     color: '#ffffff',
-                                    fontSize: '24px',
-                                    fontWeight: 'bold',
+                                    boxShadow: '0 3px 10px rgba(16, 185, 129, 0.28)',
+                                    flexShrink: 0,
                                 }}
                             >
-                                ⚕
+                                <span className="material-symbols-outlined" style={{ fontSize: '26px' }}>
+                                    spa
+                                </span>
                             </div>
                             <div>
                                 <h1 style={{ margin: 0, fontSize: '18px', fontWeight: 800, letterSpacing: '0.5px', color: '#0f172a' }}>
