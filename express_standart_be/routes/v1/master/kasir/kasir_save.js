@@ -179,9 +179,11 @@ router.post("/", async (req, res) => {
       // Hapus detail lama lalu insert baru
       await trx("trx_detail_transaksi").where("kode_transaksi", kode_trx).delete();
     } else {
+      const branchCode = req.body.kode_cabang || req?.auth?.kode_cabang || "CBG-001";
       // CREATE baru
       kode_trx = await generateKode("TRX", "trx_transaksi", "kode_transaksi");
       await trx("trx_transaksi").insert({
+        kode_cabang: branchCode,
         kode_transaksi: kode_trx,
         kode_kunjungan: kode_kunjungan || null,
         no_rm,
@@ -214,6 +216,7 @@ router.post("/", async (req, res) => {
       .first();
     let dtSeq = lastDT ? parseInt(lastDT.kode_detail_transaksi.split("-").pop()) + 1 : 1;
 
+    const branchCodeDetail = req.body.kode_cabang || req?.auth?.kode_cabang || "CBG-001";
     for (const item of items) {
       const qty = parseInt(item.qty || 1);
       const harga_satuan = parseFloat(item.harga_satuan || 0);
@@ -222,6 +225,7 @@ router.post("/", async (req, res) => {
       dtSeq++;
 
       await trx("trx_detail_transaksi").insert({
+        kode_cabang: branchCodeDetail,
         kode_detail_transaksi: kode_detail,
         kode_transaksi: kode_trx,
         kode_layanan: item.jenis === "layanan" ? item.kode : null,

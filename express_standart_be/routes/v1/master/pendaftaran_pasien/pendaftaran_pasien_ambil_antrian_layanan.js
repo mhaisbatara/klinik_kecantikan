@@ -78,8 +78,11 @@ router.post("/", async (req, res) => {
       const cKodeKunjungan = `${prefixKunjungan}${String(nextKjSeq).padStart(3, "0")}`;
       const jamDatang = now.toTimeString().slice(0, 8);
 
+      const branchCode = oPayload.kode_cabang || req?.auth?.kode_cabang || pasien.kode_cabang || "CBG-001";
+
       // B. Insert trx_kunjungan
       const oKunjunganData = {
+        kode_cabang: branchCode,
         kode_kunjungan: cKodeKunjungan,
         no_rm: pasien.no_rm,
         tanggal_kunjungan: todayYmd,
@@ -101,6 +104,7 @@ router.post("/", async (req, res) => {
       if (oPayload.kode_antrian_awal) {
         antrianAwalTersedia = await trx("trx_antrian_awal")
           .where("kode_antrian_awal", oPayload.kode_antrian_awal)
+          .where("kode_cabang", branchCode)
           .first();
       }
 
@@ -108,6 +112,7 @@ router.post("/", async (req, res) => {
       if (!antrianAwalTersedia) {
         antrianAwalTersedia = await trx("trx_antrian_awal")
           .where("status", "dipanggil")
+          .where("kode_cabang", branchCode)
           .orderByRaw("CAST(nomor_antrian AS UNSIGNED) ASC, nomor_antrian ASC")
           .first();
       }
@@ -116,6 +121,7 @@ router.post("/", async (req, res) => {
       if (!antrianAwalTersedia) {
         antrianAwalTersedia = await trx("trx_antrian_awal")
           .where("status", "terpakai")
+          .where("kode_cabang", branchCode)
           .whereNull("kode_kunjungan")
           .orderByRaw("CAST(nomor_antrian AS UNSIGNED) ASC, nomor_antrian ASC")
           .first();
@@ -125,6 +131,7 @@ router.post("/", async (req, res) => {
       if (!antrianAwalTersedia) {
         antrianAwalTersedia = await trx("trx_antrian_awal")
           .where("status", "tersedia")
+          .where("kode_cabang", branchCode)
           .orderByRaw("CAST(nomor_antrian AS UNSIGNED) ASC, nomor_antrian ASC")
           .first();
       }
@@ -399,6 +406,7 @@ router.post("/", async (req, res) => {
               }
 
               const oKepemilikan = {
+                kode_cabang: branchCode,
                 kode_kepemilikan_paket_layanan: cKodeKpl,
                 no_rm: pasien.no_rm,
                 kode_paket_layanan: kodeLayanan,
@@ -819,6 +827,7 @@ router.post("/", async (req, res) => {
             : null;
 
           const oInsertLayanan = {
+            kode_cabang: branchCode,
             kode_antrian_layanan: cKodeAntrianLayanan,
             kode_kunjungan: cKodeKunjungan,
             nomor_antrian: cNomorAntrianSesi,

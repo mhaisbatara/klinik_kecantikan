@@ -3,6 +3,7 @@ import DB from "../../../../core/config/knex.js";
 import { formatDateSystem } from "../../components/tools/date_tools.js";
 import { Logging } from "../../components/tools/servertool.js";
 import { status } from "../../components/tools/general.js";
+import { getBranchScope } from "../../components/tools/branch_scope.js";
 
 const router = express.Router();
 
@@ -68,9 +69,11 @@ router.post("/", async (req, res) => {
       }
     }
 
+    const branchCode = getBranchScope(req, oPayload.kode_cabang);
     const baseQuery = DB("mst_paket_layanan as p")
       .leftJoin("mst_ruangan as r", "p.kode_ruangan", "r.kode_ruangan")
       .modify((qb) => {
+        if (branchCode) qb.where("p.kode_cabang", branchCode);
         if (keyword) {
           const lower = keyword.toLowerCase();
           qb.where(function () {

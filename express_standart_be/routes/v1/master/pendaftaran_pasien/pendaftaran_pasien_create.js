@@ -136,6 +136,7 @@ router.post("/", async (req, res) => {
 
       // 2. Insert mst_pasien
       const oPasienData = {
+        kode_cabang: oPayload.kode_cabang || req?.auth?.kode_cabang || "CBG-001",
         no_rm: cNoRm,
         nama: nama,
         nik: nik || null,

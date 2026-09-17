@@ -344,7 +344,9 @@ export const generateUserTokens = async (user, rememberMe = false) => {
   const accessToken = await new SignJWT({
     user_code: user.user_code,
     username: user.username,
-    role: user.role
+    role: user.role,
+    kode_cabang: user.kode_cabang || null,
+    nama_cabang: user.nama_cabang || null,
   })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()

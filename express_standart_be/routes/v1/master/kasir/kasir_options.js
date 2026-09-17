@@ -9,12 +9,14 @@ import { formatDateSystem } from "../../components/tools/date_tools.js";
 import { Logging } from "../../components/tools/servertool.js";
 import { status } from "../../components/tools/general.js";
 import { getCompletedItemsForKasir } from "./kasir_sync_service.js";
+import { getBranchScope } from "../../components/tools/branch_scope.js";
 
 const router = express.Router();
 
 router.post("/", async (req, res) => {
   const { body } = req;
   const username = req?.auth?.username || "";
+  const branchCode = getBranchScope(req, body?.kode_cabang);
   const todayStr = new Date().toISOString().slice(0, 10);
 
   try {
@@ -41,6 +43,10 @@ router.post("/", async (req, res) => {
         "b.metode_pembayaran_dp"
       )
       .orderBy("k.jam_datang", "asc");
+
+    if (branchCode) {
+      kunjunganQuery = kunjunganQuery.where("k.kode_cabang", branchCode);
+    }
 
     if (body?.tanggal_kunjungan) {
       kunjunganQuery = kunjunganQuery.where("k.tanggal_kunjungan", body.tanggal_kunjungan);
@@ -89,10 +95,14 @@ router.post("/", async (req, res) => {
     });
 
     // 2a. Layanan Single Aktif
-    const vaLayananSingle = await DB("mst_layanan as l")
+    const qLayananSingle = DB("mst_layanan as l")
       .leftJoin("mst_kategori_layanan as k", "l.kode_kategori_layanan", "k.kode_kategori_layanan")
       .leftJoin("mst_ruangan as r", "l.kode_ruangan", "r.kode_ruangan")
-      .where("l.status", "aktif")
+      .where("l.status", "aktif");
+
+    if (branchCode) qLayananSingle.where("l.kode_cabang", branchCode);
+
+    const vaLayananSingle = await qLayananSingle
       .select(
         "l.kode_layanan",
         "l.nama",
@@ -105,9 +115,13 @@ router.post("/", async (req, res) => {
       .orderBy("l.nama", "asc");
 
     // 2b. Paket Layanan Aktif
-    const vaPaketLayanan = await DB("mst_paket_layanan as pl")
+    const qPaketLayanan = DB("mst_paket_layanan as pl")
       .leftJoin("mst_ruangan as r", "pl.kode_ruangan", "r.kode_ruangan")
-      .where("pl.status", "aktif")
+      .where("pl.status", "aktif");
+
+    if (branchCode) qPaketLayanan.where("pl.kode_cabang", branchCode);
+
+    const vaPaketLayanan = await qPaketLayanan
       .select(
         "pl.kode_paket_layanan",
         "pl.nama",
@@ -138,10 +152,14 @@ router.post("/", async (req, res) => {
     ].sort((a, b) => a.nama.localeCompare(b.nama));
 
     // 3. Produk aktif
-    const vaProduk = await DB("mst_produk as p")
+    const qProduk = DB("mst_produk as p")
       .leftJoin("mst_kategori_produk as k", "p.kode_kategori_produk", "k.kode_kategori_produk")
       .where("p.status", "aktif")
-      .whereRaw("p.kode_produk NOT LIKE 'CUSTOM-%' AND p.kode_produk NOT LIKE 'CST-%'")
+      .whereRaw("p.kode_produk NOT LIKE 'CUSTOM-%' AND p.kode_produk NOT LIKE 'CST-%'");
+
+    if (branchCode) qProduk.where("p.kode_cabang", branchCode);
+
+    const vaProduk = await qProduk
       .select(
         "p.kode_produk",
         "p.nama",
@@ -161,11 +179,15 @@ router.post("/", async (req, res) => {
     }));
 
     // 4. Detail promo aktif hari ini (per baris mst_detail_promo)
-    const vaDetailPromo = await DB("mst_detail_promo as dp")
+    const qDetailPromo = DB("mst_detail_promo as dp")
       .join("mst_promo as p", "dp.kode_promo", "p.kode_promo")
       .where("dp.status", "aktif")
       .where("p.status", "aktif")
-      .whereRaw("CURDATE() BETWEEN DATE(p.tanggal_mulai) AND DATE(p.tanggal_selesai)")
+      .whereRaw("CURDATE() BETWEEN DATE(p.tanggal_mulai) AND DATE(p.tanggal_selesai)");
+
+    if (branchCode) qDetailPromo.where("p.kode_cabang", branchCode);
+
+    const vaDetailPromo = await qDetailPromo
       .select(
         "dp.kode_detail_promo",
         "dp.kode_promo",

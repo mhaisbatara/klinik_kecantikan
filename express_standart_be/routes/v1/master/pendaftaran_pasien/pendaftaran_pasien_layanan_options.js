@@ -13,17 +13,20 @@ import DB from "../../../../core/config/knex.js";
 import { formatDateSystem } from "../../components/tools/date_tools.js";
 import { Logging } from "../../components/tools/servertool.js";
 import { status } from "../../components/tools/general.js";
+import { getBranchScope } from "../../components/tools/branch_scope.js";
 
 const router = express.Router();
 
 const handleGetOptions = async (req, res) => {
   const oPayload = { ...req.query, ...req.body };
   const username = req?.auth?.username || "";
+  const branchCode = getBranchScope(req, oPayload.kode_cabang);
 
   try {
     // 1. Fetch ALL ruangan aktif from DB
-    const vaRuangan = await DB("mst_ruangan")
-      .where("status", "aktif")
+    const qRuangan = DB("mst_ruangan").where("status", "aktif");
+    if (branchCode) qRuangan.where("kode_cabang", branchCode);
+    const vaRuangan = await qRuangan
       .select("kode_ruangan", "nama_ruangan", "is_konsultasi")
       .orderBy("id", "asc");
 
@@ -34,11 +37,19 @@ const handleGetOptions = async (req, res) => {
     const todayDay = HARI_MAP[new Date(year, month - 1, day).getDay()];
 
     // 3. Ambil jadwal aktif hari ini dari mst_jadwal_karyawan
-    const activeSchedulesToday = await DB("mst_jadwal_karyawan as j")
+    const qSchedules = DB("mst_jadwal_karyawan as j")
       .leftJoin("mst_karyawan as k", "j.no_sip", "k.no_sip")
       .leftJoin("mst_ruangan as r", "j.kode_ruangan", "r.kode_ruangan")
       .where("j.status", "aktif")
-      .where("j.hari", todayDay)
+      .where("j.hari", todayDay);
+
+    if (branchCode) {
+      qSchedules.where(function () {
+        this.where("j.kode_cabang", branchCode).orWhere("k.kode_cabang", branchCode);
+      });
+    }
+
+    const activeSchedulesToday = await qSchedules
       .select(
         "j.id",
         "j.kode_jadwal",
@@ -71,10 +82,14 @@ const handleGetOptions = async (req, res) => {
     const hasPetugasKonsulToday = schedulesKonsul.length > 0;
 
     // 4. Fetch layanan aktif
-    const vaLayanan = await DB("mst_layanan as l")
+    const qLayanan = DB("mst_layanan as l")
       .leftJoin("mst_kategori_layanan as k", "l.kode_kategori_layanan", "k.kode_kategori_layanan")
       .leftJoin("mst_ruangan as r", "l.kode_ruangan", "r.kode_ruangan")
-      .where("l.status", "aktif")
+      .where("l.status", "aktif");
+
+    if (branchCode) qLayanan.where("l.kode_cabang", branchCode);
+
+    const vaLayanan = await qLayanan
       .select(
         "l.kode_layanan",
         "l.kode_kategori_layanan",
@@ -102,16 +117,24 @@ const handleGetOptions = async (req, res) => {
       });
 
     // 5. Fetch paket layanan aktif
-    const vaPaket = await DB("mst_paket_layanan as p")
+    const qPaket = DB("mst_paket_layanan as p")
       .leftJoin("mst_ruangan as r", "p.kode_ruangan", "r.kode_ruangan")
-      .where("p.status", "aktif")
+      .where("p.status", "aktif");
+
+    if (branchCode) qPaket.where("p.kode_cabang", branchCode);
+
+    const vaPaket = await qPaket
       .select("p.kode_paket_layanan", "p.nama", "p.harga_paket", "p.masa_berlaku_hari", "p.tanggal_mulai", "p.tanggal_selesai", "p.tipe", "p.kode_ruangan", "r.nama_ruangan as nama_ruangan", "r.is_konsultasi as is_konsultasi")
       .orderBy("p.id", "asc");
 
     // 5b. Fetch antrean aktif hari ini per ruangan
-    const activeQueuesToday = await DB("trx_antrian_layanan")
+    const qQueues = DB("trx_antrian_layanan")
       .where("created_at", ">=", `${todayStr} 00:00:00`)
-      .whereIn("status", ["dipanggil", "menunggu"])
+      .whereIn("status", ["dipanggil", "menunggu"]);
+
+    if (branchCode) qQueues.where("kode_cabang", branchCode);
+
+    const activeQueuesToday = await qQueues
       .select("kode_ruangan")
       .count("id as total")
       .groupBy("kode_ruangan");
@@ -124,12 +147,16 @@ const handleGetOptions = async (req, res) => {
     // 5c. Fetch booking terkonfirmasi hari ini per ruangan
     const nowTime = new Date();
     const currentTimeStr = nowTime.toTimeString().slice(0, 8);
-    const confirmedBookingsToday = await DB("trx_booking as b")
+    const qBookings = DB("trx_booking as b")
       .leftJoin("mst_pasien as p", "b.no_rm", "p.no_rm")
       .leftJoin("mst_jadwal_karyawan as j", "b.kode_jadwal", "j.kode_jadwal")
       .leftJoin("mst_karyawan as k", "j.no_sip", "k.no_sip")
       .where("b.tanggal_booking", todayStr)
-      .where("b.status", "dikonfirmasi")
+      .where("b.status", "dikonfirmasi");
+
+    if (branchCode) qBookings.where("b.kode_cabang", branchCode);
+
+    const confirmedBookingsToday = await qBookings
       .select(
         "b.kode_booking",
         "b.kode_ruangan as b_kode_ruangan",
@@ -263,12 +290,16 @@ const handleGetOptions = async (req, res) => {
     });
 
     // Fetch active promos for today
-    const activePromos = await DB("mst_promo as p")
+    const qPromos = DB("mst_promo as p")
       .join("mst_detail_promo as dp", "p.kode_promo", "dp.kode_promo")
       .where("p.status", "aktif")
       .where("dp.status", "aktif")
       .whereRaw("DATE(p.tanggal_mulai) <= ?", [todayStr])
-      .whereRaw("DATE(p.tanggal_selesai) >= ?", [todayStr])
+      .whereRaw("DATE(p.tanggal_selesai) >= ?", [todayStr]);
+
+    if (branchCode) qPromos.where("p.kode_cabang", branchCode);
+
+    const activePromos = await qPromos
       .select(
         "p.kode_promo",
         "p.nama as nama_promo",

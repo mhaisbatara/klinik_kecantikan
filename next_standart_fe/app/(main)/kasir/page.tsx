@@ -1,7 +1,9 @@
 'use client';
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Toast } from 'primereact/toast';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import postData from '@/lib/axios/postData';
 import { showError } from '@/lib/tools/generalTools';
 
@@ -67,7 +69,15 @@ export interface BayarResult {
 }
 
 export default function KasirPage() {
+  const { data: session } = useSession();
+  const router = useRouter();
   const toast = useRef<Toast>(null);
+
+  useEffect(() => {
+    if (session?.user?.role === 'superadmin') {
+      router.replace('/setup/monitoring-cabang');
+    }
+  }, [session, router]);
 
   // State sidebar
   const [transaksiList, setTransaksiList] = useState<TransaksiListItem[]>([]);

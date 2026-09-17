@@ -22,6 +22,12 @@ const AntreanLayananPage = () => {
     const [selectedRuangan, setSelectedRuangan] = useState<string>(ruanganParam);
 
     useEffect(() => {
+        if (session?.user?.role === 'superadmin') {
+            router.replace('/setup/monitoring-cabang');
+        }
+    }, [session, router]);
+
+    useEffect(() => {
         setSelectedRuangan(ruanganParam);
     }, [ruanganParam]);
 

@@ -8,6 +8,7 @@ import DB from "../../../../core/config/knex.js";
 import { formatDateSystem } from "../../components/tools/date_tools.js";
 import { Logging } from "../../components/tools/servertool.js";
 import { status } from "../../components/tools/general.js";
+import { getBranchScope } from "../../components/tools/branch_scope.js";
 
 const router = express.Router();
 
@@ -16,6 +17,7 @@ const router = express.Router();
  */
 router.post("/penjualan", async (req, res) => {
   const { body } = req;
+  const branchCode = getBranchScope(req, body.kode_cabang);
   const keyword = body.keyword || "";
   const filterStatus = body.status || null;
   const filterMetode = body.metode_bayar || null;
@@ -29,6 +31,9 @@ router.post("/penjualan", async (req, res) => {
     const baseQuery = DB("trx_transaksi as t")
       .leftJoin("mst_pasien as p", "t.no_rm", "p.no_rm")
       .modify((qb) => {
+        if (branchCode) {
+          qb.where("t.kode_cabang", branchCode);
+        }
         if (tanggal_dari) {
           qb.whereRaw("DATE(t.tanggal_transaksi) >= ?", [tanggal_dari]);
         }
@@ -140,6 +145,7 @@ router.post("/penjualan", async (req, res) => {
  */
 router.post("/treatment", async (req, res) => {
   const { body } = req;
+  const branchCode = getBranchScope(req, body.kode_cabang);
   const keyword = body.keyword || "";
   const filterRuangan = body.kode_ruangan || null;
   const filterStatus = body.status || null;
@@ -158,6 +164,9 @@ router.post("/treatment", async (req, res) => {
       .leftJoin("trx_detail_antrian_layanan as dal", "al.kode_antrian_layanan", "dal.kode_antrian_layanan")
       .leftJoin("mst_layanan as lyn", "dal.kode_layanan", "lyn.kode_layanan")
       .modify((qb) => {
+        if (branchCode) {
+          qb.where("al.kode_cabang", branchCode);
+        }
         if (tanggal_dari) {
           qb.whereRaw("DATE(al.created_at) >= ?", [tanggal_dari]);
         }
@@ -242,6 +251,7 @@ router.post("/treatment", async (req, res) => {
  */
 router.post("/produk", async (req, res) => {
   const { body } = req;
+  const branchCode = getBranchScope(req, body.kode_cabang);
   const keyword = body.keyword || "";
   const filterKategori = body.kode_kategori_produk || null;
   const tanggal_dari = body.tanggal_dari || null;
@@ -254,6 +264,9 @@ router.post("/produk", async (req, res) => {
       .leftJoin("trx_detail_transaksi as dt", "p.kode_produk", "dt.kode_produk")
       .leftJoin("trx_transaksi as tr", "dt.kode_transaksi", "tr.kode_transaksi")
       .modify((qb) => {
+        if (branchCode) {
+          qb.where("p.kode_cabang", branchCode);
+        }
         if (tanggal_dari) {
           qb.whereRaw("(tr.tanggal_transaksi >= ? OR tr.tanggal_transaksi IS NULL)", [tanggal_dari]);
         }
@@ -331,6 +344,7 @@ router.post("/produk", async (req, res) => {
  */
 router.post("/paket", async (req, res) => {
   const { body } = req;
+  const branchCode = getBranchScope(req, body.kode_cabang);
   const keyword = body.keyword || "";
 
   try {
@@ -360,6 +374,9 @@ router.post("/paket", async (req, res) => {
     const baseQuery = DB("mst_paket_layanan as pl")
       .leftJoin("mst_ruangan as r", "pl.kode_ruangan", "r.kode_ruangan")
       .modify((qb) => {
+        if (branchCode) {
+          qb.where("pl.kode_cabang", branchCode);
+        }
         if (keyword) {
           const lower = keyword.toLowerCase();
           qb.where(function () {
@@ -448,6 +465,7 @@ router.post("/paket", async (req, res) => {
  */
 router.post("/pasien", async (req, res) => {
   const { body } = req;
+  const branchCode = getBranchScope(req, body.kode_cabang);
   const keyword = body.keyword || "";
   const filterGender = body.jenis_kelamin || null;
   const page = parseInt(body.page) || 1;
@@ -456,6 +474,9 @@ router.post("/pasien", async (req, res) => {
 
   try {
     const baseQuery = DB("mst_pasien as p").modify((qb) => {
+      if (branchCode) {
+        qb.where("p.kode_cabang", branchCode);
+      }
       if (filterGender) {
         qb.where("p.jenis_kelamin", filterGender);
       }
@@ -510,6 +531,7 @@ router.post("/pasien", async (req, res) => {
  */
 router.post("/kunjungan", async (req, res) => {
   const { body } = req;
+  const branchCode = getBranchScope(req, body.kode_cabang);
   const keyword = body.keyword || "";
   const filterStatus = body.status || null;
   const tanggal_dari = body.tanggal_dari || null;
@@ -522,6 +544,9 @@ router.post("/kunjungan", async (req, res) => {
     const baseQuery = DB("trx_kunjungan as k")
       .leftJoin("mst_pasien as p", "k.no_rm", "p.no_rm")
       .modify((qb) => {
+        if (branchCode) {
+          qb.where("k.kode_cabang", branchCode);
+        }
         if (tanggal_dari) {
           qb.whereRaw("DATE(k.tanggal_kunjungan) >= ?", [tanggal_dari]);
         }
@@ -580,12 +605,16 @@ router.post("/kunjungan", async (req, res) => {
  */
 router.post("/dokter", async (req, res) => {
   const { body } = req;
+  const branchCode = getBranchScope(req, body.kode_cabang);
   const keyword = body.keyword || "";
 
   try {
     const baseQuery = DB("mst_karyawan as k")
       .whereRaw("LOWER(k.jabatan) LIKE ?", ["%dokter%"])
       .modify((qb) => {
+        if (branchCode) {
+          qb.where("k.kode_cabang", branchCode);
+        }
         if (keyword) {
           const lower = keyword.toLowerCase();
           qb.where(function () {
@@ -628,12 +657,16 @@ router.post("/dokter", async (req, res) => {
  */
 router.post("/beautician", async (req, res) => {
   const { body } = req;
+  const branchCode = getBranchScope(req, body.kode_cabang);
   const keyword = body.keyword || "";
 
   try {
     const baseQuery = DB("mst_karyawan as k")
       .whereRaw("LOWER(k.jabatan) IN ('terapis', 'perawat', 'beautician')")
       .modify((qb) => {
+        if (branchCode) {
+          qb.where("k.kode_cabang", branchCode);
+        }
         if (keyword) {
           const lower = keyword.toLowerCase();
           qb.where(function () {
@@ -676,6 +709,7 @@ router.post("/beautician", async (req, res) => {
  */
 router.post("/inventory", async (req, res) => {
   const { body } = req;
+  const branchCode = getBranchScope(req, body.kode_cabang);
   const keyword = body.keyword || "";
   const filterKategori = body.kode_kategori_produk || null;
 
@@ -684,6 +718,9 @@ router.post("/inventory", async (req, res) => {
       .leftJoin("mst_kategori_produk as kp", "p.kode_kategori_produk", "kp.kode_kategori_produk")
       .leftJoin("mst_supplier as s", "p.kode_supplier", "s.kode_supplier")
       .modify((qb) => {
+        if (branchCode) {
+          qb.where("p.kode_cabang", branchCode);
+        }
         if (filterKategori) {
           qb.where("p.kode_kategori_produk", filterKategori);
         }
@@ -744,11 +781,15 @@ router.post("/inventory", async (req, res) => {
  */
 router.post("/voucher", async (req, res) => {
   const { body } = req;
+  const branchCode = getBranchScope(req, body.kode_cabang);
   const keyword = body.keyword || "";
   const filterStatus = body.status || null;
 
   try {
     const baseQuery = DB("mst_promo as pr").modify((qb) => {
+      if (branchCode) {
+        qb.where("pr.kode_cabang", branchCode);
+      }
       if (filterStatus) {
         qb.where("pr.status", filterStatus);
       }
@@ -814,11 +855,15 @@ router.post("/voucher", async (req, res) => {
  */
 router.post("/keuangan", async (req, res) => {
   const { body } = req;
+  const branchCode = getBranchScope(req, body.kode_cabang);
   const tanggal_dari = body.tanggal_dari || null;
   const tanggal_sampai = body.tanggal_sampai || null;
 
   try {
     const baseQuery = DB("trx_transaksi as t").modify((qb) => {
+      if (branchCode) {
+        qb.where("t.kode_cabang", branchCode);
+      }
       if (tanggal_dari) {
         qb.whereRaw("DATE(t.tanggal_transaksi) >= ?", [tanggal_dari]);
       }

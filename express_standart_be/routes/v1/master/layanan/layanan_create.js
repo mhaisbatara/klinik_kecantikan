@@ -45,8 +45,9 @@ router.post("/", async (req, res) => {
       }
       kodeLayanan = `LAY-${String(nextSeq).padStart(3, "0")}`;
 
-      const wajibKonsul = oPayload.wajib_konsultasi || "tidak";
+      const branchCode = oPayload.kode_cabang || req?.auth?.kode_cabang || "CBG-001";
       const oData = {
+        kode_cabang: branchCode,
         kode_layanan: kodeLayanan,
         kode_kategori_layanan: oPayload.kode_kategori_layanan,
         kode_ruangan: oPayload.kode_ruangan || null,
