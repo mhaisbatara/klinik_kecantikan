@@ -76,7 +76,7 @@ const handleRuanganDropdown = async (req, res) => {
     Logging(error, {
       file: "/master/ruangan_dropdown.js",
       func: "dropdown",
-      request: body,
+      request: oPayload,
       response: oResult,
       user: username,
     });
