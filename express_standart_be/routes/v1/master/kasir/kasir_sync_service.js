@@ -119,18 +119,29 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
       .first();
   }
 
+  const kunjunganData = await trx("trx_kunjungan")
+    .where("kode_kunjungan", kodeKunjungan)
+    .select("no_rm", "kode_cabang")
+    .first();
+  const resolvedCabang = draftTrx?.kode_cabang || kunjunganData?.kode_cabang || "CBG-001";
+
   let createdTransaksiKode = "";
 
   if (draftTrx) {
     createdTransaksiKode = draftTrx.kode_transaksi;
+    const updateDraftPayload = {};
     if (kodeRekamMedis && !draftTrx.kode_rekam_medis) {
+      updateDraftPayload.kode_rekam_medis = kodeRekamMedis;
+    }
+    if (!draftTrx.kode_cabang && resolvedCabang) {
+      updateDraftPayload.kode_cabang = resolvedCabang;
+    }
+    if (Object.keys(updateDraftPayload).length > 0) {
+      updateDraftPayload.updated_by = username;
+      updateDraftPayload.updated_at = formatDateSystem();
       await trx("trx_transaksi")
         .where("kode_transaksi", createdTransaksiKode)
-        .update({
-          kode_rekam_medis: kodeRekamMedis,
-          updated_by: username,
-          updated_at: formatDateSystem(),
-        });
+        .update(updateDraftPayload);
     }
   } else {
     const lastTrx = await trx("trx_transaksi")
@@ -146,13 +157,10 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
     }
     createdTransaksiKode = `${prefixTrx}${String(nextTrxSeq).padStart(3, "0")}`;
 
-    const kunjunganData = await trx("trx_kunjungan")
-      .where("kode_kunjungan", kodeKunjungan)
-      .select("no_rm")
-      .first();
     const resolvedNoRm = noRm || (kunjunganData ? kunjunganData.no_rm : null);
 
     const newTrx = {
+      kode_cabang: resolvedCabang,
       kode_transaksi: createdTransaksiKode,
       kode_kunjungan: kodeKunjungan,
       no_rm: resolvedNoRm,
@@ -234,6 +242,7 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
             const hargaSatuan = parseFloat(item.harga || 0);
 
             await trx("trx_detail_transaksi").insert({
+              kode_cabang: resolvedCabang,
               kode_detail_transaksi: cKodeDetail,
               kode_transaksi: createdTransaksiKode,
               kode_layanan: null,
@@ -261,6 +270,7 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
           const hargaSatuan = isKlaim ? 0 : parseFloat(item.harga || 0);
 
           await trx("trx_detail_transaksi").insert({
+            kode_cabang: resolvedCabang,
             kode_detail_transaksi: cKodeDetail,
             kode_transaksi: createdTransaksiKode,
             kode_layanan: item.kode_layanan,
@@ -349,6 +359,7 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
           nextDetailSeq++;
 
           await trx("trx_detail_transaksi").insert({
+            kode_cabang: resolvedCabang,
             kode_detail_transaksi: cKodeDetail,
             kode_transaksi: createdTransaksiKode,
             kode_layanan: null,

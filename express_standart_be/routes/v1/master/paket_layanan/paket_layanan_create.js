@@ -56,7 +56,9 @@ router.post("/", async (req, res) => {
       if (last?.kode_paket_layanan) { n = (parseInt(last.kode_paket_layanan.replace("PKT-", "")) || 0) + 1; }
       kode = `PKT-${String(n).padStart(3, "0")}`;
 
+      const branchCode = oPayload.kode_cabang || req?.auth?.kode_cabang || "CBG-001";
       const oData = {
+        kode_cabang: branchCode,
         kode_paket_layanan: kode,
         kode_ruangan: oPayload.kode_ruangan || null,
         nama: oPayload.nama,
