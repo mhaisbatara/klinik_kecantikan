@@ -13,6 +13,7 @@ import DB from "../../../../core/config/knex.js";
 import { formatDateSystem } from "../../components/tools/date_tools.js";
 import { Logging, ChangesLog } from "../../components/tools/servertool.js";
 import { status } from "../../components/tools/general.js";
+import { getBranchScope } from "../../components/tools/branch_scope.js";
 
 const router = express.Router();
 
@@ -78,7 +79,7 @@ router.post("/", async (req, res) => {
       const cKodeKunjungan = `${prefixKunjungan}${String(nextKjSeq).padStart(3, "0")}`;
       const jamDatang = now.toTimeString().slice(0, 8);
 
-      const branchCode = oPayload.kode_cabang || req?.auth?.kode_cabang || pasien.kode_cabang || "CBG-001";
+      const branchCode = getBranchScope(req, oPayload.kode_cabang) || req?.auth?.kode_cabang || pasien.kode_cabang || "CBG-001";
 
       // B. Insert trx_kunjungan
       const oKunjunganData = {
@@ -228,10 +229,11 @@ router.post("/", async (req, res) => {
 
           if (jenis === "klaim_paket" || item.is_klaim === true || item.kode_kepemilikan_paket_layanan) {
             const kodeKpl = item.kode_kepemilikan_paket_layanan || item.kode_kepemilikan;
-            const kpl = await trx("trx_kepemilikan_paket_layanan")
+            let kplQuery = trx("trx_kepemilikan_paket_layanan")
               .where("kode_kepemilikan_paket_layanan", kodeKpl)
-              .where("no_rm", pasien.no_rm)
-              .first();
+              .where("no_rm", pasien.no_rm);
+            if (branchCode) kplQuery = kplQuery.where("kode_cabang", branchCode);
+            const kpl = await kplQuery.first();
 
             if (!kpl) {
               const err = new Error(`Data kepemilikan paket ${kodeKpl} tidak ditemukan untuk pasien ${pasien.no_rm}`);

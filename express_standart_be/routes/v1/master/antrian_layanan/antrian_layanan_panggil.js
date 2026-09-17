@@ -14,6 +14,7 @@ import DB from "../../../../core/config/knex.js";
 import { formatDateSystem } from "../../components/tools/date_tools.js";
 import { Logging, ChangesLog } from "../../components/tools/servertool.js";
 import { status } from "../../components/tools/general.js";
+import { getBranchScope } from "../../components/tools/branch_scope.js";
 import { syncRekamMedisPerAntrian } from "../ruangan/rekam_medis_service.js";
 import { terbitkanAntreanLanjutanRuangan } from "../ruangan/antrian_lanjutan_service.js";
 import { syncCompletedItemsToKasirDraft } from "../kasir/kasir_sync_service.js";
@@ -23,6 +24,7 @@ const router = express.Router();
 router.post("/", async (req, res) => {
   const oPayload = { ...req.query, ...req.body };
   const username = req?.auth?.username || "";
+  const branchCode = getBranchScope(req, oPayload.kode_cabang);
 
   try {
     const cValidation = await Joi.object({
@@ -41,8 +43,10 @@ router.post("/", async (req, res) => {
     let updatedRecord = null;
 
     await DB.transaction(async (trx) => {
-      const record = await trx("trx_antrian_layanan")
-        .where("kode_antrian_layanan", kodeAntrian)
+      let qRecord = trx("trx_antrian_layanan")
+        .where("kode_antrian_layanan", kodeAntrian);
+      if (branchCode) qRecord = qRecord.andWhere("kode_cabang", branchCode);
+      const record = await qRecord
         .forUpdate()
         .first();
 
