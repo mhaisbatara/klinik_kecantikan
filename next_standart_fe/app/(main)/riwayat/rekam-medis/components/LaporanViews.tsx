@@ -12,12 +12,15 @@ import { Dialog } from 'primereact/dialog';
 import postData from '@/lib/axios/postData';
 import { showError, showSuccess } from '@/lib/tools/generalTools';
 import { exportToXLSX } from '@/lib/tools/printTools/exportToXLSX';
+import { MultiSelect } from 'primereact/multiselect';
+import { Dropdown } from 'primereact/dropdown';
 import {
   LaporanHeader,
   LaporanSummaryCards,
   LaporanActionBar,
   LaporanLegendBox,
   LaporanTableHeaderFilter,
+  LaporanFilterPopup,
   SummaryCardItem,
 } from './LaporanStandardHeader';
 
@@ -133,19 +136,63 @@ export const LaporanPenjualanView: React.FC = () => {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [keyword, setKeyword] = useState<string>('');
-  const [tglDari, setTglDari] = useState<Date | null>(null);
-  const [tglSampai, setTglSampai] = useState<Date | null>(null);
+  const [tglDari, setTglDari] = useState<Date | null>(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
+  const [tglSampai, setTglSampai] = useState<Date | null>(() => new Date());
+  const [selectedStatus, setSelectedStatus] = useState<string[]>([]);
+  const [selectedMetode, setSelectedMetode] = useState<string | null>(null);
+  const [optionsStatus, setOptionsStatus] = useState<any[]>([
+    { label: 'Lunas', value: 'lunas' },
+    { label: 'Draft / Pending', value: 'draft' },
+    { label: 'Batal', value: 'batal' },
+  ]);
+  const [optionsMetode, setOptionsMetode] = useState<any[]>([
+    { label: 'Tunai', value: 'tunai' },
+    { label: 'QRIS', value: 'qris' },
+    { label: 'Debit', value: 'debit' },
+    { label: 'Kredit', value: 'kredit' },
+    { label: 'Transfer', value: 'transfer' },
+  ]);
   const [summary, setSummary] = useState<any>({});
   const [expandedRows, setExpandedRows] = useState<any>(null);
   const toast = useRef<Toast>(null);
 
-  const fetchData = async () => {
+  useEffect(() => {
+    const loadOptions = async () => {
+      try {
+        const res = await postData('/master/laporan/options', {});
+        if (res?.data?.data) {
+          if (res.data.data.status_penjualan) setOptionsStatus(res.data.data.status_penjualan);
+          if (res.data.data.metode_bayar) setOptionsMetode(res.data.data.metode_bayar);
+        }
+      } catch (_) {}
+    };
+    loadOptions();
+  }, []);
+
+  const fetchData = async (
+    overrideStatus?: string[],
+    overrideMetode?: string | null,
+    overrideTglDari?: Date | null,
+    overrideTglSampai?: Date | null,
+    overrideKeyword?: string
+  ) => {
     setLoading(true);
     try {
+      const activeStatus = overrideStatus !== undefined ? overrideStatus : selectedStatus;
+      const activeMetode = overrideMetode !== undefined ? overrideMetode : selectedMetode;
+      const activeTglDari = overrideTglDari !== undefined ? overrideTglDari : tglDari;
+      const activeTglSampai = overrideTglSampai !== undefined ? overrideTglSampai : tglSampai;
+      const activeKeyword = overrideKeyword !== undefined ? overrideKeyword : keyword;
+
       const payload: any = {
-        keyword,
-        tanggal_dari: tglDari ? tglDari.toISOString().slice(0, 10) : null,
-        tanggal_sampai: tglSampai ? tglSampai.toISOString().slice(0, 10) : null,
+        keyword: activeKeyword || undefined,
+        status: activeStatus.length > 0 ? activeStatus : undefined,
+        metode_bayar: activeMetode || undefined,
+        tanggal_dari: activeTglDari ? activeTglDari.toISOString().slice(0, 10) : null,
+        tanggal_sampai: activeTglSampai ? activeTglSampai.toISOString().slice(0, 10) : null,
         perPage: 100,
       };
       const res = await postData('/master/laporan/penjualan', payload);
@@ -376,18 +423,65 @@ export const LaporanPenjualanView: React.FC = () => {
           header={
             <LaporanTableHeaderFilter
               tanggalAwal={tglDari}
-              setTanggalAwal={setTglDari}
+              setTanggalAwal={(d) => setTglDari(d)}
               tanggalAkhir={tglSampai}
-              setTanggalAkhir={setTglSampai}
+              setTanggalAkhir={(d) => setTglSampai(d)}
               searchVal={keyword}
               setSearchVal={setKeyword}
               onSearchKeyDown={(e) => e.key === 'Enter' && fetchData()}
+              isFiltered={selectedStatus.length > 0 || Boolean(selectedMetode)}
               onReset={() => {
-                setTglDari(null);
-                setTglSampai(null);
+                const now = new Date();
+                const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+                setTglDari(firstDay);
+                setTglSampai(now);
                 setKeyword('');
+                setSelectedStatus([]);
+                setSelectedMetode(null);
+                fetchData([], null, firstDay, now, '');
               }}
               searchPlaceholder="Cari Kode Trx, Pasien, No RM..."
+              filterOverlay={(close) => (
+                <LaporanFilterPopup
+                  title="Filter Laporan Penjualan"
+                  onClose={close}
+                  onApply={() => fetchData()}
+                  onReset={() => {
+                    setSelectedStatus([]);
+                    setSelectedMetode(null);
+                    fetchData([], null);
+                  }}
+                >
+                  <div className="field col-12 mb-3">
+                    <label className="font-semibold text-xs text-700 block mb-2">Status Transaksi</label>
+                    <MultiSelect
+                      value={selectedStatus}
+                      options={optionsStatus}
+                      optionLabel="label"
+                      optionValue="value"
+                      placeholder="Semua Status Transaksi"
+                      display="chip"
+                      selectAll={true}
+                      showSelectAll={true}
+                      className="w-full text-sm"
+                      onChange={(e) => setSelectedStatus(e.value || [])}
+                    />
+                  </div>
+                  <div className="field col-12 mb-3">
+                    <label className="font-semibold text-xs text-700 block mb-2">Metode Pembayaran</label>
+                    <Dropdown
+                      value={selectedMetode}
+                      options={optionsMetode}
+                      optionLabel="label"
+                      optionValue="value"
+                      placeholder="Semua Metode Bayar"
+                      showClear
+                      className="w-full text-sm"
+                      onChange={(e) => setSelectedMetode(e.value || null)}
+                    />
+                  </div>
+                </LaporanFilterPopup>
+              )}
             />
           }
         >
@@ -508,18 +602,64 @@ export const LaporanTreatmentView: React.FC = () => {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [keyword, setKeyword] = useState<string>('');
-  const [tglDari, setTglDari] = useState<Date | null>(null);
-  const [tglSampai, setTglSampai] = useState<Date | null>(null);
+  const [tglDari, setTglDari] = useState<Date | null>(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
+  const [tglSampai, setTglSampai] = useState<Date | null>(() => new Date());
+  const [selectedStatus, setSelectedStatus] = useState<string[]>([]);
+  const [selectedPetugas, setSelectedPetugas] = useState<string | null>(null);
+  const [selectedRuangan, setSelectedRuangan] = useState<string | null>(null);
+
+  const [optionsStatus, setOptionsStatus] = useState<any[]>([
+    { label: 'Menunggu', value: 'menunggu' },
+    { label: 'Dipanggil', value: 'dipanggil' },
+    { label: 'Selesai', value: 'selesai' },
+    { label: 'Batal', value: 'batal' },
+  ]);
+  const [optionsPetugas, setOptionsPetugas] = useState<any[]>([]);
+  const [optionsRuangan, setOptionsRuangan] = useState<any[]>([]);
   const toast = useRef<Toast>(null);
 
-  const fetchData = async () => {
+  useEffect(() => {
+    const loadOptions = async () => {
+      try {
+        const res = await postData('/master/laporan/options', {});
+        if (res?.data?.data) {
+          if (res.data.data.status_treatment) setOptionsStatus(res.data.data.status_treatment);
+          if (res.data.data.petugas) setOptionsPetugas(res.data.data.petugas);
+          if (res.data.data.ruangan) setOptionsRuangan(res.data.data.ruangan);
+        }
+      } catch (_) {}
+    };
+    loadOptions();
+  }, []);
+
+  const fetchData = async (
+    overrideStatus?: string[],
+    overridePetugas?: string | null,
+    overrideRuangan?: string | null,
+    overrideTglDari?: Date | null,
+    overrideTglSampai?: Date | null,
+    overrideKeyword?: string
+  ) => {
     setLoading(true);
     try {
+      const activeStatus = overrideStatus !== undefined ? overrideStatus : selectedStatus;
+      const activePetugas = overridePetugas !== undefined ? overridePetugas : selectedPetugas;
+      const activeRuangan = overrideRuangan !== undefined ? overrideRuangan : selectedRuangan;
+      const activeTglDari = overrideTglDari !== undefined ? overrideTglDari : tglDari;
+      const activeTglSampai = overrideTglSampai !== undefined ? overrideTglSampai : tglSampai;
+      const activeKeyword = overrideKeyword !== undefined ? overrideKeyword : keyword;
+
       const payload: any = {
-        keyword,
+        keyword: activeKeyword || undefined,
+        status: activeStatus.length > 0 ? activeStatus : undefined,
+        kode_karyawan: activePetugas || undefined,
+        kode_ruangan: activeRuangan || undefined,
+        tanggal_dari: activeTglDari ? activeTglDari.toISOString().slice(0, 10) : null,
+        tanggal_sampai: activeTglSampai ? activeTglSampai.toISOString().slice(0, 10) : null,
         perPage: 100,
-        tanggal_dari: tglDari ? tglDari.toISOString().slice(0, 10) : null,
-        tanggal_sampai: tglSampai ? tglSampai.toISOString().slice(0, 10) : null,
       };
       const res = await postData('/master/laporan/treatment', payload);
       if (['00', '0000'].includes(res?.data?.status)) {
@@ -623,18 +763,82 @@ export const LaporanTreatmentView: React.FC = () => {
           header={
             <LaporanTableHeaderFilter
               tanggalAwal={tglDari}
-              setTanggalAwal={setTglDari}
+              setTanggalAwal={(d) => setTglDari(d)}
               tanggalAkhir={tglSampai}
-              setTanggalAkhir={setTglSampai}
+              setTanggalAkhir={(d) => setTglSampai(d)}
               searchVal={keyword}
               setSearchVal={setKeyword}
               onSearchKeyDown={(e) => e.key === 'Enter' && fetchData()}
+              isFiltered={selectedStatus.length > 0 || Boolean(selectedPetugas) || Boolean(selectedRuangan)}
               onReset={() => {
-                setTglDari(null);
-                setTglSampai(null);
+                const now = new Date();
+                const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+                setTglDari(firstDay);
+                setTglSampai(now);
                 setKeyword('');
+                setSelectedStatus([]);
+                setSelectedPetugas(null);
+                setSelectedRuangan(null);
+                fetchData([], null, null, firstDay, now, '');
               }}
-              searchPlaceholder="Cari Antrean, Pasien, Treatment..."
+              searchPlaceholder="Cari Antrean, Pasien, Treatment, Petugas..."
+              filterOverlay={(close) => (
+                <LaporanFilterPopup
+                  title="Filter Laporan Treatment"
+                  onClose={close}
+                  onApply={() => fetchData()}
+                  onReset={() => {
+                    setSelectedStatus([]);
+                    setSelectedPetugas(null);
+                    setSelectedRuangan(null);
+                    fetchData([], null, null);
+                  }}
+                >
+                  <div className="field col-12 mb-3">
+                    <label className="font-semibold text-xs text-700 block mb-2">Status Treatment</label>
+                    <MultiSelect
+                      value={selectedStatus}
+                      options={optionsStatus}
+                      optionLabel="label"
+                      optionValue="value"
+                      placeholder="Semua Status Treatment"
+                      display="chip"
+                      selectAll={true}
+                      showSelectAll={true}
+                      className="w-full text-sm"
+                      onChange={(e) => setSelectedStatus(e.value || [])}
+                    />
+                  </div>
+                  <div className="field col-12 mb-3">
+                    <label className="font-semibold text-xs text-700 block mb-2">Petugas / Dokter / Terapis</label>
+                    <Dropdown
+                      value={selectedPetugas}
+                      options={optionsPetugas}
+                      optionLabel="label"
+                      optionValue="value"
+                      placeholder="Semua Petugas"
+                      filter
+                      showClear
+                      filterPlaceholder="Cari Nama Petugas..."
+                      className="w-full text-sm"
+                      onChange={(e) => setSelectedPetugas(e.value || null)}
+                    />
+                  </div>
+                  <div className="field col-12 mb-3">
+                    <label className="font-semibold text-xs text-700 block mb-2">Ruangan Layanan</label>
+                    <Dropdown
+                      value={selectedRuangan}
+                      options={optionsRuangan}
+                      optionLabel="label"
+                      optionValue="value"
+                      placeholder="Semua Ruangan"
+                      showClear
+                      className="w-full text-sm"
+                      onChange={(e) => setSelectedRuangan(e.value || null)}
+                    />
+                  </div>
+                </LaporanFilterPopup>
+              )}
             />
           }
         >
@@ -701,12 +905,47 @@ export const LaporanProdukView: React.FC = () => {
   const [summary, setSummary] = useState<any>({});
   const [loading, setLoading] = useState<boolean>(true);
   const [keyword, setKeyword] = useState<string>('');
+  const [selectedKategori, setSelectedKategori] = useState<string | null>(null);
+  const [selectedStatusStok, setSelectedStatusStok] = useState<string | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
+  const [optionsKategori, setOptionsKategori] = useState<any[]>([]);
   const toast = useRef<Toast>(null);
 
-  const fetchData = async () => {
+  const optionsStatusStok = [
+    { label: 'Semua Level Stok', value: '' },
+    { label: 'Stok Aman', value: 'aman' },
+    { label: 'Stok Menipis', value: 'menipis' },
+    { label: 'Stok Habis (Kosong)', value: 'habis' },
+  ];
+
+  const optionsStatusProduk = [
+    { label: 'Semua Status', value: '' },
+    { label: 'Aktif', value: 'aktif' },
+    { label: 'Nonaktif', value: 'nonaktif' },
+  ];
+
+  const fetchOptions = async () => {
+    try {
+      const res = await postData('/master/laporan/options', {});
+      if (['00', '0000'].includes(res?.data?.status)) {
+        setOptionsKategori(res.data.data?.kategori_produk || []);
+      }
+    } catch (_) {}
+  };
+
+  const fetchData = async (
+    sKat = selectedKategori,
+    sStok = selectedStatusStok,
+    sStatus = selectedStatus,
+    kw = keyword
+  ) => {
     setLoading(true);
     try {
-      const res = await postData('/master/laporan/produk', { keyword });
+      const payload: any = { keyword: kw !== undefined ? kw : keyword };
+      if (sKat) payload.kode_kategori_produk = sKat;
+      if (sStok) payload.status_stok = sStok;
+      if (sStatus) payload.status = sStatus;
+      const res = await postData('/master/laporan/produk', payload);
       if (['00', '0000'].includes(res?.data?.status)) {
         setData(res.data.data || []);
         setSummary(res.data.summary || {});
@@ -719,6 +958,7 @@ export const LaporanProdukView: React.FC = () => {
   };
 
   useEffect(() => {
+    fetchOptions();
     fetchData();
   }, []);
 
@@ -812,11 +1052,73 @@ export const LaporanProdukView: React.FC = () => {
               searchVal={keyword}
               setSearchVal={setKeyword}
               onSearchKeyDown={(e) => e.key === 'Enter' && fetchData()}
+              isFiltered={Boolean(selectedKategori || selectedStatusStok || selectedStatus)}
               onReset={() => {
                 setKeyword('');
-                fetchData();
+                setSelectedKategori(null);
+                setSelectedStatusStok(null);
+                setSelectedStatus(null);
+                fetchData(null, null, null, '');
               }}
               searchPlaceholder="Cari Kode Produk, Nama, Kategori..."
+              filterOverlay={(closePopup) => (
+                <LaporanFilterPopup
+                  title="Filter Laporan Produk"
+                  onClose={closePopup}
+                  onApply={() => {
+                    fetchData(selectedKategori, selectedStatusStok, selectedStatus);
+                    closePopup();
+                  }}
+                  onReset={() => {
+                    setSelectedKategori(null);
+                    setSelectedStatusStok(null);
+                    setSelectedStatus(null);
+                    fetchData(null, null, null);
+                  }}
+                >
+                  <div className="field col-12 mb-3">
+                    <label className="font-semibold text-xs text-700 block mb-2">Kategori Produk</label>
+                    <Dropdown
+                      value={selectedKategori}
+                      options={optionsKategori}
+                      optionLabel="label"
+                      optionValue="value"
+                      placeholder="Semua Kategori Produk"
+                      filter
+                      showClear
+                      filterPlaceholder="Cari Kategori..."
+                      className="w-full text-sm"
+                      onChange={(e) => setSelectedKategori(e.value || null)}
+                    />
+                  </div>
+                  <div className="field col-12 mb-3">
+                    <label className="font-semibold text-xs text-700 block mb-2">Level Stok Produk</label>
+                    <Dropdown
+                      value={selectedStatusStok}
+                      options={optionsStatusStok}
+                      optionLabel="label"
+                      optionValue="value"
+                      placeholder="Semua Level Stok"
+                      showClear
+                      className="w-full text-sm"
+                      onChange={(e) => setSelectedStatusStok(e.value || null)}
+                    />
+                  </div>
+                  <div className="field col-12 mb-3">
+                    <label className="font-semibold text-xs text-700 block mb-2">Status Produk</label>
+                    <Dropdown
+                      value={selectedStatus}
+                      options={optionsStatusProduk}
+                      optionLabel="label"
+                      optionValue="value"
+                      placeholder="Semua Status"
+                      showClear
+                      className="w-full text-sm"
+                      onChange={(e) => setSelectedStatus(e.value || null)}
+                    />
+                  </div>
+                </LaporanFilterPopup>
+              )}
             />
           }
         >
@@ -880,10 +1182,45 @@ export const LaporanPaketView: React.FC = () => {
   const [showDetailDialog, setShowDetailDialog] = useState<boolean>(false);
   const toast = useRef<Toast>(null);
 
-  const fetchData = async () => {
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
+  const [selectedRuangan, setSelectedRuangan] = useState<string | null>(null);
+  const [selectedTipe, setSelectedTipe] = useState<string | null>(null);
+  const [optionsRuangan, setOptionsRuangan] = useState<any[]>([]);
+
+  const optionsStatusPaket = [
+    { label: 'Semua Status', value: '' },
+    { label: 'Aktif', value: 'aktif' },
+    { label: 'Nonaktif', value: 'nonaktif' },
+  ];
+
+  const optionsTipePaket = [
+    { label: 'Semua Tipe', value: '' },
+    { label: 'Beauty Treatment', value: 'BEAUTY TREATMENT' },
+    { label: 'Clinic Treatment', value: 'CLINIC TREATMENT' },
+  ];
+
+  const fetchOptions = async () => {
+    try {
+      const res = await postData('/master/laporan/options', {});
+      if (['00', '0000'].includes(res?.data?.status)) {
+        setOptionsRuangan(res.data.data?.ruangan || []);
+      }
+    } catch (_) {}
+  };
+
+  const fetchData = async (
+    kw = keyword,
+    sStatus = selectedStatus,
+    sRuangan = selectedRuangan,
+    sTipe = selectedTipe
+  ) => {
     setLoading(true);
     try {
-      const res = await postData('/master/laporan/paket', { keyword });
+      const payload: any = { keyword: kw !== undefined ? kw : keyword };
+      if (sStatus) payload.status = sStatus;
+      if (sRuangan) payload.kode_ruangan = sRuangan;
+      if (sTipe) payload.tipe = sTipe;
+      const res = await postData('/master/laporan/paket', payload);
       if (['00', '0000'].includes(res?.data?.status)) {
         setData(res.data.data || []);
       }
@@ -895,6 +1232,7 @@ export const LaporanPaketView: React.FC = () => {
   };
 
   useEffect(() => {
+    fetchOptions();
     fetchData();
   }, []);
 
@@ -1044,11 +1382,68 @@ export const LaporanPaketView: React.FC = () => {
               searchVal={keyword}
               setSearchVal={setKeyword}
               onSearchKeyDown={(e) => e.key === 'Enter' && fetchData()}
+              isFiltered={Boolean(selectedStatus || selectedRuangan || selectedTipe)}
               onReset={() => {
                 setKeyword('');
-                fetchData();
+                setSelectedStatus(null);
+                setSelectedRuangan(null);
+                setSelectedTipe(null);
+                fetchData('', null, null, null);
               }}
               searchPlaceholder="Cari Kode Paket, Nama Paket..."
+              filterOverlay={(close) => (
+                <LaporanFilterPopup
+                  title="Filter Laporan Paket"
+                  onClose={close}
+                  onApply={() => fetchData()}
+                  onReset={() => {
+                    setSelectedStatus(null);
+                    setSelectedRuangan(null);
+                    setSelectedTipe(null);
+                    fetchData(undefined, null, null, null);
+                  }}
+                >
+                  <div className="field col-12 mb-3">
+                    <label className="font-semibold text-xs text-700 block mb-2">Status Paket</label>
+                    <Dropdown
+                      value={selectedStatus}
+                      options={optionsStatusPaket}
+                      optionLabel="label"
+                      optionValue="value"
+                      placeholder="Semua Status"
+                      showClear
+                      className="w-full text-sm"
+                      onChange={(e) => setSelectedStatus(e.value || null)}
+                    />
+                  </div>
+                  <div className="field col-12 mb-3">
+                    <label className="font-semibold text-xs text-700 block mb-2">Ruangan Layanan</label>
+                    <Dropdown
+                      value={selectedRuangan}
+                      options={optionsRuangan}
+                      optionLabel="label"
+                      optionValue="value"
+                      placeholder="Semua Ruangan"
+                      showClear
+                      className="w-full text-sm"
+                      onChange={(e) => setSelectedRuangan(e.value || null)}
+                    />
+                  </div>
+                  <div className="field col-12 mb-3">
+                    <label className="font-semibold text-xs text-700 block mb-2">Tipe Paket</label>
+                    <Dropdown
+                      value={selectedTipe}
+                      options={optionsTipePaket}
+                      optionLabel="label"
+                      optionValue="value"
+                      placeholder="Semua Tipe"
+                      showClear
+                      className="w-full text-sm"
+                      onChange={(e) => setSelectedTipe(e.value || null)}
+                    />
+                  </div>
+                </LaporanFilterPopup>
+              )}
             />
           }
         >
@@ -1159,12 +1554,33 @@ export const LaporanPasienView: React.FC = () => {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [keyword, setKeyword] = useState<string>('');
+  const [selectedGender, setSelectedGender] = useState<string | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const toast = useRef<Toast>(null);
 
-  const fetchData = async () => {
+  const optionsGender = [
+    { label: 'Semua Gender', value: '' },
+    { label: 'Laki-laki (L)', value: 'L' },
+    { label: 'Perempuan (P)', value: 'P' },
+  ];
+
+  const optionsStatusPasien = [
+    { label: 'Semua Status', value: '' },
+    { label: 'Aktif', value: 'aktif' },
+    { label: 'Tidak Aktif', value: 'nonaktif' },
+  ];
+
+  const fetchData = async (
+    kw = keyword,
+    sGender = selectedGender,
+    sStatus = selectedStatus
+  ) => {
     setLoading(true);
     try {
-      const res = await postData('/master/laporan/pasien', { keyword, perPage: 100 });
+      const payload: any = { keyword: kw !== undefined ? kw : keyword, perPage: 100 };
+      if (sGender) payload.jenis_kelamin = sGender;
+      if (sStatus) payload.status = sStatus;
+      const res = await postData('/master/laporan/pasien', payload);
       if (['00', '0000'].includes(res?.data?.status)) {
         setData(res.data.data || []);
       }
@@ -1269,11 +1685,53 @@ export const LaporanPasienView: React.FC = () => {
               searchVal={keyword}
               setSearchVal={setKeyword}
               onSearchKeyDown={(e) => e.key === 'Enter' && fetchData()}
+              isFiltered={Boolean(selectedGender || selectedStatus)}
               onReset={() => {
                 setKeyword('');
-                fetchData();
+                setSelectedGender(null);
+                setSelectedStatus(null);
+                fetchData('', null, null);
               }}
               searchPlaceholder="Cari No RM, Nama Pasien, Kontak..."
+              filterOverlay={(close) => (
+                <LaporanFilterPopup
+                  title="Filter Laporan Pasien"
+                  onClose={close}
+                  onApply={() => fetchData()}
+                  onReset={() => {
+                    setSelectedGender(null);
+                    setSelectedStatus(null);
+                    fetchData(undefined, null, null);
+                  }}
+                >
+                  <div className="field col-12 mb-3">
+                    <label className="font-semibold text-xs text-700 block mb-2">Jenis Kelamin</label>
+                    <Dropdown
+                      value={selectedGender}
+                      options={optionsGender}
+                      optionLabel="label"
+                      optionValue="value"
+                      placeholder="Semua Gender"
+                      showClear
+                      className="w-full text-sm"
+                      onChange={(e) => setSelectedGender(e.value || null)}
+                    />
+                  </div>
+                  <div className="field col-12 mb-3">
+                    <label className="font-semibold text-xs text-700 block mb-2">Status Pasien</label>
+                    <Dropdown
+                      value={selectedStatus}
+                      options={optionsStatusPasien}
+                      optionLabel="label"
+                      optionValue="value"
+                      placeholder="Semua Status"
+                      showClear
+                      className="w-full text-sm"
+                      onChange={(e) => setSelectedStatus(e.value || null)}
+                    />
+                  </div>
+                </LaporanFilterPopup>
+              )}
             />
           }
         >
@@ -1322,18 +1780,57 @@ export const LaporanKunjunganView: React.FC = () => {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [keyword, setKeyword] = useState<string>('');
-  const [tglDari, setTglDari] = useState<Date | null>(null);
-  const [tglSampai, setTglSampai] = useState<Date | null>(null);
+  const [tglDari, setTglDari] = useState<Date | null>(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
+  const [tglSampai, setTglSampai] = useState<Date | null>(() => new Date());
+  const [selectedStatus, setSelectedStatus] = useState<string[]>([]);
+  const [selectedRuangan, setSelectedRuangan] = useState<string | null>(null);
+
+  const [optionsStatus, setOptionsStatus] = useState<any[]>([
+    { label: 'Berlangsung', value: 'berlangsung' },
+    { label: 'Selesai', value: 'selesai' },
+    { label: 'Batal', value: 'batal' },
+  ]);
+  const [optionsRuangan, setOptionsRuangan] = useState<any[]>([]);
   const toast = useRef<Toast>(null);
 
-  const fetchData = async () => {
+  useEffect(() => {
+    const loadOptions = async () => {
+      try {
+        const res = await postData('/master/laporan/options', {});
+        if (res?.data?.data) {
+          if (res.data.data.status_kunjungan) setOptionsStatus(res.data.data.status_kunjungan);
+          if (res.data.data.ruangan) setOptionsRuangan(res.data.data.ruangan);
+        }
+      } catch (_) {}
+    };
+    loadOptions();
+  }, []);
+
+  const fetchData = async (
+    overrideStatus?: string[],
+    overrideRuangan?: string | null,
+    overrideTglDari?: Date | null,
+    overrideTglSampai?: Date | null,
+    overrideKeyword?: string
+  ) => {
     setLoading(true);
     try {
+      const activeStatus = overrideStatus !== undefined ? overrideStatus : selectedStatus;
+      const activeRuangan = overrideRuangan !== undefined ? overrideRuangan : selectedRuangan;
+      const activeTglDari = overrideTglDari !== undefined ? overrideTglDari : tglDari;
+      const activeTglSampai = overrideTglSampai !== undefined ? overrideTglSampai : tglSampai;
+      const activeKeyword = overrideKeyword !== undefined ? overrideKeyword : keyword;
+
       const payload: any = {
-        keyword,
+        keyword: activeKeyword || undefined,
+        status: activeStatus.length > 0 ? activeStatus : undefined,
+        kode_ruangan: activeRuangan || undefined,
+        tanggal_dari: activeTglDari ? activeTglDari.toISOString().slice(0, 10) : null,
+        tanggal_sampai: activeTglSampai ? activeTglSampai.toISOString().slice(0, 10) : null,
         perPage: 100,
-        tanggal_dari: tglDari ? tglDari.toISOString().slice(0, 10) : null,
-        tanggal_sampai: tglSampai ? tglSampai.toISOString().slice(0, 10) : null,
       };
       const res = await postData('/master/laporan/kunjungan', payload);
       if (['00', '0000'].includes(res?.data?.status)) {
@@ -1435,18 +1932,65 @@ export const LaporanKunjunganView: React.FC = () => {
           header={
             <LaporanTableHeaderFilter
               tanggalAwal={tglDari}
-              setTanggalAwal={setTglDari}
+              setTanggalAwal={(d) => setTglDari(d)}
               tanggalAkhir={tglSampai}
-              setTanggalAkhir={setTglSampai}
+              setTanggalAkhir={(d) => setTglSampai(d)}
               searchVal={keyword}
               setSearchVal={setKeyword}
               onSearchKeyDown={(e) => e.key === 'Enter' && fetchData()}
+              isFiltered={selectedStatus.length > 0 || Boolean(selectedRuangan)}
               onReset={() => {
-                setTglDari(null);
-                setTglSampai(null);
+                const now = new Date();
+                const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+                setTglDari(firstDay);
+                setTglSampai(now);
                 setKeyword('');
+                setSelectedStatus([]);
+                setSelectedRuangan(null);
+                fetchData([], null, firstDay, now, '');
               }}
               searchPlaceholder="Cari Kode Kunjungan, Pasien, No RM..."
+              filterOverlay={(close) => (
+                <LaporanFilterPopup
+                  title="Filter Laporan Kunjungan"
+                  onClose={close}
+                  onApply={() => fetchData()}
+                  onReset={() => {
+                    setSelectedStatus([]);
+                    setSelectedRuangan(null);
+                    fetchData([], null);
+                  }}
+                >
+                  <div className="field col-12 mb-3">
+                    <label className="font-semibold text-xs text-700 block mb-2">Status Kunjungan</label>
+                    <MultiSelect
+                      value={selectedStatus}
+                      options={optionsStatus}
+                      optionLabel="label"
+                      optionValue="value"
+                      placeholder="Semua Status Kunjungan"
+                      display="chip"
+                      selectAll={true}
+                      showSelectAll={true}
+                      className="w-full text-sm"
+                      onChange={(e) => setSelectedStatus(e.value || [])}
+                    />
+                  </div>
+                  <div className="field col-12 mb-3">
+                    <label className="font-semibold text-xs text-700 block mb-2">Ruangan Tujuan</label>
+                    <Dropdown
+                      value={selectedRuangan}
+                      options={optionsRuangan}
+                      optionLabel="label"
+                      optionValue="value"
+                      placeholder="Semua Ruangan"
+                      showClear
+                      className="w-full text-sm"
+                      onChange={(e) => setSelectedRuangan(e.value || null)}
+                    />
+                  </div>
+                </LaporanFilterPopup>
+              )}
             />
           }
         >
@@ -1502,12 +2046,21 @@ export const LaporanDokterView: React.FC = () => {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [keyword, setKeyword] = useState<string>('');
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const toast = useRef<Toast>(null);
 
-  const fetchData = async () => {
+  const optionsStatusDokter = [
+    { label: 'Semua Status', value: '' },
+    { label: 'Aktif', value: 'aktif' },
+    { label: 'Tidak Aktif', value: 'nonaktif' },
+  ];
+
+  const fetchData = async (sStatus = selectedStatus, kw = keyword) => {
     setLoading(true);
     try {
-      const res = await postData('/master/laporan/dokter', {});
+      const payload: any = { keyword: kw !== undefined ? kw : keyword };
+      if (sStatus) payload.status = sStatus;
+      const res = await postData('/master/laporan/dokter', payload);
       if (['00', '0000'].includes(res?.data?.status)) {
         setData(res.data.data || []);
       }
@@ -1618,8 +2171,39 @@ export const LaporanDokterView: React.FC = () => {
             <LaporanTableHeaderFilter
               searchVal={keyword}
               setSearchVal={setKeyword}
-              onReset={() => setKeyword('')}
+              onSearchKeyDown={(e) => e.key === 'Enter' && fetchData()}
+              isFiltered={Boolean(selectedStatus)}
+              onReset={() => {
+                setKeyword('');
+                setSelectedStatus(null);
+                fetchData(null, '');
+              }}
               searchPlaceholder="Cari Dokter, SIP, Kontak..."
+              filterOverlay={(close) => (
+                <LaporanFilterPopup
+                  title="Filter Laporan Dokter"
+                  onClose={close}
+                  onApply={() => fetchData()}
+                  onReset={() => {
+                    setSelectedStatus(null);
+                    fetchData(null);
+                  }}
+                >
+                  <div className="field col-12 mb-3">
+                    <label className="font-semibold text-xs text-700 block mb-2">Status Dokter</label>
+                    <Dropdown
+                      value={selectedStatus}
+                      options={optionsStatusDokter}
+                      optionLabel="label"
+                      optionValue="value"
+                      placeholder="Semua Status"
+                      showClear
+                      className="w-full text-sm"
+                      onChange={(e) => setSelectedStatus(e.value || null)}
+                    />
+                  </div>
+                </LaporanFilterPopup>
+              )}
             />
           }
         >
@@ -1660,12 +2244,34 @@ export const LaporanBeauticianView: React.FC = () => {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [keyword, setKeyword] = useState<string>('');
+  const [selectedJabatan, setSelectedJabatan] = useState<string | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const toast = useRef<Toast>(null);
 
-  const fetchData = async () => {
+  const optionsJabatan = [
+    { label: 'Semua Jabatan', value: '' },
+    { label: 'Beautician', value: 'beautician' },
+    { label: 'Terapis', value: 'terapis' },
+    { label: 'Perawat', value: 'perawat' },
+  ];
+
+  const optionsStatusBeautician = [
+    { label: 'Semua Status', value: '' },
+    { label: 'Aktif', value: 'aktif' },
+    { label: 'Tidak Aktif', value: 'nonaktif' },
+  ];
+
+  const fetchData = async (
+    sJabatan = selectedJabatan,
+    sStatus = selectedStatus,
+    kw = keyword
+  ) => {
     setLoading(true);
     try {
-      const res = await postData('/master/laporan/beautician', {});
+      const payload: any = { keyword: kw !== undefined ? kw : keyword };
+      if (sJabatan) payload.jabatan = sJabatan;
+      if (sStatus) payload.status = sStatus;
+      const res = await postData('/master/laporan/beautician', payload);
       if (['00', '0000'].includes(res?.data?.status)) {
         setData(res.data.data || []);
       }
@@ -1775,8 +2381,54 @@ export const LaporanBeauticianView: React.FC = () => {
             <LaporanTableHeaderFilter
               searchVal={keyword}
               setSearchVal={setKeyword}
-              onReset={() => setKeyword('')}
+              onSearchKeyDown={(e) => e.key === 'Enter' && fetchData()}
+              isFiltered={Boolean(selectedJabatan || selectedStatus)}
+              onReset={() => {
+                setKeyword('');
+                setSelectedJabatan(null);
+                setSelectedStatus(null);
+                fetchData(null, null, '');
+              }}
               searchPlaceholder="Cari Beautician, Jabatan..."
+              filterOverlay={(close) => (
+                <LaporanFilterPopup
+                  title="Filter Laporan Beautician"
+                  onClose={close}
+                  onApply={() => fetchData()}
+                  onReset={() => {
+                    setSelectedJabatan(null);
+                    setSelectedStatus(null);
+                    fetchData(null, null);
+                  }}
+                >
+                  <div className="field col-12 mb-3">
+                    <label className="font-semibold text-xs text-700 block mb-2">Jabatan Petugas</label>
+                    <Dropdown
+                      value={selectedJabatan}
+                      options={optionsJabatan}
+                      optionLabel="label"
+                      optionValue="value"
+                      placeholder="Semua Jabatan"
+                      showClear
+                      className="w-full text-sm"
+                      onChange={(e) => setSelectedJabatan(e.value || null)}
+                    />
+                  </div>
+                  <div className="field col-12 mb-3">
+                    <label className="font-semibold text-xs text-700 block mb-2">Status Petugas</label>
+                    <Dropdown
+                      value={selectedStatus}
+                      options={optionsStatusBeautician}
+                      optionLabel="label"
+                      optionValue="value"
+                      placeholder="Semua Status"
+                      showClear
+                      className="w-full text-sm"
+                      onChange={(e) => setSelectedStatus(e.value || null)}
+                    />
+                  </div>
+                </LaporanFilterPopup>
+              )}
             />
           }
         >
@@ -1823,12 +2475,38 @@ export const LaporanInventoryView: React.FC = () => {
   const [summary, setSummary] = useState<any>({});
   const [loading, setLoading] = useState<boolean>(true);
   const [keyword, setKeyword] = useState<string>('');
+  const [selectedKategori, setSelectedKategori] = useState<string | null>(null);
+  const [selectedStatusStok, setSelectedStatusStok] = useState<string | null>(null);
+  const [optionsKategori, setOptionsKategori] = useState<any[]>([]);
   const toast = useRef<Toast>(null);
 
-  const fetchData = async () => {
+  const optionsStatusStok = [
+    { label: 'Semua Level Stok', value: '' },
+    { label: 'Stok Aman', value: 'aman' },
+    { label: 'Stok Menipis', value: 'menipis' },
+    { label: 'Stok Habis (Kosong)', value: 'habis' },
+  ];
+
+  const fetchOptions = async () => {
+    try {
+      const res = await postData('/master/laporan/options', {});
+      if (['00', '0000'].includes(res?.data?.status)) {
+        setOptionsKategori(res.data.data?.kategori_produk || []);
+      }
+    } catch (_) {}
+  };
+
+  const fetchData = async (
+    sKat = selectedKategori,
+    sStok = selectedStatusStok,
+    kw = keyword
+  ) => {
     setLoading(true);
     try {
-      const res = await postData('/master/laporan/inventory', {});
+      const payload: any = { keyword: kw !== undefined ? kw : keyword };
+      if (sKat) payload.kode_kategori_produk = sKat;
+      if (sStok) payload.status_stok = sStok;
+      const res = await postData('/master/laporan/inventory', payload);
       if (['00', '0000'].includes(res?.data?.status)) {
         setData(res.data.data || []);
         setSummary(res.data.summary || {});
@@ -1841,6 +2519,7 @@ export const LaporanInventoryView: React.FC = () => {
   };
 
   useEffect(() => {
+    fetchOptions();
     fetchData();
   }, []);
 
@@ -1943,8 +2622,56 @@ export const LaporanInventoryView: React.FC = () => {
             <LaporanTableHeaderFilter
               searchVal={keyword}
               setSearchVal={setKeyword}
-              onReset={() => setKeyword('')}
+              onSearchKeyDown={(e) => e.key === 'Enter' && fetchData()}
+              isFiltered={Boolean(selectedKategori || selectedStatusStok)}
+              onReset={() => {
+                setKeyword('');
+                setSelectedKategori(null);
+                setSelectedStatusStok(null);
+                fetchData(null, null, '');
+              }}
               searchPlaceholder="Cari Produk, Kode, Kategori..."
+              filterOverlay={(close) => (
+                <LaporanFilterPopup
+                  title="Filter Laporan Inventory"
+                  onClose={close}
+                  onApply={() => fetchData()}
+                  onReset={() => {
+                    setSelectedKategori(null);
+                    setSelectedStatusStok(null);
+                    fetchData(null, null);
+                  }}
+                >
+                  <div className="field col-12 mb-3">
+                    <label className="font-semibold text-xs text-700 block mb-2">Kategori Produk</label>
+                    <Dropdown
+                      value={selectedKategori}
+                      options={optionsKategori}
+                      optionLabel="label"
+                      optionValue="value"
+                      placeholder="Semua Kategori"
+                      filter
+                      showClear
+                      filterPlaceholder="Cari Kategori..."
+                      className="w-full text-sm"
+                      onChange={(e) => setSelectedKategori(e.value || null)}
+                    />
+                  </div>
+                  <div className="field col-12 mb-3">
+                    <label className="font-semibold text-xs text-700 block mb-2">Level Persediaan Stok</label>
+                    <Dropdown
+                      value={selectedStatusStok}
+                      options={optionsStatusStok}
+                      optionLabel="label"
+                      optionValue="value"
+                      placeholder="Semua Level Stok"
+                      showClear
+                      className="w-full text-sm"
+                      onChange={(e) => setSelectedStatusStok(e.value || null)}
+                    />
+                  </div>
+                </LaporanFilterPopup>
+              )}
             />
           }
         >
@@ -2006,12 +2733,33 @@ export const LaporanVoucherView: React.FC = () => {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [keyword, setKeyword] = useState<string>('');
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
+  const [selectedJenisDiskon, setSelectedJenisDiskon] = useState<string | null>(null);
   const toast = useRef<Toast>(null);
 
-  const fetchData = async () => {
+  const optionsStatusVoucher = [
+    { label: 'Semua Status', value: '' },
+    { label: 'Aktif', value: 'aktif' },
+    { label: 'Tidak Aktif / Nonaktif', value: 'nonaktif' },
+  ];
+
+  const optionsJenisDiskon = [
+    { label: 'Semua Jenis Diskon', value: '' },
+    { label: 'Persentase (%)', value: 'persen' },
+    { label: 'Nominal Tetap (Rp)', value: 'nominal' },
+  ];
+
+  const fetchData = async (
+    sStatus = selectedStatus,
+    sJenis = selectedJenisDiskon,
+    kw = keyword
+  ) => {
     setLoading(true);
     try {
-      const res = await postData('/master/laporan/voucher', {});
+      const payload: any = { keyword: kw !== undefined ? kw : keyword };
+      if (sStatus) payload.status = sStatus;
+      if (sJenis) payload.jenis_diskon = sJenis;
+      const res = await postData('/master/laporan/voucher', payload);
       if (['00', '0000'].includes(res?.data?.status)) {
         setData(res.data.data || []);
       }
@@ -2120,8 +2868,54 @@ export const LaporanVoucherView: React.FC = () => {
             <LaporanTableHeaderFilter
               searchVal={keyword}
               setSearchVal={setKeyword}
-              onReset={() => setKeyword('')}
+              onSearchKeyDown={(e) => e.key === 'Enter' && fetchData()}
+              isFiltered={Boolean(selectedStatus || selectedJenisDiskon)}
+              onReset={() => {
+                setKeyword('');
+                setSelectedStatus(null);
+                setSelectedJenisDiskon(null);
+                fetchData(null, null, '');
+              }}
               searchPlaceholder="Cari Nama Promo, Kode..."
+              filterOverlay={(close) => (
+                <LaporanFilterPopup
+                  title="Filter Laporan Voucher"
+                  onClose={close}
+                  onApply={() => fetchData()}
+                  onReset={() => {
+                    setSelectedStatus(null);
+                    setSelectedJenisDiskon(null);
+                    fetchData(null, null);
+                  }}
+                >
+                  <div className="field col-12 mb-3">
+                    <label className="font-semibold text-xs text-700 block mb-2">Status Voucher</label>
+                    <Dropdown
+                      value={selectedStatus}
+                      options={optionsStatusVoucher}
+                      optionLabel="label"
+                      optionValue="value"
+                      placeholder="Semua Status"
+                      showClear
+                      className="w-full text-sm"
+                      onChange={(e) => setSelectedStatus(e.value || null)}
+                    />
+                  </div>
+                  <div className="field col-12 mb-3">
+                    <label className="font-semibold text-xs text-700 block mb-2">Jenis Potongan Diskon</label>
+                    <Dropdown
+                      value={selectedJenisDiskon}
+                      options={optionsJenisDiskon}
+                      optionLabel="label"
+                      optionValue="value"
+                      placeholder="Semua Jenis Diskon"
+                      showClear
+                      className="w-full text-sm"
+                      onChange={(e) => setSelectedJenisDiskon(e.value || null)}
+                    />
+                  </div>
+                </LaporanFilterPopup>
+              )}
             />
           }
         >
@@ -2182,12 +2976,49 @@ export const LaporanKeuanganView: React.FC = () => {
   const [summary, setSummary] = useState<any>({});
   const [loading, setLoading] = useState<boolean>(true);
   const [keyword, setKeyword] = useState<string>('');
+  const [startDate, setStartDate] = useState<Date | null>(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  });
+  const [endDate, setEndDate] = useState<Date | null>(() => new Date());
+  const [selectedStatus, setSelectedStatus] = useState<string[]>([]);
+  const [selectedMetode, setSelectedMetode] = useState<string | null>(null);
+  const [optionsStatus, setOptionsStatus] = useState<any[]>([]);
+  const [optionsMetode, setOptionsMetode] = useState<any[]>([]);
   const toast = useRef<Toast>(null);
 
-  const fetchData = async () => {
+  const fetchOptions = async () => {
+    try {
+      const res = await postData('/master/laporan/options', {});
+      if (['00', '0000'].includes(res?.data?.status)) {
+        setOptionsStatus(res.data.data?.status_penjualan || []);
+        setOptionsMetode(res.data.data?.metode_bayar || []);
+      }
+    } catch (_) {}
+  };
+
+  const fetchData = async (
+    sStatus = selectedStatus,
+    sMetode = selectedMetode,
+    start = startDate,
+    end = endDate
+  ) => {
     setLoading(true);
     try {
-      const res = await postData('/master/laporan/keuangan', {});
+      const payload: any = {};
+      if (start) {
+        payload.tanggal_dari = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`;
+      }
+      if (end) {
+        payload.tanggal_sampai = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
+      }
+      if (sStatus && sStatus.length > 0) {
+        payload.status = sStatus;
+      }
+      if (sMetode) {
+        payload.metode_bayar = sMetode;
+      }
+      const res = await postData('/master/laporan/keuangan', payload);
       if (['00', '0000'].includes(res?.data?.status)) {
         setData(res.data.data || []);
         setSummary(res.data.summary || {});
@@ -2200,8 +3031,9 @@ export const LaporanKeuanganView: React.FC = () => {
   };
 
   useEffect(() => {
+    fetchOptions();
     fetchData();
-  }, []);
+  }, [startDate, endDate]);
 
   const handleExport = async () => {
     const exportData = data.map((r, i) => ({
@@ -2269,20 +3101,60 @@ export const LaporanKeuanganView: React.FC = () => {
 
       {/* BREAKDOWN METODE BAYAR */}
       {summary.breakdown_metode && summary.breakdown_metode.length > 0 && (
-        <div className="surface-card border-round-xl border-1 surface-border p-3 mb-3">
-          <span className="text-xs font-bold text-gray-700 uppercase tracking-wider block mb-2">
-            Komposisi Penerimaan Kas &amp; Bank Berdasarkan Metode Bayar
-          </span>
+        <div className="mb-3">
+          <div className="flex align-items-center justify-content-between mb-2">
+            <span className="text-xs font-bold text-700 uppercase tracking-wider flex align-items-center gap-2">
+              <i className="pi pi-credit-card text-primary text-sm" />
+              Komposisi Penerimaan Kas &amp; Bank Berdasarkan Metode Bayar
+            </span>
+            <span className="text-xs text-500 font-semibold">
+              {summary.breakdown_metode.length} Saluran Pembayaran
+            </span>
+          </div>
           <div className="grid">
-            {summary.breakdown_metode.map((m: any, idx: number) => (
-              <div key={idx} className="col-12 sm:col-6 md:col-3">
-                <div className="bg-gray-50 p-2.5 border-round-lg border-1 surface-border">
-                  <span className="text-xs font-bold text-gray-500 uppercase">{m.metode_bayar}</span>
-                  <div className="text-base font-bold text-emerald-700 mt-0.5">{formatRupiah(m.total_nominal)}</div>
-                  <div className="text-[11px] text-gray-500 mt-0.5">{m.jumlah_transaksi} Transaksi</div>
+            {summary.breakdown_metode.map((m: any, idx: number) => {
+              const getMetodeStyle = (metode: string) => {
+                const lower = (metode || '').toLowerCase();
+                if (lower.includes('tunai') || lower.includes('cash')) {
+                  return { colorText: 'text-green-700', bg: 'bg-green-50', icon: 'pi pi-money-bill text-green-600' };
+                }
+                if (lower.includes('qris')) {
+                  return { colorText: 'text-purple-700', bg: 'bg-purple-50', icon: 'pi pi-qrcode text-purple-600' };
+                }
+                if (lower.includes('debit')) {
+                  return { colorText: 'text-blue-700', bg: 'bg-blue-50', icon: 'pi pi-credit-card text-blue-600' };
+                }
+                if (lower.includes('transfer')) {
+                  return { colorText: 'text-indigo-700', bg: 'bg-indigo-50', icon: 'pi pi-send text-indigo-600' };
+                }
+                if (lower.includes('kredit')) {
+                  return { colorText: 'text-red-700', bg: 'bg-red-50', icon: 'pi pi-id-card text-red-600' };
+                }
+                return { colorText: 'text-teal-700', bg: 'bg-teal-50', icon: 'pi pi-wallet text-teal-600' };
+              };
+              const mStyle = getMetodeStyle(m.metode_bayar);
+
+              return (
+                <div key={idx} className="col-12 sm:col-6 lg:col-3">
+                  <div className="surface-card border-round-xl border-1 surface-border p-3 flex align-items-center justify-content-between h-full hover:shadow-2 transition-duration-150">
+                    <div className="flex flex-column gap-1">
+                      <span className="text-xs font-bold text-500 uppercase tracking-wider">
+                        {m.metode_bayar}
+                      </span>
+                      <span className={`text-xl font-black ${mStyle.colorText}`}>
+                        {formatRupiah(m.total_nominal)}
+                      </span>
+                      <span className="text-xs text-500 font-medium">
+                        {m.jumlah_transaksi} Transaksi
+                      </span>
+                    </div>
+                    <div className={`p-3 ${mStyle.bg} border-round-lg`}>
+                      <i className={`${mStyle.icon} text-xl`} />
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -2310,8 +3182,60 @@ export const LaporanKeuanganView: React.FC = () => {
             <LaporanTableHeaderFilter
               searchVal={keyword}
               setSearchVal={setKeyword}
-              onReset={() => setKeyword('')}
+              onReset={() => {
+                setKeyword('');
+                setSelectedStatus([]);
+                setSelectedMetode(null);
+                fetchData([], null);
+              }}
               searchPlaceholder="Cari Tanggal (YYYY-MM-DD)..."
+              tanggalAwal={startDate}
+              setTanggalAwal={setStartDate}
+              tanggalAkhir={endDate}
+              setTanggalAkhir={setEndDate}
+              filterOverlay={(closePopup) => (
+                <LaporanFilterPopup
+                  onClose={closePopup}
+                  onApply={() => {
+                    fetchData(selectedStatus, selectedMetode);
+                    closePopup();
+                  }}
+                  onReset={() => {
+                    setSelectedStatus([]);
+                    setSelectedMetode(null);
+                    fetchData([], null);
+                  }}
+                >
+                  <div className="field col-12 mb-3">
+                    <label className="font-semibold text-xs text-700 block mb-2">Status Transaksi</label>
+                    <MultiSelect
+                      value={selectedStatus}
+                      options={optionsStatus}
+                      optionLabel="label"
+                      optionValue="value"
+                      placeholder="Semua Status"
+                      display="chip"
+                      selectAll={true}
+                      showSelectAll={true}
+                      className="w-full text-sm"
+                      onChange={(e) => setSelectedStatus(e.value || [])}
+                    />
+                  </div>
+                  <div className="field col-12 mb-3">
+                    <label className="font-semibold text-xs text-700 block mb-2">Metode Pembayaran</label>
+                    <Dropdown
+                      value={selectedMetode}
+                      options={optionsMetode}
+                      optionLabel="label"
+                      optionValue="value"
+                      placeholder="Semua Metode"
+                      showClear
+                      className="w-full text-sm"
+                      onChange={(e) => setSelectedMetode(e.value || null)}
+                    />
+                  </div>
+                </LaporanFilterPopup>
+              )}
             />
           }
         >

@@ -13,6 +13,88 @@ import { getBranchScope } from "../../components/tools/branch_scope.js";
 const router = express.Router();
 
 /**
+ * 0. ENDPOINT OPSI FILTER LAPORAN REAL DARI DATABASE
+ */
+router.post("/options", async (req, res) => {
+  try {
+    const [karyawanList, ruanganList, kategoriList] = await Promise.all([
+      DB("mst_karyawan").select("kode_karyawan", "nama", "jabatan").orderBy("nama", "asc"),
+      DB("mst_ruangan").select("kode_ruangan", "nama_ruangan").orderBy("nama_ruangan", "asc"),
+      DB("mst_kategori_produk").select("kode_kategori_produk", "nama").orderBy("nama", "asc"),
+    ]);
+
+    const petugasOptions = karyawanList.map((k) => ({
+      label: `${k.nama} (${k.jabatan ? k.jabatan.toUpperCase() : 'STAFF'})`,
+      value: k.kode_karyawan,
+      jabatan: k.jabatan,
+    }));
+
+    const dokterOptions = karyawanList
+      .filter((k) => (k.jabatan || "").toLowerCase() === "dokter")
+      .map((k) => ({
+        label: k.nama,
+        value: k.kode_karyawan,
+      }));
+
+    const ruanganOptions = ruanganList.map((r) => ({
+      label: r.nama_ruangan,
+      value: r.kode_ruangan,
+    }));
+
+    const kategoriOptions = kategoriList.map((kp) => ({
+      label: kp.nama,
+      value: kp.kode_kategori_produk,
+    }));
+
+    const metodeBayarOptions = [
+      { label: "Tunai", value: "tunai" },
+      { label: "QRIS", value: "qris" },
+      { label: "Debit", value: "debit" },
+      { label: "Kredit", value: "kredit" },
+      { label: "Transfer", value: "transfer" },
+    ];
+
+    const statusPenjualanOptions = [
+      { label: "Lunas", value: "lunas" },
+      { label: "Draft / Pending", value: "draft" },
+      { label: "Batal", value: "batal" },
+    ];
+
+    const statusTreatmentOptions = [
+      { label: "Menunggu", value: "menunggu" },
+      { label: "Dipanggil", value: "dipanggil" },
+      { label: "Selesai", value: "selesai" },
+      { label: "Batal", value: "batal" },
+    ];
+
+    const statusKunjunganOptions = [
+      { label: "Berlangsung", value: "berlangsung" },
+      { label: "Selesai", value: "selesai" },
+      { label: "Batal", value: "batal" },
+    ];
+
+    return res.status(200).json({
+      status: status.SUKSES,
+      message: "Berhasil memuat opsi filter laporan",
+      datetime: formatDateSystem(),
+      data: {
+        petugas: petugasOptions,
+        dokter: dokterOptions,
+        ruangan: ruanganOptions,
+        kategori_produk: kategoriOptions,
+        metode_bayar: metodeBayarOptions,
+        status_penjualan: statusPenjualanOptions,
+        status_treatment: statusTreatmentOptions,
+        status_kunjungan: statusKunjunganOptions,
+      },
+    });
+  } catch (err) {
+    Logging(err, { file: "laporan_routes.js", func: "options" });
+    return res.status(500).json({ status: status.BAD_REQUEST, message: err.message });
+  }
+});
+
+/**
  * 1. LAPORAN PENJUALAN
  */
 router.post("/penjualan", async (req, res) => {
@@ -41,10 +123,18 @@ router.post("/penjualan", async (req, res) => {
           qb.whereRaw("DATE(t.tanggal_transaksi) <= ?", [tanggal_sampai]);
         }
         if (filterStatus) {
-          qb.where("t.status", filterStatus);
+          if (Array.isArray(filterStatus) && filterStatus.length > 0) {
+            qb.whereIn("t.status", filterStatus);
+          } else if (typeof filterStatus === "string" && filterStatus.trim()) {
+            qb.where("t.status", filterStatus.trim());
+          }
         }
         if (filterMetode) {
-          qb.where("t.metode_bayar", filterMetode);
+          if (Array.isArray(filterMetode) && filterMetode.length > 0) {
+            qb.whereIn("t.metode_bayar", filterMetode);
+          } else if (typeof filterMetode === "string" && filterMetode.trim()) {
+            qb.where("t.metode_bayar", filterMetode.trim());
+          }
         }
         if (keyword) {
           const lower = keyword.toLowerCase();
@@ -148,6 +238,7 @@ router.post("/treatment", async (req, res) => {
   const branchCode = getBranchScope(req, body.kode_cabang);
   const keyword = body.keyword || "";
   const filterRuangan = body.kode_ruangan || null;
+  const filterKaryawan = body.kode_karyawan || null;
   const filterStatus = body.status || null;
   const tanggal_dari = body.tanggal_dari || null;
   const tanggal_sampai = body.tanggal_sampai || null;
@@ -197,8 +288,15 @@ router.post("/treatment", async (req, res) => {
         if (filterRuangan) {
           qb.where("al.kode_ruangan", filterRuangan);
         }
+        if (filterKaryawan) {
+          qb.where("al.kode_karyawan", filterKaryawan);
+        }
         if (filterStatus) {
-          qb.where("al.status", filterStatus);
+          if (Array.isArray(filterStatus) && filterStatus.length > 0) {
+            qb.whereIn("al.status", filterStatus);
+          } else if (typeof filterStatus === "string" && filterStatus.trim()) {
+            qb.where("al.status", filterStatus.trim());
+          }
         }
         if (keyword) {
           const lower = keyword.toLowerCase();
@@ -281,6 +379,8 @@ router.post("/produk", async (req, res) => {
   const branchCode = getBranchScope(req, body.kode_cabang);
   const keyword = body.keyword || "";
   const filterKategori = body.kode_kategori_produk || null;
+  const filterStatusStok = body.status_stok || null;
+  const filterStatus = body.status || null;
   const tanggal_dari = body.tanggal_dari || null;
   const tanggal_sampai = body.tanggal_sampai || null;
 
@@ -302,6 +402,16 @@ router.post("/produk", async (req, res) => {
         }
         if (filterKategori) {
           qb.where("p.kode_kategori_produk", filterKategori);
+        }
+        if (filterStatus) {
+          qb.where("p.status", filterStatus);
+        }
+        if (filterStatusStok === "habis") {
+          qb.where("p.stok_tersedia", "<=", 0);
+        } else if (filterStatusStok === "menipis") {
+          qb.where("p.stok_tersedia", ">", 0).whereRaw("p.stok_tersedia <= p.stok_minimum");
+        } else if (filterStatusStok === "aman") {
+          qb.whereRaw("p.stok_tersedia > p.stok_minimum");
         }
         if (keyword) {
           const lower = keyword.toLowerCase();
@@ -373,6 +483,9 @@ router.post("/paket", async (req, res) => {
   const { body } = req;
   const branchCode = getBranchScope(req, body.kode_cabang);
   const keyword = body.keyword || "";
+  const filterStatus = body.status || null;
+  const filterRuangan = body.kode_ruangan || null;
+  const filterTipe = body.tipe || null;
 
   try {
     const todayStr = formatDateSystem(new Date(), "yyyy-MM-dd");
@@ -403,6 +516,15 @@ router.post("/paket", async (req, res) => {
       .modify((qb) => {
         if (branchCode) {
           qb.where("pl.kode_cabang", branchCode);
+        }
+        if (filterStatus) {
+          qb.where("pl.status", filterStatus);
+        }
+        if (filterRuangan) {
+          qb.where("pl.kode_ruangan", filterRuangan);
+        }
+        if (filterTipe) {
+          qb.where("pl.tipe", filterTipe);
         }
         if (keyword) {
           const lower = keyword.toLowerCase();
@@ -495,6 +617,7 @@ router.post("/pasien", async (req, res) => {
   const branchCode = getBranchScope(req, body.kode_cabang);
   const keyword = body.keyword || "";
   const filterGender = body.jenis_kelamin || null;
+  const filterStatus = body.status || null;
   const page = parseInt(body.page) || 1;
   const perPage = parseInt(body.perPage) || 10;
   const offset = (page - 1) * perPage;
@@ -506,6 +629,9 @@ router.post("/pasien", async (req, res) => {
       }
       if (filterGender) {
         qb.where("p.jenis_kelamin", filterGender);
+      }
+      if (filterStatus) {
+        qb.where("p.status", filterStatus);
       }
       if (keyword) {
         const lower = keyword.toLowerCase();
@@ -561,6 +687,7 @@ router.post("/kunjungan", async (req, res) => {
   const branchCode = getBranchScope(req, body.kode_cabang);
   const keyword = body.keyword || "";
   const filterStatus = body.status || null;
+  const filterRuangan = body.kode_ruangan || null;
   const tanggal_dari = body.tanggal_dari || null;
   const tanggal_sampai = body.tanggal_sampai || null;
   const page = parseInt(body.page) || 1;
@@ -580,8 +707,15 @@ router.post("/kunjungan", async (req, res) => {
         if (tanggal_sampai) {
           qb.whereRaw("DATE(k.tanggal_kunjungan) <= ?", [tanggal_sampai]);
         }
+        if (filterRuangan) {
+          qb.where("k.kode_ruangan", filterRuangan);
+        }
         if (filterStatus) {
-          qb.where("k.status", filterStatus);
+          if (Array.isArray(filterStatus) && filterStatus.length > 0) {
+            qb.whereIn("k.status", filterStatus);
+          } else if (typeof filterStatus === "string" && filterStatus.trim()) {
+            qb.where("k.status", filterStatus.trim());
+          }
         }
         if (keyword) {
           const lower = keyword.toLowerCase();
@@ -634,6 +768,7 @@ router.post("/dokter", async (req, res) => {
   const { body } = req;
   const branchCode = getBranchScope(req, body.kode_cabang);
   const keyword = body.keyword || "";
+  const filterStatus = body.status || null;
 
   try {
     const baseQuery = DB("mst_karyawan as k")
@@ -641,6 +776,9 @@ router.post("/dokter", async (req, res) => {
       .modify((qb) => {
         if (branchCode) {
           qb.where("k.kode_cabang", branchCode);
+        }
+        if (filterStatus) {
+          qb.where("k.status", filterStatus);
         }
         if (keyword) {
           const lower = keyword.toLowerCase();
@@ -686,6 +824,8 @@ router.post("/beautician", async (req, res) => {
   const { body } = req;
   const branchCode = getBranchScope(req, body.kode_cabang);
   const keyword = body.keyword || "";
+  const filterJabatan = body.jabatan || null;
+  const filterStatus = body.status || null;
 
   try {
     const baseQuery = DB("mst_karyawan as k")
@@ -693,6 +833,12 @@ router.post("/beautician", async (req, res) => {
       .modify((qb) => {
         if (branchCode) {
           qb.where("k.kode_cabang", branchCode);
+        }
+        if (filterJabatan) {
+          qb.whereRaw("LOWER(k.jabatan) = ?", [filterJabatan.toLowerCase()]);
+        }
+        if (filterStatus) {
+          qb.where("k.status", filterStatus);
         }
         if (keyword) {
           const lower = keyword.toLowerCase();
@@ -739,6 +885,7 @@ router.post("/inventory", async (req, res) => {
   const branchCode = getBranchScope(req, body.kode_cabang);
   const keyword = body.keyword || "";
   const filterKategori = body.kode_kategori_produk || null;
+  const filterStatusStok = body.status_stok || null;
 
   try {
     const baseQuery = DB("mst_produk as p")
@@ -750,6 +897,13 @@ router.post("/inventory", async (req, res) => {
         }
         if (filterKategori) {
           qb.where("p.kode_kategori_produk", filterKategori);
+        }
+        if (filterStatusStok === "habis") {
+          qb.where("p.stok_tersedia", "<=", 0);
+        } else if (filterStatusStok === "menipis") {
+          qb.where("p.stok_tersedia", ">", 0).whereRaw("p.stok_tersedia <= p.stok_minimum");
+        } else if (filterStatusStok === "aman") {
+          qb.whereRaw("p.stok_tersedia > p.stok_minimum");
         }
         if (keyword) {
           const lower = keyword.toLowerCase();
@@ -811,6 +965,7 @@ router.post("/voucher", async (req, res) => {
   const branchCode = getBranchScope(req, body.kode_cabang);
   const keyword = body.keyword || "";
   const filterStatus = body.status || null;
+  const filterJenisDiskon = body.jenis_diskon || null;
 
   try {
     const baseQuery = DB("mst_promo as pr").modify((qb) => {
@@ -819,6 +974,9 @@ router.post("/voucher", async (req, res) => {
       }
       if (filterStatus) {
         qb.where("pr.status", filterStatus);
+      }
+      if (filterJenisDiskon) {
+        qb.where("pr.jenis_diskon", filterJenisDiskon);
       }
       if (keyword) {
         const lower = keyword.toLowerCase();
@@ -896,6 +1054,20 @@ router.post("/keuangan", async (req, res) => {
       }
       if (tanggal_sampai) {
         qb.whereRaw("DATE(t.tanggal_transaksi) <= ?", [tanggal_sampai]);
+      }
+      if (body.metode_bayar) {
+        if (Array.isArray(body.metode_bayar) && body.metode_bayar.length > 0) {
+          qb.whereIn("t.metode_bayar", body.metode_bayar);
+        } else if (typeof body.metode_bayar === "string") {
+          qb.where("t.metode_bayar", body.metode_bayar);
+        }
+      }
+      if (body.status) {
+        if (Array.isArray(body.status) && body.status.length > 0) {
+          qb.whereIn("t.status", body.status);
+        } else if (typeof body.status === "string") {
+          qb.where("t.status", body.status);
+        }
       }
     });
 

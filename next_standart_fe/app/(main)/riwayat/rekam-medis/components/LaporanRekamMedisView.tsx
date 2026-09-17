@@ -9,12 +9,15 @@ import postData from '@/lib/axios/postData';
 import { showError } from '@/lib/tools/generalTools';
 import { exportToXLSX } from '@/lib/tools/printTools/exportToXLSX';
 import { formatDateIndo } from './LaporanViews';
+import { MultiSelect } from 'primereact/multiselect';
+import { Dropdown } from 'primereact/dropdown';
 import {
   LaporanHeader,
   LaporanSummaryCards,
   LaporanActionBar,
   LaporanLegendBox,
   LaporanTableHeaderFilter,
+  LaporanFilterPopup,
   SummaryCardItem,
 } from './LaporanStandardHeader';
 
@@ -56,21 +59,47 @@ interface KunjunganRecord {
 export const LaporanRekamMedisView: React.FC = () => {
   const toast = useRef<Toast>(null);
   const [searchVal, setSearchVal] = useState('');
-  const [tanggalDari, setTanggalDari] = useState<Date | null>(null);
-  const [tanggalSampai, setTanggalSampai] = useState<Date | null>(null);
+  const [tanggalDari, setTanggalDari] = useState<Date | null>(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
+  const [tanggalSampai, setTanggalSampai] = useState<Date | null>(() => new Date());
+  const [selectedDokter, setSelectedDokter] = useState<string | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<string[]>([]);
+  const [optionsDokter, setOptionsDokter] = useState<any[]>([]);
+  const [optionsStatus, setOptionsStatus] = useState<any[]>([
+    { label: 'Berlangsung / Antre', value: 'berlangsung' },
+    { label: 'Selesai', value: 'selesai' },
+  ]);
   const [records, setRecords] = useState<KunjunganRecord[]>([]);
   const [loadingRecords, setLoadingRecords] = useState(false);
   const [totalRecords, setTotalRecords] = useState(0);
   const [expandedRMRows, setExpandedRMRows] = useState<any>(null);
 
+  useEffect(() => {
+    const loadOptions = async () => {
+      try {
+        const res = await postData('/master/laporan/options', {});
+        if (res?.data?.data?.dokter) {
+          setOptionsDokter(res.data.data.dokter);
+        }
+      } catch (_) {}
+    };
+    loadOptions();
+  }, []);
+
   const fetchRekamMedis = async (
     pKeyword?: string,
     pTglDari?: Date | null,
-    pTglSampai?: Date | null
+    pTglSampai?: Date | null,
+    pDokter?: string | null,
+    pStatus?: string[]
   ) => {
     const targetKeyword = pKeyword !== undefined ? pKeyword : searchVal;
     const targetTglDari = pTglDari !== undefined ? pTglDari : tanggalDari;
     const targetTglSampai = pTglSampai !== undefined ? pTglSampai : tanggalSampai;
+    const targetDokter = pDokter !== undefined ? pDokter : selectedDokter;
+    const targetStatus = pStatus !== undefined ? pStatus : selectedStatus;
 
     setLoadingRecords(true);
     try {
@@ -82,11 +111,13 @@ export const LaporanRekamMedisView: React.FC = () => {
         return `${year}-${month}-${day}`;
       };
 
-      const payload = {
+      const payload: any = {
         keyword: targetKeyword || undefined,
         perPage: 100,
         tanggal_dari: formatDateParam(targetTglDari),
         tanggal_sampai: formatDateParam(targetTglSampai),
+        kode_dokter: targetDokter || undefined,
+        status: targetStatus.length > 0 ? targetStatus : undefined,
       };
 
       const res = await postData('/master/pasien-rekam-medis', payload);
@@ -359,19 +390,67 @@ export const LaporanRekamMedisView: React.FC = () => {
           header={
             <LaporanTableHeaderFilter
               tanggalAwal={tanggalDari}
-              setTanggalAwal={setTanggalDari}
+              setTanggalAwal={(d) => setTanggalDari(d)}
               tanggalAkhir={tanggalSampai}
-              setTanggalAkhir={setTanggalSampai}
+              setTanggalAkhir={(d) => setTanggalSampai(d)}
               searchVal={searchVal}
               setSearchVal={setSearchVal}
               onSearchKeyDown={(e) => e.key === 'Enter' && fetchRekamMedis()}
+              isFiltered={Boolean(selectedDokter || selectedStatus.length > 0)}
               onReset={() => {
-                setTanggalDari(null);
-                setTanggalSampai(null);
+                const now = new Date();
+                const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+                setTanggalDari(firstDay);
+                setTanggalSampai(now);
                 setSearchVal('');
-                fetchRekamMedis('', null, null);
+                setSelectedDokter(null);
+                setSelectedStatus([]);
+                fetchRekamMedis('', firstDay, now, null, []);
               }}
               searchPlaceholder="Cari Pasien, No RM, Diagnosa..."
+              filterOverlay={(close) => (
+                <LaporanFilterPopup
+                  title="Filter Laporan RME / Rekam Medis"
+                  onClose={close}
+                  onApply={() => fetchRekamMedis()}
+                  onReset={() => {
+                    setSelectedDokter(null);
+                    setSelectedStatus([]);
+                    fetchRekamMedis(undefined, undefined, undefined, null, []);
+                  }}
+                >
+                  <div className="field col-12 mb-3">
+                    <label className="font-semibold text-xs text-700 block mb-2">Status Kunjungan</label>
+                    <MultiSelect
+                      value={selectedStatus}
+                      options={optionsStatus}
+                      optionLabel="label"
+                      optionValue="value"
+                      placeholder="Semua Status Kunjungan"
+                      display="chip"
+                      selectAll={true}
+                      showSelectAll={true}
+                      className="w-full text-sm"
+                      onChange={(e) => setSelectedStatus(e.value || [])}
+                    />
+                  </div>
+                  <div className="field col-12 mb-3">
+                    <label className="font-semibold text-xs text-700 block mb-2">Dokter Pemeriksa</label>
+                    <Dropdown
+                      value={selectedDokter}
+                      options={optionsDokter}
+                      optionLabel="label"
+                      optionValue="value"
+                      placeholder="Semua Dokter"
+                      filter
+                      showClear
+                      filterPlaceholder="Cari Nama Dokter..."
+                      className="w-full text-sm"
+                      onChange={(e) => setSelectedDokter(e.value || null)}
+                    />
+                  </div>
+                </LaporanFilterPopup>
+              )}
             />
           }
         >
