@@ -1221,10 +1221,10 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
 
                         {/* Petugas Pendamping */}
                         {hasCompanions && (
-                          <div className="flex align-items-center gap-1.5 pl-4 mb-2 text-xs text-green-700 font-semibold">
-                            <span
-                              className="cursor-pointer hover:underline flex align-items-center gap-1"
-                              title={fullCompanionNames}
+                          <div className="flex align-items-center mb-2" style={{ minHeight: '26px' }}>
+                            <div
+                              className="inline-flex align-items-center gap-1.5 text-[11px] min-w-0 cursor-pointer overflow-hidden px-2 py-0.5 border-round-md bg-emerald-50 text-emerald-800 border-1 border-emerald-200 hover:bg-emerald-100 transition-colors"
+                              title={`Daftar Pendamping: ${fullCompanionNames}`}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setActiveCompanionData({
@@ -1236,9 +1236,18 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
                                 companionOpRef.current?.toggle(e);
                               }}
                             >
-                              + {totalCompanions} petugas pendamping ({companionSummary})
-                              <i className="pi pi-info-circle text-[11px] text-green-600 opacity-80" />
-                            </span>
+                              <Users size={12} className="text-emerald-700 flex-shrink-0" />
+                              <span className="font-semibold text-emerald-800 flex-shrink-0">
+                                +{totalCompanions} pendamping
+                              </span>
+                              <span
+                                className="text-emerald-700 text-overflow-ellipsis overflow-hidden white-space-nowrap min-w-0"
+                                title={fullCompanionNames}
+                              >
+                                ({companionSummary})
+                              </span>
+                              <Info size={12} className="text-emerald-600 flex-shrink-0 ml-0.5 opacity-80" />
+                            </div>
                           </div>
                         )}
 

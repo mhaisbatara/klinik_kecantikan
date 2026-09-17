@@ -160,7 +160,28 @@ router.post("/treatment", async (req, res) => {
       .leftJoin("trx_kunjungan as k", "al.kode_kunjungan", "k.kode_kunjungan")
       .leftJoin("mst_pasien as p", "k.no_rm", "p.no_rm")
       .leftJoin("mst_ruangan as r", "al.kode_ruangan", "r.kode_ruangan")
-      .leftJoin("mst_karyawan as kry", "al.kode_karyawan", "kry.kode_karyawan")
+      .leftJoin("trx_booking as b", "k.kode_booking", "b.kode_booking")
+      .leftJoin("mst_jadwal_karyawan as jk", "b.kode_jadwal", "jk.kode_jadwal")
+      .leftJoin("trx_rekam_medis_ruangan as rmr", "al.kode_antrian_layanan", "rmr.kode_antrian_layanan")
+      .leftJoin("trx_rekam_medis as rm", function () {
+        this.on("al.kode_antrian_layanan", "=", "rm.kode_antrian_layanan")
+          .orOn("al.kode_kunjungan", "=", "rm.kode_kunjungan");
+      })
+      .leftJoin("mst_karyawan as kry_al", function () {
+        this.on("al.kode_karyawan", "=", "kry_al.kode_karyawan")
+          .orOn("al.kode_karyawan", "=", "kry_al.no_sip")
+          .orOn("al.kode_karyawan", "=", "kry_al.kode_user");
+      })
+      .leftJoin("mst_karyawan as kry_rmr", function () {
+        this.on("rmr.kode_karyawan", "=", "kry_rmr.kode_karyawan")
+          .orOn("rmr.kode_karyawan", "=", "kry_rmr.no_sip")
+          .orOn("rmr.kode_karyawan", "=", "kry_rmr.kode_user");
+      })
+      .leftJoin("mst_karyawan as kry_rm", function () {
+        this.on("rm.kode_karyawan", "=", "kry_rm.kode_karyawan")
+          .orOn("rm.no_sip", "=", "kry_rm.no_sip");
+      })
+      .leftJoin("mst_karyawan as kry_book", "jk.no_sip", "kry_book.no_sip")
       .leftJoin("trx_detail_antrian_layanan as dal", "al.kode_antrian_layanan", "dal.kode_antrian_layanan")
       .leftJoin("mst_layanan as lyn", "dal.kode_layanan", "lyn.kode_layanan")
       .modify((qb) => {
@@ -187,7 +208,7 @@ router.post("/treatment", async (req, res) => {
               .orWhereRaw("LOWER(p.no_rm) LIKE ?", [`%${lower}%`])
               .orWhereRaw("LOWER(lyn.nama) LIKE ?", [`%${lower}%`])
               .orWhereRaw("LOWER(al.nama_ruangan) LIKE ?", [`%${lower}%`])
-              .orWhereRaw("LOWER(kry.nama) LIKE ?", [`%${lower}%`]);
+              .orWhereRaw("LOWER(COALESCE(kry_al.nama, kry_rmr.nama, kry_rm.nama, kry_book.nama, '')) LIKE ?", [`%${lower}%`]);
           });
         }
       });
@@ -209,8 +230,8 @@ router.post("/treatment", async (req, res) => {
         "al.created_at",
         "p.no_rm",
         "p.nama as nama_pasien",
-        "kry.nama as nama_petugas",
-        "kry.jabatan as jabatan_petugas",
+        DB.raw("COALESCE(kry_al.nama, kry_rmr.nama, kry_rm.nama, kry_book.nama, '-') as nama_petugas"),
+        DB.raw("COALESCE(kry_al.jabatan, kry_rmr.jabatan, kry_rm.jabatan, kry_book.jabatan, '') as jabatan_petugas"),
         DB.raw("COALESCE(GROUP_CONCAT(DISTINCT lyn.nama SEPARATOR ', '), 'Treatment Umum') as nama_treatment")
       )
       .groupBy(
@@ -226,8 +247,14 @@ router.post("/treatment", async (req, res) => {
         "al.created_at",
         "p.no_rm",
         "p.nama",
-        "kry.nama",
-        "kry.jabatan"
+        "kry_al.nama",
+        "kry_al.jabatan",
+        "kry_rmr.nama",
+        "kry_rmr.jabatan",
+        "kry_rm.nama",
+        "kry_rm.jabatan",
+        "kry_book.nama",
+        "kry_book.jabatan"
       )
       .orderBy("al.created_at", "desc")
       .limit(perPage)
@@ -634,8 +661,8 @@ router.post("/dokter", async (req, res) => {
         "k.no_hp",
         "k.email",
         "k.status",
-        DB.raw("(SELECT COUNT(rm.id) FROM trx_rekam_medis rm WHERE rm.kode_karyawan = k.kode_karyawan) as total_konsultasi_rm"),
-        DB.raw("(SELECT COUNT(al.id) FROM trx_antrian_layanan al WHERE al.kode_karyawan = k.kode_karyawan) as total_tindakan_layanan")
+        DB.raw("(SELECT COUNT(DISTINCT rm.id) FROM trx_rekam_medis rm WHERE rm.kode_karyawan = k.kode_karyawan OR rm.no_sip = k.no_sip) as total_konsultasi_rm"),
+        DB.raw("(SELECT COUNT(DISTINCT al.id) FROM trx_antrian_layanan al LEFT JOIN trx_rekam_medis_ruangan rmr ON al.kode_antrian_layanan = rmr.kode_antrian_layanan WHERE al.kode_karyawan IN (k.kode_karyawan, k.no_sip, k.kode_user) OR rmr.kode_karyawan IN (k.kode_karyawan, k.no_sip, k.kode_user)) as total_tindakan_layanan")
       )
       .orderBy("k.nama", "asc");
 
@@ -686,8 +713,8 @@ router.post("/beautician", async (req, res) => {
         "k.no_hp",
         "k.email",
         "k.status",
-        DB.raw("(SELECT COUNT(al.id) FROM trx_antrian_layanan al WHERE al.kode_karyawan = k.kode_karyawan) as total_treatment_ditangani"),
-        DB.raw("(SELECT COUNT(rmr.id) FROM trx_rekam_medis_ruangan rmr WHERE rmr.kode_karyawan = k.kode_karyawan) as total_sesi_ruangan")
+        DB.raw("(SELECT COUNT(DISTINCT al.id) FROM trx_antrian_layanan al LEFT JOIN trx_rekam_medis_ruangan rmr ON al.kode_antrian_layanan = rmr.kode_antrian_layanan WHERE al.kode_karyawan IN (k.kode_karyawan, k.no_sip, k.kode_user) OR rmr.kode_karyawan IN (k.kode_karyawan, k.no_sip, k.kode_user)) as total_treatment_ditangani"),
+        DB.raw("(SELECT COUNT(DISTINCT rmr.id) FROM trx_rekam_medis_ruangan rmr WHERE rmr.kode_karyawan IN (k.kode_karyawan, k.no_sip, k.kode_user)) as total_sesi_ruangan")
       )
       .orderBy("k.nama", "asc");
 

@@ -167,7 +167,12 @@ const handleGetOptions = async (req, res) => {
         "p.nama as nama_pasien",
         "b.no_rm",
         "k.nama as nama_petugas",
-        "k.jabatan as jabatan_petugas"
+        "k.jabatan as jabatan_petugas",
+        "j.kode_jadwal",
+        "j.jam_mulai",
+        "j.jam_selesai",
+        "j.no_sip",
+        "j.is_penanggung_jawab"
       )
       .orderBy("b.jam_booking", "asc");
 
@@ -230,6 +235,31 @@ const handleGetOptions = async (req, res) => {
         }
       }
 
+      // Ambil petugas pendamping (is_penanggung_jawab = 0) pada sesi dan ruangan yang sama
+      const bMulai = b.jam_mulai ? String(b.jam_mulai).slice(0, 5) : null;
+      const bSelesai = b.jam_selesai ? String(b.jam_selesai).slice(0, 5) : null;
+      const bJamStr = jamStr.slice(0, 5);
+      const roomSchedules = roomSchedulesMap.get(roomCode) || [];
+
+      const companions = roomSchedules
+        .filter((s) => {
+          if (s.kode_jadwal && b.kode_jadwal && s.kode_jadwal === b.kode_jadwal) return false;
+          if (s.no_sip && b.no_sip && s.no_sip === b.no_sip) return false;
+          const sMulai = s.jam_mulai ? String(s.jam_mulai).slice(0, 5) : "00:00";
+          const sSelesai = s.jam_selesai ? String(s.jam_selesai).slice(0, 5) : "23:59";
+
+          if (bMulai && bSelesai) {
+            return sMulai === bMulai && sSelesai === bSelesai;
+          }
+          return bJamStr >= sMulai && bJamStr <= sSelesai;
+        })
+        .map((s) => ({
+          kode_jadwal: s.kode_jadwal,
+          no_sip: s.no_sip,
+          nama_petugas: s.nama_petugas || "Petugas Medis",
+          jabatan_petugas: s.jabatan_petugas || "Terapis / Petugas",
+        }));
+
       const bookingItem = {
         kode_booking: b.kode_booking,
         jam_booking: jamStr.slice(0, 5),
@@ -238,9 +268,14 @@ const handleGetOptions = async (req, res) => {
         no_rm: b.no_rm,
         nama_petugas: b.nama_petugas || "-",
         jabatan_petugas: b.jabatan_petugas || "",
+        jam_mulai: bMulai,
+        jam_selesai: bSelesai,
         durasi_menit: durasiMenit,
         layanan_summary: layananSummary,
         is_upcoming: jamStr >= currentTimeStr,
+        petugas_pendamping: companions,
+        daftar_petugas_pendamping: companions,
+        jumlah_pendamping: companions.length,
       };
 
       entry.allBookings.push(bookingItem);

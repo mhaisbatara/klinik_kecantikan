@@ -74,9 +74,25 @@ export interface BookingItemDetail {
   no_rm?: string;
   nama_petugas?: string;
   jabatan_petugas?: string;
+  jam_mulai?: string;
+  jam_selesai?: string;
+  nama_ruangan?: string;
   durasi_menit?: number;
   layanan_summary?: string;
   is_upcoming?: boolean;
+  petugas_pendamping?: Array<{
+    kode_jadwal?: string;
+    no_sip?: string;
+    nama_petugas: string;
+    jabatan_petugas?: string;
+  }>;
+  daftar_petugas_pendamping?: Array<{
+    kode_jadwal?: string;
+    no_sip?: string;
+    nama_petugas: string;
+    jabatan_petugas?: string;
+  }>;
+  jumlah_pendamping?: number;
 }
 
 export const getItemConsultType = (item: ServiceItem) => {
