@@ -8,6 +8,7 @@ import DB from "../../../../core/config/knex.js";
 import { formatDateSystem } from "../../components/tools/date_tools.js";
 import { Logging } from "../../components/tools/servertool.js";
 import { status } from "../../components/tools/general.js";
+import { getBranchScope } from "../../components/tools/branch_scope.js";
 import { syncCompletedItemsToKasirDraft } from "./kasir_sync_service.js";
 
 const router = express.Router();
@@ -15,6 +16,7 @@ const router = express.Router();
 router.post("/", async (req, res) => {
   const { body } = req;
   const username = req?.auth?.username || "";
+  const branchCode = getBranchScope(req, body?.kode_cabang);
   const kode_transaksi = body.kode_transaksi || "";
 
   if (!kode_transaksi) {
@@ -22,12 +24,18 @@ router.post("/", async (req, res) => {
   }
 
   try {
-    const trx = await DB("trx_transaksi as t")
+    let qTrx = DB("trx_transaksi as t")
       .leftJoin("mst_pasien as p", "t.no_rm", "p.no_rm")
       .leftJoin("trx_kunjungan as k", "t.kode_kunjungan", "k.kode_kunjungan")
       .leftJoin("trx_booking as b", "k.kode_booking", "b.kode_booking")
       .leftJoin("mst_promo as pr", "t.kode_promo", "pr.kode_promo")
-      .where("t.kode_transaksi", kode_transaksi)
+      .where("t.kode_transaksi", kode_transaksi);
+
+    if (branchCode) {
+      qTrx = qTrx.andWhere("t.kode_cabang", branchCode);
+    }
+
+    const trx = await qTrx
       .select(
         "t.*",
         "p.nama as nama_pasien",
