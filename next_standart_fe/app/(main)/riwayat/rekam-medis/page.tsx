@@ -29,7 +29,7 @@ const LaporanContent: React.FC = () => {
 
   useEffect(() => {
     if (session?.user?.role === 'superadmin') {
-      router.replace('/setup/monitoring-cabang');
+      router.replace('/dashboard');
     }
   }, [session, router]);
 
@@ -38,7 +38,7 @@ const LaporanContent: React.FC = () => {
   };
 
   return (
-    <div className="p-0">
+    <div className="p-4">
       {/* ─── MODUL OPERASIONAL AKTIF DARI DATABASE ─── */}
       {activeModule === 'penjualan' && <LaporanPenjualanView />}
       {activeModule === 'treatment' && <LaporanTreatmentView />}

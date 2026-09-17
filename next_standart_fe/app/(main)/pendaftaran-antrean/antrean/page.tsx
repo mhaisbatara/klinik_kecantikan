@@ -23,7 +23,7 @@ const AntreanLayananPage = () => {
 
     useEffect(() => {
         if (session?.user?.role === 'superadmin') {
-            router.replace('/setup/monitoring-cabang');
+            router.replace('/dashboard');
         }
     }, [session, router]);
 
