@@ -26,11 +26,11 @@ export const LaporanHeader: React.FC<LaporanHeaderProps> = ({
   return (
     <div className="flex justify-content-between items-start mb-4">
       <div className="flex flex-column">
-        <h3 className="text-2xl font-semibold flex align-items-center gap-2 m-0 mb-1">
-          <i className={`${icon} text-blue-600 text-3xl`} />
-          <span>{title}</span>
+        <h3 className="text-xl font-bold text-900 flex align-items-center gap-2 m-0 mb-1">
+          <i className={`${icon} text-primary text-2xl`} />
+          <span className="font-bold text-900">{title}</span>
         </h3>
-        <p className="text-gray-500 m-0 text-sm">{subtitle}</p>
+        <p className="text-500 m-0 text-sm">{subtitle}</p>
       </div>
     </div>
   );
