@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Toast } from 'primereact/toast';
-import { Dropdown } from 'primereact/dropdown';
 import { Checkbox } from 'primereact/checkbox';
 import { InputText } from 'primereact/inputtext';
 import { Button } from 'primereact/button';
@@ -558,7 +557,7 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
           </div>
 
           {/* Pasien Selector / Display */}
-          {isReadOnly ? (
+          {selectedKunjungan ? (
             <div className="bg-slate-50 border-round-xl p-3 border-1 surface-border flex align-items-center justify-content-between">
               <div>
                 <div className="font-extrabold text-xs text-slate-900">{selectedKunjungan?.nama_pasien || '-'}</div>
@@ -571,40 +570,9 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
               )}
             </div>
           ) : (
-            <Dropdown
-              value={selectedKunjungan}
-              options={kunjunganList}
-              onChange={(e) => handleKunjunganChange(e.value)}
-              optionLabel="nama_pasien"
-              placeholder="Pilih Pasien..."
-              filter
-              filterBy="nama_pasien,no_rm"
-              filterPlaceholder="Cari nama / no RM..."
-              className="w-full p-inputtext-sm border-round-lg text-xs"
-              valueTemplate={(opt: KunjunganOption) => (
-                opt ? (
-                  <div className="flex align-items-center justify-content-between w-full py-0.5">
-                    <span className="font-bold text-xs text-slate-900">{opt.nama_pasien}</span>
-                    <span className="text-[11px] text-teal-700 font-semibold bg-teal-50 px-2 py-0.5 border-round-md">
-                      RM: {opt.no_rm}
-                    </span>
-                  </div>
-                ) : null
-              )}
-              itemTemplate={(opt: KunjunganOption) => (
-                <div className="flex align-items-center justify-content-between w-full py-1">
-                  <div>
-                    <div className="font-bold text-xs text-slate-900 mb-0.5">{opt.nama_pasien}</div>
-                    <div className="text-[11px] text-slate-500">RM: {opt.no_rm}</div>
-                  </div>
-                  {opt.jam_datang && (
-                    <span className="text-[10px] text-slate-400 font-medium">
-                      {opt.jam_datang.slice(0, 5)}
-                    </span>
-                  )}
-                </div>
-              )}
-            />
+            <div className="bg-slate-50 border-round-xl p-2.5 border-1 border-dashed surface-border text-center text-slate-500 text-xs">
+              Silakan pilih transaksi dari daftar di sebelah kiri
+            </div>
           )}
         </div>
 
