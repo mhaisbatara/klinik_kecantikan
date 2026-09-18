@@ -254,7 +254,7 @@ export const DialogSemuaBookingRuangan: React.FC<Props> = ({
                         <div className="flex align-items-center flex-shrink-0">
                           {isNearestUpcoming ? (
                             <span
-                              className="inline-flex align-items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 border-1"
+                              className="inline-flex align-items-center text-[11px] font-semibold px-2.5 py-0.5 border-1"
                               style={{
                                 backgroundColor: '#fef3c7',
                                 color: '#b45309',
@@ -262,12 +262,12 @@ export const DialogSemuaBookingRuangan: React.FC<Props> = ({
                                 borderRadius: '9999px',
                               }}
                             >
-                              <Clock size={11} className="text-amber-600" />
+                              <Clock size={11} className="text-amber-600 mr-1.5" />
                               <span>Sesi terdekat</span>
                             </span>
                           ) : b.is_upcoming ? (
                             <span
-                              className="inline-flex align-items-center gap-1 text-[11px] font-medium px-2.5 py-0.5 border-1"
+                              className="inline-flex align-items-center text-[11px] font-medium px-2.5 py-0.5 border-1"
                               style={{
                                 backgroundColor: '#eff6ff',
                                 color: '#1d4ed8',
@@ -275,7 +275,7 @@ export const DialogSemuaBookingRuangan: React.FC<Props> = ({
                                 borderRadius: '9999px',
                               }}
                             >
-                              <Clock size={11} className="text-blue-500" />
+                              <Clock size={11} className="text-blue-500 mr-1.5" />
                               <span>Akan datang</span>
                             </span>
                           ) : (

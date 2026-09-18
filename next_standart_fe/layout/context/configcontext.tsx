@@ -49,7 +49,7 @@ export const ConfigProvider = ({ children }: { children: React.ReactNode }) => {
                     console.log('Konfigurasi database diperbarui & disinkronkan ke lokal.');
                 }
             } catch (err) {
-                console.error('Gagal menyinkronkan data background:', err);
+                console.warn('Background config sync skipped:', err);
             } finally {
                 setIsLoading(false);
             }

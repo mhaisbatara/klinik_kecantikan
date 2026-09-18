@@ -28,7 +28,9 @@ const PendaftaranPasienPage = () => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get('tab');
-      if (tabParam === '1' || tabParam === 'booking') {
+      if (params.get('no_rm') || params.get('norm')) {
+        setActiveTab(0);
+      } else if (tabParam === '1' || tabParam === 'booking') {
         setActiveTab(1);
       } else if (tabParam === '2' || tabParam === 'paket') {
         setActiveTab(2);
@@ -59,12 +61,10 @@ const PendaftaranPasienPage = () => {
           header="Pendaftaran Kunjungan"
           leftIcon="pi pi-id-card mr-2"
         >
-          <div className="mt-3">
-            <FormPendaftaranKunjungan
-              toast={toast}
-              onSuccess={() => setRefreshTrigger((prev) => prev + 1)}
-            />
-          </div>
+          <FormPendaftaranKunjungan
+            toast={toast}
+            onSuccess={() => setRefreshTrigger((prev) => prev + 1)}
+          />
         </TabPanel>
 
         {/* TAB 2: BOOKING & RESERVASI */}
@@ -72,13 +72,11 @@ const PendaftaranPasienPage = () => {
           header="Booking & Reservasi"
           leftIcon="pi pi-calendar-plus mr-2"
         >
-          <div className="mt-3">
-            <DaftarBookingTab
-              toast={toast}
-              onNavigateToCreate={() => setShowBookingCreateModal(true)}
-              refreshTrigger={bookingRefreshTrigger}
-            />
-          </div>
+          <DaftarBookingTab
+            toast={toast}
+            onNavigateToCreate={() => setShowBookingCreateModal(true)}
+            refreshTrigger={bookingRefreshTrigger}
+          />
         </TabPanel>
 
         {/* TAB 3: DATA KEPEMILIKAN PAKET PASIEN */}

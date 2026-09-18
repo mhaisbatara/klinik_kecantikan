@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { InputText } from 'primereact/inputtext';
 import { Button } from 'primereact/button';
 import { TabView, TabPanel } from 'primereact/tabview';
@@ -50,6 +51,7 @@ interface Pasien {
   kota_kabupaten?: string;
   kecamatan?: string;
   kelurahan_desa?: string;
+  patokan?: string;
 }
 
 interface SlotItem {
@@ -83,12 +85,16 @@ interface Props {
 }
 
 export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) => {
+  const searchParams = useSearchParams();
+  const noRmParam = searchParams.get('no_rm') || searchParams.get('norm') || '';
+
   // 1. Pasien State
   const [pasienSearch, setPasienSearch] = useState('');
   const [pasienList, setPasienList] = useState<Pasien[]>([]);
   const [loadingPasien, setLoadingPasien] = useState(false);
   const [selectedPasien, setSelectedPasien] = useState<Pasien | null>(null);
   const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const lastLoadedNoRmRef = useRef<string>('');
 
 
   // 2. Tanggal & Ruangan State
@@ -174,6 +180,50 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
     return `${y}-${m}-${day}`;
   };
 
+  const calculateAge = (birthDateStr?: string | null): number | null => {
+    if (!birthDateStr) return null;
+    try {
+      const cleanStr = birthDateStr.split('T')[0];
+      const parts = cleanStr.split('-');
+      if (parts.length === 3) {
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+          const now = new Date();
+          let age = now.getFullYear() - year;
+          const m = now.getMonth() - month;
+          if (m < 0 || (m === 0 && now.getDate() < day)) {
+            age--;
+          }
+          return age >= 0 ? age : null;
+        }
+      }
+      const birth = new Date(birthDateStr);
+      if (isNaN(birth.getTime())) return null;
+      const now = new Date();
+      let age = now.getFullYear() - birth.getFullYear();
+      const m = now.getMonth() - birth.getMonth();
+      if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) {
+        age--;
+      }
+      return age >= 0 ? age : null;
+    } catch (_) {
+      return null;
+    }
+  };
+
+  const getFormattedAddress = (p?: Pasien | null) => {
+    if (!p) return '-';
+    const parts = [p.kelurahan_desa, p.kecamatan, p.kota_kabupaten, p.provinsi].filter(Boolean);
+    let addr = parts.join(', ');
+    if (!addr && p.alamat) addr = p.alamat;
+    if (p.patokan) {
+      addr = addr ? `${addr} (${p.patokan})` : p.patokan;
+    }
+    return addr || '-';
+  };
+
   // Helper ringkasan pendamping
   const getCompanionSummary = (companions: Array<{ nama_petugas: string }>, total: number) => {
     const count = total || (companions ? companions.length : 0);
@@ -235,6 +285,40 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
       }
     }, 300);
   };
+
+  // Auto-select pasien jika ada parameter no_rm pada URL
+  const loadPasienByNoRm = async (noRm: string) => {
+    const cleanNoRm = (noRm || '').trim();
+    if (!cleanNoRm || lastLoadedNoRmRef.current.toLowerCase() === cleanNoRm.toLowerCase()) return;
+    lastLoadedNoRmRef.current = cleanNoRm;
+
+    setLoadingPasien(true);
+    try {
+      const res = await postData('/master/pendaftaran-pasien-cari', {
+        no_rm: cleanNoRm,
+        page: 1,
+        perPage: 5,
+      });
+      if (['00', '0000', 200].includes(res?.data?.status) || res?.status === 200) {
+        const list: Pasien[] = res.data?.data || [];
+        const matched = list.find((p) => (p.no_rm || '').toLowerCase() === cleanNoRm.toLowerCase()) || list[0];
+        if (matched) {
+          setSelectedPasien(matched);
+          showSuccess(toast, `Pasien ${matched.nama} (${matched.no_rm}) berhasil dipilih untuk pendaftaran`);
+        }
+      }
+    } catch (err) {
+      // Fallback diam-diam ke tampilan pencarian biasa
+    } finally {
+      setLoadingPasien(false);
+    }
+  };
+
+  useEffect(() => {
+    if (noRmParam && (!selectedPasien || selectedPasien.no_rm.toLowerCase() !== noRmParam.toLowerCase())) {
+      loadPasienByNoRm(noRmParam);
+    }
+  }, [noRmParam]);
 
   // Fetch Paket yang Dimiliki Pasien
   useEffect(() => {
@@ -653,7 +737,7 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
                   />
                 </div>
 
-                {/* BARIS 1: NIK · NO. HP · GENDER */}
+                {/* BARIS 1: NIK · NO. HP · GENDER · UMUR */}
                 <div className="text-xs text-500 flex flex-wrap align-items-center mb-1">
                   <span>
                     NIK: <span className="font-medium text-800 font-mono">{selectedPasien.nik || '-'}</span>
@@ -673,21 +757,28 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
                         : '-'}
                     </span>
                   </span>
+                  {selectedPasien.tanggal_lahir && calculateAge(selectedPasien.tanggal_lahir) !== null && (
+                    <>
+                      <span className="text-400 mx-2">·</span>
+                      <span>
+                        Umur:{' '}
+                        <span className="font-medium text-800">
+                          {calculateAge(selectedPasien.tanggal_lahir)} tahun
+                        </span>
+                      </span>
+                    </>
+                  )}
                 </div>
 
                 {/* BARIS 2: ALAMAT LENGKAP */}
-                {(selectedPasien.kota_kabupaten || selectedPasien.kecamatan || selectedPasien.alamat || selectedPasien.kelurahan_desa) && (
-                  <div className="text-xs text-500 flex align-items-center flex-wrap">
-                    <span>
-                      Alamat:{' '}
-                      <span className="font-medium text-800">
-                        {[selectedPasien.kelurahan_desa, selectedPasien.kecamatan, selectedPasien.kota_kabupaten]
-                          .filter(Boolean)
-                          .join(', ') || selectedPasien.alamat || selectedPasien.provinsi || '-'}
-                      </span>
+                <div className="text-xs text-500 flex align-items-center flex-wrap">
+                  <span>
+                    Alamat:{' '}
+                    <span className="font-medium text-800">
+                      {getFormattedAddress(selectedPasien)}
                     </span>
-                  </div>
-                )}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -702,6 +793,7 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
                 setSelectedMap({});
                 setActiveRuangan(null);
                 setSelectedSlot(null);
+                lastLoadedNoRmRef.current = '';
               }}
             />
           </div>
@@ -781,8 +873,7 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
                     header="Alamat / Wilayah"
                     style={{ minWidth: '180px' }}
                     body={(r: Pasien) => {
-                      const wilayah = [r.kelurahan_desa, r.kecamatan, r.kota_kabupaten].filter(Boolean).join(', ');
-                      return <span className="text-600 text-xs">{wilayah || r.alamat || r.provinsi || '-'}</span>;
+                      return <span className="text-600 text-xs">{getFormattedAddress(r)}</span>;
                     }}
                   />
                   <Column
@@ -1198,8 +1289,8 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
                       <div>
                         {/* Jam Sesi & Status Badge */}
                         <div className="flex align-items-center justify-content-between mb-2">
-                          <div className="flex align-items-center gap-2">
-                            <Clock size={16} className={isSelected ? 'text-primary' : 'text-500'} />
+                          <div className="flex align-items-center">
+                            <Clock size={16} className={`${isSelected ? 'text-primary' : 'text-500'} mr-2 flex-shrink-0`} />
                             <span className="font-bold text-sm text-900">
                               {slot.jam_mulai} - {slot.jam_selesai} WIB
                             </span>

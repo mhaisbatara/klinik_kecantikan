@@ -1036,8 +1036,8 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
                                             scrollable
                                             scrollHeight="flex"
                                             paginator
-                                            rows={5}
-                                            rowsPerPageOptions={[5, 10, 20]}
+                                            rows={10}
+                                            rowsPerPageOptions={[10, 20, 50]}
                                             className="p-datatable-sm text-xs flex-1 flex flex-column"
                                             emptyMessage="Data antrean tidak ditemukan."
                                         dataKey="kode_antrian_layanan"

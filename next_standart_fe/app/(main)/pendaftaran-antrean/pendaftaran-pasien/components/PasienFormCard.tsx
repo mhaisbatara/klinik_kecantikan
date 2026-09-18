@@ -73,6 +73,36 @@ const defaultFormData: PasienFormData = {
   no_hp_kontak_darurat: '',
   hubungan_kontak_darurat: '',
   alergi: '',
+  no_rm: '',
+};
+
+const sanitizeFormData = (data?: Partial<PasienFormData> | null): PasienFormData => {
+  if (!data) return { ...defaultFormData };
+  return {
+    nama: data.nama || '',
+    nik: data.nik || '',
+    tempat_lahir: data.tempat_lahir || '',
+    tanggal_lahir: data.tanggal_lahir ? new Date(data.tanggal_lahir) : null,
+    jenis_kelamin: data.jenis_kelamin || 'L',
+    golongan_darah: data.golongan_darah || '',
+    agama: data.agama || 'Islam',
+    status_perkawinan: data.status_perkawinan || 'belum_menikah',
+    kewarganegaraan: data.kewarganegaraan || 'WNI',
+    pekerjaan: data.pekerjaan || 'Lainnya',
+    provinsi: data.provinsi || '',
+    kota_kabupaten: data.kota_kabupaten || '',
+    kecamatan: data.kecamatan || '',
+    kelurahan_desa: data.kelurahan_desa || '',
+    kode_pos: data.kode_pos || '',
+    patokan: data.patokan || '',
+    no_hp: data.no_hp || '',
+    email: data.email || '',
+    nama_kontak_darurat: data.nama_kontak_darurat || '',
+    no_hp_kontak_darurat: data.no_hp_kontak_darurat || '',
+    hubungan_kontak_darurat: data.hubungan_kontak_darurat || '',
+    alergi: data.alergi || '',
+    no_rm: data.no_rm || '',
+  };
 };
 
 export const PasienFormCard: React.FC<Props> = ({
@@ -84,13 +114,12 @@ export const PasienFormCard: React.FC<Props> = ({
   hidePilihLayanan = false,
   hideHeader = false,
 }) => {
-  const [formData, setFormData] = useState<PasienFormData>(defaultFormData);
-  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState<PasienFormData>(sanitizeFormData(initialData));
   const [activeFormTab, setActiveFormTab] = useState(0);
-  // submittedTabs: Set indeks tab yang sudah pernah divalidasi
   const [submittedTabs, setSubmittedTabs] = useState<Set<number>>(new Set());
+  const [loading, setLoading] = useState(false);
 
-  // Region cascading codes
+  // Cascading Dropdown States
   const [kodeProvinsi, setKodeProvinsi] = useState<string>('');
   const [kodeKota, setKodeKota] = useState<string>('');
   const [kodeKecamatan, setKodeKecamatan] = useState<string>('');
@@ -109,11 +138,7 @@ export const PasienFormCard: React.FC<Props> = ({
 
   useEffect(() => {
     if (initialData) {
-      setFormData({
-        ...defaultFormData,
-        ...initialData,
-        tanggal_lahir: initialData.tanggal_lahir ? new Date(initialData.tanggal_lahir) : null,
-      });
+      setFormData(sanitizeFormData(initialData));
       setKodeProvinsi('');
       setKodeKota('');
       setKodeKecamatan('');

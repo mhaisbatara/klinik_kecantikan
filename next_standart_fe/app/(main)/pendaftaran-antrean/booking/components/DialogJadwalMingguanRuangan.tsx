@@ -405,8 +405,8 @@ export const DialogJadwalMingguanRuangan: React.FC<Props> = ({
                                 </div>
 
                                 <div className="flex align-items-center gap-2 ml-5 sm:ml-0 flex-shrink-0">
-                                  <span className="text-600 font-semibold flex align-items-center gap-1 bg-white px-2 py-0.5 border-round border-1 surface-border text-xs">
-                                    <Clock size={12} className="text-500" />
+                                  <span className="text-600 font-semibold flex align-items-center bg-white px-2 py-0.5 border-round border-1 surface-border text-xs">
+                                    <Clock size={13} className="text-500 mr-1.5 flex-shrink-0" />
                                     {session.jamMulai} - {session.jamSelesai} WIB
                                   </span>
                                   {pj.kuota > 0 && (
@@ -419,7 +419,7 @@ export const DialogJadwalMingguanRuangan: React.FC<Props> = ({
 
                               {/* 2. Baris Petugas Pendamping (Hierarki Anak dengan Indentasi & Kuota DIHAPUS) */}
                               {session.companions.length > 0 && (
-                                <div className="p-2 bg-white flex flex-column gap-1.5">
+                                <div className="p-2 bg-white flex flex-column gap-2">
                                   {session.companions.map((comp, cIdx) => {
                                     const isCompDoctor = (comp.jabatan || '').toLowerCase().includes('dokter');
 
@@ -449,8 +449,8 @@ export const DialogJadwalMingguanRuangan: React.FC<Props> = ({
                                         </div>
 
                                         <div className="flex align-items-center gap-2 ml-5 sm:ml-0 flex-shrink-0">
-                                          <span className="text-500 text-[11px] flex align-items-center gap-1">
-                                            <Clock size={11} className="text-400" />
+                                          <span className="text-500 text-[11px] flex align-items-center">
+                                            <Clock size={12} className="text-400 mr-1.5 flex-shrink-0" />
                                             {session.jamMulai} - {session.jamSelesai} WIB
                                           </span>
                                           {/* Kuota TIDAK ditampilkan pada baris pendamping sesuai instruksi */}

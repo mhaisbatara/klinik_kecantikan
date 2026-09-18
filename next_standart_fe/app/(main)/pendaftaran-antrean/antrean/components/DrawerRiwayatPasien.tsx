@@ -367,13 +367,13 @@ export const DrawerRiwayatPasien: React.FC<DrawerRiwayatPasienProps> = ({
                                         {formatDateIndo(selectedVisit.tanggal_kunjungan)}
                                     </h3>
                                     <div className="flex align-items-center gap-3 flex-wrap text-xs text-500">
-                                        <span className="flex align-items-center gap-1.5 font-medium">
-                                            <Clock size={14} className="text-400" />
+                                        <span className="flex align-items-center font-medium">
+                                            <Clock size={14} className="text-400 mr-1.5" />
                                             {selectedVisit.jam_datang || '-'} WIB
                                         </span>
                                         <span>•</span>
-                                        <span className="flex align-items-center gap-1.5 font-medium">
-                                            <ClipboardList size={14} className="text-400" />
+                                        <span className="flex align-items-center font-medium">
+                                            <ClipboardList size={14} className="text-400 mr-1.5" />
                                             {layananList.length} Sesi Layanan
                                         </span>
                                     </div>

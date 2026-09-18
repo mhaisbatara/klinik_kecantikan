@@ -81,8 +81,21 @@ export const getCompanyConfigs = async (apiEndpoint: string, forceRefresh = fals
             return configCache as CompanyConfig;
         }
 
+        if (configCache) return configCache;
         throw new Error(res.data?.message || 'Gagal memuat konfigurasi');
     } catch (error) {
+        if (configCache) {
+            return configCache;
+        }
+        if (typeof window !== 'undefined') {
+            const localData = localStorage.getItem('ms_company_config');
+            if (localData) {
+                try {
+                    configCache = JSON.parse(localData);
+                    return configCache as CompanyConfig;
+                } catch (_) {}
+            }
+        }
         console.error('Error fetching company configs:', error);
         throw error;
     }

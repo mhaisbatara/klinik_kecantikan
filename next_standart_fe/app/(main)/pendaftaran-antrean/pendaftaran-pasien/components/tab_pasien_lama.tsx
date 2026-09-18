@@ -347,7 +347,7 @@ export const TabPasienLama: React.FC<Props> = ({
           <Column field="nama" header="Nama Pasien" className="font-bold text-900" sortable style={{ minWidth: '12rem' }} />
           <Column field="nik" header="NIK" align="center" style={{ minWidth: '10rem' }} body={(r: Pasien) => r.nik || '-'} />
           <Column field="no_hp" header="No. HP" align="center" style={{ minWidth: '10rem' }} body={(r: Pasien) => r.no_hp || '-'} />
-          <Column field="tanggal_lahir" header="Tgl Lahir" align="center" style={{ minWidth: '8rem' }} body={(r: Pasien) => r.tanggal_lahir || '-'} />
+          <Column field="tanggal_lahir" header="Tgl Lahir" align="center" style={{ minWidth: '8rem' }} body={(r: Pasien) => (r.tanggal_lahir ? r.tanggal_lahir.split('T')[0] : '-')} />
           <Column header="L/P" body={jenisKelaminBodyTemplate} align="center" style={{ minWidth: '7rem' }} />
           <Column field="kota_kabupaten" header="Kota / Alamat" style={{ minWidth: '12rem' }} body={(r: Pasien) => r.kota_kabupaten || r.provinsi || '-'} />
           <Column field="status" header="Status" body={statusBodyTemplate} align="center" sortable style={{ minWidth: '8rem' }} />

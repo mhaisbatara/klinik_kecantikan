@@ -125,17 +125,17 @@ export const DialogDetailBooking: React.FC<Props> = ({
           </div>
 
           <div className="col-12 py-1 flex justify-content-between align-items-center border-bottom-1 surface-border">
-            <span className="text-500 flex align-items-center gap-1"><Calendar size={15} /> Tanggal:</span>
+            <span className="text-500 flex align-items-center"><Calendar size={15} className="mr-1.5" /> Tanggal:</span>
             <span className="font-bold text-900">{booking.tanggal_booking}</span>
           </div>
 
           <div className="col-12 py-1 flex justify-content-between align-items-center border-bottom-1 surface-border">
-            <span className="text-500 flex align-items-center gap-1"><Clock size={15} /> Jam Rencana:</span>
+            <span className="text-500 flex align-items-center"><Clock size={15} className="mr-1.5" /> Jam Rencana:</span>
             <span className="font-bold text-900">{booking.jam_booking} WIB</span>
           </div>
 
           <div className="col-12 py-1 flex justify-content-between align-items-center border-bottom-1 surface-border">
-            <span className="text-500 flex align-items-center gap-1"><MapPin size={15} /> Ruangan:</span>
+            <span className="text-500 flex align-items-center"><MapPin size={15} className="mr-1.5" /> Ruangan:</span>
             <span className="font-semibold text-900">{booking.nama_ruangan || booking.kode_ruangan || '-'}</span>
           </div>
 
@@ -145,20 +145,20 @@ export const DialogDetailBooking: React.FC<Props> = ({
           </div>
 
           <div className="col-12 py-1 flex justify-content-between align-items-center border-bottom-1 surface-border">
-            <span className="text-500 flex align-items-center gap-1"><Stethoscope size={15} /> Alur Kunjungan:</span>
+            <span className="text-500 flex align-items-center"><Stethoscope size={15} className="mr-1.5" /> Alur Kunjungan:</span>
             {Number(booking.butuh_konsul) === 1 ? (
-              <span className="inline-flex align-items-center gap-1 font-semibold text-xs px-2 py-1 border-round bg-purple-50 text-purple-700 border-1 border-purple-200">
+              <span className="inline-flex align-items-center font-semibold text-xs px-2 py-1 border-round bg-purple-50 text-purple-700 border-1 border-purple-200">
                 Konsultasi Dokter Dulu
               </span>
             ) : (
-              <span className="inline-flex align-items-center gap-1 font-semibold text-xs px-2 py-1 border-round bg-green-50 text-green-700 border-1 border-green-200">
+              <span className="inline-flex align-items-center font-semibold text-xs px-2 py-1 border-round bg-green-50 text-green-700 border-1 border-green-200">
                 Langsung Tindakan
               </span>
             )}
           </div>
 
           <div className="col-12 py-1 flex justify-content-between align-items-center border-bottom-1 surface-border">
-            <span className="text-500 flex align-items-center gap-1"><CreditCard size={15} /> Uang Muka (DP):</span>
+            <span className="text-500 flex align-items-center"><CreditCard size={15} className="mr-1.5" /> Uang Muka (DP):</span>
             <span className="font-bold text-primary">{formatCurrency(booking.dp_nominal || 0)}</span>
           </div>
 

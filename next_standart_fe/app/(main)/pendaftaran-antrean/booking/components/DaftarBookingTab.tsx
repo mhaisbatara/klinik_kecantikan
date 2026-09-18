@@ -376,8 +376,135 @@ export const DaftarBookingTab: React.FC<Props> = ({ toast, onNavigateToCreate, r
     { label: 'Dipotong Treatment', value: 'dipotong_treatment' },
   ];
 
+  const headerTableTemplate = (
+    <div className="flex flex-column gap-3">
+      {/* Baris atas: 3 filter di kiri + pencarian di kanan */}
+      <div className="flex flex-wrap align-items-center justify-content-between gap-2">
+        {/* Kiri: 3 Kontrol Filter (Tanggal, Status Booking, Status DP) */}
+        <div className="flex flex-wrap align-items-center gap-2 w-full md:w-auto">
+          <Calendar
+            value={filterTanggal}
+            onChange={(e) => {
+              setFilterTanggal(e.value as Date);
+              setPage(1);
+              setFirst(0);
+            }}
+            dateFormat="yy-mm-dd"
+            placeholder="Semua Tanggal"
+            showIcon
+            showButtonBar
+            className="w-full sm:w-12rem p-inputtext-sm text-sm border-round-md"
+          />
+
+          <Dropdown
+            value={filterStatus}
+            options={statusOptions}
+            onChange={(e) => {
+              setFilterStatus(e.value);
+              setPage(1);
+              setFirst(0);
+            }}
+            placeholder="Status Booking"
+            className="w-full sm:w-11rem p-inputtext-sm text-sm border-round-md"
+          />
+
+          <Dropdown
+            value={filterDpStatus}
+            options={dpStatusOptions}
+            onChange={(e) => {
+              setFilterDpStatus(e.value);
+              setPage(1);
+              setFirst(0);
+            }}
+            placeholder="Status DP"
+            className="w-full sm:w-11rem p-inputtext-sm text-sm border-round-md"
+          />
+        </div>
+
+        {/* Kanan: Pencarian + Reset Filter */}
+        <div className="flex align-items-center gap-2 ml-auto w-full md:w-auto">
+          <IconField iconPosition="left" className="w-full sm:w-16rem md:w-18rem">
+            <InputIcon className="pi pi-search" />
+            <InputText
+              value={searchVal}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              placeholder="Cari Data..."
+              className="w-full text-sm"
+            />
+          </IconField>
+
+          <Button
+            type="button"
+            icon="pi pi-filter-slash"
+            outlined
+            severity="danger"
+            tooltip="Reset Filter"
+            tooltipOptions={{ position: 'bottom' }}
+            onClick={handleResetFilter}
+          />
+        </div>
+      </div>
+
+      {/* Legenda warna status */}
+      <div className="flex flex-wrap align-items-center gap-3 px-1 py-2 border-round-md surface-100 text-xs font-medium text-color-secondary">
+        <span className="flex align-items-center gap-1">
+          <i className="pi pi-info-circle" />
+          <span className="font-semibold">KETERANGAN STATUS:</span>
+        </span>
+        <span
+          className={`flex align-items-center gap-1 cursor-pointer transition-colors ${filterStatus === 'dikonfirmasi' ? 'font-bold text-900' : 'hover:text-900'}`}
+          onClick={() => {
+            setFilterStatus(filterStatus === 'dikonfirmasi' ? '' : 'dikonfirmasi');
+            setPage(1);
+            setFirst(0);
+          }}
+          title="Klik untuk filter Dikonfirmasi"
+        >
+          <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', backgroundColor: '#3b82f6', boxShadow: '0 1px 3px #3b82f655' }} />
+          Dikonfirmasi
+        </span>
+        <span
+          className={`flex align-items-center gap-1 cursor-pointer transition-colors ${filterStatus === 'selesai' ? 'font-bold text-900' : 'hover:text-900'}`}
+          onClick={() => {
+            setFilterStatus(filterStatus === 'selesai' ? '' : 'selesai');
+            setPage(1);
+            setFirst(0);
+          }}
+          title="Klik untuk filter Selesai Check-in"
+        >
+          <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', backgroundColor: '#22c55e', boxShadow: '0 1px 3px #22c55e55' }} />
+          Selesai Check-in
+        </span>
+        <span
+          className={`flex align-items-center gap-1 cursor-pointer transition-colors ${filterStatus === 'tidak_hadir' ? 'font-bold text-900' : 'hover:text-900'}`}
+          onClick={() => {
+            setFilterStatus(filterStatus === 'tidak_hadir' ? '' : 'tidak_hadir');
+            setPage(1);
+            setFirst(0);
+          }}
+          title="Klik untuk filter Tidak Hadir"
+        >
+          <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', backgroundColor: '#f59e0b', boxShadow: '0 1px 3px #f59e0b55' }} />
+          Tidak Hadir
+        </span>
+        <span
+          className={`flex align-items-center gap-1 cursor-pointer transition-colors ${filterStatus === 'dibatalkan' ? 'font-bold text-900' : 'hover:text-900'}`}
+          onClick={() => {
+            setFilterStatus(filterStatus === 'dibatalkan' ? '' : 'dibatalkan');
+            setPage(1);
+            setFirst(0);
+          }}
+          title="Klik untuk filter Dibatalkan"
+        >
+          <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', backgroundColor: '#ef4444', boxShadow: '0 1px 3px #ef444455' }} />
+          Dibatalkan
+        </span>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="p-2 sm:p-3">
+    <>
       <ConfirmDialog />
 
       {/* Dialog Checkin */}
@@ -482,182 +609,54 @@ export const DaftarBookingTab: React.FC<Props> = ({ toast, onNavigateToCreate, r
         </p>
       </div>
 
-      {/* FILTER & DATA SECTION */}
-      <div className="card surface-card border-1 surface-border border-round-xl p-4 shadow-1">
-        <div className="flex flex-column xl:flex-row align-items-start justify-content-between gap-3 mb-3">
-          {/* Left: Action Buttons (Master Data Format) + Filter Tanggal, Status, Status DP */}
-          <div className="flex flex-row flex-wrap align-items-center gap-2">
-            <Button
-              size="small"
-              label="Booking Baru"
-              icon="pi pi-plus"
-              outlined
-              severity="success"
-              className="border-round-md font-medium px-3"
-              onClick={onNavigateToCreate}
-            />
-
-            <Divider layout="vertical" className="hidden sm:block m-0 h-2rem" />
-
-            <Button
-              size="small"
-              label="Cek Kedaluwarsa"
-              icon="pi pi-clock"
-              outlined
-              severity="warning"
-              className="border-round-md font-medium px-3"
-              onClick={handleAutoScanExpired}
-              loading={loadingAutoScan}
-              tooltip={`Scan & update booking yang telah melewati waktu toleransi (${toleranceMinutes} menit) menjadi tidak hadir`}
-            />
-
-            <Divider layout="vertical" className="hidden sm:block m-0 h-2rem" />
-
-            <Button
-              size="small"
-              label="Pengaturan Toleransi"
-              icon="pi pi-cog"
-              outlined
-              severity="secondary"
-              className="border-round-md font-medium px-3"
-              onClick={handleOpenToleranceDialog}
-              tooltip="Atur batas toleransi keterlambatan kedatangan pasien"
-            />
-
-            <Divider layout="vertical" className="hidden sm:block m-0 h-2rem" />
-
-            <Button
-              size="small"
-              label="Refresh"
-              icon="pi pi-refresh"
-              outlined
-              severity="success"
-              className="border-round-md font-medium px-3"
-              loading={loading}
-              onClick={fetchBookingData}
-              tooltip="Refresh Data Booking"
-            />
-
-            <Divider layout="vertical" className="hidden sm:block m-0 h-2rem" />
-
-            <Calendar
-              value={filterTanggal}
-              onChange={(e) => {
-                setFilterTanggal(e.value as Date);
-                setPage(1);
-                setFirst(0);
-              }}
-              dateFormat="yy-mm-dd"
-              placeholder="Semua Tanggal"
-              showIcon
-              showButtonBar
-              className="p-inputtext-sm w-full sm:w-13rem"
-            />
-
-            <Dropdown
-              value={filterStatus}
-              options={statusOptions}
-              onChange={(e) => {
-                setFilterStatus(e.value);
-                setPage(1);
-                setFirst(0);
-              }}
-              placeholder="Status Booking"
-              className="p-inputtext-sm w-full sm:w-11rem border-round-md"
-            />
-
-            <Dropdown
-              value={filterDpStatus}
-              options={dpStatusOptions}
-              onChange={(e) => {
-                setFilterDpStatus(e.value);
-                setPage(1);
-                setFirst(0);
-              }}
-              placeholder="Status DP"
-              className="p-inputtext-sm w-full sm:w-11rem border-round-md"
-            />
-          </div>
-
-          {/* Right: Search Box + Reset Filter Button (Master Data Standard) */}
-          <div className="flex align-items-center gap-2 ml-auto w-full xl:w-auto">
-            <IconField iconPosition="left" className="w-full xl:w-18rem">
-              <InputIcon className="pi pi-search" />
-              <InputText
-                value={searchVal}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                placeholder="Cari No.RM, Nama, Kode..."
-                className="w-full text-sm p-inputtext-sm border-round-md"
-              />
-            </IconField>
-            <Button
-              type="button"
-              icon="pi pi-filter-slash"
-              outlined
-              severity="danger"
-              size="small"
-              className="border-round-md"
-              tooltip="Reset Filter"
-              tooltipOptions={{ position: 'bottom' }}
-              onClick={handleResetFilter}
-            />
-          </div>
-        </div>
-
-        {/* KETERANGAN STATUS PERSIS STANDAR MASTER DATA */}
-        <div className="flex flex-wrap align-items-center gap-3 px-2 py-2 border-round-md surface-100 text-xs font-medium text-color-secondary mb-3">
-          <span className="flex align-items-center gap-1">
-            <i className="pi pi-info-circle text-primary" />
-            <span className="font-semibold text-700">KETERANGAN STATUS:</span>
-          </span>
-          <span
-            className={`flex align-items-center gap-1 cursor-pointer transition-colors ${filterStatus === 'dikonfirmasi' ? 'font-bold text-900' : 'hover:text-900'}`}
-            onClick={() => {
-              setFilterStatus(filterStatus === 'dikonfirmasi' ? '' : 'dikonfirmasi');
-              setPage(1);
-              setFirst(0);
-            }}
-            title="Klik untuk filter Dikonfirmasi"
-          >
-            <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', backgroundColor: '#3b82f6', boxShadow: '0 1px 3px #3b82f655' }} />
-            Dikonfirmasi
-          </span>
-          <span
-            className={`flex align-items-center gap-1 cursor-pointer transition-colors ${filterStatus === 'selesai' ? 'font-bold text-900' : 'hover:text-900'}`}
-            onClick={() => {
-              setFilterStatus(filterStatus === 'selesai' ? '' : 'selesai');
-              setPage(1);
-              setFirst(0);
-            }}
-            title="Klik untuk filter Selesai Check-in"
-          >
-            <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', backgroundColor: '#22c55e', boxShadow: '0 1px 3px #22c55e55' }} />
-            Selesai Check-in
-          </span>
-          <span
-            className={`flex align-items-center gap-1 cursor-pointer transition-colors ${filterStatus === 'tidak_hadir' ? 'font-bold text-900' : 'hover:text-900'}`}
-            onClick={() => {
-              setFilterStatus(filterStatus === 'tidak_hadir' ? '' : 'tidak_hadir');
-              setPage(1);
-              setFirst(0);
-            }}
-            title="Klik untuk filter Tidak Hadir"
-          >
-            <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', backgroundColor: '#f59e0b', boxShadow: '0 1px 3px #f59e0b55' }} />
-            Tidak Hadir
-          </span>
-          <span
-            className={`flex align-items-center gap-1 cursor-pointer transition-colors ${filterStatus === 'dibatalkan' ? 'font-bold text-900' : 'hover:text-900'}`}
-            onClick={() => {
-              setFilterStatus(filterStatus === 'dibatalkan' ? '' : 'dibatalkan');
-              setPage(1);
-              setFirst(0);
-            }}
-            title="Klik untuk filter Dibatalkan"
-          >
-            <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', backgroundColor: '#ef4444', boxShadow: '0 1px 3px #ef444455' }} />
-            Dibatalkan
-          </span>
+      {/* CARD UTAMA: ACTION BAR & DATATABLE */}
+      <div className="card border-round-xl p-4 shadow-1 surface-card mb-4">
+        {/* Action Buttons */}
+        <div className="flex flex-row flex-wrap align-items-center gap-2 mb-4">
+          <Button
+            size="small"
+            label="Baru"
+            icon="pi pi-plus"
+            outlined
+            severity="success"
+            className="border-round-md font-medium px-3"
+            onClick={onNavigateToCreate}
+          />
+          <Divider layout="vertical" className="m-0 h-2rem" />
+          <Button
+            size="small"
+            label="Cek Kedaluwarsa"
+            icon="pi pi-clock"
+            outlined
+            severity="warning"
+            className="border-round-md font-medium px-3"
+            onClick={handleAutoScanExpired}
+            loading={loadingAutoScan}
+            tooltip={`Scan & update booking yang telah melewati waktu toleransi (${toleranceMinutes} menit) menjadi tidak hadir`}
+          />
+          <Divider layout="vertical" className="m-0 h-2rem" />
+          <Button
+            size="small"
+            label="Pengaturan Toleransi"
+            icon="pi pi-cog"
+            outlined
+            severity="secondary"
+            className="border-round-md font-medium px-3"
+            onClick={handleOpenToleranceDialog}
+            tooltip="Atur batas toleransi keterlambatan kedatangan pasien"
+          />
+          <Divider layout="vertical" className="m-0 h-2rem" />
+          <Button
+            size="small"
+            label="Refresh"
+            icon="pi pi-refresh"
+            outlined
+            severity="success"
+            className="border-round-md font-medium px-3"
+            loading={loading}
+            onClick={fetchBookingData}
+            tooltip="Refresh Data Booking"
+          />
         </div>
 
         {/* DATA TABLE WRAPPER DENGAN OVERFLOW-X AUTO & LEBAR PROPORSIONAL */}
@@ -675,6 +674,7 @@ export const DaftarBookingTab: React.FC<Props> = ({ toast, onNavigateToCreate, r
               setRows(e.rows);
               setPage(Math.floor(e.first / e.rows) + 1);
             }}
+            header={headerTableTemplate}
             rowsPerPageOptions={[10, 20, 50]}
             emptyMessage="Tidak ada data booking / reservasi yang ditemukan"
             responsiveLayout="scroll"
@@ -807,8 +807,8 @@ export const DaftarBookingTab: React.FC<Props> = ({ toast, onNavigateToCreate, r
               body={(rowData: BookingRow) => (
                 <div>
                   <div className="font-semibold text-900 text-sm">{rowData.tanggal_booking}</div>
-                  <div className="text-xs text-500 flex align-items-center gap-1.5 mt-1 font-medium">
-                    <Clock size={13} className="text-primary" />
+                  <div className="text-xs text-500 flex align-items-center mt-1 font-medium">
+                    <Clock size={13} className="text-primary mr-1 flex-shrink-0" />
                     <span>{rowData.jam_booking} WIB</span>
                   </div>
                 </div>
@@ -825,8 +825,8 @@ export const DaftarBookingTab: React.FC<Props> = ({ toast, onNavigateToCreate, r
                   <div className="font-semibold text-800 text-sm" style={{ wordBreak: 'break-word', lineHeight: '1.4' }}>
                     {rowData.nama_petugas || '-'}
                   </div>
-                  <div className="text-xs text-500 mt-1 flex align-items-center gap-1" style={{ wordBreak: 'break-word', lineHeight: '1.4' }}>
-                    <i className="pi pi-map-marker text-xs text-400" />
+                  <div className="text-xs text-500 mt-1 flex align-items-center" style={{ wordBreak: 'break-word', lineHeight: '1.4' }}>
+                    <i className="pi pi-map-marker text-xs text-400 mr-1 flex-shrink-0" />
                     <span>{rowData.nama_ruangan || '-'}</span>
                   </div>
                 </div>
@@ -987,6 +987,6 @@ export const DaftarBookingTab: React.FC<Props> = ({ toast, onNavigateToCreate, r
           }
         `}</style>
       </div>
-    </div>
+    </>
   );
 };

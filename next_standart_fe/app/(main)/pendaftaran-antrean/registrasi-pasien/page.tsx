@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useRef, useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Toast } from 'primereact/toast';
 import { Button } from 'primereact/button';
 import { Dialog } from 'primereact/dialog';
@@ -21,6 +22,8 @@ export interface Pasien {
   nama: string;
   nik?: string;
   no_hp?: string;
+  email?: string;
+  tempat_lahir?: string;
   tanggal_lahir?: string;
   jenis_kelamin?: string;
   golongan_darah?: string;
@@ -32,6 +35,8 @@ export interface Pasien {
   kota_kabupaten?: string;
   kecamatan?: string;
   kelurahan_desa?: string;
+  kode_pos?: string;
+  alamat?: string;
   patokan?: string;
   alergi?: string;
   status?: string;
@@ -40,6 +45,7 @@ export interface Pasien {
 }
 
 const RegistrasiPasienPage = () => {
+  const router = useRouter();
   const toast = useRef<Toast>(null);
 
   // Table & Pagination State
@@ -164,6 +170,44 @@ const RegistrasiPasienPage = () => {
         className="text-xs px-2 py-1"
       />
     );
+  };
+
+  const formatDateOnly = (val?: string | null) => {
+    if (!val) return '-';
+    return val.split('T')[0];
+  };
+
+  const calculateAge = (birthDateStr?: string | null): number | null => {
+    if (!birthDateStr) return null;
+    try {
+      const cleanStr = birthDateStr.split('T')[0];
+      const parts = cleanStr.split('-');
+      if (parts.length === 3) {
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+          const now = new Date();
+          let age = now.getFullYear() - year;
+          const m = now.getMonth() - month;
+          if (m < 0 || (m === 0 && now.getDate() < day)) {
+            age--;
+          }
+          return age >= 0 ? age : null;
+        }
+      }
+      const birth = new Date(birthDateStr);
+      if (isNaN(birth.getTime())) return null;
+      const now = new Date();
+      let age = now.getFullYear() - birth.getFullYear();
+      const m = now.getMonth() - birth.getMonth();
+      if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) {
+        age--;
+      }
+      return age >= 0 ? age : null;
+    } catch (_) {
+      return null;
+    }
   };
 
   const actionBodyTemplate = (rowData: Pasien) => {
@@ -320,7 +364,7 @@ const RegistrasiPasienPage = () => {
           <Column field="nama" header="Nama Pasien" className="font-bold text-900" sortable style={{ minWidth: '13rem' }} />
           <Column field="nik" header="NIK" align="center" style={{ minWidth: '10rem' }} body={(r: Pasien) => r.nik || '-'} />
           <Column field="no_hp" header="No. HP" align="center" style={{ minWidth: '10rem' }} body={(r: Pasien) => r.no_hp || '-'} />
-          <Column field="tanggal_lahir" header="Tgl Lahir" align="center" style={{ minWidth: '8rem' }} body={(r: Pasien) => r.tanggal_lahir || '-'} />
+          <Column field="tanggal_lahir" header="Tgl Lahir" align="center" style={{ minWidth: '8rem' }} body={(r: Pasien) => formatDateOnly(r.tanggal_lahir)} />
           <Column header="L/P" body={jenisKelaminBodyTemplate} align="center" style={{ minWidth: '7rem' }} />
           <Column field="kota_kabupaten" header="Kota / Alamat" style={{ minWidth: '12rem' }} body={(r: Pasien) => r.kota_kabupaten || r.provinsi || '-'} />
           <Column header="Aksi" body={actionBodyTemplate} align="center" style={{ minWidth: '7rem' }} />
@@ -383,111 +427,246 @@ const RegistrasiPasienPage = () => {
         breakpoints={{ '960px': '95vw', '641px': '100vw' }}
         contentClassName="p-3"
       >
-        <PasienFormCard
-          initialData={editingPasien}
-          onSuccess={handleEditSuccess}
-          onCancel={() => {
-            setDialogEditPasienVisible(false);
-            setEditingPasien(null);
-          }}
-          toast={toast}
-          submitLabel="Simpan Perubahan"
-          hidePilihLayanan={true}
-          hideHeader={true}
-        />
+        {editingPasien && (
+          <PasienFormCard
+            initialData={editingPasien}
+            onSuccess={handleEditSuccess}
+            onCancel={() => {
+              setDialogEditPasienVisible(false);
+              setEditingPasien(null);
+            }}
+            toast={toast}
+            submitLabel="Simpan Perubahan"
+            hidePilihLayanan={true}
+            hideHeader={true}
+          />
+        )}
       </Dialog>
 
       {/* DIALOG DETAIL PASIEN (HANYA BISA MELIHAT SAJA / VIEW ONLY) */}
       <Dialog
         visible={Boolean(detailPasien)}
         onHide={() => setDetailPasien(null)}
-        header={`Detail Profil Pasien — ${detailPasien?.nama || ''}`}
+        header={
+          <div className="flex align-items-center gap-3">
+            <div
+              className="flex align-items-center justify-content-center border-round-circle bg-teal-50 text-teal-700 font-bold border-1 border-teal-200 shadow-1"
+              style={{ width: '44px', height: '44px', fontSize: '1.2rem' }}
+            >
+              {detailPasien?.nama ? detailPasien.nama.charAt(0).toUpperCase() : <i className="pi pi-user text-lg" />}
+            </div>
+            <div className="flex flex-column">
+              <span className="text-xs text-500 font-bold uppercase tracking-wider">
+                Detail Profil Pasien
+              </span>
+              <div className="flex align-items-center gap-2 mt-1">
+                <span className="text-xl font-bold text-900 leading-tight">
+                  {detailPasien?.nama || '-'}
+                </span>
+                {detailPasien?.no_rm && (
+                  <span className="px-2 py-0.5 border-round-md bg-teal-50 text-teal-700 border-1 border-teal-200 font-mono font-bold text-xs">
+                    {detailPasien.no_rm}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        }
         modal
-        style={{ width: '100%', maxWidth: '600px' }}
-        breakpoints={{ '641px': '90vw' }}
+        style={{ width: '100%', maxWidth: '640px' }}
+        breakpoints={{ '641px': '92vw' }}
+        contentClassName="p-3"
         footer={
-          <div className="flex flex-wrap justify-content-end gap-2 pt-2">
+          <div className="flex justify-content-end align-items-center gap-2 pt-3 border-top-1 surface-border">
             <Button
-              label="Tutup"
-              icon="pi pi-times"
-              severity="secondary"
-              outlined
-              onClick={() => setDetailPasien(null)}
+              type="button"
+              label="Daftarkan Kunjungan"
+              icon="pi pi-calendar-plus"
+              severity="success"
+              className="font-bold text-xs px-3 py-2 bg-emerald-600 border-emerald-600 hover:bg-emerald-700 text-white shadow-1"
+              onClick={() => {
+                if (detailPasien?.no_rm) {
+                  const targetRm = detailPasien.no_rm;
+                  setDetailPasien(null);
+                  router.push(`/pendaftaran-antrean/pendaftaran-pasien?no_rm=${encodeURIComponent(targetRm)}`);
+                }
+              }}
             />
           </div>
         }
       >
         {detailPasien && (
-          <div className="grid text-sm p-2 gap-y-3">
-            <div className="col-12 md:col-6">
-              <span className="text-color-secondary block text-xs">No. Rekam Medis (RM)</span>
-              <strong className="text-base text-emerald-700 font-mono">{detailPasien.no_rm}</strong>
-            </div>
-            <div className="col-12 md:col-6">
-              <span className="text-color-secondary block text-xs">Nama Lengkap</span>
-              <strong className="text-base">{detailPasien.nama}</strong>
-            </div>
-
-            <div className="col-12 md:col-6">
-              <span className="text-color-secondary block text-xs">NIK</span>
-              <span className="font-mono">{detailPasien.nik || '-'}</span>
-            </div>
-            <div className="col-12 md:col-6">
-              <span className="text-color-secondary block text-xs">No. Handphone (WhatsApp)</span>
-              <span>{detailPasien.no_hp || '-'}</span>
-            </div>
-
-            <div className="col-12 md:col-6">
-              <span className="text-color-secondary block text-xs">Tanggal Lahir</span>
-              <span>{detailPasien.tanggal_lahir || '-'}</span>
-            </div>
-            <div className="col-12 md:col-6">
-              <span className="text-color-secondary block text-xs">Jenis Kelamin</span>
-              <span>{detailPasien.jenis_kelamin === 'L' ? 'Laki-Laki' : detailPasien.jenis_kelamin === 'P' ? 'Perempuan' : '-'}</span>
-            </div>
-
-            <div className="col-12 md:col-6">
-              <span className="text-color-secondary block text-xs">Golongan Darah</span>
-              <span>{detailPasien.golongan_darah || '-'}</span>
-            </div>
-            <div className="col-12 md:col-6">
-              <span className="text-color-secondary block text-xs">Agama</span>
-              <span>{detailPasien.agama || '-'}</span>
-            </div>
-
-            <div className="col-12 md:col-6">
-              <span className="text-color-secondary block text-xs">Status Perkawinan</span>
-              <span>{detailPasien.status_perkawinan || '-'}</span>
-            </div>
-            <div className="col-12 md:col-6">
-              <span className="text-color-secondary block text-xs">Kewarganegaraan</span>
-              <span>{detailPasien.kewarganegaraan || '-'}</span>
-            </div>
-
-            <div className="col-12 md:col-6">
-              <span className="text-color-secondary block text-xs">Pekerjaan</span>
-              <span>{detailPasien.pekerjaan || '-'}</span>
-            </div>
-            <div className="col-12 md:col-6">
-              <span className="text-color-secondary block text-xs">Kota / Alamat</span>
-              <span>{detailPasien.kota_kabupaten || detailPasien.provinsi || '-'}</span>
-            </div>
-
-            <div className="col-12">
-              <span className="text-color-secondary block text-xs">Alamat Lengkap & Patokan</span>
-              <span>
-                {[detailPasien.kelurahan_desa, detailPasien.kecamatan, detailPasien.kota_kabupaten, detailPasien.provinsi]
-                  .filter(Boolean)
-                  .join(', ') || '-'}
-                {detailPasien.patokan ? ` (${detailPasien.patokan})` : ''}
-              </span>
-            </div>
-
-            {detailPasien.alergi && (
-              <div className="col-12 p-3 surface-100 border-round border-left-4 border-red-500 text-red-700">
-                <strong>Riwayat Alergi:</strong> {detailPasien.alergi}
+          <div className="flex flex-column gap-3 py-1">
+            {/* 1. SECTION IDENTITAS */}
+            <div>
+              <div className="flex align-items-center gap-2 mb-2 pb-1 border-bottom-1 surface-border">
+                <span className="text-xs font-bold text-500 uppercase tracking-wider">
+                  Identitas Pasien
+                </span>
               </div>
-            )}
+              <div className="grid text-sm m-0">
+                <div className="col-12 md:col-6 py-2 px-2">
+                  <div className="flex align-items-center text-500 text-xs mb-1">
+                    <i className="pi pi-id-card text-xs text-400 mr-1.5" />
+                    <span>No. Rekam Medis (RM)</span>
+                  </div>
+                  <strong className="text-base text-teal-700 font-mono">{detailPasien.no_rm}</strong>
+                </div>
+                <div className="col-12 md:col-6 py-2 px-2">
+                  <div className="flex align-items-center text-500 text-xs mb-1">
+                    <i className="pi pi-user text-xs text-400 mr-1.5" />
+                    <span>Nama Lengkap</span>
+                  </div>
+                  <strong className="text-base text-900">{detailPasien.nama}</strong>
+                </div>
+
+                <div className="col-12 md:col-6 py-2 px-2">
+                  <div className="flex align-items-center text-500 text-xs mb-1">
+                    <i className="pi pi-credit-card text-xs text-400 mr-1.5" />
+                    <span>NIK</span>
+                  </div>
+                  <span className="font-mono text-800">{detailPasien.nik || '-'}</span>
+                </div>
+                <div className="col-12 md:col-6 py-2 px-2">
+                  <div className="flex align-items-center text-500 text-xs mb-1">
+                    <i className="pi pi-users text-xs text-400 mr-1.5" />
+                    <span>Jenis Kelamin</span>
+                  </div>
+                  <span className="text-800">
+                    {detailPasien.jenis_kelamin === 'L' ? 'Laki-Laki' : detailPasien.jenis_kelamin === 'P' ? 'Perempuan' : '-'}
+                  </span>
+                </div>
+
+                <div className="col-12 md:col-6 py-2 px-2">
+                  <div className="flex align-items-center text-500 text-xs mb-1">
+                    <i className="pi pi-calendar text-xs text-400 mr-1.5" />
+                    <span>Tanggal Lahir</span>
+                  </div>
+                  <span className="text-800 font-medium">{formatDateOnly(detailPasien.tanggal_lahir)}</span>
+                </div>
+                <div className="col-12 md:col-6 py-2 px-2">
+                  <div className="flex align-items-center text-500 text-xs mb-1">
+                    <i className="pi pi-clock text-xs text-400 mr-1.5" />
+                    <span>Umur</span>
+                  </div>
+                  <span className="text-800 font-semibold">
+                    {calculateAge(detailPasien.tanggal_lahir) !== null
+                      ? `${calculateAge(detailPasien.tanggal_lahir)} tahun`
+                      : '-'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* 2. SECTION KONTAK & ALAMAT */}
+            <div>
+              <div className="flex align-items-center gap-2 mb-2 pb-1 border-bottom-1 surface-border">
+                <span className="text-xs font-bold text-500 uppercase tracking-wider">
+                  Kontak & Alamat
+                </span>
+              </div>
+              <div className="grid text-sm m-0">
+                <div className="col-12 md:col-6 py-2 px-2">
+                  <div className="flex align-items-center text-500 text-xs mb-1">
+                    <i className="pi pi-phone text-xs text-400 mr-1.5" />
+                    <span>No. Handphone (WhatsApp)</span>
+                  </div>
+                  <span className="font-mono text-800">{detailPasien.no_hp || '-'}</span>
+                </div>
+                <div className="col-12 md:col-6 py-2 px-2">
+                  <div className="flex align-items-center text-500 text-xs mb-1">
+                    <i className="pi pi-envelope text-xs text-400 mr-1.5" />
+                    <span>Email</span>
+                  </div>
+                  <span className="text-800">{detailPasien.email || '-'}</span>
+                </div>
+
+                <div className="col-12 md:col-6 py-2 px-2">
+                  <div className="flex align-items-center text-500 text-xs mb-1">
+                    <i className="pi pi-building text-xs text-400 mr-1.5" />
+                    <span>Kota / Wilayah</span>
+                  </div>
+                  <span className="text-800">{detailPasien.kota_kabupaten || detailPasien.provinsi || '-'}</span>
+                </div>
+                <div className="col-12 md:col-6 py-2 px-2">
+                  <div className="flex align-items-center text-500 text-xs mb-1">
+                    <i className="pi pi-map text-xs text-400 mr-1.5" />
+                    <span>Kode Pos</span>
+                  </div>
+                  <span className="text-800">{detailPasien.kode_pos || '-'}</span>
+                </div>
+
+                <div className="col-12 py-2 px-2">
+                  <div className="flex align-items-center text-500 text-xs mb-1">
+                    <i className="pi pi-map-marker text-xs text-400 mr-1.5" />
+                    <span>Alamat Lengkap & Patokan</span>
+                  </div>
+                  <span className="text-800 leading-normal">
+                    {[detailPasien.kelurahan_desa, detailPasien.kecamatan, detailPasien.kota_kabupaten, detailPasien.provinsi]
+                      .filter(Boolean)
+                      .join(', ') || '-'}
+                    {detailPasien.patokan ? ` (${detailPasien.patokan})` : ''}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* 3. SECTION DATA PERSONAL & MEDIS */}
+            <div>
+              <div className="flex align-items-center gap-2 mb-2 pb-1 border-bottom-1 surface-border">
+                <span className="text-xs font-bold text-500 uppercase tracking-wider">
+                  Data Personal & Medis
+                </span>
+              </div>
+              <div className="grid text-sm m-0">
+                <div className="col-12 md:col-6 py-2 px-2">
+                  <div className="flex align-items-center text-500 text-xs mb-1">
+                    <i className="pi pi-heart text-xs text-400 mr-1.5" />
+                    <span>Golongan Darah</span>
+                  </div>
+                  <span className="text-800 font-semibold">{detailPasien.golongan_darah || '-'}</span>
+                </div>
+                <div className="col-12 md:col-6 py-2 px-2">
+                  <div className="flex align-items-center text-500 text-xs mb-1">
+                    <i className="pi pi-book text-xs text-400 mr-1.5" />
+                    <span>Agama</span>
+                  </div>
+                  <span className="text-800">{detailPasien.agama || '-'}</span>
+                </div>
+
+                <div className="col-12 md:col-6 py-2 px-2">
+                  <div className="flex align-items-center text-500 text-xs mb-1">
+                    <i className="pi pi-link text-xs text-400 mr-1.5" />
+                    <span>Status Perkawinan</span>
+                  </div>
+                  <span className="text-800 capitalize">{detailPasien.status_perkawinan?.replace('_', ' ') || '-'}</span>
+                </div>
+                <div className="col-12 md:col-6 py-2 px-2">
+                  <div className="flex align-items-center text-500 text-xs mb-1">
+                    <i className="pi pi-flag text-xs text-400 mr-1.5" />
+                    <span>Kewarganegaraan</span>
+                  </div>
+                  <span className="text-800">{detailPasien.kewarganegaraan || '-'}</span>
+                </div>
+
+                <div className="col-12 md:col-6 py-2 px-2">
+                  <div className="flex align-items-center text-500 text-xs mb-1">
+                    <i className="pi pi-briefcase text-xs text-400 mr-1.5" />
+                    <span>Pekerjaan</span>
+                  </div>
+                  <span className="text-800">{detailPasien.pekerjaan || '-'}</span>
+                </div>
+
+                {detailPasien.alergi && (
+                  <div className="col-12 mt-2 p-2.5 bg-red-50 border-round-lg border-left-3 border-red-500 text-red-800 text-xs flex align-items-center">
+                    <i className="pi pi-exclamation-triangle text-red-600 text-sm mr-1.5" />
+                    <div>
+                      <strong>Riwayat Alergi:</strong> {detailPasien.alergi}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </Dialog>
@@ -541,6 +720,17 @@ const RegistrasiPasienPage = () => {
                     <span className="font-medium text-700">{newPatientData.no_hp}</span>
                   </div>
                 )}
+                {newPatientData.tanggal_lahir && (
+                  <div className="col-12 py-1 flex justify-content-between">
+                    <span className="text-500">Tgl Lahir / Umur:</span>
+                    <span className="text-700">
+                      {formatDateOnly(newPatientData.tanggal_lahir)}
+                      {calculateAge(newPatientData.tanggal_lahir) !== null
+                        ? ` (${calculateAge(newPatientData.tanggal_lahir)} tahun)`
+                        : ''}
+                    </span>
+                  </div>
+                )}
                 {newPatientData.jenis_kelamin && (
                   <div className="col-12 py-1 flex justify-content-between">
                     <span className="text-500">Jenis Kelamin:</span>
@@ -554,24 +744,43 @@ const RegistrasiPasienPage = () => {
           )}
 
           {/* TOMBOL AKSI */}
-          <div className="flex flex-column sm:flex-row gap-2">
+          <div className="flex flex-column gap-2">
             <Button
               type="button"
-              label="Daftarkan Pasien Baru Lagi"
-              icon="pi pi-user-plus"
-              outlined
-              severity="secondary"
-              className="flex-1 border-round-lg font-medium"
-              onClick={handleRegisterAnother}
-            />
-            <Button
-              type="button"
-              label="Selesai"
-              icon="pi pi-check"
+              label="Lanjut ke Pendaftaran Kunjungan"
+              icon="pi pi-arrow-right"
+              iconPos="right"
               severity="success"
-              className="flex-1 border-round-lg font-bold"
-              onClick={() => setSuccessDialogVisible(false)}
+              className="w-full border-round-lg font-bold p-3 text-sm shadow-2 bg-teal-600 border-teal-600 hover:bg-teal-700 text-white"
+              onClick={() => {
+                setSuccessDialogVisible(false);
+                if (newPatientData?.no_rm) {
+                  router.push(`/pendaftaran-antrean/pendaftaran-pasien?no_rm=${encodeURIComponent(newPatientData.no_rm)}`);
+                } else {
+                  router.push('/pendaftaran-antrean/pendaftaran-pasien');
+                }
+              }}
             />
+            <div className="flex flex-column sm:flex-row gap-2">
+              <Button
+                type="button"
+                label="Daftarkan Pasien Baru Lagi"
+                icon="pi pi-user-plus"
+                outlined
+                severity="secondary"
+                className="flex-1 border-round-lg font-medium text-xs"
+                onClick={handleRegisterAnother}
+              />
+              <Button
+                type="button"
+                label="Selesai"
+                icon="pi pi-check"
+                outlined
+                severity="secondary"
+                className="flex-1 border-round-lg font-medium text-xs"
+                onClick={() => setSuccessDialogVisible(false)}
+              />
+            </div>
           </div>
         </div>
       </Dialog>

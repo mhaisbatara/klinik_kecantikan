@@ -57,6 +57,7 @@ interface Pasien {
   kota_kabupaten?: string;
   kecamatan?: string;
   kelurahan_desa?: string;
+  patokan?: string;
 }
 
 interface SlotItem {
@@ -218,6 +219,17 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated }) => 
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
+  };
+
+  const getFormattedAddress = (p?: Pasien | null) => {
+    if (!p) return '-';
+    const parts = [p.kelurahan_desa, p.kecamatan, p.kota_kabupaten, p.provinsi].filter(Boolean);
+    let addr = parts.join(', ');
+    if (!addr && p.alamat) addr = p.alamat;
+    if (p.patokan) {
+      addr = addr ? `${addr} (${p.patokan})` : p.patokan;
+    }
+    return addr || '-';
   };
 
   // 1. Fetch Ruangan & Pilihan Layanan/Paket saat component mount
@@ -1230,18 +1242,14 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated }) => 
                     </div>
 
                     {/* BARIS 2: ALAMAT LENGKAP */}
-                    {(selectedPasien.kota_kabupaten || selectedPasien.kecamatan || selectedPasien.alamat || selectedPasien.kelurahan_desa) && (
-                      <div className="text-xs text-500 flex align-items-center flex-wrap">
-                        <span>
-                          Alamat:{' '}
-                          <span className="font-medium text-800">
-                            {[selectedPasien.kelurahan_desa, selectedPasien.kecamatan, selectedPasien.kota_kabupaten]
-                              .filter(Boolean)
-                              .join(', ') || selectedPasien.alamat || selectedPasien.provinsi || '-'}
-                          </span>
+                    <div className="text-xs text-500 flex align-items-center flex-wrap">
+                      <span>
+                        Alamat:{' '}
+                        <span className="font-medium text-800">
+                          {getFormattedAddress(selectedPasien)}
                         </span>
-                      </div>
-                    )}
+                      </span>
+                    </div>
                   </div>
                 </div>
                 <Button
@@ -1259,60 +1267,60 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated }) => 
                     <InputText
                       value={pasienSearch}
                       onChange={(e) => handleSearchPasien(e.target.value)}
-                      placeholder="Cari berdasarkan No. RM, NIK, Nama Pasien, atau No. HP..."
-                      className="w-full"
+                      placeholder="Cari Pasien (Ketik Nama, No. RM, No. HP, atau NIK)..."
+                      className="w-full text-sm border-round-lg"
                     />
                   </IconField>
                 </span>
 
                 {loadingPasien && (
-                  <div className="text-xs text-500 mt-1">
-                    <i className="pi pi-spin pi-spinner mr-1"></i> Mencari data pasien...
+                  <div className="text-xs text-500 mt-2 flex align-items-center gap-2">
+                    <ProgressSpinner style={{ width: '16px', height: '16px' }} strokeWidth="4" />
+                    <span>Mencari data pasien...</span>
                   </div>
                 )}
 
-                {pasienList.length > 0 && (
-                  <div className="border-1 surface-border border-round overflow-hidden mt-2 shadow-1">
+                {pasienList.length > 0 && !selectedPasien && (
+                  <div className="border-1 surface-border border-round-lg mt-2 overflow-hidden shadow-1">
                     <DataTable
                       value={pasienList}
                       size="small"
-                      className="p-datatable-sm text-sm"
-                      rowClassName={() => 'cursor-pointer hover:surface-100 transition-colors transition-duration-150'}
+                      className="text-sm"
+                      rowClassName={() => 'cursor-pointer hover:surface-100 transition-colors'}
                       onRowClick={(e) => {
                         setSelectedPasien(e.data as Pasien);
                         setPasienList([]);
                       }}
-                      emptyMessage="Tidak ada pasien ditemukan"
                     >
                       <Column
                         field="no_rm"
                         header="No. RM"
-                        style={{ width: '110px' }}
                         body={(rowData: Pasien) => (
-                          <span className="font-bold font-mono text-primary">
+                          <span className="font-mono font-bold text-primary">
                             {rowData.no_rm}
                           </span>
                         )}
+                        style={{ width: '110px' }}
                       />
                       <Column
                         field="nama"
                         header="Nama Pasien"
-                        style={{ minWidth: '150px' }}
                         body={(rowData: Pasien) => (
                           <span className="font-semibold text-900">
                             {rowData.nama}
                           </span>
                         )}
+                        style={{ minWidth: '150px' }}
                       />
                       <Column
                         field="nik"
                         header="NIK"
-                        style={{ width: '140px' }}
                         body={(rowData: Pasien) => (
                           <span className="font-mono text-700 text-xs">
                             {rowData.nik || '-'}
                           </span>
                         )}
+                        style={{ width: '140px' }}
                       />
                       <Column
                         header="L/P"
@@ -1344,8 +1352,7 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated }) => 
                         header="Alamat / Wilayah"
                         style={{ minWidth: '180px' }}
                         body={(rowData: Pasien) => {
-                          const wilayah = [rowData.kelurahan_desa, rowData.kecamatan, rowData.kota_kabupaten].filter(Boolean).join(', ');
-                          return <span className="text-600 text-xs">{wilayah || rowData.alamat || rowData.provinsi || '-'}</span>;
+                          return <span className="text-600 text-xs">{getFormattedAddress(rowData)}</span>;
                         }}
                       />
                       <Column
@@ -1832,8 +1839,8 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated }) => 
                           <div>
                             {/* Header: Jam & Status */}
                             <div className="flex justify-content-between align-items-start mb-2">
-                              <div className="flex align-items-center gap-2">
-                                <Clock size={16} className={isSelected ? 'text-primary' : 'text-500'} />
+                              <div className="flex align-items-center">
+                                <Clock size={16} className={`${isSelected ? 'text-primary' : 'text-500'} mr-2 flex-shrink-0`} />
                                 <span className="font-bold text-900 text-base">
                                   {slot.jam_mulai} - {slot.jam_selesai} WIB
                                 </span>

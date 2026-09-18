@@ -37,6 +37,7 @@ export const terbitkanAntreanLanjutanRuangan = async (trx, {
     return [];
   }
 
+  const branchCode = currentAntrian.kode_cabang || (await trx("trx_kunjungan").where("kode_kunjungan", kodeKunjungan).select("kode_cabang").first())?.kode_cabang || "CBG-001";
   const todayStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const todayYmd = new Date().toISOString().slice(0, 10);
   const prefixAntrianLayanan = `AL-${todayStr}-`;
@@ -261,6 +262,10 @@ export const terbitkanAntreanLanjutanRuangan = async (trx, {
     let lastNoQuery = trx("trx_antrian_layanan")
       .where("created_at", ">=", todayYmd + " 00:00:00");
 
+    if (branchCode) {
+      lastNoQuery = lastNoQuery.where("kode_cabang", branchCode);
+    }
+
     if (group.kode_ruangan) {
       lastNoQuery = lastNoQuery.where("kode_ruangan", group.kode_ruangan);
     } else {
@@ -278,6 +283,7 @@ export const terbitkanAntreanLanjutanRuangan = async (trx, {
     const cNomorAntrianSesi = String(nextNo).padStart(2, "0");
 
     const oInsertLayanan = {
+      kode_cabang: branchCode,
       kode_antrian_layanan: cKodeAntrianLayanan,
       kode_kunjungan: kodeKunjungan,
       kode_antrian_asal: currentAntrian.kode_antrian_layanan,

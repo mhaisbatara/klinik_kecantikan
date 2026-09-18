@@ -139,8 +139,12 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
                 kode_kunjungan: antrianData.kode_kunjungan,
                 for_referral: true,
             });
-            if (['00', '0000'].includes(res.data.status) && res.data.data?.length > 0) {
-                setRekomendasiItems(res.data.data);
+            if (['00', '0000', 200, '200'].includes(res?.data?.status) || res?.status === 200) {
+                if (res?.data?.data?.length > 0) {
+                    setRekomendasiItems(res.data.data);
+                } else {
+                    setRekomendasiItems([]);
+                }
             } else {
                 setRekomendasiItems([]);
             }

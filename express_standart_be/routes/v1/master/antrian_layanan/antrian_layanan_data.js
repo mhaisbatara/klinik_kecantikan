@@ -52,7 +52,9 @@ const handleGetData = async (req, res) => {
       .groupBy("al.id", "k.id", "p.id", "b.id", "j_book.id", "kar_book.id", "rm_asal.id", "rmf.id", "al_asal.id", "ral.id", "kar.id")
       .modify((qb) => {
         if (branchCode) {
-          qb.where("al.kode_cabang", branchCode);
+          qb.where(function () {
+            this.where("al.kode_cabang", branchCode).orWhereNull("al.kode_cabang");
+          });
         }
         if (filterTanggal) {
           qb.whereRaw("DATE(al.created_at) = ?", [filterTanggal]);
