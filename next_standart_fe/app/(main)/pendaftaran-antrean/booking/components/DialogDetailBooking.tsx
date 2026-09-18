@@ -24,13 +24,13 @@ const getPrinterSettings = () => {
   const defaults = {
     paperSize: '58mm',
     headerAddress: 'Jl. Utama Klinik Kecantikan No. 88, Telp: (021) 555-0199',
-    footerMessage: 'Terima kasih atas kunjungan Anda!\nSemoga lekas sembuh & cantik selalu 🌸',
+    footerMessage: 'Terima kasih telah melakukan reservasi.\nSampai jumpa pada jadwal Anda! 🌸',
   };
   if (typeof window === 'undefined') return defaults;
   try {
     const raw = localStorage.getItem('kasir_printer_settings');
     if (!raw) return defaults;
-    return { ...defaults, ...JSON.parse(raw) };
+    return { ...defaults, ...JSON.parse(raw), footerMessage: defaults.footerMessage };
   } catch {
     return defaults;
   }
@@ -119,7 +119,9 @@ export const DialogDetailBooking: React.FC<Props> = ({
             .font-black { font-weight: 900 !important; }
             .font-semibold { font-weight: 600 !important; }
             .text-center { text-align: center !important; }
-            .text-teal-700 { color: #0f766e !important; }
+            .text-emerald-600 { color: #059669 !important; }
+            .text-emerald-700 { color: #047857 !important; }
+            .text-amber-700 { color: #b45309 !important; }
             .text-slate-500 { color: #64748b !important; }
             .text-slate-600 { color: #475569 !important; }
             .text-slate-800 { color: #1e293b !important; }
@@ -167,7 +169,8 @@ export const DialogDetailBooking: React.FC<Props> = ({
     0
   );
 
-  const totalBayar = booking.dp_nominal ?? subtotal;
+  const dpNominal = booking.dp_nominal != null ? Number(booking.dp_nominal) : 0;
+  const sisaBayar = Math.max(0, subtotal - dpNominal);
 
   return (
     <Dialog
@@ -177,14 +180,11 @@ export const DialogDetailBooking: React.FC<Props> = ({
       style={{ width: '460px', borderRadius: '20px', overflow: 'hidden' }}
       contentStyle={{ padding: 0, borderRadius: '20px' }}
     >
-      {/* Top Banner Header */}
+      {/* Top Banner Header (Emerald Identitas Aplikasi) */}
       <div
+        className="bg-emerald-600 text-white text-center relative"
         style={{
-          background: '#0d9488',
           padding: '24px 16px',
-          textAlign: 'center',
-          color: '#ffffff',
-          position: 'relative',
         }}
       >
         <button
@@ -196,7 +196,7 @@ export const DialogDetailBooking: React.FC<Props> = ({
             background: 'transparent',
             border: 'none',
             color: '#ffffff',
-            opacity: 0.8,
+            opacity: 0.85,
             cursor: 'pointer',
             padding: '4px 8px',
             fontSize: '18px',
@@ -224,7 +224,7 @@ export const DialogDetailBooking: React.FC<Props> = ({
         <h3 style={{ fontSize: '20px', fontWeight: 900, margin: '0 0 4px 0', color: '#ffffff' }}>
           Bukti Reservasi Booking
         </h3>
-        <p style={{ fontSize: '13px', margin: 0, opacity: 0.85, fontFamily: 'monospace' }}>
+        <p style={{ fontSize: '13px', margin: 0, opacity: 0.9, fontFamily: 'monospace' }}>
           {booking.kode_booking}
         </p>
       </div>
@@ -245,7 +245,7 @@ export const DialogDetailBooking: React.FC<Props> = ({
               </div>
             )}
             <div className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider mt-1">
-              STRUK TRANSAKSI
+              STRUK RESERVASI
             </div>
           </div>
 
@@ -253,7 +253,7 @@ export const DialogDetailBooking: React.FC<Props> = ({
 
           {/* Meta Info */}
           <div className="flex justify-content-between mb-1">
-            <span className="text-slate-500">No. Transaksi</span>
+            <span className="text-slate-500">No. Reservasi</span>
             <span className="font-bold text-slate-900">{booking.kode_booking}</span>
           </div>
           <div className="flex justify-content-between mb-1">
@@ -302,7 +302,7 @@ export const DialogDetailBooking: React.FC<Props> = ({
           {/* Item Details */}
           <div className="flex flex-column gap-2.5 my-2">
             {items.map((item: any, i: number) => {
-              const itemHarga = item.harga_asal ?? item.harga ?? booking.dp_nominal ?? 0;
+              const itemHarga = item.harga_asal ?? item.harga ?? dpNominal ?? 0;
               const itemQty = item.qty ?? 1;
               const itemSub = item.subtotal ?? itemHarga * itemQty;
               return (
@@ -325,37 +325,70 @@ export const DialogDetailBooking: React.FC<Props> = ({
 
           {/* Financial Totals */}
           <div className="flex justify-content-between mb-1">
-            <span className="text-slate-600">Subtotal</span>
+            <span className="text-slate-600">Total Biaya Layanan</span>
             <span className="font-bold text-slate-800">{formatRupiah(subtotal)}</span>
           </div>
 
-          <div className="flex justify-content-between pt-1 border-top-1 border-slate-200 mt-1 mb-2 font-bold text-sm text-slate-900">
-            <span>Total Bayar</span>
-            <span className="text-teal-700">{formatRupiah(totalBayar)}</span>
-          </div>
+          {dpNominal > 0 ? (
+            <>
+              <div className="flex justify-content-between mb-1 text-emerald-600 font-semibold">
+                <span>Uang Muka (DP Terbayar)</span>
+                <span>- {formatRupiah(dpNominal)}</span>
+              </div>
+              <div className="border-top-1 border-dashed surface-border my-1" />
+              <div className="flex justify-content-between pt-1 font-bold text-sm text-slate-900 mb-1">
+                <span>Sisa Pembayaran</span>
+                <span className="text-amber-700">{formatRupiah(sisaBayar)}</span>
+              </div>
+            </>
+          ) : (
+            <div className="flex justify-content-between pt-1 border-top-1 border-slate-200 mt-1 mb-1 font-bold text-sm text-slate-900">
+              <span>Uang Muka (DP)</span>
+              <span className="text-emerald-600">Rp 0 (Bebas DP)</span>
+            </div>
+          )}
 
           <div className="border-top-1 border-dashed surface-border my-2" />
 
           {/* Payment Method details */}
           <div className="flex justify-content-between mb-1">
-            <span className="text-slate-600">Metode</span>
+            <span className="text-slate-600">Metode DP</span>
             <span className="font-bold text-slate-900">
               {METODE_LABEL[booking.metode_pembayaran_dp] ||
-                (booking.dp_nominal === 0
+                (dpNominal === 0
                   ? booking.alasan_bebas_dp || 'Bebas DP'
                   : booking.metode_pembayaran_dp || 'Tunai (Cash)')}
             </span>
           </div>
 
-          {/* Lunas / Status Pill Badge */}
-          <div className="my-3 text-center py-1.5 px-3 border-round-3xl border-2 border-slate-700 text-slate-800 font-bold text-xs tracking-wider uppercase">
-            ✓ {booking.dp_status === 'sudah_bayar' ? 'LUNAS' : (booking.status || 'DIKONFIRMASI').toUpperCase()}
+          {/* Status Badge Akurat (DP Diterima + Info Sisa Pembayaran) */}
+          <div className="my-3 text-center">
+            {dpNominal > 0 ? (
+              <>
+                <div className="py-1.5 px-3 border-round-3xl border-2 border-emerald-500 text-emerald-700 font-bold text-xs tracking-wider uppercase bg-emerald-50 inline-block">
+                  ✓ DP DITERIMA ({formatRupiah(dpNominal)})
+                </div>
+                {sisaBayar > 0 && (
+                  <div className="text-[11px] text-slate-500 mt-1 font-sans">
+                    Sisa pembayaran: <strong className="text-slate-900">{formatRupiah(sisaBayar)}</strong> (dibayar saat kunjungan)
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="py-1.5 px-3 border-round-3xl border-2 border-emerald-500 text-emerald-700 font-bold text-xs tracking-wider uppercase bg-emerald-50 inline-block">
+                  ✓ RESERVASI TERKONFIRMASI
+                </div>
+                <div className="text-[11px] text-slate-500 mt-1 font-sans">
+                  Total biaya: <strong className="text-slate-900">{formatRupiah(subtotal)}</strong> (dibayar saat kunjungan)
+                </div>
+              </>
+            )}
           </div>
 
-          {/* Footer message */}
-          <div className="text-center text-[11px] text-slate-500 line-height-2 mt-2 whitespace-pre-line">
-            {printerSettings.footerMessage ||
-              'Terima kasih atas kunjungan Anda!\nSemoga lekas sembuh & cantik selalu 🌸'}
+          {/* Footer Message Konteks Booking */}
+          <div className="text-center text-[11px] text-slate-500 line-height-2 mt-2 whitespace-pre-line font-sans">
+            {'Terima kasih telah melakukan reservasi.\nSampai jumpa pada jadwal Anda! 🌸'}
           </div>
         </div>
       </div>
@@ -366,7 +399,7 @@ export const DialogDetailBooking: React.FC<Props> = ({
           label="Cetak Struk"
           icon="pi pi-print"
           onClick={handlePrint}
-          className="flex-1 font-bold text-xs bg-teal-600 hover:bg-teal-700 border-none border-round-lg text-white shadow-2 py-2.5"
+          className="flex-1 font-bold text-xs bg-emerald-600 hover:bg-emerald-700 border-none border-round-lg text-white shadow-2 py-2.5"
         />
         <Button
           label="Tutup"
