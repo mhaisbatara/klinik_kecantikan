@@ -174,45 +174,70 @@ export const DialogDetailBooking: React.FC<Props> = ({
 
   return (
     <Dialog
-      header={
-        <div className="flex align-items-center gap-2.5">
-          <div
-            className="border-round-lg bg-emerald-600 text-white flex align-items-center justify-content-center flex-shrink-0 shadow-1"
-            style={{ width: '32px', height: '32px' }}
-          >
-            <i className="pi pi-calendar text-base" />
-          </div>
-          <div>
-            <div className="font-bold text-base text-900 line-height-1">Bukti Reservasi Booking</div>
-            <div className="text-xs text-500 font-mono mt-1">{booking.kode_booking}</div>
-          </div>
-        </div>
-      }
       visible={visible}
-      style={{ width: '460px', maxWidth: '95vw' }}
       onHide={onHide}
-      modal
-      contentClassName="p-3 surface-ground"
-      footer={
-        <div className="flex justify-content-between align-items-center gap-2 pt-2 border-top-1 surface-border">
-          <Button
-            type="button"
-            label="Cetak Struk"
-            icon="pi pi-print"
-            className="flex-1 font-bold text-xs bg-emerald-600 hover:bg-emerald-700 border-none text-white py-2.5 shadow-1"
-            onClick={handlePrint}
-          />
-          <Button
-            type="button"
-            label="Tutup"
-            icon="pi pi-times"
-            className="flex-1 font-bold text-xs p-button-outlined p-button-secondary py-2.5"
-            onClick={onHide}
-          />
-        </div>
-      }
+      showHeader={false}
+      style={{ width: '460px', maxWidth: '95vw', borderRadius: '20px', overflow: 'hidden' }}
+      contentStyle={{ padding: 0, borderRadius: '20px', overflow: 'hidden' }}
     >
-      <div className="py-1">
+      {/* 1. TOP BANNER HEADER (EMERALD IDENTITAS APLIKASI) */}
+      <div
+        style={{
+          background: '#059669',
+          padding: '24px 16px',
+          textAlign: 'center',
+          color: '#ffffff',
+          position: 'relative',
+        }}
+      >
+        <button
+          onClick={onHide}
+          type="button"
+          style={{
+            position: 'absolute',
+            top: '12px',
+            right: '12px',
+            background: 'transparent',
+            border: 'none',
+            color: '#ffffff',
+            opacity: 0.9,
+            cursor: 'pointer',
+            padding: '4px 8px',
+            fontSize: '18px',
+            lineHeight: 1,
+          }}
+          title="Tutup Modal"
+        >
+          <i className="pi pi-times" />
+        </button>
+
+        <div
+          style={{
+            width: '52px',
+            height: '52px',
+            borderRadius: '50%',
+            background: 'rgba(255, 255, 255, 0.2)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 10px',
+          }}
+        >
+          <i className="pi pi-check-circle text-white" style={{ fontSize: '28px' }} />
+        </div>
+        <h3 style={{ fontSize: '20px', fontWeight: 900, margin: '0 0 4px 0', color: '#ffffff' }}>
+          Bukti Reservasi Booking
+        </h3>
+        <p style={{ fontSize: '13px', margin: 0, opacity: 0.9, fontFamily: 'monospace' }}>
+          {booking.kode_booking}
+        </p>
+      </div>
+
+      {/* 2. PAPER RECEIPT PREVIEW BODY */}
+      <div
+        className="p-4 surface-ground overflow-y-auto"
+        style={{ maxHeight: '52vh' }}
+      >
         <div
           ref={printRef}
           style={{ maxWidth: paperWidthPx, margin: '0 auto' }}
@@ -373,6 +398,26 @@ export const DialogDetailBooking: React.FC<Props> = ({
             {'Terima kasih telah melakukan reservasi.\nSampai jumpa pada jadwal Anda! 🌸'}
           </div>
         </div>
+      </div>
+
+      {/* 3. MODAL ACTIONS FOOTER */}
+      <div className="p-3 bg-white border-top-1 surface-border flex gap-2">
+        <Button
+          type="button"
+          label="Cetak Struk"
+          icon="pi pi-print"
+          onClick={handlePrint}
+          className="flex-1 font-bold text-xs bg-emerald-600 hover:bg-emerald-700 border-none border-round-lg text-white shadow-2 py-2.5"
+        />
+        <Button
+          type="button"
+          label="Tutup"
+          icon="pi pi-times"
+          outlined
+          severity="secondary"
+          onClick={onHide}
+          className="flex-1 font-bold text-xs border-round-lg py-2.5"
+        />
       </div>
     </Dialog>
   );
