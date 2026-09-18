@@ -3,20 +3,54 @@
 import React, { useRef } from 'react';
 import { Dialog } from 'primereact/dialog';
 import { Button } from 'primereact/button';
-import {
-  CalendarCheck,
-  Printer,
-  User,
-  Calendar,
-  Clock,
-  MapPin,
-  FileText,
-  Sparkles,
-  UserCheck,
-  CreditCard,
-  Wallet,
-  Info,
-} from 'lucide-react';
+
+const formatRupiah = (val: number) =>
+  new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: 0,
+  }).format(val || 0);
+
+const METODE_LABEL: Record<string, string> = {
+  tunai: '💵 Tunai (Cash)',
+  cash: '💵 Tunai (Cash)',
+  transfer: '🏦 Transfer Bank',
+  qris: '📱 QRIS',
+  debit: '💳 Debit',
+  kredit: '💳 Kredit',
+};
+
+const getPrinterSettings = () => {
+  const defaults = {
+    paperSize: '58mm',
+    headerAddress: 'Jl. Utama Klinik Kecantikan No. 88, Telp: (021) 555-0199',
+    footerMessage: 'Terima kasih atas kunjungan Anda!\nSemoga lekas sembuh & cantik selalu 🌸',
+  };
+  if (typeof window === 'undefined') return defaults;
+  try {
+    const raw = localStorage.getItem('kasir_printer_settings');
+    if (!raw) return defaults;
+    return { ...defaults, ...JSON.parse(raw) };
+  } catch {
+    return defaults;
+  }
+};
+
+const formatTanggalIndo = (tanggalStr?: string) => {
+  if (!tanggalStr) return '-';
+  try {
+    const d = new Date(tanggalStr);
+    if (isNaN(d.getTime())) return tanggalStr;
+    return d.toLocaleDateString('id-ID', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+  } catch {
+    return tanggalStr;
+  }
+};
 
 interface Props {
   visible: boolean;
@@ -33,471 +67,319 @@ export const DialogDetailBooking: React.FC<Props> = ({
 
   if (!booking) return null;
 
-  const formatCurrency = (val: number) => {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-      minimumFractionDigits: 0,
-    }).format(val || 0);
-  };
+  const printerSettings = getPrinterSettings();
+  const paperWidthPx =
+    printerSettings.paperSize === '58mm'
+      ? '280px'
+      : printerSettings.paperSize === '80mm'
+      ? '340px'
+      : '100%';
 
   const handlePrint = () => {
-    const printContent = printRef.current;
-    if (!printContent) return;
+    const el = printRef.current;
+    if (!el) return;
 
-    const win = window.open('', '', 'height=800,width=850');
-    if (!win) return;
-
-    const styles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
-      .map((el) => el.outerHTML)
+    const styleTags = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+      .map((s) => s.outerHTML)
       .join('\n');
 
-    win.document.write(`
+    const printWindow = window.open('', '_blank', 'width=450,height=750');
+    if (!printWindow) return;
+
+    printWindow.document.write(`
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Bukti Reservasi - ${booking.kode_booking || 'Booking'}</title>
-          <meta charset="utf-8" />
-          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-          ${styles}
+          <title>Struk Booking ${booking.kode_booking || ''}</title>
+          ${styleTags}
           <style>
-            @page {
-              size: auto;
-              margin: 10mm;
-            }
-            * {
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
-              color-adjust: exact !important;
-              box-sizing: border-box !important;
-            }
+            @page { size: auto; margin: 0; }
+            * { margin: 0; padding: 0; box-sizing: border-box; }
             body {
-              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
-              padding: 16px !important;
-              color: #1e293b !important;
+              font-family: 'Courier New', Courier, monospace;
+              font-size: 12px;
+              color: #1e293b;
               background: #ffffff !important;
-              margin: 0 !important;
+              padding: 12px;
             }
-            .print-container {
-              max-width: 480px;
+            .receipt-print-wrapper {
+              max-width: ${paperWidthPx};
               margin: 0 auto;
             }
-            .surface-50 { background-color: #f8fafc !important; }
-            .surface-100 { background-color: #f1f5f9 !important; }
-            .border-1 { border: 1px solid #e2e8f0 !important; }
-            .border-200 { border-color: #e2e8f0 !important; }
-            .border-round-xl { border-radius: 12px !important; }
-            .border-round-md { border-radius: 6px !important; }
-            .border-round-3xl { border-radius: 24px !important; }
-            .border-bottom-1 { border-bottom: 1px solid #e2e8f0 !important; }
-            .border-top-1 { border-top: 1px solid #e2e8f0 !important; }
-            .surface-border { border-color: #e2e8f0 !important; }
+            .receipt-print-wrapper > div {
+              box-shadow: none !important;
+              border: none !important;
+              padding: 0 !important;
+            }
             .flex { display: flex !important; }
-            .flex-column { display: flex !important; flex-direction: column !important; }
-            .align-items-center { align-items: center !important; }
-            .align-items-start { align-items: flex-start !important; }
+            .flex-column { flex-direction: column !important; }
             .justify-content-between { justify-content: space-between !important; }
-            .justify-content-center { justify-content: center !important; }
-            .flex-wrap { flex-wrap: wrap !important; }
-            .flex-shrink-0 { flex-shrink: 0 !important; }
-            .grid { display: flex !important; flex-wrap: wrap !important; margin: 0 !important; }
-            .col-6 { width: 50% !important; flex: 0 0 50% !important; max-width: 50% !important; box-sizing: border-box !important; }
-            .col-12 { width: 100% !important; flex: 0 0 100% !important; max-width: 100% !important; box-sizing: border-box !important; }
-            .p-0 { padding: 0 !important; }
-            .pr-2 { padding-right: 8px !important; }
-            .pl-2 { padding-left: 8px !important; }
-            .p-3 { padding: 12px !important; }
-            .p-2\\.5 { padding: 10px !important; }
-            .m-0 { margin: 0 !important; }
-            .mb-1 { margin-bottom: 4px !important; }
-            .mb-1\\.5 { margin-bottom: 6px !important; }
-            .mb-3 { margin-bottom: 16px !important; }
-            .text-500 { color: #64748b !important; }
-            .text-400 { color: #94a3b8 !important; }
-            .text-600 { color: #475569 !important; }
-            .text-700 { color: #334155 !important; }
-            .text-800 { color: #1e293b !important; }
-            .text-900 { color: #0f172a !important; }
-            .text-emerald-500 { color: #10b981 !important; }
-            .text-emerald-600 { color: #059669 !important; }
-            .text-teal-700 { color: #0f766e !important; }
-            .text-purple-700 { color: #7e22ce !important; }
-            .text-purple-900 { color: #581c87 !important; }
-            .text-purple-950 { color: #3b0764 !important; }
-            .text-blue-900 { color: #1e3a8a !important; }
-            .text-amber-700 { color: #b45309 !important; }
+            .align-items-center { align-items: center !important; }
             .font-bold { font-weight: 700 !important; }
             .font-black { font-weight: 900 !important; }
-            .font-medium { font-weight: 500 !important; }
             .font-semibold { font-weight: 600 !important; }
-            .font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important; }
-            .uppercase { text-transform: uppercase !important; }
-            .tracking-wider { letter-spacing: 0.05em !important; }
-            .tracking-wide { letter-spacing: 0.025em !important; }
-            .bg-emerald-600 { background-color: #059669 !important; }
-            .bg-blue-600 { background-color: #2563eb !important; }
-            .bg-amber-600 { background-color: #d97706 !important; }
-            .bg-red-600 { background-color: #dc2626 !important; }
-            .bg-purple-50 { background-color: #faf5ff !important; }
-            .bg-blue-50 { background-color: #eff6ff !important; }
-            .bg-teal-50 { background-color: #f0fdfa !important; }
-            .bg-amber-50 { background-color: #fffbeb !important; }
-            .border-purple-200 { border-color: #e9d5ff !important; }
-            .border-blue-200 { border-color: #bfdbfe !important; }
-            .border-teal-200 { border-color: #99f6e4 !important; }
-            .text-white { color: #ffffff !important; }
-            svg { display: inline-block !important; vertical-align: middle !important; }
+            .text-center { text-align: center !important; }
+            .text-teal-700 { color: #0f766e !important; }
+            .text-slate-500 { color: #64748b !important; }
+            .text-slate-600 { color: #475569 !important; }
+            .text-slate-800 { color: #1e293b !important; }
+            .text-slate-900 { color: #0f172a !important; }
+            .border-top-1 { border-top: 1px solid #cbd5e1 !important; }
+            .border-dashed { border-top: 1px dashed #94a3b8 !important; }
+            .my-2 { margin-top: 8px !important; margin-bottom: 8px !important; }
+            .mb-1 { margin-bottom: 4px !important; }
+            .mb-2 { margin-bottom: 8px !important; }
+            .mb-3 { margin-bottom: 12px !important; }
           </style>
         </head>
         <body>
-          <div class="print-container">
-            ${printContent.innerHTML}
+          <div class="receipt-print-wrapper">
+            ${el.innerHTML}
           </div>
         </body>
       </html>
     `);
-    win.document.close();
-    win.focus();
+    printWindow.document.close();
+    printWindow.focus();
     setTimeout(() => {
-      win.print();
-      win.close();
-    }, 400);
+      printWindow.print();
+      printWindow.close();
+    }, 300);
   };
+
+  // Calculate items and total
+  const hasItems = Array.isArray(booking.items) && booking.items.length > 0;
+  const items = hasItems
+    ? booking.items
+    : [
+        {
+          nama: booking.nama_layanan || booking.kode_layanan || 'Treatment / Layanan',
+          qty: 1,
+          harga_asal: booking.dp_nominal || 0,
+          harga: booking.dp_nominal || 0,
+          subtotal: booking.dp_nominal || 0,
+        },
+      ];
+
+  const subtotal = items.reduce(
+    (acc: number, item: any) =>
+      acc + (item.subtotal ?? (item.harga_asal ?? item.harga ?? 0) * (item.qty ?? 1)),
+    0
+  );
+
+  const totalBayar = booking.dp_nominal ?? subtotal;
 
   return (
     <Dialog
-      header={
-        <div className="flex align-items-center gap-2.5">
-          <div
-            className="border-round-lg bg-emerald-600 text-white flex align-items-center justify-content-center flex-shrink-0"
-            style={{ width: '32px', height: '32px' }}
-          >
-            <CalendarCheck size={18} />
-          </div>
-          <span className="font-bold text-lg text-900">Bukti Reservasi Booking</span>
-        </div>
-      }
       visible={visible}
-      style={{ width: '520px', maxWidth: '95vw' }}
       onHide={onHide}
-      modal
-      contentClassName="p-3"
-      footer={
-        <div className="flex justify-content-between align-items-center pt-3 border-top-1 surface-border">
-          <Button
-            type="button"
-            label="Cetak Bukti"
-            icon={<Printer size={15} style={{ marginRight: '8px' }} />}
-            className="p-button-outlined p-button-secondary font-semibold text-xs px-3 py-2"
-            onClick={handlePrint}
-          />
-          <Button
-            type="button"
-            label="Tutup"
-            icon="pi pi-times"
-            className="font-bold text-xs px-4 py-2 bg-emerald-600 border-emerald-600 hover:bg-emerald-700 text-white shadow-1"
-            onClick={onHide}
-          />
-        </div>
-      }
+      showHeader={false}
+      style={{ width: '460px', borderRadius: '20px', overflow: 'hidden' }}
+      contentStyle={{ padding: 0, borderRadius: '20px' }}
     >
-      <div ref={printRef} className="py-1">
-        {/* 1. HEADER TIKET RESERVASI */}
-        <div
-          className="surface-50 border-1 border-200 border-round-xl text-center shadow-none"
-          style={{ padding: '16px', marginBottom: '16px' }}
+      {/* Top Banner Header */}
+      <div
+        style={{
+          background: '#0d9488',
+          padding: '24px 16px',
+          textAlign: 'center',
+          color: '#ffffff',
+          position: 'relative',
+        }}
+      >
+        <button
+          onClick={onHide}
+          style={{
+            position: 'absolute',
+            top: '12px',
+            right: '12px',
+            background: 'transparent',
+            border: 'none',
+            color: '#ffffff',
+            opacity: 0.8,
+            cursor: 'pointer',
+            padding: '4px 8px',
+            fontSize: '18px',
+            lineHeight: 1,
+          }}
+          title="Tutup Modal"
         >
-          <div
-            className="text-500 font-bold uppercase tracking-wider"
-            style={{ fontSize: '11px', letterSpacing: '1px' }}
-          >
-            KLINIK KECANTIKAN ESTETIKA
-          </div>
-          <div
-            className="font-black text-emerald-500 font-mono tracking-wide"
-            style={{ fontSize: '26px', margin: '4px 0 6px 0', fontWeight: 800 }}
-          >
-            {booking.kode_booking}
-          </div>
-          <div className="text-500 font-medium" style={{ fontSize: '12px' }}>
-            Tunjukkan kode ini kepada staf saat kedatangan
-          </div>
+          <i className="pi pi-times" />
+        </button>
+
+        <div
+          style={{
+            width: '52px',
+            height: '52px',
+            borderRadius: '50%',
+            background: 'rgba(255, 255, 255, 0.2)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 10px',
+          }}
+        >
+          <i className="pi pi-check-circle text-white" style={{ fontSize: '28px' }} />
         </div>
+        <h3 style={{ fontSize: '20px', fontWeight: 900, margin: '0 0 4px 0', color: '#ffffff' }}>
+          Bukti Reservasi Booking
+        </h3>
+        <p style={{ fontSize: '13px', margin: 0, opacity: 0.85, fontFamily: 'monospace' }}>
+          {booking.kode_booking}
+        </p>
+      </div>
 
-        {/* 2. BLOK 1: INFO PASIEN & LAYANAN (LABEL KIRI - VALUE KANAN) */}
+      {/* Paper Receipt Preview Body */}
+      <div className="p-4 surface-ground max-h-[60vh] overflow-y-auto">
         <div
-          className="surface-50 border-1 border-200 border-round-xl"
-          style={{ padding: '4px 16px', marginBottom: '16px' }}
+          ref={printRef}
+          style={{ maxWidth: paperWidthPx, margin: '0 auto' }}
+          className="bg-white p-4 border-round-xl border-1 surface-border shadow-2 text-slate-800 text-xs font-mono"
         >
-          {/* Baris Pasien */}
-          <div
-            className="flex align-items-center justify-content-between border-bottom-1 surface-border flex-wrap gap-2"
-            style={{ padding: '10px 0' }}
-          >
-            <div className="flex align-items-center text-500 font-medium" style={{ fontSize: '13px', gap: '8px' }}>
-              <User size={15} className="text-400 flex-shrink-0" />
-              <span>Pasien</span>
-            </div>
-            <div className="flex align-items-center gap-2">
-              <span className="font-bold text-900" style={{ fontSize: '14px' }}>
-                {booking.nama_pasien || '-'}
-              </span>
-              {booking.no_rm && (
-                <span
-                  className="px-2 py-0.5 border-round-md bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-300 border-1 border-teal-200 dark:border-teal-800 font-mono font-bold"
-                  style={{ fontSize: '11px' }}
-                >
-                  {booking.no_rm}
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Baris Layanan / Paket */}
-          <div style={{ padding: '10px 0' }}>
-            <div className="flex align-items-center justify-content-between flex-wrap gap-2">
-              <div className="flex align-items-center text-500 font-medium" style={{ fontSize: '13px', gap: '8px' }}>
-                <Sparkles size={15} className="text-400 flex-shrink-0" />
-                <span>Layanan / Paket</span>
-              </div>
-              <span className="font-bold text-900" style={{ fontSize: '14px' }}>
-                {booking.nama_layanan || booking.kode_layanan || '-'}
-              </span>
-            </div>
-
-            {/* Sub-item jika multi items */}
-            {Array.isArray(booking.items) && booking.items.length > 1 && (
-              <div className="pl-3 sm:pl-4 mt-2 pt-2 border-top-1 surface-border flex flex-column gap-2">
-                {booking.items.map((it: any, idx: number) => {
-                  const isKlaim =
-                    it.jenis_layanan === 'klaim_paket' ||
-                    it.jenis === 'klaim_paket' ||
-                    it.jenis_item === 'klaim_paket';
-                  return (
-                    <div key={idx} className="flex justify-content-between align-items-center text-xs text-600">
-                      <span>• {it.nama || it.nama_layanan} {it.durasi_menit ? `(${it.durasi_menit}m)` : ''}</span>
-                      <span className="font-semibold">
-                        {isKlaim ? (
-                          <span className="text-amber-700 font-bold bg-amber-50 px-1.5 py-0.5 border-round">
-                            Klaim Paket (Rp 0)
-                          </span>
-                        ) : (
-                          formatCurrency(it.harga_asal ?? it.harga)
-                        )}
-                      </span>
-                    </div>
-                  );
-                })}
+          {/* Receipt Brand Header */}
+          <div className="text-center mb-3">
+            <div className="text-base font-black text-slate-900 tracking-tight">🌸 Klinik Kecantikan</div>
+            {printerSettings.headerAddress && (
+              <div className="text-[10px] text-slate-500 font-semibold mt-0.5">
+                {printerSettings.headerAddress}
               </div>
             )}
+            <div className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider mt-1">
+              STRUK TRANSAKSI
+            </div>
+          </div>
+
+          <div className="border-top-1 border-dashed surface-border my-2" />
+
+          {/* Meta Info */}
+          <div className="flex justify-content-between mb-1">
+            <span className="text-slate-500">No. Transaksi</span>
+            <span className="font-bold text-slate-900">{booking.kode_booking}</span>
+          </div>
+          <div className="flex justify-content-between mb-1">
+            <span className="text-slate-500">Pasien</span>
+            <span className="font-bold text-slate-900">{booking.nama_pasien || '-'}</span>
+          </div>
+          <div className="flex justify-content-between mb-1">
+            <span className="text-slate-500">No. RM</span>
+            <span className="font-bold text-slate-900">{booking.no_rm || '-'}</span>
+          </div>
+          <div className="flex justify-content-between mb-1">
+            <span className="text-slate-500">Tanggal</span>
+            <span className="font-semibold text-slate-800">
+              {formatTanggalIndo(booking.tanggal_booking)}
+            </span>
+          </div>
+          <div className="flex justify-content-between mb-1">
+            <span className="text-slate-500">Jam</span>
+            <span className="font-semibold text-slate-800">
+              {booking.jam_booking ? `${booking.jam_booking} WIB` : '-'}
+            </span>
+          </div>
+          {booking.nama_ruangan && (
+            <div className="flex justify-content-between mb-1">
+              <span className="text-slate-500">Ruangan</span>
+              <span className="font-semibold text-slate-800">{booking.nama_ruangan}</span>
+            </div>
+          )}
+          {booking.nama_petugas && (
+            <div className="flex justify-content-between mb-1">
+              <span className="text-slate-500">Petugas/Dokter</span>
+              <span className="font-semibold text-slate-800">{booking.nama_petugas}</span>
+            </div>
+          )}
+          {booking.butuh_konsul !== undefined && (
+            <div className="flex justify-content-between mb-1">
+              <span className="text-slate-500">Alur</span>
+              <span className="font-semibold text-slate-800">
+                {Number(booking.butuh_konsul) === 1 ? 'Konsultasi Dokter Dulu' : 'Langsung Tindakan'}
+              </span>
+            </div>
+          )}
+
+          <div className="border-top-1 border-dashed surface-border my-2" />
+
+          {/* Item Details */}
+          <div className="flex flex-column gap-2.5 my-2">
+            {items.map((item: any, i: number) => {
+              const itemHarga = item.harga_asal ?? item.harga ?? booking.dp_nominal ?? 0;
+              const itemQty = item.qty ?? 1;
+              const itemSub = item.subtotal ?? itemHarga * itemQty;
+              return (
+                <div key={i} className="flex flex-column gap-0.5">
+                  <div className="font-bold text-slate-900 flex justify-content-between">
+                    <span>{item.nama || item.nama_layanan}</span>
+                  </div>
+                  <div className="flex justify-content-between text-slate-600 text-[11px]">
+                    <span>
+                      {itemQty} × {formatRupiah(itemHarga)}
+                    </span>
+                    <span className="font-bold text-slate-900">{formatRupiah(itemSub)}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="border-top-1 border-dashed surface-border my-2" />
+
+          {/* Financial Totals */}
+          <div className="flex justify-content-between mb-1">
+            <span className="text-slate-600">Subtotal</span>
+            <span className="font-bold text-slate-800">{formatRupiah(subtotal)}</span>
+          </div>
+
+          <div className="flex justify-content-between pt-1 border-top-1 border-slate-200 mt-1 mb-2 font-bold text-sm text-slate-900">
+            <span>Total Bayar</span>
+            <span className="text-teal-700">{formatRupiah(totalBayar)}</span>
+          </div>
+
+          <div className="border-top-1 border-dashed surface-border my-2" />
+
+          {/* Payment Method details */}
+          <div className="flex justify-content-between mb-1">
+            <span className="text-slate-600">Metode</span>
+            <span className="font-bold text-slate-900">
+              {METODE_LABEL[booking.metode_pembayaran_dp] ||
+                (booking.dp_nominal === 0
+                  ? booking.alasan_bebas_dp || 'Bebas DP'
+                  : booking.metode_pembayaran_dp || 'Tunai (Cash)')}
+            </span>
+          </div>
+
+          {/* Lunas / Status Pill Badge */}
+          <div className="my-3 text-center py-1.5 px-3 border-round-3xl border-2 border-slate-700 text-slate-800 font-bold text-xs tracking-wider uppercase">
+            ✓ {booking.dp_status === 'sudah_bayar' ? 'LUNAS' : (booking.status || 'DIKONFIRMASI').toUpperCase()}
+          </div>
+
+          {/* Footer message */}
+          <div className="text-center text-[11px] text-slate-500 line-height-2 mt-2 whitespace-pre-line">
+            {printerSettings.footerMessage ||
+              'Terima kasih atas kunjungan Anda!\nSemoga lekas sembuh & cantik selalu 🌸'}
           </div>
         </div>
+      </div>
 
-        {/* 3. BLOK 2: JADWAL & LOKASI (LABEL ATAS DENGAN GAP 8PX + VALUE INDENTASI 22PX) */}
-        <div
-          className="surface-50 border-1 border-200 border-round-xl"
-          style={{ padding: '4px 16px', marginBottom: '16px' }}
-        >
-          {/* Row 1: Tanggal & Jam Rencana */}
-          <div className="grid m-0 border-bottom-1 surface-border" style={{ padding: '10px 0' }}>
-            <div className="col-6 p-0 pr-2">
-              <div className="flex align-items-center text-500 mb-1" style={{ fontSize: '12px', gap: '8px' }}>
-                <Calendar size={14} className="text-400 flex-shrink-0" />
-                <span>Tanggal</span>
-              </div>
-              <div className="font-bold text-900" style={{ fontSize: '14px', paddingLeft: '22px' }}>
-                {booking.tanggal_booking || '-'}
-              </div>
-            </div>
-
-            <div className="col-6 p-0 pl-2">
-              <div className="flex align-items-center text-500 mb-1" style={{ fontSize: '12px', gap: '8px' }}>
-                <Clock size={14} className="text-400 flex-shrink-0" />
-                <span>Jam Rencana</span>
-              </div>
-              <div className="font-bold text-900" style={{ fontSize: '14px', paddingLeft: '22px' }}>
-                {booking.jam_booking ? `${booking.jam_booking} WIB` : '-'}
-              </div>
-            </div>
-          </div>
-
-          {/* Row 2: Ruangan & Petugas / Dokter */}
-          <div className="grid m-0 border-bottom-1 surface-border" style={{ padding: '10px 0' }}>
-            <div className="col-6 p-0 pr-2">
-              <div className="flex align-items-center text-500 mb-1" style={{ fontSize: '12px', gap: '8px' }}>
-                <MapPin size={14} className="text-400 flex-shrink-0" />
-                <span>Ruangan</span>
-              </div>
-              <div className="font-bold text-900" style={{ fontSize: '14px', paddingLeft: '22px' }}>
-                {booking.nama_ruangan || booking.kode_ruangan || '-'}
-              </div>
-            </div>
-
-            <div className="col-6 p-0 pl-2">
-              <div className="flex align-items-center text-500 mb-1" style={{ fontSize: '12px', gap: '8px' }}>
-                <UserCheck size={14} className="text-400 flex-shrink-0" />
-                <span>Petugas / Dokter</span>
-              </div>
-              <div className="font-bold text-900" style={{ fontSize: '14px', paddingLeft: '22px' }}>
-                {booking.nama_petugas || '-'}
-              </div>
-            </div>
-          </div>
-
-          {/* Row 3: Alur Kunjungan (Simetris: Label Kiri, Badge Ungu Kanan) */}
-          <div
-            className="flex align-items-center justify-content-between flex-wrap gap-2"
-            style={{ padding: '10px 0' }}
-          >
-            <div className="flex align-items-center text-500 font-medium" style={{ fontSize: '13px', gap: '8px' }}>
-              <Clock size={14} className="text-400 flex-shrink-0" />
-              <span>Alur Kunjungan</span>
-            </div>
-            <div>
-              {Number(booking.butuh_konsul) === 1 ? (
-                <span
-                  className="inline-flex align-items-center font-bold px-3 py-1 border-round-3xl bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300 border-1 border-purple-200 dark:border-purple-800"
-                  style={{ fontSize: '12px' }}
-                >
-                  Konsultasi Dokter Dulu
-                </span>
-              ) : (
-                <span
-                  className="inline-flex align-items-center font-bold px-3 py-1 border-round-3xl bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300 border-1 border-green-200 dark:border-green-800"
-                  style={{ fontSize: '12px' }}
-                >
-                  Langsung Tindakan
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* 4. BLOK 3: PEMBAYARAN & STATUS (2 KOLOM SEJAJAR) */}
-        <div
-          className="surface-50 border-1 border-200 border-round-xl"
-          style={{ padding: '4px 16px', marginBottom: '16px' }}
-        >
-          {/* Row 1: Uang Muka & Metode Bayar DP */}
-          <div className="grid m-0 border-bottom-1 surface-border" style={{ padding: '10px 0' }}>
-            <div className="col-6 p-0 pr-2">
-              <div className="flex align-items-center text-500 mb-1" style={{ fontSize: '12px', gap: '8px' }}>
-                <CreditCard size={14} className="text-400 flex-shrink-0" />
-                <span>Uang Muka (DP)</span>
-              </div>
-              <div
-                className="font-bold text-emerald-500"
-                style={{ fontSize: '14px', paddingLeft: '22px' }}
-              >
-                {formatCurrency(booking.dp_nominal || 0)}
-              </div>
-            </div>
-
-            <div className="col-6 p-0 pl-2">
-              <div className="flex align-items-center text-500 mb-1" style={{ fontSize: '12px', gap: '8px' }}>
-                <Wallet size={14} className="text-400 flex-shrink-0" />
-                <span>Metode Bayar DP</span>
-              </div>
-              <div className="font-bold text-900" style={{ fontSize: '14px', paddingLeft: '22px' }}>
-                {booking.dp_nominal > 0 ? (
-                  booking.metode_pembayaran_dp === 'cash'
-                    ? 'Tunai (Cash)'
-                    : booking.metode_pembayaran_dp === 'transfer'
-                    ? 'Transfer Bank'
-                    : booking.metode_pembayaran_dp === 'qris'
-                    ? 'QRIS'
-                    : booking.metode_pembayaran_dp || '-'
-                ) : (
-                  <span className="text-amber-700 dark:text-amber-300 text-xs font-semibold bg-amber-50 dark:bg-amber-950 px-2 py-0.5 border-round">
-                    {booking.alasan_bebas_dp || 'Bebas DP'}
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Row 2: Status DP & Status Booking (2 Kolom Sejajar) */}
-          <div className="grid m-0" style={{ padding: '10px 0' }}>
-            <div className="col-6 p-0 pr-2">
-              <div className="text-500 font-medium mb-1.5" style={{ fontSize: '12px' }}>
-                Status DP
-              </div>
-              <div>
-                <span
-                  className={`inline-block font-bold text-white px-3 py-1.5 border-round-md tracking-wider uppercase ${
-                    booking.dp_status === 'sudah_bayar'
-                      ? 'bg-emerald-600'
-                      : booking.dp_status === 'belum_bayar'
-                      ? 'bg-amber-600'
-                      : 'bg-red-600'
-                  }`}
-                  style={{ fontSize: '11px', fontWeight: 800 }}
-                >
-                  {(booking.dp_status || 'belum_bayar').replace(/_/g, ' ').toUpperCase()}
-                </span>
-              </div>
-            </div>
-
-            <div className="col-6 p-0 pl-2">
-              <div className="text-500 font-medium mb-1.5" style={{ fontSize: '12px' }}>
-                Status Booking
-              </div>
-              <div>
-                <span
-                  className={`inline-block font-bold text-white px-3 py-1.5 border-round-md tracking-wider uppercase ${
-                    booking.status === 'selesai'
-                      ? 'bg-emerald-600'
-                      : booking.status === 'dikonfirmasi'
-                      ? 'bg-blue-600'
-                      : booking.status === 'dibatalkan'
-                      ? 'bg-red-600'
-                      : 'bg-gray-600'
-                  }`}
-                  style={{ fontSize: '11px', fontWeight: 800 }}
-                >
-                  {(booking.status || 'dikonfirmasi').toUpperCase()}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* 5. BANNER CATATAN ALUR / INSTRUKSI */}
-        {Number(booking.butuh_konsul) === 1 ? (
-          <div
-            className="p-3 bg-purple-50 dark:bg-purple-950 dark:bg-opacity-30 border-1 border-purple-200 dark:border-purple-800 border-round-xl flex align-items-start gap-2.5 text-xs text-purple-900 dark:text-purple-200 leading-normal"
-            style={{ marginBottom: '12px' }}
-          >
-            <Info size={16} className="text-purple-600 dark:text-purple-400 flex-shrink-0 mt-0.5" />
-            <div>
-              <strong className="font-bold text-purple-950 dark:text-purple-100">Catatan Alur:</strong> Pasien dijadwalkan untuk{' '}
-              <strong>Konsultasi Dokter</strong> terlebih dahulu saat check-in di klinik sebelum tindakan treatment. Harap datang 15–20 menit lebih awal.
-            </div>
-          </div>
-        ) : (
-          <div
-            className="p-3 bg-blue-50 dark:bg-blue-950 dark:bg-opacity-30 border-1 border-blue-200 dark:border-blue-800 border-round-xl flex align-items-start gap-2.5 text-xs text-blue-900 dark:text-blue-200 leading-normal"
-            style={{ marginBottom: '12px' }}
-          >
-            <Info size={16} className="text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-            <div>
-              Harap datang 15 menit sebelum waktu janji temu. Keterlambatan lebih dari 30 menit dapat menyebabkan reservasi dibatalkan otomatis dan uang muka hangus.
-            </div>
-          </div>
-        )}
-
-        {/* 6. CATATAN PASIEN JIKA ADA */}
-        {booking.catatan_pasien && (
-          <div className="p-2.5 surface-100 border-1 surface-border border-round-xl flex align-items-start gap-2 text-xs text-700 dark:text-300">
-            <FileText size={15} className="text-500 flex-shrink-0 mt-0.5" />
-            <div>
-              <strong className="text-800 dark:text-100">Catatan Pasien:</strong> <em>{booking.catatan_pasien}</em>
-            </div>
-          </div>
-        )}
+      {/* Modal Actions Footer */}
+      <div className="p-3 bg-white border-top-1 surface-border flex gap-2">
+        <Button
+          label="Cetak Struk"
+          icon="pi pi-print"
+          onClick={handlePrint}
+          className="flex-1 font-bold text-xs bg-teal-600 hover:bg-teal-700 border-none border-round-lg text-white shadow-2 py-2.5"
+        />
+        <Button
+          label="Tutup"
+          icon="pi pi-times"
+          outlined
+          severity="secondary"
+          onClick={onHide}
+          className="flex-1 font-bold text-xs border-round-lg py-2.5"
+        />
       </div>
     </Dialog>
   );
 };
+
 
 
