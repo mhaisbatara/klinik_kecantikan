@@ -63,6 +63,7 @@ const handleGetKepemilikanPaket = async (req, res) => {
     const selectFields = [
       "k.id",
       "k.kode_kepemilikan_paket_layanan",
+      "k.kode_transaksi",
       "k.no_rm",
       "p.nama as nama_pasien",
       "p.no_hp as no_hp_pasien",

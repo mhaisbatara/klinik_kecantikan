@@ -34,6 +34,7 @@ interface DetailKepemilikan {
 interface KepemilikanPaket {
   id: number;
   kode_kepemilikan_paket_layanan: string;
+  kode_transaksi?: string;
   no_rm: string;
   nama_pasien: string;
   no_hp_pasien?: string;
@@ -204,6 +205,389 @@ export const TabKepemilikanPaket: React.FC<TabKepemilikanPaketProps> = ({ toast,
     }
   };
 
+  const formatDateIndoDash = (dateStr?: string) => {
+    if (!dateStr) return '-';
+    try {
+      const parts = dateStr.split('T')[0].split('-');
+      if (parts.length === 3) {
+        return `${parts[2]}-${parts[1]}-${parts[0]}`;
+      }
+      return dateStr;
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const handlePrintKartuSesi = (item: KepemilikanPaket) => {
+    if (!item) return;
+
+    const printWindow = window.open('', '_blank', 'width=850,height=900');
+    if (!printWindow) return;
+
+    const statusColor = item.status === 'aktif' ? '#10b981' : item.status === 'habis' ? '#f59e0b' : '#ef4444';
+    const statusLabel = (item.status || '').toUpperCase();
+
+    const sectionsHtml = (item.details || []).map((det, sIdx) => {
+      const total = det.sesi_total || 1;
+      const terpakai = det.sesi_terpakai || 0;
+      const sisa = Math.max(0, total - terpakai);
+      const percent = Math.min(100, Math.round((terpakai / total) * 100));
+
+      const circlesHtml = Array.from({ length: total }, (_, i) => {
+        const sesiNum = i + 1;
+        const isUsed = sesiNum <= terpakai;
+        if (isUsed) {
+          return `
+            <div class="stamp-circle stamp-circle-used">
+              <div class="stamp-check">✓</div>
+              <div class="stamp-label">SESI ${sesiNum}</div>
+            </div>
+          `;
+        } else {
+          return `
+            <div class="stamp-circle stamp-circle-remain">
+              <div class="stamp-num">${sesiNum}</div>
+              <div class="stamp-label-remain">TERSEDIA</div>
+            </div>
+          `;
+        }
+      }).join('');
+
+      return `
+        <div class="service-card">
+          <div class="service-header">
+            <div>
+              <span class="service-title">${sIdx + 1}. ${det.nama_layanan || det.kode_layanan}</span>
+              <span class="service-badge">${det.tipe || 'Beauty Treatment'}</span>
+              <div class="service-sub">
+                <span>📍 ${det.nama_ruangan || 'Ruang Treatment'}</span>
+                <span>•</span>
+                <span>⏱ ${det.durasi_menit || 30} Menit</span>
+                <span>•</span>
+                <span>${det.kode_layanan}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="stamp-area">
+            ${circlesHtml}
+          </div>
+
+          <div class="service-footer">
+            <span><strong>${terpakai}</strong> dari <strong>${total}</strong> sesi terpakai</span>
+            <div class="progress-track">
+              <div class="progress-bar" style="width: ${percent}%;"></div>
+            </div>
+            <span>${percent}%</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Kartu Sesi Layanan Paket - ${item.kode_kepemilikan_paket_layanan}</title>
+          <style>
+            @page {
+              size: A4 portrait;
+              margin: 12mm;
+            }
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+              font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+              font-size: 12px;
+              color: #0f172a;
+              background: #ffffff;
+              padding: 15px;
+            }
+            .card-wrapper {
+              max-width: 580px;
+              margin: 0 auto;
+              background: #ffffff;
+              border: 1px solid #e2e8f0;
+              border-radius: 16px;
+              overflow: hidden;
+              box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+              color: #0f172a;
+            }
+            .header-banner {
+              background: linear-gradient(90deg, #059669 0%, #047857 100%);
+              color: #ffffff;
+              padding: 12px 18px;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+            }
+            .brand-group {
+              display: flex;
+              align-items: center;
+              gap: 10px;
+            }
+            .logo-box {
+              background: #ffffff;
+              border-radius: 8px;
+              width: 32px;
+              height: 32px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+              flex-shrink: 0;
+            }
+            .brand-title {
+              font-size: 13px;
+              font-weight: 800;
+              letter-spacing: 0.4px;
+            }
+            .brand-subtitle {
+              font-size: 10px;
+              font-weight: 600;
+              color: rgba(255, 255, 255, 0.9);
+              letter-spacing: 0.4px;
+              margin-top: 1px;
+            }
+            .status-badge {
+              background: #090d0f;
+              color: ${statusColor};
+              padding: 4px 12px;
+              border-radius: 20px;
+              font-size: 11px;
+              font-weight: 800;
+              letter-spacing: 0.5px;
+            }
+            .id-card-body {
+              padding: 16px;
+              display: flex;
+              gap: 16px;
+              background-image: repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.02) 0px, rgba(0, 0, 0, 0.02) 1px, transparent 1px, transparent 10px);
+            }
+            .photo-box {
+              width: 95px;
+              height: 115px;
+              border-radius: 10px;
+              border: 1px solid #cbd5e1;
+              background: #f1f5f9;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              flex-shrink: 0;
+              font-size: 40px;
+              color: #94a3b8;
+            }
+            .info-table {
+              flex: 1;
+              display: flex;
+              flex-direction: column;
+              gap: 4px;
+              font-size: 11.5px;
+            }
+            .info-row {
+              display: grid;
+              grid-template-columns: 90px 10px 1fr;
+              align-items: center;
+            }
+            .info-label { color: #64748b; font-weight: 500; }
+            .info-colon { color: #64748b; font-weight: 700; }
+            .info-val { color: #0f172a; font-weight: 700; }
+            .dashed-sep {
+              border-top: 1px dashed #e2e8f0;
+              margin: 4px 0;
+            }
+            .id-card-footer {
+              padding: 4px 16px 14px 16px;
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-end;
+            }
+            .kpl-label { font-size: 10px; color: #64748b; font-weight: 600; }
+            .kpl-val { font-family: monospace; font-size: 12.5px; font-weight: 800; color: #0f172a; }
+            .qr-placeholder {
+              width: 44px;
+              height: 44px;
+              border-radius: 6px;
+              border: 1px solid #cbd5e1;
+              background-color: #f8fafc;
+              background-image: linear-gradient(45deg, rgba(0, 0, 0, 0.08) 25%, transparent 25%), 
+                                linear-gradient(-45deg, rgba(0, 0, 0, 0.08) 25%, transparent 25%), 
+                                linear-gradient(45deg, transparent 75%, rgba(0, 0, 0, 0.08) 75%), 
+                                linear-gradient(-45deg, transparent 75%, rgba(0, 0, 0, 0.08) 75%);
+              background-size: 8px 8px;
+            }
+            .service-card {
+              margin: 14px 16px;
+              background: #ffffff;
+              border-radius: 12px;
+              border: 1px solid #e2e8f0;
+              overflow: hidden;
+            }
+            .service-header {
+              padding: 10px 14px;
+              border-bottom: 1px dashed #e2e8f0;
+            }
+            .service-title { font-weight: 800; color: #0f172a; font-size: 13px; }
+            .service-badge {
+              background: #eff6ff;
+              color: #2563eb;
+              border: 1px solid #dbeafe;
+              font-size: 9.5px;
+              font-weight: 700;
+              padding: 2px 6px;
+              border-radius: 4px;
+              margin-left: 6px;
+            }
+            .service-sub {
+              font-size: 10.5px;
+              color: #64748b;
+              margin-top: 3px;
+              display: flex;
+              gap: 6px;
+            }
+            .stamp-area {
+              padding: 18px 14px;
+              background-image: radial-gradient(rgba(0, 0, 0, 0.09) 1.5px, transparent 1.5px);
+              background-size: 16px 16px;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              gap: 16px;
+              flex-wrap: wrap;
+            }
+            .stamp-circle {
+              width: 68px;
+              height: 68px;
+              border-radius: 50%;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: center;
+              flex-shrink: 0;
+            }
+            .stamp-circle-used {
+              border: 2px solid #059669;
+              background: radial-gradient(circle, #ecfdf5 0%, #d1fae5 100%);
+              box-shadow: 0 4px 12px rgba(5, 150, 105, 0.2);
+              transform: rotate(-6deg);
+            }
+            .stamp-check { color: #059669; font-size: 20px; font-weight: 900; line-height: 1; }
+            .stamp-label { color: #065f46; font-size: 8.5px; font-weight: 800; letter-spacing: 0.5px; margin-top: 2px; }
+            .stamp-circle-remain {
+              border: 2px dashed #94a3b8;
+              background: #ffffff;
+              box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+            }
+            .stamp-num { color: #0f172a; font-size: 17px; font-weight: 800; line-height: 1; }
+            .stamp-label-remain { color: #64748b; font-size: 8px; font-weight: 700; letter-spacing: 0.5px; margin-top: 2px; }
+            .service-footer {
+              padding: 8px 14px 12px 14px;
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              gap: 10px;
+              font-size: 10.5px;
+              color: #475569;
+              border-top: 1px solid #f1f5f9;
+            }
+            .progress-track {
+              flex: 1;
+              height: 5px;
+              border-radius: 3px;
+              background: #e2e8f0;
+              overflow: hidden;
+            }
+            .progress-bar {
+              height: 100%;
+              background: #10b981;
+              border-radius: 3px;
+            }
+          </style>
+          <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+        </head>
+        <body>
+          <div class="card-wrapper">
+            <div class="header-banner">
+              <div class="brand-group">
+                <div class="logo-box">
+                  <span class="material-symbols-outlined" style="font-size: 20px; color: #059669; line-height: 1;">spa</span>
+                </div>
+                <div>
+                  <div class="brand-title">KARTU SESI LAYANAN PAKET</div>
+                  <div class="brand-subtitle">KLINIK KECANTIKAN ESTETIKA</div>
+                </div>
+              </div>
+              <div class="status-badge">
+                ${statusLabel}
+              </div>
+            </div>
+
+            <div class="id-card-body">
+              <div class="photo-box">👤</div>
+              <div class="info-table">
+                <div class="info-row">
+                  <span class="info-label">Nama Pasien</span>
+                  <span class="info-colon">:</span>
+                  <span class="info-val">${item.nama_pasien || '-'}</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">No. RM</span>
+                  <span class="info-colon">:</span>
+                  <span class="info-val">${item.no_rm || '-'}</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">No. HP</span>
+                  <span class="info-colon">:</span>
+                  <span class="info-val">${item.no_hp_pasien || '-'}</span>
+                </div>
+
+                <div class="dashed-sep"></div>
+
+                <div class="info-row">
+                  <span class="info-label">Nama Paket</span>
+                  <span class="info-colon">:</span>
+                  <span class="info-val">${item.nama_paket || item.kode_paket_layanan}</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Kode Paket</span>
+                  <span class="info-colon">:</span>
+                  <span class="info-val">${item.kode_paket_layanan}</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Tgl Pembelian</span>
+                  <span class="info-colon">:</span>
+                  <span class="info-val">${formatDateIndoDash(item.tanggal_beli)}</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Berlaku s.d.</span>
+                  <span class="info-colon">:</span>
+                  <span class="info-val" style="color: ${item.tanggal_expired ? '#dc2626' : '#0f172a'};">
+                    ${item.tanggal_expired ? formatDateIndoDash(item.tanggal_expired) : 'Tidak ada batas'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div class="id-card-footer">
+              <div>
+                <div class="kpl-label">No. Kartu (KPL)</div>
+                <div class="kpl-val">${item.kode_kepemilikan_paket_layanan}</div>
+              </div>
+              <div class="qr-placeholder"></div>
+            </div>
+
+            ${sectionsHtml}
+          </div>
+        </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+    }, 400);
+  };
+
   const getStatusColor = (status: string) => {
     const st = (status || '').toLowerCase();
     if (st === 'aktif') return '#22c55e';
@@ -281,8 +665,8 @@ export const TabKepemilikanPaket: React.FC<TabKepemilikanPaketProps> = ({ toast,
         />
       )}
       <Button
-        icon="pi pi-eye"
-        label="Detail Sesi"
+        icon="pi pi-id-card"
+        label="Lihat Kartu"
         size="small"
         outlined
         severity="info"
@@ -437,66 +821,448 @@ export const TabKepemilikanPaket: React.FC<TabKepemilikanPaketProps> = ({ toast,
         </DataTable>
       </div>
 
-      {/* DIALOG DETAIL SESI */}
+      {/* DIALOG DETAIL SESI (KARTU IDENTITAS KTP / SIM STYLE - WHITE THEME) */}
       <Dialog
         visible={dialogDetailVisible}
         onHide={() => setDialogDetailVisible(false)}
-        header={
-          <div className="flex align-items-center gap-2">
-            <i className="pi pi-list text-blue-600 text-xl" />
-            <span className="font-bold text-lg">Rincian Sesi Layanan Paket</span>
-          </div>
-        }
+        showHeader={false}
         modal
-        style={{ width: '100%', maxWidth: '650px' }}
+        style={{ width: '560px', maxWidth: '95vw', borderRadius: '18px', overflow: 'hidden' }}
+        contentStyle={{ padding: '16px', background: '#f8fafc', borderRadius: '18px', overflowY: 'auto', maxHeight: '90vh' }}
       >
         {selectedItem && (
-          <div className="flex flex-column gap-3 py-1">
-            <div className="surface-100 p-3 border-round-xl border-1 surface-border flex justify-content-between align-items-center">
-              <div>
-                <span className="text-xs text-500 block">Pasien</span>
-                <span className="font-bold text-900 text-base">{selectedItem.nama_pasien}</span>
-                <span className="text-xs text-blue-600 block font-medium">No. RM: {selectedItem.no_rm}</span>
+          <div className="flex flex-column gap-3">
+            {/* 1. KARTU IDENTITAS RESMI (KTP / SIM STYLE) */}
+            <div
+              style={{
+                background: '#ffffff',
+                borderRadius: '14px',
+                border: '1px solid #e2e8f0',
+                overflow: 'hidden',
+                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.06)',
+                position: 'relative',
+              }}
+            >
+              {/* Header Kartu (Banner Hijau) */}
+              <div
+                style={{
+                  background: 'linear-gradient(90deg, #059669 0%, #047857 100%)',
+                  padding: '12px 16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div
+                    style={{
+                      background: '#ffffff',
+                      borderRadius: '10px',
+                      width: '34px',
+                      height: '34px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#059669',
+                      boxShadow: '0 2px 6px rgba(0, 0, 0, 0.15)',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '20px', color: '#059669', lineHeight: 1 }}>
+                      spa
+                    </span>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#ffffff', letterSpacing: '0.4px', lineHeight: 1.2 }}>
+                      KARTU SESI LAYANAN PAKET
+                    </div>
+                    <div style={{ fontSize: '10px', fontWeight: 600, color: 'rgba(255, 255, 255, 0.9)', letterSpacing: '0.4px', marginTop: '2px' }}>
+                      KLINIK KECANTIKAN ESTETIKA
+                    </div>
+                  </div>
+                </div>
+
+                {/* Status Badge (Black pill with status color) */}
+                <div
+                  style={{
+                    background: '#090d0f',
+                    color: getStatusColor(selectedItem.status),
+                    padding: '4px 12px',
+                    borderRadius: '20px',
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    letterSpacing: '0.6px',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                  }}
+                >
+                  {(selectedItem.status || '').toUpperCase()}
+                </div>
               </div>
-              <div className="text-right">
-                <span className="text-xs text-500 block">Paket</span>
-                <span className="font-bold text-amber-700 block">{selectedItem.nama_paket}</span>
-                <Tag value={selectedItem.status.toUpperCase()} severity={selectedItem.status === 'aktif' ? 'success' : 'danger'} className="text-[10px] mt-1 font-bold" />
+
+              {/* Body Kartu dengan Watermark Garis Diagonal */}
+              <div
+                style={{
+                  padding: '16px',
+                  backgroundImage: 'repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.02) 0px, rgba(0, 0, 0, 0.02) 1px, transparent 1px, transparent 10px)',
+                  display: 'flex',
+                  gap: '16px',
+                }}
+              >
+                {/* Kolom Kiri: Foto / Avatar Placeholder */}
+                <div
+                  style={{
+                    width: '100px',
+                    height: '120px',
+                    borderRadius: '10px',
+                    border: '1px solid #cbd5e1',
+                    background: '#f1f5f9',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <i className="pi pi-user" style={{ fontSize: '42px', color: '#94a3b8' }} />
+                </div>
+
+                {/* Kolom Kanan: Data Pasien & Paket (Label : Value Rapat) */}
+                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px' }}>
+                  {/* Data Pasien */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '95px 12px 1fr', alignItems: 'center' }}>
+                    <span style={{ color: '#64748b', fontWeight: 500 }}>Nama Pasien</span>
+                    <span style={{ color: '#64748b', fontWeight: 700 }}>:</span>
+                    <span style={{ color: '#0f172a', fontWeight: 700, wordBreak: 'break-word' }}>{selectedItem.nama_pasien || '-'}</span>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '95px 12px 1fr', alignItems: 'center' }}>
+                    <span style={{ color: '#64748b', fontWeight: 500 }}>No. RM</span>
+                    <span style={{ color: '#64748b', fontWeight: 700 }}>:</span>
+                    <span style={{ color: '#0f172a', fontWeight: 700, fontFamily: 'monospace' }}>{selectedItem.no_rm}</span>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '95px 12px 1fr', alignItems: 'center' }}>
+                    <span style={{ color: '#64748b', fontWeight: 500 }}>No. HP</span>
+                    <span style={{ color: '#64748b', fontWeight: 700 }}>:</span>
+                    <span style={{ color: '#0f172a', fontWeight: 700 }}>{selectedItem.no_hp_pasien || '-'}</span>
+                  </div>
+
+                  {/* Garis Pemisah Putus-Putus Halus */}
+                  <div style={{ borderTop: '1px dashed #e2e8f0', margin: '4px 0' }} />
+
+                  {/* Data Paket */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '95px 12px 1fr', alignItems: 'center' }}>
+                    <span style={{ color: '#64748b', fontWeight: 500 }}>Nama Paket</span>
+                    <span style={{ color: '#64748b', fontWeight: 700 }}>:</span>
+                    <span style={{ color: '#0f172a', fontWeight: 700, wordBreak: 'break-word' }}>{selectedItem.nama_paket || selectedItem.kode_paket_layanan}</span>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '95px 12px 1fr', alignItems: 'center' }}>
+                    <span style={{ color: '#64748b', fontWeight: 500 }}>Kode Paket</span>
+                    <span style={{ color: '#64748b', fontWeight: 700 }}>:</span>
+                    <span style={{ color: '#0f172a', fontWeight: 700, fontFamily: 'monospace' }}>{selectedItem.kode_paket_layanan}</span>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '95px 12px 1fr', alignItems: 'center' }}>
+                    <span style={{ color: '#64748b', fontWeight: 500 }}>Tgl Pembelian</span>
+                    <span style={{ color: '#64748b', fontWeight: 700 }}>:</span>
+                    <span style={{ color: '#0f172a', fontWeight: 700 }}>{formatDateIndoDash(selectedItem.tanggal_beli)}</span>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '95px 12px 1fr', alignItems: 'center' }}>
+                    <span style={{ color: '#64748b', fontWeight: 500 }}>Berlaku s.d.</span>
+                    <span style={{ color: '#64748b', fontWeight: 700 }}>:</span>
+                    <span style={{ color: selectedItem.tanggal_expired ? '#dc2626' : '#0f172a', fontWeight: 700 }}>
+                      {selectedItem.tanggal_expired ? formatDateIndoDash(selectedItem.tanggal_expired) : 'Tidak ada batas'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer Kartu Identitas: No KPL & QR Matrix Placeholder */}
+              <div
+                style={{
+                  padding: '4px 16px 16px 16px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-end',
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 600 }}>No. Kartu (KPL)</div>
+                  <div style={{ fontFamily: 'monospace', fontSize: '12.5px', fontWeight: 800, color: '#0f172a', letterSpacing: '0.3px', marginTop: '1px' }}>
+                    {selectedItem.kode_kepemilikan_paket_layanan}
+                  </div>
+                </div>
+
+                {/* QR Matrix Pattern Placeholder (Light Version) */}
+                <div
+                  style={{
+                    width: '46px',
+                    height: '46px',
+                    borderRadius: '6px',
+                    border: '1px solid #cbd5e1',
+                    backgroundColor: '#f8fafc',
+                    backgroundImage: `
+                      linear-gradient(45deg, rgba(0, 0, 0, 0.08) 25%, transparent 25%), 
+                      linear-gradient(-45deg, rgba(0, 0, 0, 0.08) 25%, transparent 25%), 
+                      linear-gradient(45deg, transparent 75%, rgba(0, 0, 0, 0.08) 75%), 
+                      linear-gradient(-45deg, transparent 75%, rgba(0, 0, 0, 0.08) 75%)
+                    `,
+                    backgroundSize: '8px 8px',
+                    backgroundPosition: '0 0, 0 4px, 4px -4px, -4px 0px',
+                  }}
+                  title="QR / Barcode Security Pattern"
+                />
               </div>
             </div>
 
-            <h5 className="font-bold text-sm text-900 m-0 mb-1">Rincian Sesi Per Layanan:</h5>
-            <DataTable value={selectedItem.details} className="p-datatable-sm" responsiveLayout="scroll">
-              <Column field="kode_layanan" header="Kode" className="font-mono text-xs" style={{ width: '100px' }} />
-              <Column field="nama_layanan" header="Nama Layanan" className="font-bold text-xs" />
-              <Column field="sesi_total" header="Total" className="text-center text-xs" style={{ width: '80px' }} />
-              <Column field="sesi_terpakai" header="Terpakai" className="text-center text-xs" style={{ width: '90px' }} />
-              <Column
-                header="Sisa Sesi"
-                body={(det: DetailKepemilikan) => (
-                  <Tag value={`${det.sisa_sesi} Sesi`} severity={det.sisa_sesi > 0 ? 'info' : 'danger'} className="text-xs font-bold" />
-                )}
-                style={{ width: '100px', textAlign: 'center' }}
-              />
-              <Column
-                header="Aksi Klaim"
-                body={(det: DetailKepemilikan) => (
-                  det.sisa_sesi > 0 && selectedItem.status === 'aktif' ? (
-                    <Button
-                      icon="pi pi-ticket"
-                      label="Klaim"
-                      size="small"
-                      severity="success"
-                      className="text-xs font-bold py-1 px-2 border-round-md"
-                      onClick={() => handleOpenClaimDialog(selectedItem, det)}
-                    />
-                  ) : (
-                    <span className="text-xs text-400 font-semibold">Habis</span>
-                  )
-                )}
-                style={{ width: '100px', textAlign: 'center' }}
-              />
-            </DataTable>
+            {/* 2. KARTU STEMPEL SESI PER LAYANAN */}
+            <div className="flex flex-column gap-3">
+              {(selectedItem.details || []).map((det: DetailKepemilikan, sIdx: number) => {
+                const total = det.sesi_total || 1;
+                const terpakai = det.sesi_terpakai || 0;
+                const sisa = Math.max(0, total - terpakai);
+                const percent = Math.min(100, Math.round((terpakai / total) * 100));
+
+                return (
+                  <div
+                    key={det.kode_detail_kepemilikan_paket_layanan || sIdx}
+                    style={{
+                      background: '#ffffff',
+                      borderRadius: '14px',
+                      border: '1px solid #e2e8f0',
+                      overflow: 'hidden',
+                      boxShadow: '0 4px 14px rgba(0, 0, 0, 0.05)',
+                    }}
+                  >
+                    {/* Header Layanan */}
+                    <div
+                      style={{
+                        padding: '12px 16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '10px',
+                        borderBottom: '1px dashed #e2e8f0',
+                      }}
+                    >
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '13.5px' }}>
+                            {sIdx + 1}. {det.nama_layanan || det.kode_layanan}
+                          </span>
+                          <span
+                            style={{
+                              background: '#eff6ff',
+                              color: '#2563eb',
+                              border: '1px solid #dbeafe',
+                              fontSize: '10px',
+                              fontWeight: 700,
+                              padding: '2px 8px',
+                              borderRadius: '6px',
+                            }}
+                          >
+                            {det.tipe || 'Beauty Treatment'}
+                          </span>
+                        </div>
+                        <div
+                          style={{
+                            fontSize: '11px',
+                            color: '#64748b',
+                            marginTop: '3px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            flexWrap: 'wrap',
+                          }}
+                        >
+                          <span style={{ color: '#f43f5e' }}>📍</span>
+                          <span>{det.nama_ruangan || 'Ruang Treatment'}</span>
+                          <span>•</span>
+                          <span>⏱ {det.durasi_menit || 30} Menit</span>
+                          <span>•</span>
+                          <span style={{ fontFamily: 'monospace' }}>{det.kode_layanan}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Area Stempel Sesi (Dot Matrix Pattern & CENTERED) */}
+                    <div
+                      style={{
+                        padding: '20px 16px',
+                        backgroundImage: 'radial-gradient(rgba(0, 0, 0, 0.09) 1.5px, transparent 1.5px)',
+                        backgroundSize: '16px 16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '16px',
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      {Array.from({ length: total }, (_, i) => {
+                        const sesiNum = i + 1;
+                        const isUsed = sesiNum <= terpakai;
+
+                        if (isUsed) {
+                          return (
+                            <div
+                              key={sesiNum}
+                              style={{
+                                width: '74px',
+                                height: '74px',
+                                borderRadius: '50%',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                border: '2px solid #059669',
+                                background: 'radial-gradient(circle, #ecfdf5 0%, #d1fae5 100%)',
+                                boxShadow: '0 4px 12px rgba(5, 150, 105, 0.2)',
+                                transform: `rotate(${i % 2 === 0 ? '-5deg' : '-7deg'})`,
+                                flexShrink: 0,
+                                userSelect: 'none',
+                              }}
+                            >
+                              <div style={{ color: '#059669', fontSize: '22px', fontWeight: 900, lineHeight: 1 }}>✓</div>
+                              <div style={{ color: '#065f46', fontSize: '9px', fontWeight: 800, letterSpacing: '0.5px', marginTop: '3px' }}>
+                                SESI {sesiNum}
+                              </div>
+                            </div>
+                          );
+                        } else {
+                          return (
+                            <div
+                              key={sesiNum}
+                              style={{
+                                width: '74px',
+                                height: '74px',
+                                borderRadius: '50%',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                border: '2px dashed #94a3b8',
+                                background: '#ffffff',
+                                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.04)',
+                                flexShrink: 0,
+                                userSelect: 'none',
+                              }}
+                            >
+                              <div style={{ color: '#0f172a', fontSize: '18px', fontWeight: 800, lineHeight: 1 }}>
+                                {sesiNum}
+                              </div>
+                              <div style={{ color: '#64748b', fontSize: '8.5px', fontWeight: 700, letterSpacing: '0.5px', marginTop: '3px' }}>
+                                TERSEDIA
+                              </div>
+                            </div>
+                          );
+                        }
+                      })}
+                    </div>
+
+                    {/* Progress Bar & Ringkasan */}
+                    <div
+                      style={{
+                        padding: '10px 16px 14px 16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '12px',
+                        fontSize: '11px',
+                        borderTop: '1px solid #f1f5f9',
+                      }}
+                    >
+                      <span style={{ color: '#475569', whiteSpace: 'nowrap' }}>
+                        <strong style={{ color: '#0f172a', fontWeight: 800 }}>{det.sesi_terpakai}</strong> dari{' '}
+                        <strong style={{ color: '#0f172a', fontWeight: 800 }}>{total}</strong> sesi terpakai
+                      </span>
+
+                      {/* Custom Progress Track */}
+                      <div
+                        style={{
+                          flex: 1,
+                          height: '6px',
+                          borderRadius: '3px',
+                          background: '#e2e8f0',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        <div
+                          style={{
+                            height: '100%',
+                            width: `${percent}%`,
+                            background: '#10b981',
+                            borderRadius: '3px',
+                            transition: 'width 0.3s ease',
+                          }}
+                        />
+                      </div>
+
+                      <span style={{ color: '#0f172a', fontWeight: 700, minWidth: '32px', textAlign: 'right' }}>
+                        {percent}%
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* 3. MODAL FOOTER BUTTONS (TUTUP & CETAK KARTU SESI) */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '12px',
+                marginTop: '4px',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setDialogDetailVisible(false)}
+                style={{
+                  background: '#ffffff',
+                  border: '1px solid #cbd5e1',
+                  color: '#334155',
+                  fontWeight: 700,
+                  fontSize: '12.5px',
+                  borderRadius: '10px',
+                  padding: '12px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <i className="pi pi-times" style={{ fontSize: '13px' }} />
+                Tutup
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handlePrintKartuSesi(selectedItem)}
+                style={{
+                  background: '#059669',
+                  border: 'none',
+                  color: '#ffffff',
+                  fontWeight: 700,
+                  fontSize: '12.5px',
+                  borderRadius: '10px',
+                  padding: '12px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  boxShadow: '0 4px 12px rgba(5, 150, 105, 0.3)',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <i className="pi pi-print" style={{ fontSize: '13px' }} />
+                Cetak Kartu Sesi
+              </button>
+            </div>
           </div>
         )}
       </Dialog>
