@@ -13,6 +13,7 @@ import { ProgressSpinner } from 'primereact/progressspinner';
 import postData from '@/lib/axios/postData';
 import { showError, showSuccess } from '@/lib/tools/generalTools';
 import { Dialog } from 'primereact/dialog';
+import { OverlayPanel } from 'primereact/overlaypanel';
 import { AntrianLayananData, RuanganFormField } from './interfaces';
 import { FormRuanganFotoUploader } from './FormRuanganFotoUploader';
 import { RekomendasiTreatmentPanel, RekomendasiItem } from './RekomendasiTreatmentPanel';
@@ -33,6 +34,8 @@ import {
     Stethoscope,
     Clock,
     ShoppingBag,
+    MapPin,
+    Info,
 } from 'lucide-react';
 
 interface ActiveTreatmentPanelProps {
@@ -95,6 +98,24 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
     const [loadingResepProduk, setLoadingResepProduk] = useState<boolean>(false);
 
     const [selectedPetugas, setSelectedPetugas] = useState<string>('');
+
+    // Dropdown / Popover Petugas Pendamping
+    const helperOpRef = useRef<OverlayPanel>(null);
+    const [activeHelperData, setActiveHelperData] = useState<{
+        pj: string;
+        jam: string;
+        ruangan: string;
+        helpers: any[];
+    } | null>(null);
+
+    const getCompanionSummary = (companions: any[], total: number) => {
+        const count = total || (companions ? companions.length : 0);
+        if (count <= 0) return '';
+        const getName = (c: any) => c?.nama_karyawan || c?.nama || c?.nama_petugas || '';
+        if (count === 1) return getName(companions[0]) || '1 petugas';
+        if (count === 2) return `${getName(companions[0])}, ${getName(companions[1])}`;
+        return `${getName(companions[0])}, ${getName(companions[1])}, +${count - 2} lainnya`;
+    };
 
     const [selectedTerapisList, setSelectedTerapisList] = useState<Array<{
         no_sip: string;
@@ -772,6 +793,15 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
     }
 
     const renderPetugasSelector = () => {
+        const jamStr = scheduledPj?.jam_mulai && scheduledPj?.jam_selesai
+            ? `${scheduledPj.jam_mulai.slice(0, 5)} - ${scheduledPj.jam_selesai.startsWith('24:00') ? '00:00' : scheduledPj.jam_selesai.slice(0, 5)}`
+            : '';
+        const companions = scheduledHelpers || [];
+        const totalCompanions = companions.length;
+        const hasCompanions = totalCompanions > 0;
+        const companionSummary = getCompanionSummary(companions, totalCompanions);
+        const fullCompanionNames = companions.map((c: any) => c.nama_karyawan || c.nama || c.nama_petugas).join(', ');
+
         return (
             <div className="surface-card border-1 surface-border border-round-xl p-3 sm:p-4 shadow-1">
                 {/* ═══════════════════════════════════════════════════════════ */}
@@ -793,139 +823,95 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                 </div>
 
                 {/* ═══════════════════════════════════════════════════════════ */}
-                {/* TWO COLUMNS: PJ / DOKTER UTAMA & PETUGAS PENDAMPING         */}
+                {/* CARD SLOT JADWAL PETUGAS (DESAIN PERSIS SEPERTI PENDAFTARAN) */}
                 {/* ═══════════════════════════════════════════════════════════ */}
-                <div className="grid formgrid m-0 align-items-stretch">
-                    {/* ───────────────────────────────────────────────────────── */}
-                    {/* KOLOM 1: PJ / DOKTER UTAMA                                 */}
-                    {/* ───────────────────────────────────────────────────────── */}
-                    <div className="col-12 md:col-6 p-2 flex flex-column">
-                        <div className="surface-50 border-1 surface-border border-round-lg p-3 h-full flex flex-column justify-content-between gap-2.5">
-                            <div className="flex align-items-center justify-content-between mb-1">
-                                <span className="text-xs font-bold text-700 uppercase tracking-wider flex align-items-center gap-1.5">
-                                    <i className="pi pi-user text-teal-600 text-xs" />
-                                    <span>PJ / DOKTER UTAMA</span>
-                                </span>
-                                {scheduledPj && (
-                                    <Tag severity="warning" value="PJ Ruangan" className="text-[10px] font-semibold py-0.5 px-2" />
-                                )}
-                            </div>
-
-                            {scheduledPj ? (
-                                <div className="surface-card border-1 surface-border border-round-lg p-3 flex flex-column gap-2 shadow-xs">
-                                    <div className="flex align-items-center gap-3">
-                                        <div className="w-2.8rem h-2.8rem border-round-md bg-teal-50 border-1 border-teal-100 text-teal-700 flex align-items-center justify-content-center text-xl flex-shrink-0">
-                                            👨‍⚕️
-                                        </div>
-                                        <div className="min-w-0 flex-1">
-                                            <div className="font-bold text-900 text-sm md:text-base line-height-2 text-overflow-ellipsis overflow-hidden">
-                                                {scheduledPj.nama_karyawan || scheduledPj.nama}
-                                            </div>
-                                            <div className="flex align-items-center gap-2 text-xs text-600 mt-1 flex-wrap">
-                                                <span className="font-semibold text-700 uppercase">{scheduledPj.jabatan || 'Dokter'}</span>
-                                                <span className="text-300">•</span>
-                                                <Tag severity="warning" value="PJ Ruangan" className="text-[10px] py-0.5 px-2 font-semibold" />
-                                            </div>
-                                            {(scheduledPj.jam_mulai || scheduledPj.jam_selesai) && (
-                                                <div className="text-xs text-500 flex align-items-center gap-1.5 mt-1.5">
-                                                    <i className="pi pi-clock text-[10px] text-teal-600" />
-                                                    <span className="text-teal-700 font-medium">
-                                                        {(scheduledPj.jam_mulai || '').slice(0, 5)} - {(scheduledPj.jam_selesai || '').startsWith('24:00') ? '00:00' : (scheduledPj.jam_selesai || '').slice(0, 5)}
-                                                    </span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="surface-card border-1 border-dashed surface-border border-round-lg p-3 text-center flex flex-column align-items-center justify-content-center gap-1.5 my-auto">
-                                    <div className="w-2.2rem h-2.2rem border-round-circle bg-amber-50 text-amber-600 flex align-items-center justify-content-center">
-                                        <i className="pi pi-exclamation-circle text-base" />
-                                    </div>
-                                    <span className="text-xs font-semibold text-700">
-                                        Belum ada PJ yang dijadwalkan untuk ruangan ini.
-                                    </span>
-                                    <span className="text-[11px] text-500">
-                                        Silakan tetapkan PJ di menu Jadwal Karyawan.
+                {scheduledPj ? (
+                    <div className="w-full flex flex-column justify-content-between border-round-xl p-3 border-2 border-primary-200 surface-50 shadow-1 transition-all">
+                        <div>
+                            {/* Jam Sesi & Status Badge */}
+                            <div className="flex align-items-center justify-content-between mb-2">
+                                <div className="flex align-items-center gap-2">
+                                    <Clock size={16} className="text-primary" />
+                                    <span className="font-bold text-sm text-900">
+                                        {jamStr ? `${jamStr} WIB` : 'Jadwal Hari Ini'}
                                     </span>
                                 </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* ───────────────────────────────────────────────────────── */}
-                    {/* KOLOM 2: PETUGAS PENDAMPING                                */}
-                    {/* ───────────────────────────────────────────────────────── */}
-                    <div className="col-12 md:col-6 p-2 flex flex-column">
-                        <div className="surface-50 border-1 surface-border border-round-lg p-3 h-full flex flex-column justify-content-between gap-2.5">
-                            <div className="flex align-items-center justify-content-between mb-1">
-                                <span className="text-xs font-bold text-700 uppercase tracking-wider flex align-items-center gap-1.5">
-                                    <i className="pi pi-users text-purple-600 text-xs" />
-                                    <span>PETUGAS PENDAMPING</span>
-                                </span>
                                 <Tag
-                                    severity="info"
-                                    value={`${scheduledHelpers.length} Petugas`}
-                                    className="text-[10px] font-semibold py-0.5 px-2"
+                                    value="BERTUGAS"
+                                    severity="success"
+                                    className="text-xs px-2.5 font-bold"
                                 />
                             </div>
 
-                            {scheduledHelpers.length > 0 ? (
-                                <div className="surface-card border-1 surface-border border-round-lg overflow-hidden shadow-xs flex flex-column max-h-16rem overflow-y-auto">
-                                    {scheduledHelpers.map((helper: any, idx: number) => {
-                                        const jamStr = helper.jam_mulai && helper.jam_selesai
-                                            ? `${helper.jam_mulai.slice(0, 5)} - ${helper.jam_selesai.startsWith('24:00') ? '00:00' : helper.jam_selesai.slice(0, 5)}`
-                                            : '';
-                                        return (
-                                            <div
-                                                key={`helper-${helper.no_sip || 'no-sip'}-${helper.kode_jadwal || helper.jam_mulai || idx}`}
-                                                className={`p-2.5 flex align-items-center justify-content-between gap-2.5 transition-colors hover:surface-hover ${idx > 0 ? 'border-top-1 surface-border' : ''}`}
-                                            >
-                                                <div className="flex align-items-center gap-2.5 min-w-0 flex-1">
-                                                    <div className="w-2rem h-2rem border-round-md bg-purple-50 border-1 border-purple-100 text-purple-700 flex align-items-center justify-content-center text-sm flex-shrink-0">
-                                                        💆‍♀️
-                                                    </div>
-                                                    <div className="min-w-0 flex-1">
-                                                        <div className="flex align-items-center gap-2 flex-wrap">
-                                                            <span className="font-bold text-900 text-xs md:text-sm text-overflow-ellipsis overflow-hidden">
-                                                                {helper.nama_karyawan || helper.nama}
-                                                            </span>
-                                                            <Tag severity="info" value="Pendamping" className="text-[9px] py-0 px-1.5" />
-                                                        </div>
-                                                        <div className="flex align-items-center gap-2 text-xs text-500 mt-0.5 flex-wrap">
-                                                            <span className="capitalize font-medium text-600">{helper.jabatan || 'Petugas'}</span>
-                                                            {jamStr && (
-                                                                <>
-                                                                    <span className="text-300">•</span>
-                                                                    <span className="inline-flex align-items-center gap-1 text-500">
-                                                                        <i className="pi pi-clock text-[9px]" />
-                                                                        <span>{jamStr}</span>
-                                                                    </span>
-                                                                </>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            ) : (
-                                <div className="surface-card border-1 border-dashed surface-border border-round-lg p-3 text-center flex flex-column align-items-center justify-content-center gap-1.5 my-auto">
-                                    <div className="w-2.2rem h-2.2rem border-round-circle bg-surface-100 text-400 flex align-items-center justify-content-center">
-                                        <i className="pi pi-users text-base" />
+                            {/* Petugas PJ */}
+                            <div className="flex align-items-center gap-2 mb-2 flex-wrap">
+                                <User size={15} className="text-primary flex-shrink-0" />
+                                <span className="font-bold text-sm text-900">
+                                    {scheduledPj.nama_karyawan || scheduledPj.nama}
+                                </span>
+                                <Tag
+                                    value="PJ"
+                                    className="text-[10px] font-bold px-1.5 py-0 border-round bg-orange-500 text-white"
+                                />
+                                {scheduledPj.jabatan && (
+                                    <span className="text-xs text-500 font-medium capitalize">
+                                        ({scheduledPj.jabatan})
+                                    </span>
+                                )}
+                            </div>
+
+                            {/* Petugas Pendamping (Detail helper muncul secara dropdown / popover) */}
+                            {hasCompanions && (
+                                <div className="flex align-items-center mb-2" style={{ minHeight: '26px' }}>
+                                    <div
+                                        className="inline-flex align-items-center gap-1.5 text-[11px] min-w-0 cursor-pointer overflow-hidden px-2 py-0.5 border-round-md bg-emerald-50 text-emerald-800 border-1 border-emerald-200 hover:bg-emerald-100 transition-colors shadow-xs"
+                                        title={`Daftar Pendamping: ${fullCompanionNames}`}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveHelperData({
+                                                pj: scheduledPj.nama_karyawan || scheduledPj.nama,
+                                                jam: jamStr ? `${jamStr} WIB` : 'Jadwal Hari Ini',
+                                                ruangan: namaRuangan || 'Ruangan',
+                                                helpers: companions,
+                                            });
+                                            helperOpRef.current?.toggle(e);
+                                        }}
+                                    >
+                                        <Users size={12} className="text-emerald-700 flex-shrink-0" />
+                                        <span className="font-semibold text-emerald-800 flex-shrink-0">
+                                            +{totalCompanions} pendamping
+                                        </span>
+                                        <span
+                                            className="text-emerald-700 text-overflow-ellipsis overflow-hidden white-space-nowrap min-w-0"
+                                            title={fullCompanionNames}
+                                        >
+                                            ({companionSummary})
+                                        </span>
+                                        <Info size={12} className="text-emerald-600 flex-shrink-0 ml-0.5 opacity-80" />
                                     </div>
-                                    <span className="text-xs font-semibold text-700">
-                                        Tidak ada petugas pendamping yang dijadwalkan.
-                                    </span>
-                                    <span className="text-[11px] text-500">
-                                        Hanya PJ/dokter yang bertugas untuk sesi ini.
-                                    </span>
                                 </div>
                             )}
+
+                            {/* Ruangan */}
+                            <div className="flex align-items-center gap-2 text-xs text-500">
+                                <MapPin size={13} className="text-400" />
+                                <span>{namaRuangan || 'Ruangan'}</span>
+                            </div>
                         </div>
                     </div>
-                </div>
+                ) : (
+                    <div className="surface-card border-1 border-dashed surface-border border-round-lg p-3 text-center flex flex-column align-items-center justify-content-center gap-1.5 my-auto">
+                        <div className="w-2.2rem h-2.2rem border-round-circle bg-amber-50 text-amber-600 flex align-items-center justify-content-center">
+                            <i className="pi pi-exclamation-circle text-base" />
+                        </div>
+                        <span className="text-xs font-semibold text-700">
+                            Belum ada PJ yang dijadwalkan untuk ruangan ini.
+                        </span>
+                        <span className="text-[11px] text-500">
+                            Silakan tetapkan PJ di menu Jadwal Karyawan.
+                        </span>
+                    </div>
+                )}
             </div>
         );
     };
@@ -1871,6 +1857,42 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                 excludeKodeKunjungan={activePatient?.kode_kunjungan || ''}
                 toast={toast}
             />
+
+            {/* OVERLAY PANEL PETUGAS PENDAMPING (DETAIL HELPER DROPDOWN) */}
+            <OverlayPanel ref={helperOpRef} className="shadow-4 border-round-xl">
+                {activeHelperData && (
+                    <div style={{ maxWidth: '320px' }}>
+                        <div className="font-bold text-xs text-900 mb-1 flex align-items-center gap-1">
+                            <Users size={14} className="text-primary" />
+                            <span>Tim Petugas Sesi ({activeHelperData.ruangan})</span>
+                        </div>
+                        <div className="text-[11px] text-500 mb-2">Shift: {activeHelperData.jam}</div>
+                        <div className="text-xs p-2 bg-primary-50 border-round mb-2 border-1 border-primary-100">
+                            <div className="font-semibold text-primary-900 text-[11px]">Penanggung Jawab (PJ):</div>
+                            <div className="font-bold text-primary-700">{activeHelperData.pj}</div>
+                        </div>
+                        <div className="text-[11px] font-semibold text-700 mb-1">
+                            Petugas Pendamping ({activeHelperData.helpers.length}):
+                        </div>
+                        <ul className="m-0 pl-3 text-xs text-600">
+                            {activeHelperData.helpers.map((c: any, i: number) => {
+                                const helperJam = c.jam_mulai && c.jam_selesai
+                                    ? ` (${c.jam_mulai.slice(0, 5)} - ${c.jam_selesai.startsWith('24:00') ? '00:00' : c.jam_selesai.slice(0, 5)})`
+                                    : '';
+                                return (
+                                    <li key={i} className="mb-1">
+                                        <span className="font-medium text-900">{c.nama_karyawan || c.nama || c.nama_petugas}</span>
+                                        {(c.jabatan || c.peran) && (
+                                            <span className="text-500 text-[11px]"> — {c.jabatan || c.peran}</span>
+                                        )}
+                                        {helperJam && <span className="text-400 text-[10px]">{helperJam}</span>}
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    </div>
+                )}
+            </OverlayPanel>
         </>
     );
 };
