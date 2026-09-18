@@ -45,39 +45,123 @@ export const DialogDetailBooking: React.FC<Props> = ({
     const printContent = printRef.current;
     if (!printContent) return;
 
-    const win = window.open('', '', 'height=700,width=800');
+    const win = window.open('', '', 'height=800,width=850');
     if (!win) return;
 
-    win.document.write('<html><head><title>Bukti Reservasi - ' + booking.kode_booking + '</title>');
-    win.document.write('<style>');
+    const styles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
+      .map((el) => el.outerHTML)
+      .join('\n');
+
     win.document.write(`
-      body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 24px; color: #1e293b; background: #fff; }
-      .ticket { border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; max-width: 500px; margin: 0 auto; }
-      .header { text-align: center; border-bottom: 2px dashed #cbd5e1; padding-bottom: 16px; margin-bottom: 16px; }
-      .clinic-name { font-size: 11px; font-weight: bold; color: #64748b; letter-spacing: 1px; text-transform: uppercase; }
-      .code { font-size: 26px; font-weight: 800; color: #059669; margin: 6px 0; letter-spacing: 1px; }
-      .instruction { font-size: 12px; color: #64748b; }
-      .block { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 16px; margin-bottom: 16px; }
-      .row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; font-size: 13px; }
-      .row-border { border-bottom: 1px solid #edf2f7; }
-      .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 8px 0; }
-      .label { color: #64748b; font-size: 12px; }
-      .val { font-weight: 600; color: #0f172a; }
-      .badge { display: inline-block; padding: 4px 10px; border-radius: 9999px; font-size: 11px; font-weight: bold; }
-      .badge-purple { background: #f3e8ff; color: #7e22ce; border: 1px solid #d8b4fe; }
-      .badge-green { background: #059669; color: #ffffff; border-radius: 6px; }
-      .badge-blue { background: #2563eb; color: #ffffff; border-radius: 6px; }
-      .footer { margin-top: 20px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px dashed #cbd5e1; padding-top: 12px; }
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Bukti Reservasi - ${booking.kode_booking || 'Booking'}</title>
+          <meta charset="utf-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          ${styles}
+          <style>
+            @page {
+              size: auto;
+              margin: 10mm;
+            }
+            * {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              color-adjust: exact !important;
+              box-sizing: border-box !important;
+            }
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+              padding: 16px !important;
+              color: #1e293b !important;
+              background: #ffffff !important;
+              margin: 0 !important;
+            }
+            .print-container {
+              max-width: 480px;
+              margin: 0 auto;
+            }
+            .surface-50 { background-color: #f8fafc !important; }
+            .surface-100 { background-color: #f1f5f9 !important; }
+            .border-1 { border: 1px solid #e2e8f0 !important; }
+            .border-200 { border-color: #e2e8f0 !important; }
+            .border-round-xl { border-radius: 12px !important; }
+            .border-round-md { border-radius: 6px !important; }
+            .border-round-3xl { border-radius: 24px !important; }
+            .border-bottom-1 { border-bottom: 1px solid #e2e8f0 !important; }
+            .border-top-1 { border-top: 1px solid #e2e8f0 !important; }
+            .surface-border { border-color: #e2e8f0 !important; }
+            .flex { display: flex !important; }
+            .flex-column { display: flex !important; flex-direction: column !important; }
+            .align-items-center { align-items: center !important; }
+            .align-items-start { align-items: flex-start !important; }
+            .justify-content-between { justify-content: space-between !important; }
+            .justify-content-center { justify-content: center !important; }
+            .flex-wrap { flex-wrap: wrap !important; }
+            .flex-shrink-0 { flex-shrink: 0 !important; }
+            .grid { display: flex !important; flex-wrap: wrap !important; margin: 0 !important; }
+            .col-6 { width: 50% !important; flex: 0 0 50% !important; max-width: 50% !important; box-sizing: border-box !important; }
+            .col-12 { width: 100% !important; flex: 0 0 100% !important; max-width: 100% !important; box-sizing: border-box !important; }
+            .p-0 { padding: 0 !important; }
+            .pr-2 { padding-right: 8px !important; }
+            .pl-2 { padding-left: 8px !important; }
+            .p-3 { padding: 12px !important; }
+            .p-2\\.5 { padding: 10px !important; }
+            .m-0 { margin: 0 !important; }
+            .mb-1 { margin-bottom: 4px !important; }
+            .mb-1\\.5 { margin-bottom: 6px !important; }
+            .mb-3 { margin-bottom: 16px !important; }
+            .text-500 { color: #64748b !important; }
+            .text-400 { color: #94a3b8 !important; }
+            .text-600 { color: #475569 !important; }
+            .text-700 { color: #334155 !important; }
+            .text-800 { color: #1e293b !important; }
+            .text-900 { color: #0f172a !important; }
+            .text-emerald-500 { color: #10b981 !important; }
+            .text-emerald-600 { color: #059669 !important; }
+            .text-teal-700 { color: #0f766e !important; }
+            .text-purple-700 { color: #7e22ce !important; }
+            .text-purple-900 { color: #581c87 !important; }
+            .text-purple-950 { color: #3b0764 !important; }
+            .text-blue-900 { color: #1e3a8a !important; }
+            .text-amber-700 { color: #b45309 !important; }
+            .font-bold { font-weight: 700 !important; }
+            .font-black { font-weight: 900 !important; }
+            .font-medium { font-weight: 500 !important; }
+            .font-semibold { font-weight: 600 !important; }
+            .font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important; }
+            .uppercase { text-transform: uppercase !important; }
+            .tracking-wider { letter-spacing: 0.05em !important; }
+            .tracking-wide { letter-spacing: 0.025em !important; }
+            .bg-emerald-600 { background-color: #059669 !important; }
+            .bg-blue-600 { background-color: #2563eb !important; }
+            .bg-amber-600 { background-color: #d97706 !important; }
+            .bg-red-600 { background-color: #dc2626 !important; }
+            .bg-purple-50 { background-color: #faf5ff !important; }
+            .bg-blue-50 { background-color: #eff6ff !important; }
+            .bg-teal-50 { background-color: #f0fdfa !important; }
+            .bg-amber-50 { background-color: #fffbeb !important; }
+            .border-purple-200 { border-color: #e9d5ff !important; }
+            .border-blue-200 { border-color: #bfdbfe !important; }
+            .border-teal-200 { border-color: #99f6e4 !important; }
+            .text-white { color: #ffffff !important; }
+            svg { display: inline-block !important; vertical-align: middle !important; }
+          </style>
+        </head>
+        <body>
+          <div class="print-container">
+            ${printContent.innerHTML}
+          </div>
+        </body>
+      </html>
     `);
-    win.document.write('</style></head><body>');
-    win.document.write(printContent.innerHTML);
-    win.document.write('</body></html>');
     win.document.close();
     win.focus();
     setTimeout(() => {
       win.print();
       win.close();
-    }, 300);
+    }, 400);
   };
 
   return (
