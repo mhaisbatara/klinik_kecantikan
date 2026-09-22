@@ -22,28 +22,35 @@ const PendaftaranPasienPage = () => {
   // Dialog & Refresh State untuk Booking & Reservasi
   const [showBookingCreateModal, setShowBookingCreateModal] = useState(false);
   const [bookingRefreshTrigger, setBookingRefreshTrigger] = useState(0);
+  const [bookingInitialNoRm, setBookingInitialNoRm] = useState<string>('');
 
   // Mendukung parameter URL untuk navigasi langsung ke tab tertentu
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get('tab');
-      if (params.get('no_rm') || params.get('norm')) {
-        setActiveTab(0);
-      } else if (tabParam === '1' || tabParam === 'booking') {
+      const isCreateBooking = params.get('create_booking') === 'true' || params.get('create') === 'true';
+      const noRm = params.get('no_rm') || params.get('norm') || '';
+
+      if (isCreateBooking || tabParam === '1' || tabParam === 'booking') {
         setActiveTab(1);
+        if (noRm) {
+          setBookingInitialNoRm(noRm);
+        }
+        if (isCreateBooking) {
+          setShowBookingCreateModal(true);
+        }
       } else if (tabParam === '2' || tabParam === 'paket') {
         setActiveTab(2);
-      }
-      if (params.get('create_booking') === 'true' || params.get('create') === 'true') {
-        setActiveTab(1);
-        setShowBookingCreateModal(true);
+      } else if (noRm || tabParam === '0') {
+        setActiveTab(0);
       }
     }
   }, []);
 
   const handleBookingSuccessCreated = () => {
     setShowBookingCreateModal(false);
+    setBookingInitialNoRm('');
     setBookingRefreshTrigger((prev) => prev + 1);
   };
 
@@ -54,7 +61,17 @@ const PendaftaranPasienPage = () => {
       {/* TAB NAVIGATION: PENDAFTARAN KUNJUNGAN, BOOKING & RESERVASI, KEPEMILIKAN PAKET PASIEN */}
       <TabView
         activeIndex={activeTab}
-        onTabChange={(e) => setActiveTab(e.index)}
+        onTabChange={(e) => {
+          setActiveTab(e.index);
+          if (typeof window !== 'undefined' && window.location.search) {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('no_rm');
+            url.searchParams.delete('norm');
+            url.searchParams.delete('create');
+            url.searchParams.delete('create_booking');
+            window.history.replaceState({}, '', url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : ''));
+          }
+        }}
       >
         {/* TAB 1: PENDAFTARAN KUNJUNGAN (ALUR 3 CARD: PILIH PASIEN -> LAYANAN -> SESI PETUGAS) */}
         <TabPanel
@@ -74,7 +91,10 @@ const PendaftaranPasienPage = () => {
         >
           <DaftarBookingTab
             toast={toast}
-            onNavigateToCreate={() => setShowBookingCreateModal(true)}
+            onNavigateToCreate={() => {
+              setBookingInitialNoRm('');
+              setShowBookingCreateModal(true);
+            }}
             refreshTrigger={bookingRefreshTrigger}
           />
         </TabPanel>
@@ -91,7 +111,18 @@ const PendaftaranPasienPage = () => {
       {/* POPUP / DIALOG FORM BUAT BOOKING BARU */}
       <Dialog
         visible={showBookingCreateModal}
-        onHide={() => setShowBookingCreateModal(false)}
+        onHide={() => {
+          setShowBookingCreateModal(false);
+          setBookingInitialNoRm('');
+          if (typeof window !== 'undefined' && window.location.search) {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('no_rm');
+            url.searchParams.delete('norm');
+            url.searchParams.delete('create');
+            url.searchParams.delete('create_booking');
+            window.history.replaceState({}, '', url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : ''));
+          }
+        }}
         header={
           <div className="flex align-items-center gap-2">
             <div
@@ -116,6 +147,7 @@ const PendaftaranPasienPage = () => {
       >
         <BuatBookingTab
           toast={toast}
+          initialNoRm={bookingInitialNoRm}
           onSuccessCreated={handleBookingSuccessCreated}
         />
       </Dialog>

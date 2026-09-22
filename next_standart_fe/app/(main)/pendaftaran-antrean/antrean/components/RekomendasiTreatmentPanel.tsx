@@ -29,6 +29,11 @@ export interface RekomendasiItem {
   masa_berlaku_hari?: number;
   is_locked?: boolean;
   is_pendaftaran?: boolean;
+  is_petugas_available?: boolean;
+  alasan_tidak_tersedia?: string | null;
+  petugas_jaga_count?: number;
+  petugas_pj_nama?: string | null;
+  petugas_jaga_names?: string[];
 }
 
 interface RekomendasiTreatmentPanelProps {
@@ -36,6 +41,7 @@ interface RekomendasiTreatmentPanelProps {
   selectedItems: RekomendasiItem[];
   onChangeSelectedItems: (items: RekomendasiItem[]) => void;
   disabled?: boolean;
+  kodeCabang?: string | null;
 }
 
 type TabKey = 'layanan' | 'paket_layanan' | 'produk' | 'paket_produk';
@@ -52,6 +58,7 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
   selectedItems,
   onChangeSelectedItems,
   disabled = false,
+  kodeCabang,
 }) => {
   const [loading, setLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -68,7 +75,7 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
 
   useEffect(() => {
     fetchOptions();
-  }, []);
+  }, [kodeCabang]);
 
   const lastNavigatedKeyRef = React.useRef<string>('');
 
@@ -106,11 +113,29 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
   const fetchOptions = async () => {
     setLoading(true);
     try {
-      const res = await postData('/master/ruangan-rekomendasi-options', {});
+      const payload: any = {};
+      const branch =
+        kodeCabang || (typeof window !== 'undefined' ? localStorage.getItem('selected_branch') : null) || 'CBG-001';
+      if (branch && branch !== 'ALL') {
+        payload.kode_cabang = branch;
+      }
+
+      const res = await postData('/master/ruangan-rekomendasi-options', payload);
       if (['00', '0000'].includes(res?.data?.status)) {
+        const isNotKonsul = (item: RekomendasiItem) => {
+          const roomName = (item.nama_ruangan || '').toLowerCase();
+          const roomCode = item.kode_ruangan || '';
+          return (
+            !roomName.includes('konsultasi') &&
+            !['RNG-007', 'RNG-010', 'RNG-011', 'RNG-012'].includes(roomCode) &&
+            !roomName.includes('ruangan 1') &&
+            !roomName.includes('ruangan 2')
+          );
+        };
+
         setOptions({
-          layanan: res.data.data.layanan || [],
-          paket_layanan: res.data.data.paket_layanan || [],
+          layanan: (res.data.data.layanan || []).filter(isNotKonsul),
+          paket_layanan: (res.data.data.paket_layanan || []).filter(isNotKonsul),
           produk: res.data.data.produk || [],
           paket_produk: res.data.data.paket_produk || [],
         });
@@ -134,13 +159,44 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
   }, [selectedItems]);
 
   const roomList = useMemo(() => {
-    const roomsMap = new Map<string, string>();
+    const roomsMap = new Map<
+      string,
+      { kode: string; nama: string; has_petugas: boolean; petugas_count: number; petugas_pj?: string | null }
+    >();
     [...options.layanan, ...options.paket_layanan].forEach((item) => {
       const k = item.kode_ruangan || 'UNASSIGNED';
       const n = item.nama_ruangan || item.kode_ruangan || 'Ruangan Lainnya';
-      if (!roomsMap.has(k)) roomsMap.set(k, n);
+      const isKonsul =
+        (n || '').toLowerCase().includes('konsultasi') ||
+        (n || '').toLowerCase().includes('ruangan 1') ||
+        (n || '').toLowerCase().includes('ruangan 2') ||
+        ['RNG-007', 'RNG-010', 'RNG-011', 'RNG-012'].includes(k);
+      if (!isKonsul) {
+        const itemHasStaff = item.is_petugas_available !== false;
+        if (!roomsMap.has(k)) {
+          roomsMap.set(k, {
+            kode: k,
+            nama: n,
+            has_petugas: itemHasStaff,
+            petugas_count: item.petugas_jaga_count || 0,
+            petugas_pj: item.petugas_pj_nama || null,
+          });
+        } else {
+          const entry = roomsMap.get(k)!;
+          if (itemHasStaff) {
+            entry.has_petugas = true;
+          }
+          if ((item.petugas_jaga_count || 0) > entry.petugas_count) {
+            entry.petugas_count = item.petugas_jaga_count || 0;
+          }
+          if (!entry.petugas_pj && item.petugas_pj_nama) {
+            entry.petugas_pj = item.petugas_pj_nama;
+          }
+        }
+      }
     });
-    return Array.from(roomsMap.entries()).map(([kode, nama]) => ({ kode, nama }));
+    return Array.from(roomsMap.values())
+      .sort((a, b) => a.nama.localeCompare(b.nama, undefined, { numeric: true, sensitivity: 'base' }));
   }, [options.layanan, options.paket_layanan]);
 
   const isItemSelected = (item: RekomendasiItem) =>
@@ -161,6 +217,15 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
     }
 
     if (isService) {
+      if (item.is_petugas_available === false) {
+        showError(
+          toast,
+          item.alasan_tidak_tersedia ||
+            `Tidak dapat memilih layanan "${item.nama}". Ruangan ${item.nama_ruangan || 'tujuan'} tidak memiliki petugas/terapis yang bertugas hari ini.`
+        );
+        return;
+      }
+
       const itemRoomCode = item.kode_ruangan || 'UNASSIGNED';
       if (activeTreatmentRoom !== null && activeTreatmentRoom.kode_ruangan !== itemRoomCode) {
         showError(
@@ -388,6 +453,7 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
           {[{ kode: 'ALL', nama: 'Semua' }, ...roomList].map((r) => {
             const isActive = selectedRoomFilter === r.kode;
             const isLocked = r.kode !== 'ALL' && activeTreatmentRoom !== null && activeTreatmentRoom.kode_ruangan !== r.kode;
+
             return (
               <button
                 key={r.kode}
@@ -402,7 +468,7 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                 }}
               >
                 {isLocked && <i className="pi pi-lock text-[9px]" />}
-                {r.nama}
+                <span>{r.nama}</span>
               </button>
             );
           })}
@@ -430,6 +496,8 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
             const selected = isItemSelected(item);
             const selectedObj = selectedItems.find((s) => s.jenis === item.jenis && s.kode === item.kode);
             const isPendaftaranLocked = Boolean(selectedObj?.is_locked || selectedObj?.is_pendaftaran);
+            const isService = isServiceTab;
+            const isUnavailable = isService && item.is_petugas_available === false;
             const isRoomLocked =
               isServiceTab &&
               activeTreatmentRoom !== null &&
@@ -445,12 +513,24 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                       showError(toast, `Layanan/paket "${item.nama}" sudah terpilih dari pendaftaran awal dan tidak dapat diubah.`);
                       return;
                     }
+                    if (isUnavailable) {
+                      showError(
+                        toast,
+                        item.alasan_tidak_tersedia ||
+                          `Tidak dapat memilih layanan "${item.nama}". Ruangan ${item.nama_ruangan || 'tujuan'} tidak memiliki petugas/terapis yang bertugas hari ini.`
+                      );
+                      return;
+                    }
                     if (!isRoomLocked) handleToggleSelect(item);
                   }}
-                  className="p-3 border-round-xl cursor-pointer transition-all flex flex-column justify-content-between relative surface-card hover:shadow-2"
+                  className={`p-3 border-round-xl transition-all flex flex-column justify-content-between relative surface-card ${
+                    isUnavailable ? 'cursor-not-allowed' : 'cursor-pointer hover:shadow-2'
+                  }`}
                   style={{
                     border: isPendaftaranLocked
                       ? '2px solid #d97706'
+                      : isUnavailable
+                      ? '1.5px solid #cbd5e1'
                       : selected
                       ? `2px solid ${item.is_promo ? '#ef4444' : currentTab.accent}`
                       : isRoomLocked
@@ -460,6 +540,8 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                       : '1.5px solid #e2e8f0',
                     background: isPendaftaranLocked
                       ? '#fffbeb'
+                      : isUnavailable
+                      ? '#f1f5f9'
                       : selected
                       ? currentTab.bgActive
                       : isRoomLocked
@@ -467,39 +549,39 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                       : item.is_promo
                       ? '#fff1f2'
                       : '#ffffff',
-                    opacity: isRoomLocked ? 0.55 : 1,
+                    opacity: isUnavailable ? 0.75 : isRoomLocked ? 0.55 : 1,
                     boxShadow: selected ? `0 4px 14px -2px ${currentTab.accent}30` : '0 1px 3px rgba(0, 0, 0, 0.03)',
                     minHeight: '135px',
                   }}
                 >
-                  {/* Pendaftaran Locked / Checkmark / Room Locked badge */}
+                  {/* Badges: Pendaftaran / Checkmark / Room Locked */}
                   {isPendaftaranLocked ? (
-                    <span className="absolute bg-amber-600 text-white border-round-md px-2 py-0.5 text-[9px] font-extrabold flex align-items-center gap-1 shadow-1" style={{ top: '10px', right: '10px' }}>
+                    <span className="absolute bg-amber-600 text-white border-round-md px-2 py-0.5 text-[9px] font-extrabold flex align-items-center gap-1 shadow-1" style={{ top: '8px', right: '8px' }}>
                       <i className="pi pi-lock text-[9px]" />
-                      PENDAFTARAN (TERKUNCI)
+                      PENDAFTARAN
                     </span>
                   ) : selected ? (
                     <span
                       className="absolute border-circle flex align-items-center justify-content-center text-white shadow-1"
                       style={{
-                        top: '10px',
-                        right: '10px',
-                        width: '22px',
-                        height: '22px',
+                        top: '8px',
+                        right: '8px',
+                        width: '20px',
+                        height: '20px',
                         background: item.is_promo ? '#ef4444' : currentTab.accent,
                       }}
                     >
                       <i className="pi pi-check text-xs font-black" />
                     </span>
                   ) : isRoomLocked ? (
-                    <span className="absolute bg-slate-100 text-slate-400 border-round px-2 py-0.5 text-[9px] font-extrabold flex align-items-center gap-1" style={{ top: '10px', right: '10px' }}>
+                    <span className="absolute bg-slate-100 text-slate-400 border-round px-2 py-0.5 text-[9px] font-semibold flex align-items-center gap-1" style={{ top: '8px', right: '8px' }}>
                       <i className="pi pi-lock text-[9px]" />
                       RUANGAN BEDA
                     </span>
                   ) : null}
 
                   {/* ITEM INFO */}
-                  <div className="pr-4">
+                  <div className="pr-3">
                     <div className="flex gap-1 flex-wrap mb-1">
                       {item.is_promo && (
                         <span className="inline-flex align-items-center gap-1 text-[9px] font-extrabold px-2 py-0.5 border-round-md bg-gradient-to-r text-white shadow-1" style={{ background: 'linear-gradient(135deg, #ef4444, #f97316)' }}>
@@ -535,10 +617,10 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
 
                     {isServiceTab && (
                       <span
-                        className="text-[10px] font-bold px-2 py-1 border-round-pill flex align-items-center gap-1 flex-shrink-0"
+                        className="text-[10px] font-semibold px-2 py-0.5 border-round-pill flex align-items-center gap-1 flex-shrink-0"
                         style={{
-                          background: selected ? currentTab.accent : `${currentTab.accent}15`,
-                          color: selected ? '#ffffff' : currentTab.accent,
+                          background: isUnavailable ? '#e2e8f0' : selected ? currentTab.accent : `${currentTab.accent}15`,
+                          color: isUnavailable ? '#64748b' : selected ? '#ffffff' : currentTab.accent,
                         }}
                         title={item.nama_ruangan || 'Ruangan'}
                       >

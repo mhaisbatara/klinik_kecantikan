@@ -28,7 +28,7 @@ const handleGetOptions = async (req, res) => {
     if (branchCode) qRuangan.where("kode_cabang", branchCode);
     const vaRuangan = await qRuangan
       .select("kode_ruangan", "nama_ruangan", "is_konsultasi")
-      .orderBy("id", "asc");
+      .orderBy("nama_ruangan", "asc");
 
     // 2. Tentukan nama hari ini (WIB / sistem)
     const HARI_MAP = ["minggu", "senin", "selasa", "rabu", "kamis", "jumat", "sabtu"];
@@ -101,6 +101,7 @@ const handleGetOptions = async (req, res) => {
         "l.kode_ruangan",
         "l.wajib_konsultasi",
         "l.kode_ruangan_konsultasi",
+        "l.foto",
         "r.nama_ruangan as nama_ruangan",
         "r.is_konsultasi as is_konsultasi"
       )
@@ -124,7 +125,7 @@ const handleGetOptions = async (req, res) => {
     if (branchCode) qPaket.where("p.kode_cabang", branchCode);
 
     const vaPaket = await qPaket
-      .select("p.kode_paket_layanan", "p.nama", "p.harga_paket", "p.masa_berlaku_hari", "p.tanggal_mulai", "p.tanggal_selesai", "p.tipe", "p.kode_ruangan", "r.nama_ruangan as nama_ruangan", "r.is_konsultasi as is_konsultasi")
+      .select("p.kode_paket_layanan", "p.nama", "p.harga_paket", "p.masa_berlaku_hari", "p.tanggal_mulai", "p.tanggal_selesai", "p.tipe", "p.kode_ruangan", "p.foto", "r.nama_ruangan as nama_ruangan", "r.is_konsultasi as is_konsultasi")
       .orderBy("p.id", "asc");
 
     // 5b. Fetch antrean aktif hari ini per ruangan
@@ -434,12 +435,16 @@ const handleGetOptions = async (req, res) => {
         }
       }
 
+      const assetsBase = process.env.ASSETS_PATH || "/api/assets";
       const rawItem = {
         jenis: "layanan",
         kode_layanan: lay.kode_layanan,
         kode_kategori: lay.kode_kategori_layanan,
         nama_kategori: lay.nama_kategori || "",
         nama: lay.nama,
+        foto: lay.foto
+          ? (lay.foto.startsWith("http") ? lay.foto : `${assetsBase}/uploads/layanan/${lay.foto}`)
+          : null,
         harga: parseFloat(lay.harga || 0),
         durasi_menit: parseInt(lay.durasi_menit || 30, 10),
         tipe: (lay.tipe || "BEAUTY TREATMENT").toString().trim().toUpperCase(),
@@ -515,6 +520,9 @@ const handleGetOptions = async (req, res) => {
         kode_kategori: "PAKET",
         nama_kategori: "Paket Layanan",
         nama: pkt.nama,
+        foto: pkt.foto
+          ? (pkt.foto.startsWith("http") ? pkt.foto : `${assetsBase}/uploads/paket_layanan/${pkt.foto}`)
+          : null,
         harga: parseFloat(pkt.harga_paket || 0),
         durasi_menit: 60, // default estimasi durasi paket
         masa_berlaku_hari: pkt.masa_berlaku_hari,
@@ -576,6 +584,11 @@ const handleGetOptions = async (req, res) => {
           ruangan_dengan_petugas_count: ruanganDenganPetugasCount,
           has_petugas_konsul_today: hasPetugasKonsulToday,
         },
+        ruang_konsultasi: {
+          kode_ruangan: kodeRuanganKonsul,
+          nama_ruangan: namaRuanganKonsul,
+        },
+        semua_ruangan: vaRuangan,
         ruangan_layanan: resultRuangan,
         kategori_layanan: resultRuangan,
         paket_layanan: paketItems,

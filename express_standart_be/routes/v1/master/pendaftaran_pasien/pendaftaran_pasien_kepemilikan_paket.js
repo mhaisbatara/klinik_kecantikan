@@ -70,6 +70,7 @@ const handleGetKepemilikanPaket = async (req, res) => {
       "k.kode_paket_layanan",
       "pkt.nama as nama_paket",
       "pkt.tipe as tipe_paket",
+      "pkt.foto as foto_paket",
       "pkt.kode_ruangan as kode_ruangan_paket",
       "rpkt.nama_ruangan as nama_ruangan_paket",
       DB.raw("DATE_FORMAT(k.tanggal_beli, '%Y-%m-%d') as tanggal_beli"),
@@ -115,6 +116,8 @@ const handleGetKepemilikanPaket = async (req, res) => {
     const ruangKonsul = await rkQuery.first();
     const kodeRuanganKonsul = ruangKonsul?.kode_ruangan || "RNG-007";
 
+    const assetsBase = process.env.ASSETS_PATH || "/api/assets";
+
     // Attach detail session items per package ownership
     for (const item of vaData) {
       const details = await DB("trx_detail_kepemilikan_paket_layanan as d")
@@ -128,6 +131,7 @@ const handleGetKepemilikanPaket = async (req, res) => {
           "l.durasi_menit",
           "l.tipe as tipe_layanan",
           "l.wajib_konsultasi",
+          "l.foto as foto_layanan",
           "l.kode_ruangan",
           "r.nama_ruangan as nama_ruangan",
           "d.sesi_total",
@@ -176,8 +180,15 @@ const handleGetKepemilikanPaket = async (req, res) => {
             : `Tidak ada petugas jaga di ${namaRuanganCek} hari ini (${todayDay})`;
         }
 
+        const fotoItem = d.foto_layanan
+          ? (d.foto_layanan.startsWith("http") ? d.foto_layanan : `${assetsBase}/uploads/layanan/${d.foto_layanan}`)
+          : item.foto_paket
+          ? (item.foto_paket.startsWith("http") ? item.foto_paket : `${assetsBase}/uploads/paket_layanan/${item.foto_paket}`)
+          : null;
+
         return {
           ...d,
+          foto: fotoItem,
           sisa_sesi: sisaSesi,
           sesi_terbooking: sesiTerbooking,
           sesi_tersedia: sesiTersedia,

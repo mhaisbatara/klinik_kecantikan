@@ -308,69 +308,70 @@ export const DialogJadwalMingguanRuangan: React.FC<Props> = ({
             </span>
           </div>
         ) : (
-          <div className="flex flex-column gap-2.5">
+          <div className="flex flex-column gap-3">
             {DAYS_OF_WEEK.map((day) => {
               const daySchedules = scheduleByDay[day.key] || [];
               const groupedSessions = getGroupedSessionsForDay(daySchedules);
               const sessionCount = groupedSessions.length;
               const hasSchedule = sessionCount > 0;
               const isSelectedDay = selectedDayKey === day.key;
+              const todayDayKey = HARI_MAP[new Date().getDay()];
+              const isToday = todayDayKey === day.key;
 
               return (
                 <div
                   key={day.key}
                   className={`p-3 border-round-xl transition-all transition-duration-150 border-2 ${
                     isSelectedDay
-                      ? 'border-indigo-500 shadow-2 bg-indigo-50/40'
+                      ? 'border-indigo-500 shadow-2 bg-indigo-50/30'
+                      : isToday
+                      ? 'border-blue-500 shadow-1 bg-blue-50/20'
                       : hasSchedule
                       ? 'surface-card border-200 hover:border-300'
-                      : 'surface-100 border-200 opacity-80'
+                      : 'surface-100 border-200 opacity-75'
                   }`}
                 >
-                  <div className="flex flex-column sm:flex-row justify-content-between align-items-start sm:align-items-center gap-2">
-                    {/* Sisi Kiri: Badge Hari & Label Terpilih (Styling proporsional, tanpa tumpang tindih) */}
-                    <div className="flex align-items-center gap-2 flex-wrap sm:flex-nowrap">
-                      <div
-                        className={`font-bold text-xs px-3 py-1.5 border-round-lg text-center inline-flex align-items-center justify-content-center line-height-1 flex-shrink-0 ${
-                          isSelectedDay
-                            ? 'bg-indigo-600 text-white shadow-1'
-                            : hasSchedule
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-surface-200 text-500'
-                        }`}
-                        style={{ minWidth: '60px', height: '28px', boxSizing: 'border-box' }}
-                      >
+                  <div
+                    className="flex justify-content-between align-items-center"
+                    style={{ marginBottom: '12px' }}
+                  >
+                    {/* Sisi Kiri: Nama Hari + Badge Pilihan Booking */}
+                    <div className="flex align-items-center flex-wrap" style={{ gap: '8px' }}>
+                      <span className={`font-bold text-sm ${isToday ? 'text-blue-900' : isSelectedDay ? 'text-indigo-900' : 'text-900'}`}>
                         {day.label}
-                      </div>
+                      </span>
 
                       {isSelectedDay && (
-                        <span className="inline-flex align-items-center gap-1.5 text-xs font-semibold text-indigo-700 bg-indigo-100 border-1 border-indigo-300 px-2.5 py-1 border-round-lg line-height-1 flex-shrink-0">
-                          <CheckCircle2 size={13} className="text-indigo-600" />
+                        <span
+                          className="inline-flex align-items-center text-xs font-semibold text-indigo-700 bg-indigo-100 border-1 border-indigo-300 px-2.5 py-0.5 border-round-md"
+                          style={{ gap: '4px' }}
+                        >
+                          <CheckCircle2 size={13} className="text-indigo-600 flex-shrink-0" />
                           Hari Pilihan Booking Anda
                         </span>
                       )}
                     </div>
 
-                    {/* Sisi Kanan: Status Ketersediaan Ringkas (Sesi Tersedia) */}
+                    {/* Sisi Kanan: Status Ketersediaan */}
                     <div>
                       {hasSchedule ? (
                         <Tag
                           value={`${sessionCount} Sesi Tersedia`}
                           severity="success"
-                          className="text-xs font-semibold py-0 px-2"
+                          className="text-xs font-semibold py-1 px-2.5 border-round-md"
                         />
                       ) : (
                         <Tag
                           value="Tidak Ada Jadwal"
                           severity="danger"
-                          className="text-xs font-semibold py-0 px-2 opacity-80"
+                          className="text-xs font-semibold py-1 px-2.5 border-round-md opacity-80"
                         />
                       )}
                     </div>
                   </div>
 
                   {/* Rincian Sesi & Petugas pada Hari Tersebut (Dikelompokkan Per Sesi: PJ dulu, lalu Pendamping) */}
-                  <div className="mt-2.5">
+                  <div>
                     {hasSchedule ? (
                       <div className="flex flex-column gap-2">
                         {groupedSessions.map((session, sIdx) => {
@@ -384,34 +385,58 @@ export const DialogJadwalMingguanRuangan: React.FC<Props> = ({
                               className="border-1 surface-border border-round-lg overflow-hidden bg-white shadow-1"
                             >
                               {/* 1. Baris Petugas Penanggung Jawab (PJ) — Menampilkan Kuota */}
-                              <div className="flex flex-column sm:flex-row sm:align-items-center justify-content-between text-xs p-2.5 bg-surface-50 border-bottom-1 surface-border gap-2">
+                              <div
+                                className={`flex flex-column sm:flex-row sm:align-items-center justify-content-between text-xs py-3 bg-surface-50 gap-2 ${
+                                  session.companions.length > 0 ? 'border-bottom-1 surface-border' : ''
+                                }`}
+                                style={{
+                                  minHeight: '50px',
+                                  paddingLeft: '18px',
+                                  paddingRight: '18px',
+                                }}
+                              >
                                 <div className="flex align-items-center gap-2 min-w-0">
                                   {isPjDoctor ? (
-                                    <Stethoscope size={16} className="text-primary flex-shrink-0" />
+                                    <Stethoscope size={17} className="text-primary flex-shrink-0" />
                                   ) : (
-                                    <User size={16} className="text-primary flex-shrink-0" />
+                                    <User size={17} className="text-primary flex-shrink-0" />
                                   )}
                                   <span className="font-bold text-900 text-sm text-overflow-ellipsis overflow-hidden white-space-nowrap">
                                     {pj.nama_karyawan}
                                   </span>
-                                  {isPJ ? (
-                                    <Tag value="PJ" severity="warning" className="text-[10px] py-0 px-1.5 font-bold flex-shrink-0" />
-                                  ) : (
-                                    <Tag value="PJ (Default)" severity="secondary" className="text-[10px] py-0 px-1 font-medium flex-shrink-0" />
-                                  )}
+                                   {isPJ ? (
+                                     <Tag value="PJ" severity="warning" className="text-xs font-bold flex-shrink-0" style={{ fontSize: '10px', padding: '1px 6px' }} />
+                                   ) : (
+                                     <Tag value="PJ (Default)" severity="secondary" className="text-xs font-medium flex-shrink-0" style={{ fontSize: '10px', padding: '1px 6px' }} />
+                                   )}
                                   <span className="text-500 capitalize flex-shrink-0 text-xs">
                                     ({pj.jabatan || 'Petugas'})
                                   </span>
                                 </div>
 
                                 <div className="flex align-items-center gap-2 ml-5 sm:ml-0 flex-shrink-0">
-                                  <span className="text-600 font-semibold flex align-items-center bg-white px-2 py-0.5 border-round border-1 surface-border text-xs">
-                                    <Clock size={13} className="text-500 mr-1.5 flex-shrink-0" />
-                                    {session.jamMulai} - {session.jamSelesai} WIB
+                                  <span
+                                    className="text-700 font-semibold inline-flex align-items-center bg-white border-1 surface-border text-xs border-round-lg"
+                                    style={{
+                                      padding: '4px 12px',
+                                      gap: '4px',
+                                      lineHeight: 1,
+                                    }}
+                                  >
+                                    <Clock size={13} className="text-500 flex-shrink-0" />
+                                    <span>{session.jamMulai} - {session.jamSelesai} WIB</span>
                                   </span>
                                   {pj.kuota > 0 && (
-                                    <span className="text-600 font-medium text-[11px] bg-primary-50 text-primary-700 px-2 py-0.5 border-round">
-                                      Kuota: <strong>{pj.kuota}</strong>
+                                    <span
+                                      className="text-primary-700 font-semibold text-xs bg-primary-50 border-1 border-primary-100 inline-flex align-items-center border-round-lg"
+                                      style={{
+                                        padding: '4px 10px',
+                                        lineHeight: 1,
+                                        gap: '3px',
+                                      }}
+                                    >
+                                      <span>Kuota:</span>
+                                      <strong className="text-primary-800">{pj.kuota}</strong>
                                     </span>
                                   )}
                                 </div>
@@ -419,14 +444,15 @@ export const DialogJadwalMingguanRuangan: React.FC<Props> = ({
 
                               {/* 2. Baris Petugas Pendamping (Hierarki Anak dengan Indentasi & Kuota DIHAPUS) */}
                               {session.companions.length > 0 && (
-                                <div className="p-2 bg-white flex flex-column gap-2">
+                                <div className="p-2 bg-white flex flex-column gap-2" style={{ paddingLeft: '14px', paddingRight: '14px' }}>
                                   {session.companions.map((comp, cIdx) => {
                                     const isCompDoctor = (comp.jabatan || '').toLowerCase().includes('dokter');
 
                                     return (
                                       <div
                                         key={comp.kode_jadwal || cIdx}
-                                        className="flex flex-column sm:flex-row sm:align-items-center justify-content-between text-xs p-2 border-round surface-50 border-left-3 border-indigo-400 ml-3 sm:ml-4 gap-2"
+                                        className="flex flex-column sm:flex-row sm:align-items-center justify-content-between text-xs py-2 border-round surface-50 border-left-3 border-indigo-400 ml-2 sm:ml-3 gap-2"
+                                        style={{ paddingLeft: '14px', paddingRight: '14px' }}
                                       >
                                         <div className="flex align-items-center gap-2 min-w-0">
                                           <span className="text-indigo-400 font-bold text-xs select-none">└</span>
@@ -446,14 +472,6 @@ export const DialogJadwalMingguanRuangan: React.FC<Props> = ({
                                           <span className="text-500 capitalize text-[11px] flex-shrink-0">
                                             ({comp.jabatan || 'Pendamping'})
                                           </span>
-                                        </div>
-
-                                        <div className="flex align-items-center gap-2 ml-5 sm:ml-0 flex-shrink-0">
-                                          <span className="text-500 text-[11px] flex align-items-center">
-                                            <Clock size={12} className="text-400 mr-1.5 flex-shrink-0" />
-                                            {session.jamMulai} - {session.jamSelesai} WIB
-                                          </span>
-                                          {/* Kuota TIDAK ditampilkan pada baris pendamping sesuai instruksi */}
                                         </div>
                                       </div>
                                     );

@@ -34,6 +34,13 @@ router.post("/", async (req, res) => {
       });
     }
 
+    const hasFoto = await DB.schema.hasColumn("mst_layanan", "foto");
+    if (!hasFoto) {
+      await DB.schema.table("mst_layanan", (table) => {
+        table.string("foto", 255).nullable();
+      });
+    }
+
     const baseQuery = DB("mst_layanan as l")
       .leftJoin("mst_kategori_layanan as k", "l.kode_kategori_layanan", "k.kode_kategori_layanan")
       .leftJoin("mst_ruangan as r", "l.kode_ruangan", "r.kode_ruangan")
@@ -76,6 +83,7 @@ router.post("/", async (req, res) => {
       "l.durasi_menit",
       "l.tipe",
       "l.status",
+      "l.foto",
       "l.created_by",
       "l.created_at",
       "l.updated_at",
@@ -94,11 +102,22 @@ router.post("/", async (req, res) => {
       totalRecords = vaData.length;
     }
 
+    const assetsBase = process.env.ASSETS_PATH || "/api/assets";
+    const formattedData = vaData.map((item) => {
+      const fotoUrl = item.foto
+        ? (item.foto.startsWith("http") ? item.foto : `${assetsBase}/uploads/layanan/${item.foto}`)
+        : null;
+      return {
+        ...item,
+        foto: fotoUrl,
+      };
+    });
+
     return res.status(200).json({
       status: status.SUKSES,
       message: "Data ditemukan",
       datetime: formatDateSystem(),
-      data: vaData,
+      data: formattedData,
       total_data: totalRecords,
     });
   } catch (error) {

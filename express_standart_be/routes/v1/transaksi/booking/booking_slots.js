@@ -160,6 +160,12 @@ router.post("/", async (req, res) => {
       sessionMap.get(sessionKey).rows.push(jdw);
     }
 
+    // Cek apakah tanggal booking adalah hari ini
+    const todayYmd = formatDateSystem(new Date(), "yyyy-MM-dd") || new Date().toISOString().slice(0, 10);
+    const isBookingToday = cleanDateStr === todayYmd;
+    const now = new Date();
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
     // 5. Bangun 1 slot per sesi dengan info utama Petugas Penanggung Jawab (PJ) dan kuota milik PJ
     const vaSlots = [];
     for (const session of sessionMap.values()) {
@@ -222,7 +228,18 @@ router.post("/", async (req, res) => {
 
       const terisi = bookedRows.length;
       const sisaKuota = Math.max(0, totalKuota - terisi);
-      const isAvailable = sisaKuota > 0;
+
+      // Cek apakah jam dinas shift petugas sudah terlewat untuk reservasi hari ini
+      let isShiftPastToday = false;
+      if (isBookingToday) {
+        const [endH, endM] = (session.jam_selesai || "00:00").slice(0, 5).split(":").map(Number);
+        const shiftEndMin = (isNaN(endH) ? 0 : endH) * 60 + (isNaN(endM) ? 0 : endM);
+        if (shiftEndMin <= nowMinutes) {
+          isShiftPastToday = true;
+        }
+      }
+
+      const isAvailable = sisaKuota > 0 && !isShiftPastToday;
       const bookedTimes = bookedRows
         .map((b) => (b.jam_booking ? String(b.jam_booking).slice(0, 5) : ""))
         .filter(Boolean);
@@ -263,6 +280,7 @@ router.post("/", async (req, res) => {
         kuota_terisi: terisi,
         sisa_kuota: sisaKuota,
         is_available: isAvailable,
+        is_past_today: isShiftPastToday,
         booked_times: bookedTimes,
         booked_intervals: bookedIntervals,
       });
@@ -282,14 +300,42 @@ router.post("/", async (req, res) => {
       });
     }
 
-    const dokterKonsulList = await qDokterKonsul.select(
-      "j.kode_jadwal",
-      "j.jam_mulai",
-      "j.jam_selesai",
-      "k.nama as nama_dokter",
-      "k.jabatan as jabatan_petugas",
-      "r.nama_ruangan"
+    const allKonsulStaff = await qDokterKonsul
+      .select(
+        "j.kode_jadwal",
+        "j.jam_mulai",
+        "j.jam_selesai",
+        "j.is_penanggung_jawab",
+        "k.nama as nama_dokter",
+        "k.jabatan as jabatan_petugas",
+        "r.nama_ruangan"
+      )
+      .orderBy("j.jam_mulai", "asc");
+
+    // Prioritaskan dokter yang bertugas di ruang konsultasi
+    const onlyDoctors = allKonsulStaff.filter(
+      (s) =>
+        (s.jabatan_petugas || "").toLowerCase() === "dokter" ||
+        (s.nama_dokter || "").toLowerCase().startsWith("dr.")
     );
+    const rawDokterKonsulList = onlyDoctors.length > 0 ? onlyDoctors : allKonsulStaff;
+
+    // Tandai status keaktifan jam dinas dokter hari ini
+    const dokterKonsulList = rawDokterKonsulList.map((doc) => {
+      const [endH, endM] = (doc.jam_selesai || "00:00").slice(0, 5).split(":").map(Number);
+      const [startH, startM] = (doc.jam_mulai || "00:00").slice(0, 5).split(":").map(Number);
+      const endMin = (isNaN(endH) ? 0 : endH) * 60 + (isNaN(endM) ? 0 : endM);
+      const startMin = (isNaN(startH) ? 0 : startH) * 60 + (isNaN(startM) ? 0 : startM);
+
+      const isPastToday = isBookingToday && endMin <= nowMinutes;
+      const isOngoingNow = isBookingToday && nowMinutes >= startMin && nowMinutes < endMin;
+
+      return {
+        ...doc,
+        is_past_today: isPastToday,
+        is_ongoing_now: isOngoingNow,
+      };
+    });
 
     // 6. Kalkulasi default DP
     const dpNominal = Math.round((baseHarga * DEFAULT_DP_PERCENTAGE) / 100);
@@ -313,6 +359,10 @@ router.post("/", async (req, res) => {
         dp_nominal_default: dpNominal,
         slots: vaSlots,
         dokter_konsul: dokterKonsulList,
+        ruang_konsultasi: {
+          kode_ruangan: allKonsulStaff[0]?.kode_ruangan || "RNG-007",
+          nama_ruangan: allKonsulStaff[0]?.nama_ruangan || "Ruang Konsultasi",
+        },
       },
     });
   } catch (error) {

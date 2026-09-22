@@ -260,9 +260,10 @@ export const DialogSemuaBookingRuangan: React.FC<Props> = ({
                                 color: '#b45309',
                                 borderColor: '#fde68a',
                                 borderRadius: '9999px',
+                                gap: '5px',
                               }}
                             >
-                              <Clock size={11} className="text-amber-600 mr-1.5" />
+                              <Clock size={11} className="text-amber-600 flex-shrink-0" />
                               <span>Sesi terdekat</span>
                             </span>
                           ) : b.is_upcoming ? (
@@ -273,9 +274,10 @@ export const DialogSemuaBookingRuangan: React.FC<Props> = ({
                                 color: '#1d4ed8',
                                 borderColor: '#dbeafe',
                                 borderRadius: '9999px',
+                                gap: '5px',
                               }}
                             >
-                              <Clock size={11} className="text-blue-500 mr-1.5" />
+                              <Clock size={11} className="text-blue-500 flex-shrink-0" />
                               <span>Akan datang</span>
                             </span>
                           ) : (
@@ -297,8 +299,8 @@ export const DialogSemuaBookingRuangan: React.FC<Props> = ({
                       {/* Baris 2: Layanan & Estimasi Durasi */}
                       <div className="flex align-items-center text-xs text-700 flex-wrap gap-2">
                         {/* Item Layanan */}
-                        <div className="flex align-items-center font-medium text-800">
-                          <Sparkles size={13} className="text-gray-500 flex-shrink-0 mr-1.5" />
+                        <div className="flex align-items-center font-medium text-800" style={{ gap: '6px' }}>
+                          <Sparkles size={13} className="text-gray-500 flex-shrink-0" />
                           <span className="truncate">{b.layanan_summary || 'Layanan / Paket'}</span>
                         </div>
 
@@ -306,8 +308,8 @@ export const DialogSemuaBookingRuangan: React.FC<Props> = ({
                         <span className="text-300 font-bold">•</span>
 
                         {/* Item Estimasi */}
-                        <div className="flex align-items-center text-600">
-                          <Clock size={13} className="text-gray-500 flex-shrink-0 mr-1.5" />
+                        <div className="flex align-items-center text-600" style={{ gap: '6px' }}>
+                          <Clock size={13} className="text-gray-500 flex-shrink-0" />
                           <span>
                             Estimasi <strong className="text-800 font-semibold">{b.durasi_menit || 30} menit</strong>
                           </span>

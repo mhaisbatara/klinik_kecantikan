@@ -705,6 +705,21 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
             return;
         }
 
+        // Validation: Check if consultation recommendation has unavailable destination rooms
+        if (isKonsultasi && lanjutKeTindakan) {
+            const unavailableService = rekomendasiItems.find(
+                (item) => ['layanan', 'paket_layanan'].includes(item.jenis) && item.is_petugas_available === false
+            );
+            if (unavailableService) {
+                showError(
+                    toast,
+                    unavailableService.alasan_tidak_tersedia ||
+                        `Tidak dapat melanjutkan tindakan ke ruangan "${unavailableService.nama_ruangan || 'tujuan'}" karena tidak ada petugas/terapis yang bertugas hari ini.`
+                );
+                return;
+            }
+        }
+
         // Check mandatory fields
         for (const f of fields) {
             if (f.is_required) {
@@ -1465,6 +1480,7 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                                 selectedItems={rekomendasiItems}
                                 onChangeSelectedItems={setRekomendasiItems}
                                 disabled={isFormSaved}
+                                kodeCabang={(activePatient as any)?.kode_cabang}
                             />
                         )
                     )}

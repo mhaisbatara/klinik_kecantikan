@@ -17,6 +17,7 @@ import { apiPasienCari } from './endpoints';
 import { StepPilihLayanan } from './StepPilihLayanan';
 import { KarcisAntrianModal } from './dialogs/KarcisAntrianModal';
 import { KarcisAntrianLayananModal } from './dialogs/KarcisAntrianLayananModal';
+import { PasienKtpCard } from '../../components/PasienKtpCard';
 
 export interface Pasien {
   id: number;
@@ -41,6 +42,10 @@ export interface Pasien {
   alamat?: string;
   patokan?: string;
   alergi?: string;
+  nama_kontak_darurat?: string;
+  no_hp_kontak_darurat?: string;
+  hubungan_kontak_darurat?: string;
+  foto?: string;
   status?: string;
   created_at?: string;
   updated_at?: string;
@@ -339,39 +344,20 @@ export const TabPendaftaranLama: React.FC<Props> = ({
         <Column header="Aksi" body={actionBodyTemplate} align="center" style={{ minWidth: '7rem' }} />
       </DataTable>
 
-      {/* DIALOG DETAIL PASIEN */}
+      {/* DIALOG DETAIL PASIEN (e-KTP PASIEN MODEL) */}
       <Dialog
         visible={Boolean(detailPasien)}
         onHide={() => setDetailPasien(null)}
         header={
-          <div className="flex align-items-center gap-3">
-            <div
-              className="flex align-items-center justify-content-center border-round-circle bg-teal-50 text-teal-700 font-bold border-1 border-teal-200 shadow-1"
-              style={{ width: '44px', height: '44px', fontSize: '1.2rem' }}
-            >
-              {detailPasien?.nama ? detailPasien.nama.charAt(0).toUpperCase() : <i className="pi pi-user text-lg" />}
-            </div>
-            <div className="flex flex-column">
-              <span className="text-xs text-500 font-bold uppercase tracking-wider">
-                Detail Profil Pasien
-              </span>
-              <div className="flex align-items-center gap-2 mt-1">
-                <span className="text-xl font-bold text-900 leading-tight">
-                  {detailPasien?.nama || '-'}
-                </span>
-                {detailPasien?.no_rm && (
-                  <span className="px-2 py-0.5 border-round-md bg-teal-50 text-teal-700 border-1 border-teal-200 font-mono font-bold text-xs">
-                    {detailPasien.no_rm}
-                  </span>
-                )}
-              </div>
-            </div>
+          <div className="flex align-items-center gap-2">
+            <i className="pi pi-id-card text-emerald-600 text-xl" />
+            <span className="font-bold text-base text-800">Kartu Identitas Pasien</span>
           </div>
         }
         modal
-        style={{ width: '100%', maxWidth: '640px' }}
-        breakpoints={{ '641px': '92vw' }}
-        contentClassName="p-3"
+        style={{ width: '100%', maxWidth: '660px' }}
+        breakpoints={{ '661px': '95vw' }}
+        contentClassName="p-3 surface-50"
         footer={
           <div className="flex flex-wrap justify-content-end align-items-center gap-2 pt-3 border-top-1 surface-border">
             <Button
@@ -411,180 +397,7 @@ export const TabPendaftaranLama: React.FC<Props> = ({
           </div>
         }
       >
-        {detailPasien && (
-          <div className="flex flex-column gap-3 py-1">
-            {/* 1. SECTION IDENTITAS */}
-            <div>
-              <div className="flex align-items-center gap-2 mb-2 pb-1 border-bottom-1 surface-border">
-                <span className="text-xs font-bold text-500 uppercase tracking-wider">
-                  Identitas Pasien
-                </span>
-              </div>
-              <div className="grid text-sm m-0">
-                <div className="col-12 md:col-6 py-2 px-2">
-                  <div className="flex align-items-center text-500 text-xs mb-1">
-                    <i className="pi pi-id-card text-xs text-400 mr-1.5" />
-                    <span>No. Rekam Medis (RM)</span>
-                  </div>
-                  <strong className="text-base text-teal-700 font-mono">{detailPasien.no_rm}</strong>
-                </div>
-                <div className="col-12 md:col-6 py-2 px-2">
-                  <div className="flex align-items-center text-500 text-xs mb-1">
-                    <i className="pi pi-user text-xs text-400 mr-1.5" />
-                    <span>Nama Lengkap</span>
-                  </div>
-                  <strong className="text-base text-900">{detailPasien.nama}</strong>
-                </div>
-
-                <div className="col-12 md:col-6 py-2 px-2">
-                  <div className="flex align-items-center text-500 text-xs mb-1">
-                    <i className="pi pi-credit-card text-xs text-400 mr-1.5" />
-                    <span>NIK</span>
-                  </div>
-                  <span className="font-mono text-800">{detailPasien.nik || '-'}</span>
-                </div>
-                <div className="col-12 md:col-6 py-2 px-2">
-                  <div className="flex align-items-center text-500 text-xs mb-1">
-                    <i className="pi pi-users text-xs text-400 mr-1.5" />
-                    <span>Jenis Kelamin</span>
-                  </div>
-                  <span className="text-800">
-                    {detailPasien.jenis_kelamin === 'L' ? 'Laki-Laki' : detailPasien.jenis_kelamin === 'P' ? 'Perempuan' : '-'}
-                  </span>
-                </div>
-
-                <div className="col-12 md:col-6 py-2 px-2">
-                  <div className="flex align-items-center text-500 text-xs mb-1">
-                    <i className="pi pi-calendar text-xs text-400 mr-1.5" />
-                    <span>Tanggal Lahir</span>
-                  </div>
-                  <span className="text-800 font-medium">{detailPasien.tanggal_lahir ? detailPasien.tanggal_lahir.split('T')[0] : '-'}</span>
-                </div>
-                <div className="col-12 md:col-6 py-2 px-2">
-                  <div className="flex align-items-center text-500 text-xs mb-1">
-                    <i className="pi pi-clock text-xs text-400 mr-1.5" />
-                    <span>Umur</span>
-                  </div>
-                  <span className="text-800 font-semibold">
-                    {calculateAge(detailPasien.tanggal_lahir) !== null
-                      ? `${calculateAge(detailPasien.tanggal_lahir)} tahun`
-                      : '-'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* 2. SECTION KONTAK & ALAMAT */}
-            <div>
-              <div className="flex align-items-center gap-2 mb-2 pb-1 border-bottom-1 surface-border">
-                <span className="text-xs font-bold text-500 uppercase tracking-wider">
-                  Kontak & Alamat
-                </span>
-              </div>
-              <div className="grid text-sm m-0">
-                <div className="col-12 md:col-6 py-2 px-2">
-                  <div className="flex align-items-center text-500 text-xs mb-1">
-                    <i className="pi pi-phone text-xs text-400 mr-1.5" />
-                    <span>No. Handphone (WhatsApp)</span>
-                  </div>
-                  <span className="font-mono text-800">{detailPasien.no_hp || '-'}</span>
-                </div>
-                <div className="col-12 md:col-6 py-2 px-2">
-                  <div className="flex align-items-center text-500 text-xs mb-1">
-                    <i className="pi pi-envelope text-xs text-400 mr-1.5" />
-                    <span>Email</span>
-                  </div>
-                  <span className="text-800">{detailPasien.email || '-'}</span>
-                </div>
-
-                <div className="col-12 md:col-6 py-2 px-2">
-                  <div className="flex align-items-center text-500 text-xs mb-1">
-                    <i className="pi pi-building text-xs text-400 mr-1.5" />
-                    <span>Kota / Wilayah</span>
-                  </div>
-                  <span className="text-800">{detailPasien.kota_kabupaten || detailPasien.provinsi || '-'}</span>
-                </div>
-                <div className="col-12 md:col-6 py-2 px-2">
-                  <div className="flex align-items-center text-500 text-xs mb-1">
-                    <i className="pi pi-map text-xs text-400 mr-1.5" />
-                    <span>Kode Pos</span>
-                  </div>
-                  <span className="text-800">{detailPasien.kode_pos || '-'}</span>
-                </div>
-
-                <div className="col-12 py-2 px-2">
-                  <div className="flex align-items-center text-500 text-xs mb-1">
-                    <i className="pi pi-map-marker text-xs text-400 mr-1.5" />
-                    <span>Alamat Lengkap & Patokan</span>
-                  </div>
-                  <span className="text-800 leading-normal">
-                    {[detailPasien.kelurahan_desa, detailPasien.kecamatan, detailPasien.kota_kabupaten, detailPasien.provinsi]
-                      .filter(Boolean)
-                      .join(', ') || '-'}
-                    {detailPasien.patokan ? ` (${detailPasien.patokan})` : ''}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* 3. SECTION DATA PERSONAL & MEDIS */}
-            <div>
-              <div className="flex align-items-center gap-2 mb-2 pb-1 border-bottom-1 surface-border">
-                <span className="text-xs font-bold text-500 uppercase tracking-wider">
-                  Data Personal & Medis
-                </span>
-              </div>
-              <div className="grid text-sm m-0">
-                <div className="col-12 md:col-6 py-2 px-2">
-                  <div className="flex align-items-center text-500 text-xs mb-1">
-                    <i className="pi pi-heart text-xs text-400 mr-1.5" />
-                    <span>Golongan Darah</span>
-                  </div>
-                  <span className="text-800 font-semibold">{detailPasien.golongan_darah || '-'}</span>
-                </div>
-                <div className="col-12 md:col-6 py-2 px-2">
-                  <div className="flex align-items-center text-500 text-xs mb-1">
-                    <i className="pi pi-book text-xs text-400 mr-1.5" />
-                    <span>Agama</span>
-                  </div>
-                  <span className="text-800">{detailPasien.agama || '-'}</span>
-                </div>
-
-                <div className="col-12 md:col-6 py-2 px-2">
-                  <div className="flex align-items-center text-500 text-xs mb-1">
-                    <i className="pi pi-link text-xs text-400 mr-1.5" />
-                    <span>Status Perkawinan</span>
-                  </div>
-                  <span className="text-800 capitalize">{detailPasien.status_perkawinan?.replace('_', ' ') || '-'}</span>
-                </div>
-                <div className="col-12 md:col-6 py-2 px-2">
-                  <div className="flex align-items-center text-500 text-xs mb-1">
-                    <i className="pi pi-flag text-xs text-400 mr-1.5" />
-                    <span>Kewarganegaraan</span>
-                  </div>
-                  <span className="text-800">{detailPasien.kewarganegaraan || '-'}</span>
-                </div>
-
-                <div className="col-12 md:col-6 py-2 px-2">
-                  <div className="flex align-items-center text-500 text-xs mb-1">
-                    <i className="pi pi-briefcase text-xs text-400 mr-1.5" />
-                    <span>Pekerjaan</span>
-                  </div>
-                  <span className="text-800">{detailPasien.pekerjaan || '-'}</span>
-                </div>
-
-                {detailPasien.alergi && (
-                  <div className="col-12 mt-2 p-2.5 bg-red-50 border-round-lg border-left-3 border-red-500 text-red-800 text-xs flex align-items-center">
-                    <i className="pi pi-exclamation-triangle text-red-600 text-sm mr-1.5" />
-                    <div>
-                      <strong>Riwayat Alergi:</strong> {detailPasien.alergi}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+        {detailPasien && <PasienKtpCard pasien={detailPasien} />}
       </Dialog>
 
       <KarcisAntrianModal

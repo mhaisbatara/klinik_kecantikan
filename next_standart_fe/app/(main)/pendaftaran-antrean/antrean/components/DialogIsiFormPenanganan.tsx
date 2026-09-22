@@ -231,6 +231,20 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
             return;
         }
 
+        if (isKonsultasi && lanjutKeTindakan) {
+            const unavailableService = rekomendasiItems.find(
+                (item) => ['layanan', 'paket_layanan'].includes(item.jenis) && item.is_petugas_available === false
+            );
+            if (unavailableService) {
+                showError(
+                    toast,
+                    unavailableService.alasan_tidak_tersedia ||
+                        `Tidak dapat melanjutkan tindakan ke ruangan "${unavailableService.nama_ruangan || 'tujuan'}" karena tidak ada petugas/terapis yang bertugas hari ini.`
+                );
+                return;
+            }
+        }
+
         setTargetStatusToSave(targetStatus);
         setShowConfirmModal(true);
     };
@@ -630,6 +644,7 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
                             toast={toast}
                             selectedItems={rekomendasiItems}
                             onChangeSelectedItems={setRekomendasiItems}
+                            kodeCabang={(antrianData as any)?.kode_cabang}
                         />
                     )}
 

@@ -43,6 +43,7 @@ import {
   Info,
   ChevronDown,
   Users,
+  Stethoscope,
 } from 'lucide-react';
 
 interface Pasien {
@@ -99,15 +100,77 @@ interface SlotItem {
 interface Props {
   toast: React.RefObject<Toast>;
   onSuccessCreated?: () => void;
+  initialPasien?: Pasien | null;
+  initialNoRm?: string;
 }
 
-export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated }) => {
+export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initialPasien, initialNoRm }) => {
   // 1. Pasien State
   const [pasienSearch, setPasienSearch] = useState('');
   const [pasienList, setPasienList] = useState<Pasien[]>([]);
   const [loadingPasien, setLoadingPasien] = useState(false);
-  const [selectedPasien, setSelectedPasien] = useState<Pasien | null>(null);
+  const [selectedPasien, setSelectedPasien] = useState<Pasien | null>(initialPasien || null);
   const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const lastLoadedNoRmRef = useRef<string>('');
+
+  // Auto-select pasien dari prop atau URL query param
+  useEffect(() => {
+    if (initialPasien) {
+      if (lastLoadedNoRmRef.current.toLowerCase() === (initialPasien.no_rm || '').toLowerCase()) {
+        return;
+      }
+      lastLoadedNoRmRef.current = initialPasien.no_rm || '';
+      setSelectedPasien(initialPasien);
+      showSuccess(toast, `Pasien ${initialPasien.nama} (${initialPasien.no_rm}) berhasil dipilih untuk booking`);
+      return;
+    }
+
+    const checkNoRmParam = async () => {
+      let targetNoRm = (initialNoRm || '').trim();
+      if (!targetNoRm && typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        targetNoRm = (params.get('no_rm') || params.get('norm') || '').trim();
+      }
+
+      if (!targetNoRm) return;
+      if (lastLoadedNoRmRef.current.toLowerCase() === targetNoRm.toLowerCase()) return;
+      lastLoadedNoRmRef.current = targetNoRm;
+
+      setLoadingPasien(true);
+      try {
+        const res = await postData('/master/pendaftaran-pasien-cari', {
+          no_rm: targetNoRm,
+          page: 1,
+          perPage: 5,
+        });
+        const list: Pasien[] = res.data?.data || [];
+        const found = list.find(
+          (p: Pasien) => (p.no_rm || '').toLowerCase() === targetNoRm.toLowerCase()
+        ) || list[0];
+
+        if (found) {
+          setSelectedPasien(found);
+          showSuccess(toast, `Pasien ${found.nama} (${found.no_rm}) berhasil dipilih untuk booking`);
+
+          // Bersihkan URL query parameter agar tidak terus menempel
+          if (typeof window !== 'undefined') {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('no_rm');
+            url.searchParams.delete('norm');
+            url.searchParams.delete('create');
+            url.searchParams.delete('create_booking');
+            window.history.replaceState({}, '', url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : ''));
+          }
+        }
+      } catch (err) {
+        console.error('Error auto loading patient for booking:', err);
+      } finally {
+        setLoadingPasien(false);
+      }
+    };
+
+    checkNoRmParam();
+  }, [initialPasien, initialNoRm]);
 
   // 2. Tanggal & Layanan State (Pola Tab Ruangan & Multi-Select Card)
   const [tanggalBooking, setTanggalBooking] = useState<Date>(new Date());
@@ -175,6 +238,7 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated }) => 
   // 6. Dialog Jadwal Mingguan Ruangan State
   const [showJadwalRuanganDialog, setShowJadwalRuanganDialog] = useState(false);
   const [jadwalDialogRooms, setJadwalDialogRooms] = useState<RoomTabOption[]>([]);
+  const [consultRoomInfo, setConsultRoomInfo] = useState<{ kode_ruangan: string; nama_ruangan: string } | null>(null);
 
   // 7. Popover & Tooltip Pendamping State & Ref
   const companionOpRef = useRef<OverlayPanel>(null);
@@ -245,6 +309,9 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated }) => 
       if (['00', '0000', 200].includes(res?.data?.status) || res?.status === 200) {
         const rawRuangan = res.data?.data?.ruangan_layanan || res.data?.data?.kategori_layanan || [];
         setRuangans(rawRuangan);
+        if (res.data?.data?.ruang_konsultasi) {
+          setConsultRoomInfo(res.data.data.ruang_konsultasi);
+        }
       } else {
         showError(toast, res?.data?.message || 'Gagal memuat pilihan layanan');
       }
@@ -361,6 +428,20 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated }) => 
         setActiveRuangan(null);
       }
     } else {
+      // Cek apakah item layanan reguler sudah dipilih via klaim paket
+      if (item.jenis === 'layanan') {
+        const isClaimed = Object.values(selectedMap).some(
+          (it) => it.jenis === 'klaim_paket' && it.kode_layanan === item.kode_layanan
+        );
+        if (isClaimed) {
+          showError(
+            toast,
+            `Layanan "${item.nama}" sudah Anda pilih melalui klaim paket aktif (Rp 0). Batalkan klaim paket terlebih dahulu jika ingin memilih layanan reguler.`
+          );
+          return;
+        }
+      }
+
       // Validasi tanggal expired jika klaim_paket
       if (item.jenis === 'klaim_paket' && item.tanggal_expired) {
         const curDateStr = formatDateToYMD(tanggalBooking);
@@ -386,7 +467,17 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated }) => 
         return;
       }
 
-      setSelectedMap((prev) => ({ ...prev, [key]: item }));
+      // Jika memilih klaim paket, otomatis batalkan layanan reguler berbayar dengan kode sama jika ada
+      let newMap = { ...selectedMap };
+      if (item.jenis === 'klaim_paket') {
+        const regularKey = `layanan_${item.kode_layanan}`;
+        if (newMap[regularKey]) {
+          delete newMap[regularKey];
+        }
+      }
+
+      newMap[key] = item;
+      setSelectedMap(newMap);
       setActiveRuangan(item.kode_ruangan || null);
     }
   };
@@ -410,17 +501,19 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated }) => 
   const activeRoomObj = ruangans.find((r) => r.kode_ruangan === activeRuangan);
   const activeRoomName = activeRoomObj?.nama_ruangan || selectedList[0]?.nama_ruangan || '';
 
-  const consultRoom = ruangans.find((r) => r.is_konsultasi === 1);
   const handleOpenJadwalDialog = () => {
-    if (effectiveButuhKonsul) {
+    const consultRoomCode = consultRoomInfo?.kode_ruangan || 'RNG-007';
+    const consultRoomName = consultRoomInfo?.nama_ruangan || 'Ruang Konsultasi Dokter';
+
+    if (hasOpsionalKonsul || hasWajibKonsul) {
       const roomList: RoomTabOption[] = [
         {
-          kodeRuangan: consultRoom?.kode_ruangan || 'RNG-007',
-          namaRuangan: consultRoom?.nama_ruangan || 'Ruang Konsultasi Dokter',
+          kodeRuangan: consultRoomCode,
+          namaRuangan: consultRoomName,
           iconType: 'doctor',
         },
       ];
-      if (activeRuangan) {
+      if (activeRuangan && activeRuangan !== consultRoomCode) {
         roomList.push({
           kodeRuangan: activeRuangan,
           namaRuangan: activeRoomName || 'Ruangan Treatment',
@@ -552,6 +645,13 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated }) => 
       shiftSelesai: targetSlot.jam_selesai,
     };
   }, [selectedSlot, slots, consultWindow]);
+
+  // Otomatis pilih "Langsung Tindakan" jika dokter di Ruang Konsultasi tidak bertugas pada tanggal booking
+  useEffect(() => {
+    if (!loadingSlots && dokterKonsulList.length === 0 && globalConsultChoice && !hasWajibKonsul) {
+      setGlobalConsultChoice(false);
+    }
+  }, [loadingSlots, dokterKonsulList, hasWajibKonsul, globalConsultChoice]);
 
   // Generate daftar opsi slot jam berdasarkan shift, durasi tindakan, bentrok janji temu lain, dan irisan dokter
   const timeSlots = useMemo(() => {
@@ -1038,6 +1138,14 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated }) => 
         );
         return;
       }
+
+      if (effectiveButuhKonsul && consultWindow && consultWindow.docEndMin <= nowMin) {
+        showError(
+          toast,
+          `Dokter jaga di Ruang Konsultasi telah selesai bertugas hari ini (pukul ${consultWindow.docEndStr} WIB). Silakan alihkan ke alur 'Langsung Tindakan' atau buat reservasi Booking untuk hari berikutnya.`
+        );
+        return;
+      }
     }
 
     if (effectiveButuhKonsul && consultWindow && selectedSlot) {
@@ -1144,6 +1252,7 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated }) => 
   };
 
   const handleResetForm = () => {
+    lastLoadedNoRmRef.current = '';
     setSelectedPasien(null);
     setPasienSearch('');
     setPasienList([]);
@@ -1257,7 +1366,12 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated }) => 
                   label="Ganti Pasien"
                   icon="pi pi-refresh"
                   className="p-button-text p-button-secondary p-button-sm text-xs font-semibold"
-                  onClick={() => setSelectedPasien(null)}
+                  onClick={() => {
+                    lastLoadedNoRmRef.current = '';
+                    setSelectedPasien(null);
+                    setPasienSearch('');
+                    setPasienList([]);
+                  }}
                 />
               </div>
             ) : (
@@ -1499,6 +1613,7 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated }) => 
                                     isDisabled={isRuangDisabled}
                                     onToggle={handleToggleItem}
                                     formatPrice={formatCurrency}
+                                    gridClassName="col-12 sm:col-6 md:col-4 lg:col-4 xl:col-4 p-2"
                                   />
                                 );
                               });
@@ -1541,16 +1656,24 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated }) => 
                           </div>
                         ) : (
                           <div className="grid">
-                            {ruang.items.map((item) => (
-                              <LayananCard
-                                key={`${item.jenis}_${item.kode_layanan}`}
-                                item={item}
-                                isSelected={!!selectedMap[`${item.jenis}_${item.kode_layanan}`]}
-                                isDisabled={isRuangDisabled}
-                                onToggle={handleToggleItem}
-                                formatPrice={formatCurrency}
-                              />
-                            ))}
+                            {ruang.items.map((item) => {
+                              const itemKey = `${item.jenis}_${item.kode_layanan}`;
+                              const isClaimedElsewhere = item.jenis === 'layanan' && Object.values(selectedMap).some(
+                                (it) => it.jenis === 'klaim_paket' && it.kode_layanan === item.kode_layanan
+                              );
+                              return (
+                                <LayananCard
+                                  key={itemKey}
+                                  item={item}
+                                  isSelected={!!selectedMap[itemKey]}
+                                  isDisabled={isRuangDisabled || isClaimedElsewhere}
+                                  isClaimedElsewhere={isClaimedElsewhere}
+                                  onToggle={handleToggleItem}
+                                  formatPrice={formatCurrency}
+                                  gridClassName="col-12 sm:col-6 md:col-4 lg:col-4 xl:col-4 p-2"
+                                />
+                              );
+                            })}
                           </div>
                         )}
                       </TabPanel>
@@ -1594,35 +1717,66 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated }) => 
                     </p>
                     <div className="grid">
                       {/* Opsi 1: Konsultasi Dokter Dulu */}
-                      <div className="col-12 sm:col-6">
-                        <div
-                          className="p-3 border-round-xl border-2 cursor-pointer transition-all transition-duration-200 flex align-items-center gap-3 h-full"
-                          style={{
-                            borderColor: globalConsultChoice ? '#6366f1' : '#e2e8f0',
-                            background: globalConsultChoice ? 'linear-gradient(135deg, #eef2ff, #e0e7ff)' : 'var(--surface-card)',
-                          }}
-                          onClick={() => setGlobalConsultChoice(true)}
-                        >
-                          <div
-                            className="flex align-items-center justify-content-center border-round-lg text-white flex-shrink-0"
-                            style={{
-                              width: '36px', height: '36px',
-                              background: globalConsultChoice ? 'linear-gradient(135deg, #6366f1, #4f46e5)' : '#cbd5e1',
-                            }}
-                          >
-                            <i className="pi pi-user-edit text-base" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="font-bold text-xs" style={{ color: globalConsultChoice ? '#4338ca' : '#475569' }}>
-                              Konsultasi Dokter Dulu
+                      {(() => {
+                        const isNoDoctorOnDate = !loadingSlots && dokterKonsulList.length === 0;
+                        return (
+                          <div className="col-12 sm:col-6">
+                            <div
+                              className="p-3 border-round-xl border-2 cursor-pointer transition-all transition-duration-200 flex align-items-center gap-3 h-full"
+                              style={{
+                                borderColor: globalConsultChoice ? '#6366f1' : '#e2e8f0',
+                                background: globalConsultChoice
+                                  ? 'linear-gradient(135deg, #eef2ff, #e0e7ff)'
+                                  : 'var(--surface-card)',
+                                userSelect: 'none',
+                              }}
+                              onClick={() => setGlobalConsultChoice(true)}
+                            >
+                              <div
+                                className="flex align-items-center justify-content-center border-round-lg text-white flex-shrink-0"
+                                style={{
+                                  width: '36px',
+                                  height: '36px',
+                                  background: globalConsultChoice
+                                    ? 'linear-gradient(135deg, #6366f1, #4f46e5)'
+                                    : '#cbd5e1',
+                                }}
+                              >
+                                <i className="pi pi-user-edit text-base" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex align-items-center gap-2 flex-wrap">
+                                  <span
+                                    className="font-bold text-xs"
+                                    style={{
+                                      color: globalConsultChoice ? '#4338ca' : '#475569',
+                                    }}
+                                  >
+                                    Konsultasi Dokter Dulu
+                                  </span>
+                                  {isNoDoctorOnDate && (
+                                    <Tag
+                                      value="Tidak Ada Dokter"
+                                      severity="danger"
+                                      className="text-[10px] py-0 px-1 font-semibold"
+                                    />
+                                  )}
+                                </div>
+                                <div className="text-[11px] text-500 mt-0.5">
+                                  {isNoDoctorOnDate ? (
+                                    <span>Tidak ada jadwal dokter jaga di Ruang Konsultasi pada tanggal ini.</span>
+                                  ) : (
+                                    <span>Pasien antre di Ruang Konsultasi Dokter saat check-in sebelum menuju ruang treatment.</span>
+                                  )}
+                                </div>
+                              </div>
+                              {globalConsultChoice && (
+                                <i className="pi pi-check-circle text-indigo-600 text-lg flex-shrink-0" />
+                              )}
                             </div>
-                            <div className="text-[11px] text-500 mt-0.5">
-                              Pasien antre di Ruang Konsultasi Dokter saat check-in sebelum menuju ruang treatment.
-                            </div>
                           </div>
-                          {globalConsultChoice && <i className="pi pi-check-circle text-indigo-600 text-lg flex-shrink-0" />}
-                        </div>
-                      </div>
+                        );
+                      })()}
 
                       {/* Opsi 2: Langsung Tindakan */}
                       <div className="col-12 sm:col-6">
@@ -1677,14 +1831,18 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated }) => 
                 <div className="flex align-items-center gap-2">
                   <Button
                     type="button"
-                    label={effectiveButuhKonsul ? 'Jadwal Dokter Konsultasi' : `Jadwal ${activeRoomName || 'Ruangan'}`}
+                    label={
+                      hasOpsionalKonsul || hasWajibKonsul
+                        ? 'Lihat Jadwal Ruangan & Dokter'
+                        : `Jadwal ${activeRoomName || 'Ruangan'}`
+                    }
                     icon="pi pi-calendar"
                     className="p-button-outlined p-button-secondary p-button-sm text-xs py-1 px-2.5 font-semibold"
                     onClick={handleOpenJadwalDialog}
                     tooltip={
-                      effectiveButuhKonsul
-                        ? `Lihat jadwal dokter Ruang Konsultasi & ${activeRoomName}`
-                        : `Lihat seluruh jadwal mingguan ${activeRoomName}`
+                      hasOpsionalKonsul || hasWajibKonsul
+                        ? `Lihat jadwal dokter Ruang Konsultasi & ${activeRoomName || 'Ruang Tindakan'}`
+                        : `Lihat seluruh jadwal mingguan ${activeRoomName || 'Ruang Tindakan'}`
                     }
                     tooltipOptions={{ position: 'bottom' }}
                   />
@@ -1801,8 +1959,8 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated }) => 
               </div>
             ) : (
               <div>
-                <div className="text-xs text-500 mb-3 pt-1 flex align-items-center gap-1.5">
-                  <Clock size={13} className="text-400" />
+                <div className="text-xs text-600 mb-3 pt-0.5 flex align-items-center" style={{ gap: '6px' }}>
+                  <Clock size={14} className="text-500 flex-shrink-0" />
                   <span>Pilih salah satu sesi jadwal petugas di bawah ini. Setiap sesi diwakili oleh Petugas Penanggung Jawab (PJ).</span>
                 </div>
                 <div className="grid">
@@ -1839,25 +1997,25 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated }) => 
                         >
                           <div>
                             {/* Header: Jam & Status */}
-                            <div className="flex justify-content-between align-items-start mb-2">
-                              <div className="flex align-items-center">
-                                <Clock size={16} className={`${isSelected ? 'text-primary' : 'text-500'} mr-2 flex-shrink-0`} />
-                                <span className="font-bold text-900 text-base">
+                            <div className="flex justify-content-between align-items-center mb-2">
+                              <div className="flex align-items-center" style={{ gap: '6px' }}>
+                                <Clock size={15} className={`${isSelected ? 'text-primary' : 'text-500'} flex-shrink-0`} />
+                                <span className="font-bold text-900 text-sm">
                                   {slot.jam_mulai} - {slot.jam_selesai} WIB
                                 </span>
                               </div>
                               {isSelected ? (
-                                <CheckCircle2 size={20} className="text-primary flex-shrink-0" />
+                                <CheckCircle2 size={18} className="text-primary flex-shrink-0" />
                               ) : isFull ? (
-                                <Tag value="PENUH" severity="danger" className="flex-shrink-0" />
+                                <Tag value="PENUH" severity="danger" className="text-xs px-2 py-0.5 font-bold flex-shrink-0" />
                               ) : (
-                                <Tag value="TERSEDIA" severity="success" className="flex-shrink-0" />
+                                <Tag value="TERSEDIA" severity="success" className="text-xs px-2 py-0.5 font-bold flex-shrink-0" />
                               )}
                             </div>
 
                             {/* Info Petugas Utama (PJ) */}
-                            <div className="flex align-items-center justify-content-between gap-1 mb-1.5">
-                              <div className="flex align-items-center gap-1.5 min-w-0 flex-1">
+                            <div className="flex align-items-center justify-content-between gap-2 mb-2">
+                              <div className="flex align-items-center min-w-0 flex-1" style={{ gap: '6px' }}>
                                 <User size={14} className="text-primary flex-shrink-0" />
                                 <span
                                   className="text-sm font-bold text-900 text-overflow-ellipsis overflow-hidden white-space-nowrap"
@@ -1867,9 +2025,9 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated }) => 
                                 </span>
                               </div>
                               {slot.is_penanggung_jawab ? (
-                                <Tag value="PJ" severity="warning" className="text-[10px] font-bold py-0 px-1.5 flex-shrink-0" />
+                                <Tag value="PJ" severity="warning" className="text-[10px] font-bold py-0.5 px-1.5 flex-shrink-0" />
                               ) : slot.has_pj === false ? (
-                                <Tag value="Belum Ada PJ" severity="secondary" className="text-[10px] py-0 px-1.5 flex-shrink-0" />
+                                <Tag value="Belum Ada PJ" severity="secondary" className="text-[10px] py-0.5 px-1.5 flex-shrink-0" />
                               ) : null}
                             </div>
 
@@ -1903,13 +2061,13 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated }) => 
                                   <ChevronDown size={12} className="text-emerald-600 flex-shrink-0 ml-0.5 opacity-80" />
                                 </div>
                               ) : (
-                                <span className="text-[11px] text-400 italic">Tanpa petugas pendamping</span>
+                                <span className="text-xs text-400 italic">Tanpa petugas pendamping</span>
                               )}
                             </div>
 
                             {/* Lokasi Ruangan */}
-                            <div className="text-xs text-500 mb-2 flex align-items-center gap-1 text-overflow-ellipsis overflow-hidden white-space-nowrap">
-                              <MapPin size={13} className="flex-shrink-0" />
+                            <div className="text-xs text-500 mb-2 flex align-items-center" style={{ gap: '6px' }}>
+                              <MapPin size={13} className="text-400 flex-shrink-0" />
                               <span className="text-overflow-ellipsis overflow-hidden white-space-nowrap">{slot.nama_ruangan}</span>
                             </div>
                           </div>
@@ -2389,8 +2547,8 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated }) => 
                     </div>
                   ) : (
                     <div className="p-3 bg-yellow-50 border-1 border-yellow-200 border-round-lg flex flex-column gap-2 mt-2">
-                      <div className="flex align-items-center gap-1.5 text-xs text-yellow-900 font-semibold">
-                        <i className="pi pi-exclamation-circle text-yellow-700" />
+                      <div className="flex align-items-center gap-2 text-xs text-yellow-900 font-semibold">
+                        <AlertCircle size={15} className="text-yellow-700 flex-shrink-0" />
                         <span>Alasan Bebas DP (Wajib Dipilih) <span className="text-red-500">*</span></span>
                       </div>
                       <Dropdown

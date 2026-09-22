@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import postData from '@/lib/axios/postData';
+import formUpload from '@/lib/axios/formData';
 import { Toast } from 'primereact/toast';
 import { DataTable } from 'primereact/datatable';
 import { Column } from 'primereact/column';
@@ -17,9 +18,14 @@ import { confirmDialog, ConfirmDialog } from 'primereact/confirmdialog';
 import { IconField } from 'primereact/iconfield';
 import { InputIcon } from 'primereact/inputicon';
 import { showError, showSuccess } from '@/lib/tools/generalTools';
+import { ImageCropDialog } from '../components/ImageCropDialog';
 
 const Page = () => {
     const toast = useRef<Toast>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const [cropDialogVisible, setCropDialogVisible] = useState<boolean>(false);
+    const [cropImageSrc, setCropImageSrc] = useState<string>('');
 
     const [data, setData] = useState<any[]>([]);
     const [layananOptions, setLayananOptions] = useState<any[]>([]);
@@ -53,6 +59,9 @@ const Page = () => {
         tanggal_mulai: '',
         tanggal_selesai: '',
         status: 'aktif',
+        foto: null,
+        foto_url: '',
+        hapus_foto: false,
         details: []
     });
     const [saving, setSaving] = useState<boolean>(false);
@@ -157,6 +166,7 @@ const Page = () => {
     const handleOpenCreate = () => {
         setIsEdit(false);
         setSubmitted(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
         const initialRuangan = ruanganList[0]?.value || '';
         const initialAvailable = getFilteredLayananOptions(initialRuangan);
 
@@ -175,6 +185,9 @@ const Page = () => {
             tanggal_mulai: '',
             tanggal_selesai: '',
             status: 'aktif',
+            foto: null,
+            foto_url: '',
+            hapus_foto: false,
             details: initialDetails
         });
         setDialogVisible(true);
@@ -183,6 +196,7 @@ const Page = () => {
     const handleOpenEdit = (rowData: any) => {
         setIsEdit(true);
         setSubmitted(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
         const isMasaBerlakuSelamanya = Boolean(rowData.is_masa_berlaku_selamanya) || Number(rowData.masa_berlaku_hari) === 0 || rowData.masa_berlaku_hari === null;
         setFormData({
             ...rowData,
@@ -193,6 +207,9 @@ const Page = () => {
             is_selamanya: Boolean(rowData.is_selamanya),
             tanggal_mulai: formatYmd(rowData.tanggal_mulai),
             tanggal_selesai: formatYmd(rowData.tanggal_selesai),
+            foto: null,
+            foto_url: rowData.foto || '',
+            hapus_foto: false,
             details: (rowData.details || []).map((d: any) => ({
                 kode_layanan: d.kode_layanan,
                 jumlah_sesi: d.jumlah_sesi,
@@ -200,6 +217,62 @@ const Page = () => {
             }))
         });
         setDialogVisible(true);
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            if (file.size > 10 * 1024 * 1024) {
+                showError(toast, 'Ukuran file foto maksimal 10MB!');
+                return;
+            }
+            const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+            if (!allowedTypes.includes(file.type)) {
+                showError(toast, 'Format file foto harus JPG, JPEG, PNG, atau WEBP!');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = () => {
+                setCropImageSrc(reader.result as string);
+                setCropDialogVisible(true);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const handleOpenCropper = () => {
+        if (formData.foto) {
+            const reader = new FileReader();
+            reader.onload = () => {
+                setCropImageSrc(reader.result as string);
+                setCropDialogVisible(true);
+            };
+            reader.readAsDataURL(formData.foto);
+        } else if (formData.foto_url && !formData.hapus_foto) {
+            setCropImageSrc(formData.foto_url);
+            setCropDialogVisible(true);
+        }
+    };
+
+    const handleCropSave = (croppedFile: File, previewUrl: string) => {
+        setFormData((prev: any) => ({
+            ...prev,
+            foto: croppedFile,
+            foto_url: previewUrl,
+            hapus_foto: false,
+        }));
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+
+    const handleRemoveFoto = () => {
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        setFormData((prev: any) => ({
+            ...prev,
+            foto: null,
+            foto_url: '',
+            hapus_foto: true,
+        }));
     };
 
     const toggleRowExpansion = (rowData: any) => {
@@ -267,7 +340,31 @@ const Page = () => {
         setSaving(true);
         try {
             const endpoint = isEdit ? '/master/paket-layanan-update' : '/master/paket-layanan-create';
-            const res = await postData(endpoint, formData);
+            
+            const fd = new FormData();
+            if (isEdit) {
+                fd.append('kode_paket_layanan', formData.kode_paket_layanan);
+            }
+            fd.append('nama', formData.nama);
+            fd.append('tipe', formData.tipe || 'BEAUTY TREATMENT');
+            fd.append('kode_ruangan', formData.kode_ruangan || '');
+            fd.append('harga_paket', String(formData.harga_paket || 0));
+            fd.append('masa_berlaku_hari', String(formData.masa_berlaku_hari || 365));
+            fd.append('is_masa_berlaku_selamanya', formData.is_masa_berlaku_selamanya ? '1' : '0');
+            fd.append('is_selamanya', formData.is_selamanya ? '1' : '0');
+            fd.append('tanggal_mulai', formData.tanggal_mulai || '');
+            fd.append('tanggal_selesai', formData.tanggal_selesai || '');
+            fd.append('status', formData.status || 'aktif');
+            fd.append('details', JSON.stringify(formData.details || []));
+
+            if (formData.foto instanceof File) {
+                fd.append('foto', formData.foto);
+            }
+            if (formData.hapus_foto) {
+                fd.append('hapus_foto', '1');
+            }
+
+            const res = await formUpload(endpoint, fd, { 'X-Level': '1' });
             showSuccess(toast, res.data.message || 'Berhasil disimpan');
             setDialogVisible(false);
             loadData();
@@ -502,6 +599,45 @@ const Page = () => {
                             />
                         )}
                     ></Column>
+                    <Column
+                        header="Foto"
+                        headerStyle={{ width: '4.5rem', textAlign: 'center', fontWeight: 'bold' }}
+                        align="center"
+                        body={(r) => (
+                            <div
+                                style={{
+                                    width: '40px',
+                                    height: '40px',
+                                    borderRadius: '8px',
+                                    overflow: 'hidden',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    backgroundColor: r.foto ? 'var(--surface-100, #f1f5f9)' : 'transparent',
+                                    border: r.foto ? '1px solid var(--surface-border, #e2e8f0)' : '1.5px dashed var(--surface-400, #94a3b8)',
+                                }}
+                                title={r.nama}
+                            >
+                                {r.foto ? (
+                                    <img
+                                        src={r.foto}
+                                        alt={r.nama}
+                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                        onError={(e: any) => {
+                                            e.currentTarget.style.display = 'none';
+                                            if (e.currentTarget.parentElement) {
+                                                e.currentTarget.parentElement.style.border = '1.5px dashed var(--surface-400, #94a3b8)';
+                                                e.currentTarget.parentElement.style.backgroundColor = 'transparent';
+                                                e.currentTarget.parentElement.innerHTML = '<i class="pi pi-image text-400 text-base"></i>';
+                                            }
+                                        }}
+                                    />
+                                ) : (
+                                    <i className="pi pi-image text-400 text-base" />
+                                )}
+                            </div>
+                        )}
+                    ></Column>
                     <Column field="kode_paket_layanan" header="Kode" sortable headerStyle={{ fontWeight: 'bold' }}></Column>
                     <Column field="nama" header="Nama Paket" sortable headerStyle={{ fontWeight: 'bold' }}></Column>
                     <Column
@@ -626,6 +762,147 @@ const Page = () => {
                             <InputText value={formData.kode_paket_layanan} disabled className="w-full text-sm border-round-md" />
                         </div>
                     )}
+
+                    {/* UPLOAD FOTO AREA */}
+                    <div className="surface-50 p-3 border-round-xl border-1 surface-border">
+                        <div className="flex align-items-center justify-content-between mb-2">
+                            <label className="text-sm font-semibold text-800 flex align-items-center gap-2">
+                                <i className="pi pi-image text-primary" />
+                                <span>Foto Paket Layanan</span>
+                                <span className="text-500 font-normal text-xs">(Rasio Kartu 4:3)</span>
+                            </label>
+                            {(formData.foto || (formData.foto_url && !formData.hapus_foto)) && (
+                                <Tag
+                                    value="Foto Terpasang"
+                                    severity="success"
+                                    icon="pi pi-check"
+                                    className="text-[11px] font-semibold py-1 px-2 border-round-md"
+                                />
+                            )}
+                        </div>
+
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={handleFileChange}
+                            accept="image/png, image/jpeg, image/jpg, image/webp"
+                            style={{ display: 'none' }}
+                        />
+
+                        {!(formData.foto || (formData.foto_url && !formData.hapus_foto)) ? (
+                            /* Empty State: Modern Dropzone */
+                            <div
+                                onClick={() => fileInputRef.current?.click()}
+                                className="cursor-pointer border-2 border-dashed surface-border border-round-xl p-3 bg-white hover:surface-100 hover:border-primary transition-all flex flex-column align-items-center justify-content-center text-center gap-2 shadow-1"
+                            >
+                                <div className="w-3rem h-3rem border-circle bg-primary-50 text-primary flex align-items-center justify-content-center">
+                                    <i className="pi pi-cloud-upload text-xl" />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-semibold text-800 m-0 mb-1">Klik untuk Memilih Foto Paket Layanan</p>
+                                    <p className="text-xs text-500 m-0">Format: JPG, PNG, WEBP • Maksimal 10MB</p>
+                                </div>
+                                <Button
+                                    type="button"
+                                    label="Pilih File Gambar"
+                                    icon="pi pi-plus"
+                                    size="small"
+                                    outlined
+                                    className="p-button-sm text-xs font-semibold mt-1 pointer-events-none"
+                                />
+                            </div>
+                        ) : (
+                            /* Filled State: Balanced Preview & Actions */
+                            <div className="bg-white p-3 border-round-xl border-1 surface-border shadow-1 flex flex-column sm:flex-row gap-3 align-items-center">
+                                {/* 4:3 Aspect Ratio Preview */}
+                                <div
+                                    onClick={handleOpenCropper}
+                                    className="cursor-pointer relative border-round-lg overflow-hidden bg-slate-100 border-1 surface-border flex-shrink-0 shadow-1 flex align-items-center justify-content-center hover:shadow-2 transition-all"
+                                    style={{
+                                        width: '136px',
+                                        height: '102px',
+                                    }}
+                                    title="Klik untuk mengatur posisi / crop foto"
+                                >
+                                    {formData.foto ? (
+                                        <img
+                                            src={URL.createObjectURL(formData.foto)}
+                                            alt="Preview"
+                                            style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center', display: 'block' }}
+                                        />
+                                    ) : (
+                                        <img
+                                            src={formData.foto_url}
+                                            alt="Preview"
+                                            style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center', display: 'block' }}
+                                            onError={(e: any) => {
+                                                e.currentTarget.style.display = 'none';
+                                            }}
+                                        />
+                                    )}
+                                    <div className="absolute inset-0 bg-black-alpha-40 flex flex-column align-items-center justify-content-center text-white opacity-0 hover:opacity-100 transition-all text-xs font-medium gap-1">
+                                        <i className="pi pi-sliders-h text-base" />
+                                        <span>Atur Posisi</span>
+                                    </div>
+                                </div>
+
+                                {/* Structured Actions filling the right side */}
+                                <div className="flex-1 w-full flex flex-column justify-content-between gap-2">
+                                    <div>
+                                        <div className="flex align-items-baseline justify-content-between">
+                                            <span className="text-xs font-semibold text-700">Pratinjau Foto Paket</span>
+                                            <span className="text-xs text-500 font-medium">Maks. 10MB (4:3)</span>
+                                        </div>
+                                        <p className="text-xs text-500 m-0 mt-1 line-height-2">
+                                            Sesuaikan posisi & perbesaran agar gambar pas di kartu booking.
+                                        </p>
+                                    </div>
+
+                                    <div className="flex flex-column gap-2 mt-1">
+                                        {/* Primary Action */}
+                                        <Button
+                                            type="button"
+                                            label="Atur / Sesuaikan Posisi Foto"
+                                            icon="pi pi-sliders-h"
+                                            size="small"
+                                            severity="info"
+                                            className="w-full text-xs font-semibold border-round-md py-2 justify-content-center shadow-1"
+                                            onClick={handleOpenCropper}
+                                        />
+
+                                        {/* Secondary Actions in 2 Equal Columns */}
+                                        <div className="grid grid-nogutter gap-2">
+                                            <div className="col">
+                                                <Button
+                                                    type="button"
+                                                    label="Ganti File"
+                                                    icon="pi pi-upload"
+                                                    size="small"
+                                                    outlined
+                                                    severity="secondary"
+                                                    className="w-full text-xs font-medium border-round-md py-1-5 justify-content-center"
+                                                    onClick={() => fileInputRef.current?.click()}
+                                                />
+                                            </div>
+                                            <div className="col">
+                                                <Button
+                                                    type="button"
+                                                    label="Hapus Foto"
+                                                    icon="pi pi-trash"
+                                                    size="small"
+                                                    outlined
+                                                    severity="danger"
+                                                    className="w-full text-xs font-medium border-round-md py-1-5 justify-content-center"
+                                                    onClick={handleRemoveFoto}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
                     <div>
                         <label className="block text-sm font-semibold mb-1">Nama Paket *</label>
                         <InputText
@@ -878,6 +1155,21 @@ const Page = () => {
                     <Button label="Simpan" icon="pi pi-check" loading={saving} onClick={handleSave} className="bg-primary border-none" />
                 </div>
             </Dialog>
+
+            {/* DIALOG ATUR & CROP FOTO PAKET LAYANAN */}
+            <ImageCropDialog
+                visible={cropDialogVisible}
+                onHide={() => setCropDialogVisible(false)}
+                imageSrc={cropImageSrc}
+                aspectRatio={1.4}
+                targetWidth={560}
+                targetHeight={400}
+                onSave={handleCropSave}
+                previewTitle={formData.nama || 'Contoh Nama Paket Layanan'}
+                previewCategory="PAKET TREATMENT"
+                previewPrice={formData.harga_paket || 250000}
+                previewDuration={60}
+            />
         </div>
     );
 };

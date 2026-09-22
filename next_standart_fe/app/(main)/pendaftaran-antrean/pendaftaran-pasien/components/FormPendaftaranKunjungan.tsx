@@ -37,6 +37,7 @@ import {
   ChevronDown,
   Users,
   Ticket,
+  Stethoscope,
 } from 'lucide-react';
 
 interface Pasien {
@@ -152,6 +153,7 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
   // 6. Dialog Jadwal Mingguan Ruangan
   const [showJadwalRuanganDialog, setShowJadwalRuanganDialog] = useState(false);
   const [jadwalDialogRooms, setJadwalDialogRooms] = useState<RoomTabOption[]>([]);
+  const [consultRoomInfo, setConsultRoomInfo] = useState<{ kode_ruangan: string; nama_ruangan: string } | null>(null);
 
   // 7. Popover Pendamping
   const companionOpRef = useRef<OverlayPanel>(null);
@@ -190,11 +192,12 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
         const year = parseInt(parts[0], 10);
         const month = parseInt(parts[1], 10) - 1;
         const day = parseInt(parts[2], 10);
-        if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+        const birth = new Date(year, month, day);
+        if (!isNaN(birth.getTime())) {
           const now = new Date();
-          let age = now.getFullYear() - year;
-          const m = now.getMonth() - month;
-          if (m < 0 || (m === 0 && now.getDate() < day)) {
+          let age = now.getFullYear() - birth.getFullYear();
+          const m = now.getMonth() - birth.getMonth();
+          if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) {
             age--;
           }
           return age >= 0 ? age : null;
@@ -246,6 +249,9 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
       if (['00', '0000', 200].includes(res?.data?.status) || res?.status === 200) {
         const rawRuangan = res.data?.data?.ruangan_layanan || res.data?.data?.kategori_layanan || [];
         setRuangans(rawRuangan);
+        if (res.data?.data?.ruang_konsultasi) {
+          setConsultRoomInfo(res.data.data.ruang_konsultasi);
+        }
       } else {
         showError(toast, res?.data?.message || 'Gagal memuat pilihan layanan');
       }
@@ -289,6 +295,17 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
 
   // Auto-select pasien jika ada parameter no_rm pada URL
   const loadPasienByNoRm = async (noRm: string) => {
+    // JANGAN eksekusi jika URL ditujukan untuk Booking / Tab lain!
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const isBooking =
+        params.get('tab') === '1' ||
+        params.get('tab') === 'booking' ||
+        params.get('create') === 'true' ||
+        params.get('create_booking') === 'true';
+      if (isBooking) return;
+    }
+
     const cleanNoRm = (noRm || '').trim();
     if (!cleanNoRm || lastLoadedNoRmRef.current.toLowerCase() === cleanNoRm.toLowerCase()) return;
     lastLoadedNoRmRef.current = cleanNoRm;
@@ -306,6 +323,14 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
         if (matched) {
           setSelectedPasien(matched);
           showSuccess(toast, `Pasien ${matched.nama} (${matched.no_rm}) berhasil dipilih untuk pendaftaran`);
+
+          // Bersihkan URL query parameter agar tidak terus-menerus menempel saat berpindah tab atau refresh
+          if (typeof window !== 'undefined') {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('no_rm');
+            url.searchParams.delete('norm');
+            window.history.replaceState({}, '', url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : ''));
+          }
         }
       }
     } catch (err) {
@@ -316,9 +341,36 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
   };
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const isBooking =
+        params.get('tab') === '1' ||
+        params.get('tab') === 'booking' ||
+        params.get('create') === 'true' ||
+        params.get('create_booking') === 'true';
+      if (isBooking) return;
+    }
+
     if (noRmParam && (!selectedPasien || selectedPasien.no_rm.toLowerCase() !== noRmParam.toLowerCase())) {
       loadPasienByNoRm(noRmParam);
     }
+
+    // Cleanup saat unmount jika pengguna meninggalkan halaman pendaftaran tanpa menyelesaikan
+    return () => {
+      if (typeof window !== 'undefined' && window.location.search) {
+        const url = new URL(window.location.href);
+        const isBooking =
+          url.searchParams.get('tab') === '1' ||
+          url.searchParams.get('tab') === 'booking' ||
+          url.searchParams.get('create') === 'true' ||
+          url.searchParams.get('create_booking') === 'true';
+        if (!isBooking && (url.searchParams.has('no_rm') || url.searchParams.has('norm'))) {
+          url.searchParams.delete('no_rm');
+          url.searchParams.delete('norm');
+          window.history.replaceState({}, '', url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : ''));
+        }
+      }
+    };
   }, [noRmParam]);
 
   // Fetch Paket yang Dimiliki Pasien
@@ -374,6 +426,20 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
         setActiveRuangan(null);
       }
     } else {
+      // Cek apakah item layanan reguler sudah dipilih via klaim paket
+      if (item.jenis === 'layanan') {
+        const isClaimed = Object.values(selectedMap).some(
+          (it) => it.jenis === 'klaim_paket' && it.kode_layanan === item.kode_layanan
+        );
+        if (isClaimed) {
+          showError(
+            toast,
+            `Layanan "${item.nama}" sudah Anda pilih melalui klaim paket aktif (Rp 0). Batalkan klaim paket terlebih dahulu jika ingin memilih layanan reguler.`
+          );
+          return;
+        }
+      }
+
       if (item.jenis === 'klaim_paket' && item.tanggal_expired) {
         const curDateStr = formatDateToYMD(tanggalKunjungan);
         if (curDateStr > item.tanggal_expired) {
@@ -391,7 +457,17 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
         return;
       }
 
-      setSelectedMap((prev) => ({ ...prev, [key]: item }));
+      // Jika memilih klaim paket, otomatis batalkan layanan reguler berbayar dengan kode sama jika ada
+      let newMap = { ...selectedMap };
+      if (item.jenis === 'klaim_paket') {
+        const regularKey = `layanan_${item.kode_layanan}`;
+        if (newMap[regularKey]) {
+          delete newMap[regularKey];
+        }
+      }
+
+      newMap[key] = item;
+      setSelectedMap(newMap);
       setActiveRuangan(item.kode_ruangan || null);
     }
   };
@@ -427,18 +503,67 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
     return false;
   }, [hasWajibKonsul, hasOpsionalKonsul, globalConsultChoice]);
 
+  // Status Dokter Jaga di Ruang Konsultasi untuk Registrasi Walk-In Hari Ini
+  const consultDoctorStatus = useMemo(() => {
+    if (!hasOpsionalKonsul && !hasWajibKonsul) return null;
+    if (!dokterKonsulList || dokterKonsulList.length === 0) {
+      return { hasDoctorToday: false, isDoctorAvailableNow: false, latestEndStr: '' };
+    }
+    const now = new Date();
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+
+    let latestEndMin = 0;
+    let hasAvailableNow = false;
+
+    for (const doc of dokterKonsulList) {
+      const [h, m] = (doc.jam_selesai || '').slice(0, 5).split(':').map(Number);
+      const endM = (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m);
+      if (endM > latestEndMin) latestEndMin = endM;
+      if (endM > nowMin) hasAvailableNow = true;
+    }
+
+    const latestEndStr = `${String(Math.floor(latestEndMin / 60)).padStart(2, '0')}:${String(latestEndMin % 60).padStart(2, '0')}`;
+
+    return {
+      hasDoctorToday: true,
+      isDoctorAvailableNow: hasAvailableNow,
+      latestEndStr,
+    };
+  }, [hasOpsionalKonsul, hasWajibKonsul, dokterKonsulList]);
+
+  // Status apakah konsultasi dokter tidak tersedia saat alur konsultasi aktif
+  const isConsultDoctorUnavailable = Boolean(
+    activeRuangan &&
+    effectiveButuhKonsul &&
+    !loadingSlots &&
+    consultDoctorStatus &&
+    !consultDoctorStatus.isDoctorAvailableNow
+  );
+
+  // Reset selectedSlot jika dokter konsultasi tidak tersedia
+  useEffect(() => {
+    if (isConsultDoctorUnavailable && selectedSlot) {
+      setSelectedSlot(null);
+    }
+  }, [isConsultDoctorUnavailable, selectedSlot]);
+
   // Dialog Jadwal Mingguan Ruangan
   const handleOpenJadwalDialog = () => {
-    if (effectiveButuhKonsul) {
-      const consultRoom = ruangans.find((r) => r.is_konsultasi || (r.nama_ruangan || '').toLowerCase().includes('konsultasi'));
+    const consultRoomCode = consultRoomInfo?.kode_ruangan || 'RNG-007';
+    const consultRoomName = consultRoomInfo?.nama_ruangan || 'Ruang Konsultasi Dokter';
+
+    // Jika layanan terpilih memiliki alur konsultasi (opsional / wajib), sediakan kedua tab ruangan:
+    // Tab 1: Ruang Konsultasi Dokter (agar pengguna bisa melihat seluruh jadwal dokter seminggu di Ruang Konsultasi)
+    // Tab 2: Ruangan Treatment (misal: Ruang A)
+    if (hasOpsionalKonsul || hasWajibKonsul) {
       const roomList: RoomTabOption[] = [
         {
-          kodeRuangan: consultRoom?.kode_ruangan || 'RNG-001',
-          namaRuangan: consultRoom?.nama_ruangan || 'Ruang Konsultasi Dokter',
+          kodeRuangan: consultRoomCode,
+          namaRuangan: consultRoomName,
           iconType: 'doctor',
         },
       ];
-      if (activeRuangan) {
+      if (activeRuangan && activeRuangan !== consultRoomCode) {
         roomList.push({
           kodeRuangan: activeRuangan,
           namaRuangan: activeRoomName || 'Ruangan Treatment',
@@ -578,6 +703,9 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
         const grouped = groupSlotsBySession(rawSlots);
         setSlots(grouped);
         setDokterKonsulList(d?.dokter_konsul || []);
+        if (d?.ruang_konsultasi) {
+          setConsultRoomInfo(d.ruang_konsultasi);
+        }
         // Jika hanya ada 1 slot, otomatis pilih
         if (grouped.length === 1 && grouped[0].is_available) {
           setSelectedSlot(grouped[0]);
@@ -606,6 +734,17 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
     }
     if (!selectedSlot) {
       showError(toast, 'Harap pilih slot jadwal sesi petugas di Langkah 3');
+      return;
+    }
+
+    if (effectiveButuhKonsul && consultDoctorStatus && !consultDoctorStatus.isDoctorAvailableNow && !loadingSlots) {
+      const roomKonsulName = consultRoomInfo?.nama_ruangan || 'Ruang Konsultasi';
+      showError(
+        toast,
+        consultDoctorStatus.hasDoctorToday
+          ? `Tidak ada jadwal dokter aktif di ${roomKonsulName} saat ini (jam dinas dokter telah selesai pukul ${consultDoctorStatus.latestEndStr} WIB).`
+          : `Tidak ada jadwal dokter jaga di ${roomKonsulName} untuk hari ini.`
+      );
       return;
     }
 
@@ -795,6 +934,12 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
                 setActiveRuangan(null);
                 setSelectedSlot(null);
                 lastLoadedNoRmRef.current = '';
+                if (typeof window !== 'undefined' && window.location.search) {
+                  const url = new URL(window.location.href);
+                  url.searchParams.delete('no_rm');
+                  url.searchParams.delete('norm');
+                  window.history.replaceState({}, '', url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : ''));
+                }
               }}
             />
           </div>
@@ -1079,12 +1224,16 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
                       <div className="grid">
                         {ruang.items.map((item) => {
                           const itemKey = `${item.jenis}_${item.kode_layanan}`;
+                          const isClaimedElsewhere = item.jenis === 'layanan' && Object.values(selectedMap).some(
+                            (it) => it.jenis === 'klaim_paket' && it.kode_layanan === item.kode_layanan
+                          );
                           return (
                             <LayananCard
                               key={itemKey}
                               item={item}
                               isSelected={!!selectedMap[itemKey]}
-                              isDisabled={isRuangDisabled}
+                              isDisabled={isRuangDisabled || isClaimedElsewhere}
+                              isClaimedElsewhere={isClaimedElsewhere}
                               onToggle={handleToggleItem}
                               formatPrice={formatCurrency}
                             />
@@ -1119,7 +1268,10 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
                   className="p-3 border-round-xl border-2 cursor-pointer transition-all transition-duration-200 flex align-items-center gap-3 h-full"
                   style={{
                     borderColor: globalConsultChoice ? '#6366f1' : '#e2e8f0',
-                    background: globalConsultChoice ? 'linear-gradient(135deg, #eef2ff, #e0e7ff)' : 'var(--surface-card)',
+                    background: globalConsultChoice
+                      ? 'linear-gradient(135deg, #eef2ff, #e0e7ff)'
+                      : 'var(--surface-card)',
+                    userSelect: 'none',
                   }}
                   onClick={() => setGlobalConsultChoice(true)}
                 >
@@ -1128,20 +1280,29 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
                     style={{
                       width: '36px',
                       height: '36px',
-                      background: globalConsultChoice ? 'linear-gradient(135deg, #6366f1, #4f46e5)' : '#cbd5e1',
+                      background: globalConsultChoice
+                        ? 'linear-gradient(135deg, #6366f1, #4f46e5)'
+                        : '#cbd5e1',
                     }}
                   >
                     <i className="pi pi-user-edit text-base" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-bold text-xs" style={{ color: globalConsultChoice ? '#4338ca' : '#475569' }}>
+                    <div
+                      className="font-bold text-xs"
+                      style={{
+                        color: globalConsultChoice ? '#4338ca' : '#475569',
+                      }}
+                    >
                       Konsultasi Dokter Dulu
                     </div>
                     <div className="text-[11px] text-500 mt-0.5">
                       Pasien antre di Ruang Konsultasi Dokter saat check-in sebelum menuju ruang treatment.
                     </div>
                   </div>
-                  {globalConsultChoice && <i className="pi pi-check-circle text-indigo-600 text-lg flex-shrink-0" />}
+                  {globalConsultChoice && (
+                    <i className="pi pi-check-circle text-indigo-600 text-lg flex-shrink-0" />
+                  )}
                 </div>
               </div>
 
@@ -1200,14 +1361,18 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
             <div className="flex align-items-center gap-2">
               <Button
                 type="button"
-                label={effectiveButuhKonsul ? 'Jadwal Dokter Konsultasi' : `Jadwal ${activeRoomName || 'Ruangan'}`}
+                label={
+                  hasOpsionalKonsul || hasWajibKonsul
+                    ? 'Lihat Jadwal Ruangan & Dokter'
+                    : `Jadwal ${activeRoomName || 'Ruangan'}`
+                }
                 icon="pi pi-calendar"
                 className="p-button-outlined p-button-secondary p-button-sm text-xs py-1 px-2.5 font-semibold"
                 onClick={handleOpenJadwalDialog}
                 tooltip={
-                  effectiveButuhKonsul
-                    ? `Lihat jadwal dokter Ruang Konsultasi & ${activeRoomName}`
-                    : `Lihat seluruh jadwal mingguan ${activeRoomName}`
+                  hasOpsionalKonsul || hasWajibKonsul
+                    ? `Lihat jadwal dokter Ruang Konsultasi & ${activeRoomName || 'Ruang Tindakan'}`
+                    : `Lihat seluruh jadwal mingguan ${activeRoomName || 'Ruang Tindakan'}`
                 }
                 tooltipOptions={{ position: 'bottom' }}
               />
@@ -1221,14 +1386,39 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
           )}
         </div>
 
-        {/* Info Alur Konsultasi Dokter jika aktif */}
-        {activeRuangan && effectiveButuhKonsul && (
-          <div className="flex align-items-center gap-3 p-3 mb-4 bg-indigo-50 border-round-xl border-1 border-indigo-200 text-xs text-indigo-950">
-            <div className="flex align-items-center justify-content-center bg-indigo-100 text-indigo-700 border-round-lg p-2 flex-shrink-0">
-              <Info size={18} />
+        {/* Informasi & Peringatan Dokter Konsultasi Tidak Tersedia */}
+        {activeRuangan && effectiveButuhKonsul && !loadingSlots && consultDoctorStatus && !consultDoctorStatus.isDoctorAvailableNow && (
+          <div className="flex align-items-start gap-3 p-3 mb-3 bg-amber-50 border-round-xl border-1 border-amber-300">
+            <div className="flex align-items-center justify-content-center bg-amber-100 text-amber-800 border-round-lg p-2 flex-shrink-0 mt-0.5">
+              <i className="pi pi-exclamation-triangle text-base" />
             </div>
-            <div className="flex-1" style={{ lineHeight: 1.55 }}>
-              Konsultasi Dokter Dulu dipilih. Slot di bawah adalah jadwal terapis — jadwal dokter dicek otomatis saat check-in di klinik. Lihat jadwal dokter di hari lain lewat tombol di kanan atas.
+            <div className="flex-1 text-xs text-amber-950 leading-normal">
+              <div className="font-bold mb-0.5 text-amber-900">
+                Tidak Ada Jadwal Dokter Aktif di {consultRoomInfo?.nama_ruangan || 'Ruang Konsultasi'}:
+              </div>
+              {consultDoctorStatus.hasDoctorToday ? (
+                <>
+                  Jam dinas dokter di {consultRoomInfo?.nama_ruangan || 'Ruang Konsultasi'} telah selesai untuk hari ini (pukul <strong>{consultDoctorStatus.latestEndStr} WIB</strong>).
+                  {hasWajibKonsul ? (
+                    <div className="mt-1 font-semibold text-red-700">
+                      Karena tindakan ini adalah Medical Treatment (Wajib Konsul), pendaftaran walk-in tidak dapat diproses jika tidak ada dokter aktif di {consultRoomInfo?.nama_ruangan || 'Ruang Konsultasi'}. Harap jadwalkan via menu Booking.
+                    </div>
+                  ) : (
+                    <span className="ml-1">Silakan alihkan ke alur <strong>&quot;Langsung Tindakan&quot;</strong> atau buat reservasi Booking.</span>
+                  )}
+                </>
+              ) : (
+                <>
+                  Tidak ada jadwal dokter jaga di {consultRoomInfo?.nama_ruangan || 'Ruang Konsultasi'} hari ini.
+                  {hasWajibKonsul ? (
+                    <div className="mt-1 font-semibold text-red-700">
+                      Karena tindakan ini adalah Medical Treatment (Wajib Konsul), pendaftaran walk-in tidak dapat diproses jika tidak ada dokter jaga di {consultRoomInfo?.nama_ruangan || 'Ruang Konsultasi'}. Harap jadwalkan via menu Booking.
+                    </div>
+                  ) : (
+                    <span className="ml-1">Silakan alihkan ke alur <strong>&quot;Langsung Tindakan&quot;</strong> atau buat reservasi Booking.</span>
+                  )}
+                </>
+              )}
             </div>
           </div>
         )}
@@ -1243,12 +1433,12 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
             <i className="pi pi-spin pi-spinner text-primary text-3xl mb-2"></i>
             <div className="text-sm text-500">Mengecek ketersediaan jadwal petugas dan kuota ruangan...</div>
           </div>
-        ) : slots.length === 0 ? (
+        ) : isConsultDoctorUnavailable || slots.length === 0 ? (
           <div className="text-center py-4 text-500 border-1 border-dashed surface-border border-round">
             <AlertCircle size={32} className="mx-auto mb-2 text-amber-500" />
             <div className="font-semibold text-900 mb-1">Tidak Ada Jadwal Petugas Tersedia</div>
             <div className="text-sm text-600">
-              Tidak ditemukan jadwal aktif untuk ruangan <strong>{activeRoomName}</strong> pada hari{' '}
+              Tidak ditemukan jadwal aktif untuk ruangan <strong>{isConsultDoctorUnavailable ? (consultRoomInfo?.nama_ruangan || 'Ruang Konsultasi') : activeRoomName}</strong> pada hari{' '}
               <span className="font-bold">
                 {['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'][tanggalKunjungan.getDay()]}
               </span>
@@ -1257,8 +1447,8 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
           </div>
         ) : (
           <div>
-            <div className="text-xs text-500 mb-3 pt-1 flex align-items-center gap-1.5">
-              <Clock size={13} className="text-400" />
+            <div className="text-xs text-600 mb-3 pt-0.5 flex align-items-center" style={{ gap: '6px' }}>
+              <Clock size={14} className="text-500 flex-shrink-0" />
               <span>Pilih salah satu sesi jadwal petugas di bawah ini. Setiap sesi diwakili oleh Petugas Penanggung Jawab (PJ).</span>
             </div>
 
@@ -1290,26 +1480,35 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
                       <div>
                         {/* Jam Sesi & Status Badge */}
                         <div className="flex align-items-center justify-content-between mb-2">
-                          <div className="flex align-items-center">
-                            <Clock size={16} className={`${isSelected ? 'text-primary' : 'text-500'} mr-2 flex-shrink-0`} />
+                          <div className="flex align-items-center" style={{ gap: '6px' }}>
+                            <Clock size={15} className={`${isSelected ? 'text-primary' : 'text-500'} flex-shrink-0`} />
                             <span className="font-bold text-sm text-900">
                               {slot.jam_mulai} - {slot.jam_selesai} WIB
                             </span>
                           </div>
-                          <Tag
-                            value={isFull ? 'PENUH' : 'TERSEDIA'}
-                            severity={isFull ? 'danger' : 'success'}
-                            className="text-xs px-2 font-bold"
-                          />
+                          {isSelected ? (
+                            <CheckCircle2 size={18} className="text-primary flex-shrink-0" />
+                          ) : (
+                            <Tag
+                              value={isFull ? 'PENUH' : 'TERSEDIA'}
+                              severity={isFull ? 'danger' : 'success'}
+                              className="text-xs px-2 py-0.5 font-bold flex-shrink-0"
+                            />
+                          )}
                         </div>
 
                         {/* Petugas PJ */}
-                        <div className="flex align-items-center gap-2 mb-1 flex-wrap">
-                          <User size={15} className="text-primary flex-shrink-0" />
-                          <span className="font-bold text-sm text-900">{slot.nama_petugas}</span>
+                        <div className="flex align-items-center justify-content-between gap-2 mb-2">
+                          <div className="flex align-items-center min-w-0 flex-1" style={{ gap: '6px' }}>
+                            <User size={14} className="text-primary flex-shrink-0" />
+                            <span className="font-bold text-sm text-900 text-overflow-ellipsis overflow-hidden white-space-nowrap">
+                              {slot.nama_petugas}
+                            </span>
+                          </div>
                           <Tag
                             value="PJ"
-                            className="text-[10px] font-bold px-1.5 py-0 border-round bg-orange-500 text-white"
+                            severity="warning"
+                            className="text-[10px] font-bold px-1.5 py-0.5 flex-shrink-0"
                           />
                         </div>
 
@@ -1345,9 +1544,9 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
                         )}
 
                         {/* Ruangan */}
-                        <div className="flex align-items-center gap-2 pl-4 text-xs text-500 mb-2">
-                          <MapPin size={13} className="text-400" />
-                          <span>{slot.nama_ruangan || activeRoomName}</span>
+                        <div className="flex align-items-center text-xs text-500 mb-2" style={{ gap: '6px' }}>
+                          <MapPin size={13} className="text-400 flex-shrink-0" />
+                          <span className="text-overflow-ellipsis overflow-hidden white-space-nowrap">{slot.nama_ruangan || activeRoomName}</span>
                         </div>
                       </div>
 
@@ -1375,22 +1574,32 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
       <div className="card surface-card border-1 surface-border border-round-xl p-4 shadow-1 mb-4">
         <div className="flex flex-column md:flex-row md:align-items-center justify-content-between gap-3">
           <div>
-            <div className="font-bold text-base text-900 mb-1">Ringkasan Pendaftaran Kunjungan</div>
-            <div className="text-xs text-500 flex flex-wrap gap-x-3 gap-y-1">
-              <span>
-                Pasien: <strong className="text-900">{selectedPasien?.nama || '(Belum dipilih)'}</strong>
+            <div className="font-bold text-base text-900 mb-1.5">Ringkasan Pendaftaran Kunjungan</div>
+            <div className="text-xs text-600 flex flex-wrap align-items-center" style={{ gap: '6px 12px' }}>
+              <span className="inline-flex align-items-center gap-1">
+                <span className="text-500">Pasien:</span>
+                <strong className="text-900">{selectedPasien?.nama || '(Belum dipilih)'}</strong>
               </span>
-              <span>
-                Ruangan: <strong className="text-900">{activeRoomName || '-'}</strong>
+              <span className="text-300 select-none">•</span>
+              <span className="inline-flex align-items-center gap-1">
+                <span className="text-500">Ruangan:</span>
+                <strong className="text-900">{activeRoomName || '-'}</strong>
               </span>
-              <span>
-                Layanan: <strong className="text-900">{selectedList.length} item</strong> ({totalDurasi} Menit)
+              <span className="text-300 select-none">•</span>
+              <span className="inline-flex align-items-center gap-1">
+                <span className="text-500">Layanan:</span>
+                <strong className="text-900">{selectedList.length} item</strong>
+                <span className="text-500">({totalDurasi} Menit)</span>
               </span>
-              <span>
-                Petugas: <strong className="text-900">{selectedSlot?.nama_petugas || '-'}</strong>
+              <span className="text-300 select-none">•</span>
+              <span className="inline-flex align-items-center gap-1">
+                <span className="text-500">Petugas:</span>
+                <strong className="text-900">{selectedSlot?.nama_petugas || '-'}</strong>
               </span>
-              <span>
-                Total: <strong className="text-emerald-700">{formatCurrency(totalHarga)}</strong>
+              <span className="text-300 select-none">•</span>
+              <span className="inline-flex align-items-center gap-1">
+                <span className="text-500">Total:</span>
+                <strong className="text-emerald-700 font-bold">{formatCurrency(totalHarga)}</strong>
               </span>
             </div>
           </div>
@@ -1400,9 +1609,17 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
             icon="pi pi-ticket"
             severity="success"
             className="border-round-lg font-bold px-4 py-2.5 shadow-2"
-            disabled={!selectedPasien || selectedList.length === 0 || !selectedSlot || submitting}
+            disabled={!selectedPasien || selectedList.length === 0 || !selectedSlot || submitting || isConsultDoctorUnavailable}
             loading={submitting}
             onClick={() => handleSubmitPendaftaran(false)}
+            tooltip={
+              isConsultDoctorUnavailable
+                ? consultDoctorStatus?.hasDoctorToday
+                  ? `Tidak dapat mendaftar: Jam dinas dokter di ${consultRoomInfo?.nama_ruangan || 'Ruang Konsultasi'} telah selesai (pukul ${consultDoctorStatus?.latestEndStr} WIB). Alihkan ke Langsung Tindakan atau Booking.`
+                  : `Tidak dapat mendaftar: Tidak ada jadwal dokter jaga di ${consultRoomInfo?.nama_ruangan || 'Ruang Konsultasi'} hari ini. Alihkan ke Langsung Tindakan atau Booking.`
+                : undefined
+            }
+            tooltipOptions={{ position: 'top' }}
           />
         </div>
       </div>

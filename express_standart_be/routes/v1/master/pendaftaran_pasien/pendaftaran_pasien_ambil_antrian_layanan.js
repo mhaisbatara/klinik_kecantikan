@@ -573,34 +573,84 @@ router.post("/", async (req, res) => {
             }
           }
 
-          // Validasi ketersediaan dokter jaga di Ruang Konsultasi hari ini
-          if (!checkedRoomsToday.has(ruangKonsul.kode_ruangan)) {
-            const activeSchedulesInKonsul = await trx("mst_jadwal_karyawan")
-              .where("kode_ruangan", ruangKonsul.kode_ruangan)
-              .where("hari", todayDay)
-              .where("status", "aktif")
-              .modify((qb) => {
-                if (branchCode) qb.where("kode_cabang", branchCode);
-              })
-              .select("id", "no_sip", "is_penanggung_jawab");
-            checkedRoomsToday.set(ruangKonsul.kode_ruangan, activeSchedulesInKonsul);
-          }
+          // Validasi ketersediaan dokter jaga di Ruang Konsultasi hari ini & saat ini
+          const nowMinutes = now.getHours() * 60 + now.getMinutes();
 
-          const activeSchedulesInKonsul = checkedRoomsToday.get(ruangKonsul.kode_ruangan);
-          if (!activeSchedulesInKonsul || activeSchedulesInKonsul.length === 0) {
-            const err = new Error(
-              `Pendaftaran tidak dapat dilanjutkan karena Ruang Konsultasi (${ruangKonsul.nama_ruangan}) tidak memiliki dokter jaga aktif hari ini (${todayDay.toUpperCase()})`
+          const activeDoctorsInKonsul = await trx("mst_jadwal_karyawan as j")
+            .leftJoin("mst_karyawan as k", "j.no_sip", "k.no_sip")
+            .where("j.kode_ruangan", ruangKonsul.kode_ruangan)
+            .where("j.hari", todayDay)
+            .where("j.status", "aktif")
+            .modify((qb) => {
+              if (branchCode) qb.where("j.kode_cabang", branchCode);
+            })
+            .select(
+              "j.id",
+              "j.jam_mulai",
+              "j.jam_selesai",
+              "k.nama as nama_dokter",
+              "k.jabatan"
             );
-            err.statusCode = 422;
-            throw err;
-          }
 
-          // Pasien hanya memiliki SATU antrean awal yaitu di Ruang Konsultasi untuk seluruh layanannya
-          for (const pi of processedItems) {
-            pi.kode_ruangan = ruangKonsul.kode_ruangan;
-            pi.nama_ruangan = ruangKonsul.nama_ruangan || "Ruang Konsultasi";
-            pi.durasi_menit = durasiSesiKonsulMenit;
-            pi.needs_consult = true;
+          const hasStrictWajib = processedItems.some(
+            (pi) => pi.wajib_konsultasi === "wajib" || pi.wajib_konsultasi === "WAJIB" || pi.tipe_layanan === "MEDICAL TREATMENT"
+          );
+
+          // Cek apakah ada jadwal dokter aktif hari ini
+          if (!activeDoctorsInKonsul || activeDoctorsInKonsul.length === 0) {
+            if (hasStrictWajib) {
+              const err = new Error(
+                `Tidak ada dokter jaga di Ruang Konsultasi (${ruangKonsul.nama_ruangan}) hari ini. Silakan jadwalkan reservasi Booking untuk tindakan medis ini.`
+              );
+              err.statusCode = 422;
+              throw err;
+            } else {
+              // Layanan opsional: Alihkan otomatis ke Langsung Tindakan (ruangan target)
+              for (const pi of processedItems) {
+                pi.kode_ruangan = pi.kode_ruangan_tujuan;
+                pi.nama_ruangan = pi.nama_ruangan_tujuan;
+                pi.needs_consult = false;
+              }
+            }
+          } else {
+            // Cek apakah jam dinas dokter di Ruang Konsultasi sudah berakhir saat ini (Walk-in)
+            const validActiveDoctorsNow = activeDoctorsInKonsul.filter((d) => {
+              const [endH, endM] = (d.jam_selesai || "00:00:00").slice(0, 5).split(":").map(Number);
+              const endMin = (isNaN(endH) ? 0 : endH) * 60 + (isNaN(endM) ? 0 : endM);
+              return endMin > nowMinutes;
+            });
+
+            if (validActiveDoctorsNow.length === 0) {
+              if (hasStrictWajib) {
+                const maxEnd = Math.max(
+                  ...activeDoctorsInKonsul.map((d) => {
+                    const [h, m] = (d.jam_selesai || "00:00:00").slice(0, 5).split(":").map(Number);
+                    return (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m);
+                  })
+                );
+                const maxEndStr = `${String(Math.floor(maxEnd / 60)).padStart(2, "0")}:${String(maxEnd % 60).padStart(2, "0")}`;
+                const err = new Error(
+                  `Dokter jaga di Ruang Konsultasi (${ruangKonsul.nama_ruangan}) telah selesai bertugas hari ini (pukul ${maxEndStr} WIB). Silakan jadwalkan reservasi Booking untuk tindakan medis ini.`
+                );
+                err.statusCode = 422;
+                throw err;
+              } else {
+                // Layanan opsional: Alihkan otomatis ke Langsung Tindakan (ruangan target)
+                for (const pi of processedItems) {
+                  pi.kode_ruangan = pi.kode_ruangan_tujuan;
+                  pi.nama_ruangan = pi.nama_ruangan_tujuan;
+                  pi.needs_consult = false;
+                }
+              }
+            } else {
+              // Pasien hanya memiliki SATU antrean awal yaitu di Ruang Konsultasi untuk seluruh layanannya
+              for (const pi of processedItems) {
+                pi.kode_ruangan = ruangKonsul.kode_ruangan;
+                pi.nama_ruangan = ruangKonsul.nama_ruangan || "Ruang Konsultasi";
+                pi.durasi_menit = durasiSesiKonsulMenit;
+                pi.needs_consult = true;
+              }
+            }
           }
         }
 

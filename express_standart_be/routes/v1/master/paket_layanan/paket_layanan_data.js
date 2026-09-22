@@ -46,6 +46,13 @@ router.post("/", async (req, res) => {
       });
     }
 
+    const hasFoto = await DB.schema.hasColumn("mst_paket_layanan", "foto");
+    if (!hasFoto) {
+      await DB.schema.table("mst_paket_layanan", (table) => {
+        table.string("foto", 255).nullable();
+      });
+    }
+
     const todayStr = formatDateSystem(new Date(), "yyyy-MM-dd");
 
     // Auto-sync status: jika layanan di dalamnya ada yang nonaktif atau paket sudah expired, otomatis nonaktifkan paket
@@ -61,7 +68,6 @@ router.post("/", async (req, res) => {
       const hasInactive = parseInt(inactiveCount?.cnt || 0) > 0;
       const isExpired = !Boolean(pkt.is_selamanya) && pkt.tanggal_selesai && pkt.tanggal_selesai < todayStr;
 
-      // Hanya auto-nonaktifkan jika paket berstatus aktif tapi layanannya nonaktif atau tanggalnya sudah lewat
       if ((hasInactive || isExpired) && pkt.status === "aktif") {
         await DB("mst_paket_layanan")
           .where("kode_paket_layanan", pkt.kode_paket_layanan)
@@ -99,6 +105,7 @@ router.post("/", async (req, res) => {
       "p.kode_ruangan",
       "r.nama_ruangan as nama_ruangan",
       "p.status",
+      "p.foto",
       "p.created_by",
       "p.created_at",
       "p.updated_at",
@@ -117,8 +124,14 @@ router.post("/", async (req, res) => {
       totalRecords = vaData.length;
     }
 
-    // Load detail items for each paket & attach status info
+    const assetsBase = process.env.ASSETS_PATH || "/api/assets";
+
+    // Load detail items for each paket & attach status info & foto URL
     for (const item of vaData) {
+      item.foto = item.foto
+        ? (item.foto.startsWith("http") ? item.foto : `${assetsBase}/uploads/paket_layanan/${item.foto}`)
+        : null;
+
       const details = await DB("mst_detail_paket_layanan as d")
         .leftJoin("mst_layanan as l", "d.kode_layanan", "l.kode_layanan")
         .where("d.kode_paket_layanan", item.kode_paket_layanan)

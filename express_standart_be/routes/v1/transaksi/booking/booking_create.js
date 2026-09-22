@@ -352,12 +352,20 @@ router.post("/", async (req, res) => {
         });
       }
 
-      dokterKonsulList = await qDoc.select(
+      const allKonsul = await qDoc.select(
         "j.kode_jadwal",
         "j.jam_mulai",
         "j.jam_selesai",
-        "k.nama as nama_dokter"
+        "k.nama as nama_dokter",
+        "k.jabatan as jabatan_petugas"
       );
+
+      const onlyDoctors = allKonsul.filter(
+        (s) =>
+          (s.jabatan_petugas || "").toLowerCase() === "dokter" ||
+          (s.nama_dokter || "").toLowerCase().startsWith("dr.")
+      );
+      dokterKonsulList = onlyDoctors.length > 0 ? onlyDoctors : allKonsul;
 
       if (dokterKonsulList.length === 0) {
         const HARI_LABEL = {

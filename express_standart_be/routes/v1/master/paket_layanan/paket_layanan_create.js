@@ -4,12 +4,42 @@ import Joi from "joi";
 import DB from "../../../../core/config/knex.js";
 import { Logging, ChangesLog, validatePayload } from "../../components/tools/servertool.js";
 import { formatDateSystem } from "../../components/tools/date_tools.js";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 
 const router = express.Router();
 
-router.post("/", async (req, res) => {
-  const oPayload = req.body;
-  const username = req?.auth?.username || "";
+const upload = multer({
+  dest: "temp/",
+  limits: { fileSize: 2 * 1024 * 1024 }, // Maksimal 2MB
+});
+
+router.post("/", upload.any(), async (req, res) => {
+  const { body, files, auth } = req;
+  const oPayload = { ...body };
+  const username = auth?.username || req?.auth?.username || "";
+
+  // Type casting & parsing untuk form-data
+  if (oPayload.harga_paket !== undefined && oPayload.harga_paket !== null && oPayload.harga_paket !== "") {
+    oPayload.harga_paket = Number(oPayload.harga_paket);
+  }
+  if (oPayload.masa_berlaku_hari !== undefined && oPayload.masa_berlaku_hari !== null && oPayload.masa_berlaku_hari !== "") {
+    oPayload.masa_berlaku_hari = Number(oPayload.masa_berlaku_hari);
+  }
+  if (oPayload.is_masa_berlaku_selamanya !== undefined) {
+    oPayload.is_masa_berlaku_selamanya = Boolean(oPayload.is_masa_berlaku_selamanya === true || oPayload.is_masa_berlaku_selamanya === "true" || oPayload.is_masa_berlaku_selamanya === "1" || oPayload.is_masa_berlaku_selamanya === 1);
+  }
+  if (oPayload.is_selamanya !== undefined) {
+    oPayload.is_selamanya = Boolean(oPayload.is_selamanya === true || oPayload.is_selamanya === "true" || oPayload.is_selamanya === "1" || oPayload.is_selamanya === 1);
+  }
+  if (typeof oPayload.details === "string") {
+    try {
+      oPayload.details = JSON.parse(oPayload.details);
+    } catch (e) {
+      // keep as is for validation error
+    }
+  }
 
   try {
     const cValidation = await validatePayload(
@@ -34,7 +64,31 @@ router.post("/", async (req, res) => {
       { "any.required": "{#label} wajib diisi", "array.min": "Minimal tambahkan 1 detail layanan ke dalam paket" },
       oPayload, { uniqueField: ["nama"], table: "mst_paket_layanan", allowUnknown: true }
     );
-    if (cValidation) return res.status(422).json({ status: status.BAD_REQUEST, message: cValidation, datetime: formatDateSystem() });
+    if (cValidation) {
+      files?.forEach((f) => {
+        if (fs.existsSync(f.path)) fs.unlinkSync(f.path);
+      });
+      return res.status(422).json({ status: status.BAD_REQUEST, message: cValidation, datetime: formatDateSystem() });
+    }
+
+    const oFoto = files?.find((f) => f.fieldname === "foto");
+    let cFileNameFoto = null;
+
+    if (oFoto) {
+      const allowedExt = [".png", ".jpg", ".jpeg", ".webp"];
+      const ext = path.extname(oFoto.originalname).toLowerCase();
+
+      if (!allowedExt.includes(ext)) {
+        files?.forEach((f) => {
+          if (fs.existsSync(f.path)) fs.unlinkSync(f.path);
+        });
+        return res.status(400).json({
+          status: status.BAD_REQUEST,
+          message: "Format file foto tidak didukung (Gunakan JPG, JPEG, PNG, atau WEBP)",
+          datetime: formatDateSystem(),
+        });
+      }
+    }
 
     const selectedTipe = oPayload.tipe || "BEAUTY TREATMENT";
 
@@ -56,6 +110,19 @@ router.post("/", async (req, res) => {
       if (last?.kode_paket_layanan) { n = (parseInt(last.kode_paket_layanan.replace("PKT-", "")) || 0) + 1; }
       kode = `PKT-${String(n).padStart(3, "0")}`;
 
+      if (oFoto) {
+        const ext = path.extname(oFoto.originalname).toLowerCase();
+        const uploadDir = path.join(process.cwd(), "public", "uploads", "paket_layanan");
+        if (!fs.existsSync(uploadDir)) {
+          fs.mkdirSync(uploadDir, { recursive: true });
+        }
+
+        const filename = `paket_${kode}_${Date.now()}${ext}`;
+        const cFullPathFoto = path.join(uploadDir, filename);
+        fs.renameSync(oFoto.path, cFullPathFoto);
+        cFileNameFoto = filename;
+      }
+
       const branchCode = oPayload.kode_cabang || req?.auth?.kode_cabang || "CBG-001";
       const oData = {
         kode_cabang: branchCode,
@@ -70,6 +137,7 @@ router.post("/", async (req, res) => {
         tanggal_mulai: tglMulai,
         tanggal_selesai: tglSelesai,
         status: finalStatus,
+        foto: cFileNameFoto || null,
         tz: oPayload.tz || "UTC",
         created_by: username,
         created_at: formatDateSystem(),
@@ -95,8 +163,15 @@ router.post("/", async (req, res) => {
       await ChangesLog({ description: `Tambah Paket Layanan ${kode}`, tableName: "mst_paket_layanan", referenceCode: kode, action: "CREATE", dataBefore: null, dataAfter: { ...oData, details: detailInserts }, user: username, tz: oPayload.tz || "UTC" }, trx);
     });
 
+    files?.forEach((f) => {
+      if (fs.existsSync(f.path)) fs.unlinkSync(f.path);
+    });
+
     return res.status(200).json({ status: status.SUKSES, message: "Paket layanan berhasil ditambahkan", datetime: formatDateSystem(), data: { kode_paket_layanan: kode } });
   } catch (error) {
+    files?.forEach((f) => {
+      if (fs.existsSync(f.path)) fs.unlinkSync(f.path);
+    });
     const oResult = { status: status.BAD_REQUEST, message: error.message || "Sistem sedang maintenance", datetime: formatDateSystem() };
     Logging(error, { file: "/master/paket_layanan/paket_layanan_create.js", func: "create", request: oPayload, response: oResult, user: username });
     return res.status(500).json(oResult);

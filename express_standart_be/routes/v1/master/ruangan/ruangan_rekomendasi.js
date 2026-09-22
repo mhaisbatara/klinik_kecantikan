@@ -13,6 +13,7 @@ import DB from "../../../../core/config/knex.js";
 import { formatDateSystem } from "../../components/tools/date_tools.js";
 import { Logging, ChangesLog } from "../../components/tools/servertool.js";
 import { status } from "../../components/tools/general.js";
+import { getBranchScope } from "../../components/tools/branch_scope.js";
 import { syncRekamMedisPerAntrian } from "./rekam_medis_service.js";
 import { terbitkanAntreanLanjutanRuangan } from "./antrian_lanjutan_service.js";
 import { syncCompletedItemsToKasirDraft } from "../kasir/kasir_sync_service.js";
@@ -24,14 +25,27 @@ const router = express.Router();
  */
 const handleGetRekomendasiOptions = async (req, res) => {
   const oPayload = { ...req.query, ...req.body };
-  const username = req?.auth?.username || "system";
+  const explicitCabang = oPayload.kode_cabang || req?.headers?.["x-kode-cabang"] || null;
+  const branchCode = getBranchScope(req, explicitCabang) || explicitCabang || req?.auth?.kode_cabang || "CBG-001";
 
   try {
-    // A. Fetch Layanan Biasa (status aktif)
-    const vaLayanan = await DB("mst_layanan as l")
+    // A. Fetch Layanan Biasa (status aktif, kecualikan layanan di ruang konsultasi)
+    const qLayanan = DB("mst_layanan as l")
       .leftJoin("mst_kategori_layanan as k", "l.kode_kategori_layanan", "k.kode_kategori_layanan")
       .leftJoin("mst_ruangan as r", "l.kode_ruangan", "r.kode_ruangan")
       .where("l.status", "aktif")
+      .where(function () {
+        this.whereNull("r.is_konsultasi").orWhere("r.is_konsultasi", 0);
+      })
+      .whereRaw("(r.nama_ruangan IS NULL OR LOWER(r.nama_ruangan) NOT LIKE '%konsultasi%')");
+
+    if (branchCode) {
+      qLayanan.where(function () {
+        this.where("l.kode_cabang", branchCode).orWhere("r.kode_cabang", branchCode);
+      });
+    }
+
+    const vaLayanan = await qLayanan
       .select(
         "l.kode_layanan",
         "l.kode_kategori_layanan",
@@ -42,12 +56,25 @@ const handleGetRekomendasiOptions = async (req, res) => {
         "l.kode_ruangan",
         "r.nama_ruangan as nama_ruangan"
       )
+      .orderBy("r.nama_ruangan", "asc")
       .orderBy("l.nama", "asc");
 
-    // B. Fetch Paket Layanan (status aktif)
-    const vaPaketLayanan = await DB("mst_paket_layanan as p")
+    // B. Fetch Paket Layanan (status aktif, kecualikan paket di ruang konsultasi)
+    const qPaket = DB("mst_paket_layanan as p")
       .leftJoin("mst_ruangan as r", "p.kode_ruangan", "r.kode_ruangan")
       .where("p.status", "aktif")
+      .where(function () {
+        this.whereNull("r.is_konsultasi").orWhere("r.is_konsultasi", 0);
+      })
+      .whereRaw("(r.nama_ruangan IS NULL OR LOWER(r.nama_ruangan) NOT LIKE '%konsultasi%')");
+
+    if (branchCode) {
+      qPaket.where(function () {
+        this.where("p.kode_cabang", branchCode).orWhere("r.kode_cabang", branchCode);
+      });
+    }
+
+    const vaPaketLayanan = await qPaket
       .select(
         "p.kode_paket_layanan",
         "p.nama",
@@ -56,13 +83,20 @@ const handleGetRekomendasiOptions = async (req, res) => {
         "p.kode_ruangan",
         "r.nama_ruangan as nama_ruangan"
       )
+      .orderBy("r.nama_ruangan", "asc")
       .orderBy("p.nama", "asc");
 
     // C. Fetch Produk (status aktif)
-    const vaProduk = await DB("mst_produk as pr")
+    const qProduk = DB("mst_produk as pr")
       .leftJoin("mst_kategori_produk as kp", "pr.kode_kategori_produk", "kp.kode_kategori_produk")
       .where("pr.status", "aktif")
-      .whereRaw("pr.kode_produk NOT LIKE 'CUSTOM-%' AND pr.kode_produk NOT LIKE 'CST-%'")
+      .whereRaw("pr.kode_produk NOT LIKE 'CUSTOM-%' AND pr.kode_produk NOT LIKE 'CST-%'");
+
+    if (branchCode) {
+      qProduk.where("pr.kode_cabang", branchCode);
+    }
+
+    const vaProduk = await qProduk
       .select(
         "pr.kode_produk",
         "pr.kode_kategori_produk",
@@ -75,8 +109,12 @@ const handleGetRekomendasiOptions = async (req, res) => {
       .orderBy("pr.nama", "asc");
 
     // D. Fetch Paket Produk (status aktif)
-    const vaPaketProduk = await DB("mst_paket_produk as pp")
-      .where("pp.status", "aktif")
+    const qPaketProduk = DB("mst_paket_produk as pp").where("pp.status", "aktif");
+    if (branchCode) {
+      qPaketProduk.where("pp.kode_cabang", branchCode);
+    }
+
+    const vaPaketProduk = await qPaketProduk
       .select(
         "pp.kode_paket_produk",
         "pp.nama",
@@ -85,14 +123,64 @@ const handleGetRekomendasiOptions = async (req, res) => {
       )
       .orderBy("pp.nama", "asc");
 
-    // Fetch active promos for today
+    // Tentukan hari ini (WIB / sistem)
+    const HARI_MAP = ["minggu", "senin", "selasa", "rabu", "kamis", "jumat", "sabtu"];
     const todayYmd = new Date().toISOString().slice(0, 10);
-    const activePromos = await DB("mst_promo as p")
+    const todayStr = formatDateSystem(new Date(), "yyyy-MM-dd");
+    const [year, month, day] = todayStr.split("-").map(Number);
+    const todayDay = HARI_MAP[new Date(year, month - 1, day).getDay()];
+
+    // Fetch active schedules for today
+    const qSchedules = DB("mst_jadwal_karyawan as j")
+      .leftJoin("mst_karyawan as k", "j.no_sip", "k.no_sip")
+      .leftJoin("mst_ruangan as r", "j.kode_ruangan", "r.kode_ruangan")
+      .where("j.status", "aktif")
+      .where("j.hari", todayDay);
+
+    if (branchCode) {
+      qSchedules.where(function () {
+        this.where("j.kode_cabang", branchCode).orWhere("k.kode_cabang", branchCode);
+      });
+    }
+
+    const activeSchedulesToday = await qSchedules
+      .select(
+        "j.id",
+        "j.kode_jadwal",
+        "j.kode_ruangan",
+        "r.nama_ruangan",
+        "j.no_sip",
+        "j.is_penanggung_jawab",
+        "j.jam_mulai",
+        "j.jam_selesai",
+        "k.nama as nama_petugas",
+        "k.jabatan as jabatan_petugas"
+      )
+      .orderBy("j.is_penanggung_jawab", "desc")
+      .orderBy("j.jam_mulai", "asc");
+
+    // Group schedules by kode_ruangan
+    const roomSchedulesMap = new Map();
+    activeSchedulesToday.forEach((sch) => {
+      if (!roomSchedulesMap.has(sch.kode_ruangan)) {
+        roomSchedulesMap.set(sch.kode_ruangan, []);
+      }
+      roomSchedulesMap.get(sch.kode_ruangan).push(sch);
+    });
+
+    // Fetch active promos for today
+    const qPromos = DB("mst_promo as p")
       .join("mst_detail_promo as dp", "p.kode_promo", "dp.kode_promo")
       .where("p.status", "aktif")
       .where("dp.status", "aktif")
       .whereRaw("DATE(p.tanggal_mulai) <= ?", [todayYmd])
-      .whereRaw("DATE(p.tanggal_selesai) >= ?", [todayYmd])
+      .whereRaw("DATE(p.tanggal_selesai) >= ?", [todayYmd]);
+
+    if (branchCode) {
+      qPromos.where("p.kode_cabang", branchCode);
+    }
+
+    const activePromos = await qPromos
       .select(
         "p.kode_promo",
         "p.nama as nama_promo",
@@ -161,9 +249,13 @@ const handleGetRekomendasiOptions = async (req, res) => {
       };
     };
 
-    // Format output items with promo info applied
-    const listLayanan = vaLayanan.map((item) =>
-      applyPromo({
+    // Format output items with promo info and staff duty availability applied
+    const listLayanan = vaLayanan.map((item) => {
+      const roomSchedules = roomSchedulesMap.get(item.kode_ruangan) || [];
+      const hasPetugas = roomSchedules.length > 0;
+      const pjStaff = roomSchedules.find((s) => s.is_penanggung_jawab === 1) || roomSchedules[0];
+
+      return applyPromo({
         jenis: "layanan",
         tipe: "layanan_biasa",
         kode: item.kode_layanan,
@@ -175,11 +267,22 @@ const handleGetRekomendasiOptions = async (req, res) => {
         durasi_menit: parseInt(item.durasi_menit || 30, 10),
         kode_ruangan: item.kode_ruangan || "",
         nama_ruangan: item.nama_ruangan || item.kode_ruangan || "Ruang Treatment",
-      })
-    );
+        is_petugas_available: hasPetugas,
+        alasan_tidak_tersedia: !hasPetugas
+          ? `Tidak ada petugas/terapis yang bertugas di ${item.nama_ruangan || item.kode_ruangan || "ruangan ini"} hari ini (${todayDay})`
+          : null,
+        petugas_jaga_count: roomSchedules.length,
+        petugas_pj_nama: pjStaff?.nama_petugas || null,
+        petugas_jaga_names: roomSchedules.map((s) => s.nama_petugas).filter(Boolean),
+      });
+    });
 
-    const listPaketLayanan = vaPaketLayanan.map((item) =>
-      applyPromo({
+    const listPaketLayanan = vaPaketLayanan.map((item) => {
+      const roomSchedules = roomSchedulesMap.get(item.kode_ruangan) || [];
+      const hasPetugas = roomSchedules.length > 0;
+      const pjStaff = roomSchedules.find((s) => s.is_penanggung_jawab === 1) || roomSchedules[0];
+
+      return applyPromo({
         jenis: "paket_layanan",
         tipe: "paket_layanan",
         kode: item.kode_paket_layanan,
@@ -191,8 +294,15 @@ const handleGetRekomendasiOptions = async (req, res) => {
         masa_berlaku_hari: item.masa_berlaku_hari,
         kode_ruangan: item.kode_ruangan || "",
         nama_ruangan: item.nama_ruangan || item.kode_ruangan || "Ruang Treatment",
-      })
-    );
+        is_petugas_available: hasPetugas,
+        alasan_tidak_tersedia: !hasPetugas
+          ? `Tidak ada petugas/terapis yang bertugas di ${item.nama_ruangan || item.kode_ruangan || "ruangan ini"} hari ini (${todayDay})`
+          : null,
+        petugas_jaga_count: roomSchedules.length,
+        petugas_pj_nama: pjStaff?.nama_petugas || null,
+        petugas_jaga_names: roomSchedules.map((s) => s.nama_petugas).filter(Boolean),
+      });
+    });
 
     const listProduk = vaProduk.map((item) =>
       applyPromo({
@@ -205,6 +315,7 @@ const handleGetRekomendasiOptions = async (req, res) => {
         harga: parseFloat(item.harga || 0),
         kode_kategori: item.kode_kategori_produk,
         nama_kategori: item.nama_kategori || "Produk",
+        is_petugas_available: true,
       })
     );
 
@@ -220,6 +331,7 @@ const handleGetRekomendasiOptions = async (req, res) => {
         kode_kategori: "PAKET_PRODUK",
         nama_kategori: "Paket Produk",
         masa_berlaku_hari: item.masa_berlaku_hari,
+        is_petugas_available: true,
       })
     );
 
@@ -357,6 +469,47 @@ router.post("/antrian-layanan-simpan-rekomendasi", async (req, res) => {
           produkItems.push(item);
         }
       });
+
+      // Validasi ketersediaan petugas/terapis di ruangan tujuan tindakan hari ini
+      if (isLanjut === 1 && layananItems.length > 0) {
+        const HARI_MAP = ["minggu", "senin", "selasa", "rabu", "kamis", "jumat", "sabtu"];
+        const todayDate = new Date();
+        const todayStrDate = formatDateSystem(todayDate, "yyyy-MM-dd");
+        const [yr, mo, dy] = todayStrDate.split("-").map(Number);
+        const todayDayName = HARI_MAP[new Date(yr, mo - 1, dy).getDay()];
+
+        for (const item of layananItems) {
+          let rKode = item.kode_ruangan;
+          let rNama = item.nama_ruangan;
+          if (!rKode && (item.kode || item.kode_layanan)) {
+            const kd = item.kode || item.kode_layanan;
+            const layInfo = await trx("mst_layanan").where("kode_layanan", kd).select("kode_ruangan").first();
+            if (layInfo) rKode = layInfo.kode_ruangan;
+            else {
+              const pktInfo = await trx("mst_paket_layanan").where("kode_paket_layanan", kd).select("kode_ruangan").first();
+              if (pktInfo) rKode = pktInfo.kode_ruangan;
+            }
+          }
+
+          if (rKode && rKode !== currentAntrian.kode_ruangan) {
+            const activeStaff = await trx("mst_jadwal_karyawan")
+              .where("kode_ruangan", rKode)
+              .where("hari", todayDayName)
+              .where("status", "aktif")
+              .first();
+
+            if (!activeStaff) {
+              const roomInfo = await trx("mst_ruangan").where("kode_ruangan", rKode).first();
+              const namaRuangan = roomInfo?.nama_ruangan || rNama || rKode;
+              return res.status(422).json({
+                status: status.BAD_REQUEST,
+                message: `Tidak dapat menerbitkan rujukan ke "${namaRuangan}": Tidak ada petugas/terapis yang bertugas hari ini (${todayDayName}). Silakan alihkan layanan atau simpan tanpa tindakan lanjut.`,
+                datetime: formatDateSystem(),
+              });
+            }
+          }
+        }
+      }
 
       // ─── B.1. SIMPAN REKOMENDASI PRODUK KE trx_detail_antrian_layanan (ANTREAN KONSULTASI ASAL) ───
       // Produk dicatat pada antrean konsultasi saat ini agar tersimpan permanen di riwayat kunjungan.

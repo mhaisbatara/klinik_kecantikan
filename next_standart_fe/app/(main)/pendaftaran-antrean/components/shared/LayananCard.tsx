@@ -10,6 +10,7 @@ export interface ServiceItem {
   kode_kategori: string;
   nama_kategori: string;
   nama: string;
+  foto?: string | null;
   harga: number;
   harga_asal?: number;
   is_promo?: boolean;
@@ -135,6 +136,8 @@ export interface LayananCardProps {
   isDisabled?: boolean;
   onToggle: (item: ServiceItem) => void;
   formatPrice?: (val: number) => string;
+  gridClassName?: string;
+  isClaimedElsewhere?: boolean;
 }
 
 export const LayananCard: React.FC<LayananCardProps> = ({
@@ -143,116 +146,198 @@ export const LayananCard: React.FC<LayananCardProps> = ({
   isDisabled = false,
   onToggle,
   formatPrice = formatRupiah,
+  gridClassName,
+  isClaimedElsewhere = false,
 }) => {
   const isPaket = item.jenis === 'paket';
   const isKlaim = item.jenis === 'klaim_paket';
   const { isWajib, isService, isOpsional } = getItemConsultType(item);
 
   const isFullBooked = isKlaim && item.sesi_tersedia !== undefined && item.sesi_tersedia <= 0;
-  const isNoPetugas = item.is_petugas_available === false;
-  const effectiveDisabled = isDisabled || isFullBooked || isNoPetugas;
+  const effectiveDisabled = isDisabled || isFullBooked || isClaimedElsewhere;
 
   const key = isKlaim
     ? `klaim_${item.kode_detail_kepemilikan_paket_layanan || item.kode_layanan}`
     : `${item.jenis}_${item.kode_layanan}`;
 
   return (
-    <div key={key} className="col-12 sm:col-6 lg:col-4 p-2">
+    <div key={key} className={gridClassName || "col-12 sm:col-6 md:col-4 lg:col-3 p-2"}>
       <div
-        className={`h-full p-4 border-round-xl border-1 transition-all transition-duration-200 flex flex-column justify-content-between cursor-pointer ${
+        className={`h-full border-round-xl border-1 overflow-hidden transition-all transition-duration-200 flex flex-column justify-content-between cursor-pointer bg-white ${
           isSelected
-            ? isKlaim
-              ? 'surface-card border-amber-500 shadow-3 bg-amber-50'
-              : isPaket
-              ? 'surface-card border-amber-500 shadow-3 bg-amber-50'
-              : 'surface-card border-blue-600 shadow-3 bg-blue-50'
+            ? isKlaim || isPaket
+              ? 'border-2 border-amber-500 shadow-4 bg-amber-50/10'
+              : 'border-2 border-blue-600 shadow-4 bg-blue-50/10'
+            : isClaimedElsewhere
+            ? 'surface-100 border-200 opacity-70 cursor-not-allowed bg-emerald-50/20'
             : effectiveDisabled
-            ? 'surface-200 border-200 opacity-60 cursor-not-allowed'
-            : 'surface-card surface-border hover:border-blue-400 hover:shadow-2'
+            ? 'surface-100 border-200 opacity-60 cursor-not-allowed'
+            : 'surface-border hover:border-blue-400 hover:shadow-2'
         }`}
+        style={{
+          boxShadow: isSelected ? '0 4px 14px 0 rgba(37, 99, 235, 0.15)' : undefined,
+        }}
         onClick={() => {
           if (!effectiveDisabled) onToggle(item);
         }}
       >
-        <div>
-          <div className="flex align-items-center justify-content-between mb-2">
-            <div className="flex align-items-center gap-1 flex-wrap">
-              {isKlaim ? (
-                <Tag value="🎁 KLAIM SESI PAKET" severity="warning" className="text-xs font-bold" />
-              ) : isPaket ? (
-                <Tag value="PAKET TREATMENT" severity="warning" className="text-xs font-bold" />
-              ) : (
-                <Tag value={item.nama_kategori || 'LAYANAN'} severity="info" className="text-xs font-medium" />
-              )}
-
-              {item.total_sesi && item.total_sesi > 0 && !isKlaim && (
-                <Tag value={`${item.total_sesi} SESI`} severity="success" className="text-xs font-bold" />
-              )}
-
-              {isFullBooked && (
-                <Tag value="Terjadwal Penuh" severity="danger" className="text-xs font-bold" />
-              )}
-
-              {isNoPetugas && (
-                <Tag
-                  value={isWajib ? "Dokter Konsul Libur" : "Tidak Ada Petugas Jaga"}
-                  severity="danger"
-                  className="text-xs font-bold"
-                  icon="pi pi-times-circle"
-                />
-              )}
-
-              {isKlaim && item.tanggal_expired && (
-                <Tag value={`Exp: ${item.tanggal_expired}`} severity="secondary" className="text-[10px]" />
-              )}
-
-              {isWajib && <Tag value="Wajib Konsul" severity="danger" className="text-[10px] font-bold" />}
-              {isService && <Tag value="Tidak Perlu Konsul" severity="success" className="text-[10px] font-bold" />}
-              {isOpsional && <Tag value="Opsional Konsul" severity="info" className="text-[10px] font-bold" />}
+        {/* Top Image / Placeholder Banner */}
+        <div
+          className="w-full relative overflow-hidden flex align-items-center justify-content-center select-none"
+          style={{ height: '145px', backgroundColor: '#f8fafc' }}
+        >
+          {item.foto ? (
+            <img
+              src={item.foto}
+              alt={item.nama}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                objectPosition: 'center',
+                display: 'block',
+              }}
+              onError={(e) => {
+                // If broken image URL, hide img and fallback
+                (e.target as HTMLElement).style.display = 'none';
+              }}
+            />
+          ) : isSelected ? (
+            <div className="w-full h-full flex flex-column align-items-center justify-content-center bg-blue-50">
+              <i className="pi pi-sparkles text-blue-500 text-4xl" />
             </div>
+          ) : (
+            <div className="w-full h-full flex flex-column align-items-center justify-content-center bg-slate-100 surface-100">
+              <i className="pi pi-image text-400 text-4xl opacity-60" />
+            </div>
+          )}
 
+
+
+          {/* Floating Already Claimed Badge */}
+          {!isSelected && isClaimedElsewhere && (
+            <div className="absolute top-0 left-0 m-2 z-2">
+              <span className="px-2 py-0.5 bg-emerald-700 text-white font-bold text-[10px] border-round shadow-2 flex align-items-center gap-1">
+                <i className="pi pi-gift text-[10px]" /> Sudah Diklaim
+              </span>
+            </div>
+          )}
+
+          {/* Floating Checkbox on Top Right */}
+          <div
+            className="absolute top-0 right-0 m-2 z-2 bg-white border-round-lg shadow-2 px-2 py-1 flex align-items-center justify-content-center"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!effectiveDisabled) onToggle(item);
+            }}
+          >
             <Checkbox
-              checked={isSelected}
+              checked={isSelected || isClaimedElsewhere}
               disabled={effectiveDisabled}
               onChange={() => {
                 if (!effectiveDisabled) onToggle(item);
               }}
             />
           </div>
+        </div>
 
-          <h4 className="text-base font-bold text-900 m-0 mb-1 line-height-2">{item.nama}</h4>
-          {isKlaim && item.nama_paket_asal && (
-            <span className="text-xs text-amber-700 block font-semibold mb-1">Paket Asal: {item.nama_paket_asal}</span>
-          )}
+        {/* Card Body */}
+        <div className="p-3 flex-1 flex flex-column justify-content-between">
+          <div>
+            {/* Tags Row - Membungkus dengan rapi jika sempit tanpa terpotong */}
+            <div
+              className="flex align-items-center mb-2"
+              style={{
+                flexWrap: 'wrap',
+                gap: '4px',
+                minHeight: '26px',
+              }}
+            >
+              {isKlaim ? (
+                <Tag
+                  value={`🎁 Klaim${item.sisa_sesi !== undefined ? ` (${item.sisa_sesi} Sesi)` : ''}`}
+                  severity="warning"
+                  style={{ fontSize: '10px', padding: '2px 6px', fontWeight: 700, lineHeight: 1.2 }}
+                />
+              ) : isPaket ? (
+                <Tag
+                  value={`Paket${item.total_sesi ? ` (${item.total_sesi} Sesi)` : ''}`}
+                  severity="warning"
+                  style={{ fontSize: '10px', padding: '2px 6px', fontWeight: 700, lineHeight: 1.2 }}
+                />
+              ) : (
+                <Tag
+                  value={item.nama_kategori || 'Layanan'}
+                  severity="info"
+                  style={{ fontSize: '10px', padding: '2px 6px', fontWeight: 600, lineHeight: 1.2 }}
+                />
+              )}
 
-          {isNoPetugas && (
-            <div className="flex align-items-center gap-1 text-xs text-red-600 font-semibold mb-2 bg-red-50 p-2 border-round-lg border-1 border-red-200">
-              <i className="pi pi-exclamation-circle text-xs flex-shrink-0" />
-              <span className="line-height-2">{item.alasan_tidak_tersedia || 'Tidak ada jadwal petugas jaga hari ini'}</span>
+              {isFullBooked && (
+                <Tag value="Penuh" severity="danger" style={{ fontSize: '10px', padding: '2px 6px', fontWeight: 700, lineHeight: 1.2 }} />
+              )}
+
+              {isWajib && (
+                <Tag value="Wajib Konsul" severity="danger" style={{ fontSize: '10px', padding: '2px 6px', fontWeight: 700, lineHeight: 1.2 }} />
+              )}
+              {isService && (
+                <Tag value="Tanpa Konsul" severity="success" style={{ fontSize: '10px', padding: '2px 6px', fontWeight: 700, lineHeight: 1.2 }} />
+              )}
+              {isOpsional && (
+                <Tag value="Opsional Konsul" severity="info" style={{ fontSize: '10px', padding: '2px 6px', fontWeight: 700, lineHeight: 1.2 }} />
+              )}
             </div>
-          )}
 
-          <div className="flex align-items-center gap-3 text-xs text-500 mb-2">
-            <span className="flex align-items-center gap-1">
-              <i className="pi pi-clock text-xs" /> {item.durasi_menit} Menit
-            </span>
-            {isKlaim && item.sisa_sesi !== undefined && (
-              <span className="font-bold text-amber-800">
-                Sisa: {item.sisa_sesi}
-                {item.sesi_terbooking !== undefined && item.sesi_terbooking > 0 && (
-                  <span className="text-orange-600 font-normal ml-1">({item.sesi_terbooking} booked)</span>
-                )}
-                {item.sesi_tersedia !== undefined && (
-                  <span className="text-green-700 font-bold ml-1">| Tersedia: {item.sesi_tersedia}</span>
-                )}
-              </span>
+            {/* Title with uniform height */}
+            <h4
+              className="text-sm font-bold text-900 m-0 mb-1 line-height-2"
+              style={{
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+                minHeight: '38px',
+              }}
+            >
+              {item.nama}
+            </h4>
+
+            {/* Info Paket Asal (jika klaim) */}
+            {isKlaim && item.nama_paket_asal && (
+              <div
+                className="text-[11px] text-amber-900 font-medium overflow-hidden text-overflow-ellipsis white-space-nowrap mb-1"
+                title={item.nama_paket_asal}
+              >
+                <span className="text-amber-600 font-semibold">Paket:</span> {item.nama_paket_asal}
+              </div>
+            )}
+
+            {/* Notifikasi jika layanan ini sudah diklaim via paket */}
+            {isClaimedElsewhere && (
+              <div className="flex align-items-center gap-1 text-[11px] text-emerald-800 font-semibold mb-1 bg-emerald-50 p-1 border-round border-1 border-emerald-200">
+                <i className="pi pi-check-circle text-xs text-emerald-600 flex-shrink-0" />
+                <span className="line-height-1">Sudah dipilih via Klaim Paket (Rp 0)</span>
+              </div>
             )}
           </div>
 
-          <div>
-            <span className={`text-base font-extrabold ${isKlaim ? 'text-amber-700' : isPaket ? 'text-amber-700' : 'text-blue-600'}`}>
-              {isKlaim ? 'Rp 0 (Klaim Sesi)' : formatPrice(item.harga_asal ?? item.harga)}
-            </span>
+          {/* Footer: Duration & Price (Rapi, Sejajar, Tidak Berantakan) */}
+          <div className="pt-2 mt-2 border-top-1 surface-border flex align-items-center justify-content-between gap-2">
+            <div className="flex align-items-center gap-1 text-xs text-600 font-medium min-w-0">
+              <i className="pi pi-clock text-xs text-500 flex-shrink-0" />
+              <span className="white-space-nowrap">{item.durasi_menit} Menit</span>
+              {isKlaim && item.sisa_sesi !== undefined && (
+                <span className="font-bold text-amber-800 ml-1 white-space-nowrap">
+                  · Sisa: {item.sisa_sesi}
+                </span>
+              )}
+            </div>
+
+            <div className="flex-shrink-0">
+              <span className={`text-sm font-extrabold white-space-nowrap ${isKlaim ? 'text-amber-700' : isPaket ? 'text-amber-700' : 'text-blue-600'}`}>
+                {isKlaim ? 'Rp 0 (Klaim)' : formatPrice(item.harga_asal ?? item.harga)}
+              </span>
+            </div>
           </div>
         </div>
       </div>
