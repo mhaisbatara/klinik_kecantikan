@@ -52,10 +52,15 @@ export const findMatchingItem = (menuData: Array<MenuModel>, url: string) => {
 
 export const findToValuesRecursive = (data: Array<MenuModel>, searchToValue: string) => {
     const matching = [] as Array<MenuModel>;
+    const searchBase = searchToValue ? searchToValue.split('?')[0] : '';
 
     function search(items: Array<MenuModel>) {
+        if (!items || !Array.isArray(items)) return;
         for (const item of items) {
-            if (item.to === searchToValue) matching.push(item);
+            const itemBase = item.to ? item.to.split('?')[0] : '';
+            if (item.to === searchToValue || (itemBase && itemBase === searchBase)) {
+                matching.push(item);
+            }
             if (item.items) search(item.items);
         }
     }

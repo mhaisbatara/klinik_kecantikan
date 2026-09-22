@@ -62,6 +62,8 @@ router.post("/", async (req, res) => {
           .optional()
           .allow(""),
         status: Joi.string().required().label("Status"),
+        menu: Joi.any().optional().label("Menu"),
+        kode_karyawan: Joi.string().allow('', null).optional().label("Karyawan"),
       },
       {
         "string.base": "{#label} harus berupa string",
@@ -137,6 +139,37 @@ router.post("/", async (req, res) => {
       await trx("user_credential")
         .where("user_code", oPayload.user_code)
         .update(oData);
+
+      // Update navigasi jika menu dikirimkan oleh client
+      if (oPayload.menu) {
+        const menuToSave = typeof oPayload.menu === "string" ? oPayload.menu : JSON.stringify(oPayload.menu);
+        const existingNav = await trx("user_navigation").where("user_code", oPayload.user_code).first();
+        if (existingNav) {
+          await trx("user_navigation")
+            .where("user_code", oPayload.user_code)
+            .update({
+              menu: menuToSave,
+              updated_at: formatDateSystem(),
+            });
+        } else {
+          await trx("user_navigation").insert({
+            user_code: oPayload.user_code,
+            menu: menuToSave,
+            created_at: formatDateSystem(),
+            updated_at: formatDateSystem(),
+          });
+        }
+      }
+
+      // Hubungkan dengan mst_karyawan jika kode_karyawan diberikan
+      if (oPayload.kode_karyawan) {
+        await trx("mst_karyawan")
+          .where("kode_karyawan", oPayload.kode_karyawan)
+          .update({
+            kode_user: oPayload.user_code,
+            updated_at: formatDateSystem(),
+          });
+      }
 
       // Masking password lama & baru pada audit log demi keamanan data
       const oLogDataBefore = { ...oDataBefore };

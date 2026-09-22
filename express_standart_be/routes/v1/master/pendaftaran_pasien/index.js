@@ -23,11 +23,15 @@ import pendaftaranPasienAmbilAntrianLayanan from "./pendaftaran_pasien_ambil_ant
 import pendaftaranPasienKepemilikanPaket    from "./pendaftaran_pasien_kepemilikan_paket.js";
 
 router.use("/pendaftaran-pasien-cari",                 pendaftaranPasienCari);
+router.use("/pasien-data",                             pendaftaranPasienCari);
 router.use("/pendaftaran-pasien-create",               pendaftaranPasienCreate);
+router.use("/pasien-create",                           pendaftaranPasienCreate);
 router.use("/pendaftaran-pasien-daftar-ulang",          pendaftaranPasienDaftarUlang);
 router.use("/pendaftaran-pasien-data",                 pendaftaranPasienData);
 router.use("/pendaftaran-pasien-update",               pendaftaranPasienUpdate);
+router.use("/pasien-update",                           pendaftaranPasienUpdate);
 router.use("/pendaftaran-pasien-delete",               pendaftaranPasienDelete);
+router.use("/pasien-delete",                           pendaftaranPasienDelete);
 router.use("/pendaftaran-pasien-batal",                pendaftaranPasienBatal);
 router.use("/pendaftaran-pasien-layanan-options",     pendaftaranPasienLayananOptions);
 router.use("/pendaftaran-pasien-ambil-antrian-layanan", pendaftaranPasienAmbilAntrianLayanan);

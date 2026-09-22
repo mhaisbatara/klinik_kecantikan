@@ -27,15 +27,30 @@ const handleSearch = async (req, res) => {
   const no_rm = (oPayload.no_rm || "").trim();
   const nama = (oPayload.nama || "").trim();
 
+  const filterStatus = oPayload.status !== undefined ? oPayload.status : null;
+  const filterGender = (oPayload.jenis_kelamin || oPayload.gender || "").trim().toUpperCase();
+  const sortField = oPayload.sortField || "id";
+  const sortOrder = (oPayload.sortOrder || "desc").toLowerCase() === "asc" ? "asc" : "desc";
+
   const hasPagination = oPayload.page !== undefined || oPayload.perPage !== undefined;
 
   try {
     const baseQuery = DB("mst_pasien as p")
-      .where("p.status", "aktif")
       .modify((qb) => {
         if (branchCode) {
           qb.where("p.kode_cabang", branchCode);
         }
+        if (filterStatus && filterStatus !== "semua" && filterStatus !== "all") {
+          qb.where("p.status", filterStatus);
+        } else if (!filterStatus && filterStatus !== "" && !hasPagination && (nik || no_hp || no_rm || nama)) {
+          // Legacy quick lookup dropdown in registration
+          qb.where("p.status", "aktif");
+        }
+
+        if (filterGender) {
+          qb.where("p.jenis_kelamin", filterGender);
+        }
+
         if (nik) {
           qb.where("p.nik", nik);
         } else if (no_hp) {
@@ -50,7 +65,9 @@ const handleSearch = async (req, res) => {
             this.whereRaw("LOWER(p.no_rm) LIKE ?", [`%${lower}%`])
               .orWhereRaw("LOWER(p.nama) LIKE ?", [`%${lower}%`])
               .orWhereRaw("LOWER(p.nik) LIKE ?", [`%${lower}%`])
-              .orWhereRaw("LOWER(p.no_hp) LIKE ?", [`%${lower}%`]);
+              .orWhereRaw("LOWER(p.no_hp) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(p.kota_kabupaten) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(p.email) LIKE ?", [`%${lower}%`]);
           });
         }
       });
@@ -83,7 +100,23 @@ const handleSearch = async (req, res) => {
       "p.foto",
       "p.status",
       "p.created_at",
+      "p.updated_at",
     ];
+
+    const allowedSort = [
+      "id",
+      "no_rm",
+      "nama",
+      "nik",
+      "tanggal_lahir",
+      "jenis_kelamin",
+      "no_hp",
+      "kota_kabupaten",
+      "status",
+      "created_at",
+      "updated_at",
+    ];
+    const sortCol = allowedSort.includes(sortField) ? `p.${sortField}` : "p.id";
 
     let vaData = [];
     let totalRecords = 0;
@@ -99,14 +132,14 @@ const handleSearch = async (req, res) => {
       vaData = await baseQuery
         .clone()
         .select(selectFields)
-        .orderBy("p.id", "desc")
+        .orderBy(sortCol, sortOrder)
         .limit(perPage)
         .offset(offset);
     } else {
       vaData = await baseQuery
         .clone()
         .select(selectFields)
-        .orderBy("p.id", "desc")
+        .orderBy(sortCol, sortOrder)
         .limit(20);
 
       totalRecords = vaData.length;

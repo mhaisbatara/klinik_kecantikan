@@ -86,6 +86,14 @@ router.post("/", async (req, res) => {
 
     // Eksekusi penghapusan dalam Transaksi Database
     await DB.transaction(async (trx) => {
+      // Lepaskan relasi kode_user pada mst_karyawan agar karyawan bisa dibuatkan akun kembali jika perlu
+      await trx("mst_karyawan")
+        .whereIn("kode_user", oPayload.user_code)
+        .update({
+          kode_user: null,
+          updated_at: formatDateSystem(),
+        });
+
       // Hapus data credential
       await trx("user_credential")
         .whereIn("user_code", oPayload.user_code)

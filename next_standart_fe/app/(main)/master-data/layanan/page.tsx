@@ -28,12 +28,30 @@ const Page = () => {
     const [page, setPage] = useState<number>(1);
     const [rows, setRows] = useState<number>(10);
     const [keyword, setKeyword] = useState<string>('');
+    const [filterTipe, setFilterTipe] = useState<string>('');
+    const [filterKategori, setFilterKategori] = useState<string>('');
     const [selectedRows, setSelectedRows] = useState<any[]>([]);
 
-    const tipeOptions = [
-        { label: 'MEDICAL TREATMENT (Wajib Konsul)', value: 'MEDICAL TREATMENT' },
-        { label: 'BEAUTY TREATMENT (Opsional)', value: 'BEAUTY TREATMENT' },
-        { label: 'SERVICE TREATMENT (Tidak Perlu Konsul)', value: 'SERVICE TREATMENT' }
+    // Single unified Tipe Layanan & Alur Konsultasi Options
+    const tipeLayananOptions = [
+        {
+            label: 'Medical Treatment (Wajib Konsultasi Dokter)',
+            value: 'MEDICAL TREATMENT',
+            wajib_konsultasi: 'wajib',
+            description: 'Pasien wajib melalui ruang konsultasi dokter sebelum tindakan medis.'
+        },
+        {
+            label: 'Beauty Treatment (Konsultasi Opsional)',
+            value: 'BEAUTY TREATMENT',
+            wajib_konsultasi: 'opsional',
+            description: 'Pasien dapat memilih konsultasi terlebih dahulu atau langsung tindakan perawatan.'
+        },
+        {
+            label: 'Service Treatment (Langsung Tindakan / Tanpa Konsul)',
+            value: 'SERVICE TREATMENT',
+            wajib_konsultasi: 'tidak',
+            description: 'Layanan reguler/salon, pasien langsung ke ruang tindakan tanpa konsultasi dokter.'
+        }
     ];
 
     const [dialogVisible, setDialogVisible] = useState<boolean>(false);
@@ -42,7 +60,7 @@ const Page = () => {
         kode_layanan: '',
         kode_kategori_layanan: '',
         kode_ruangan: '',
-        wajib_konsultasi: 'tidak',
+        wajib_konsultasi: 'opsional',
         kode_ruangan_konsultasi: '',
         nama: '',
         tipe: 'BEAUTY TREATMENT',
@@ -53,16 +71,16 @@ const Page = () => {
     const [saving, setSaving] = useState<boolean>(false);
     const [submitted, setSubmitted] = useState<boolean>(false);
 
-    const wajibKonsultasiOptions = [
-        { label: 'Tidak (Langsung Tindakan)', value: 'tidak' },
-        { label: 'Opsional (Bisa Konsultasi / Langsung Tindakan)', value: 'opsional' },
-        { label: 'Wajib (Masuk Ruang Konsultasi Dulu)', value: 'wajib' }
-    ];
-
     const loadData = async () => {
         setLoading(true);
         try {
-            const res = await postData('/master/layanan-data', { page, perPage: rows, keyword });
+            const res = await postData('/master/layanan-data', {
+                page,
+                perPage: rows,
+                keyword,
+                kode_kategori_layanan: filterKategori || undefined,
+                tipe: filterTipe || undefined
+            });
             setData(res.data.data || []);
             setTotalRecords(res.data.total_data || 0);
         } catch (error: any) {
@@ -94,12 +112,26 @@ const Page = () => {
 
     useEffect(() => {
         loadData();
-    }, [page, rows, keyword]);
+    }, [page, rows, keyword, filterTipe, filterKategori]);
 
     useEffect(() => {
         loadKategori();
         loadRuangan();
     }, []);
+
+    // Handler when selecting Tipe Layanan & Alur Konsultasi
+    const handleTipeChange = (newTipe: string) => {
+        let wk = 'opsional';
+        if (newTipe === 'MEDICAL TREATMENT') wk = 'wajib';
+        else if (newTipe === 'SERVICE TREATMENT') wk = 'tidak';
+
+        setFormData((prev: any) => ({
+            ...prev,
+            tipe: newTipe,
+            wajib_konsultasi: wk,
+            kode_ruangan_konsultasi: wk === 'tidak' ? '' : prev.kode_ruangan_konsultasi
+        }));
+    };
 
     const handleOpenCreate = () => {
         setIsEdit(false);
@@ -108,7 +140,7 @@ const Page = () => {
             kode_layanan: '',
             kode_kategori_layanan: kategoriList[0]?.value || '',
             kode_ruangan: ruanganList[0]?.value || '',
-            wajib_konsultasi: 'tidak',
+            wajib_konsultasi: 'opsional',
             kode_ruangan_konsultasi: '',
             nama: '',
             tipe: 'BEAUTY TREATMENT',
@@ -122,10 +154,18 @@ const Page = () => {
     const handleOpenEdit = (rowData: any) => {
         setIsEdit(true);
         setSubmitted(false);
+
+        let wk = rowData.wajib_konsultasi;
+        if (!wk) {
+            if (rowData.tipe === 'MEDICAL TREATMENT') wk = 'wajib';
+            else if (rowData.tipe === 'SERVICE TREATMENT') wk = 'tidak';
+            else wk = 'opsional';
+        }
+
         setFormData({
             ...rowData,
             kode_ruangan: rowData.kode_ruangan || '',
-            wajib_konsultasi: rowData.wajib_konsultasi || 'tidak',
+            wajib_konsultasi: wk,
             kode_ruangan_konsultasi: rowData.kode_ruangan_konsultasi || '',
             tipe: rowData.tipe || 'BEAUTY TREATMENT',
         });
@@ -133,14 +173,28 @@ const Page = () => {
     };
 
     const handleSave = async () => {
-        if (!formData.nama || !formData.kode_kategori_layanan) {
+        setSubmitted(true);
+        if (!formData.nama || !formData.nama.trim() || !formData.kode_kategori_layanan) {
             showError(toast, 'Nama dan Kategori Layanan wajib diisi!');
             return;
         }
+
+        // Pastikan wajib_konsultasi tersinkron dengan tipe
+        let wk = formData.wajib_konsultasi;
+        if (formData.tipe === 'MEDICAL TREATMENT') wk = 'wajib';
+        else if (formData.tipe === 'SERVICE TREATMENT') wk = 'tidak';
+        else wk = 'opsional';
+
+        const payload = {
+            ...formData,
+            wajib_konsultasi: wk,
+            kode_ruangan_konsultasi: wk === 'tidak' ? null : (formData.kode_ruangan_konsultasi || null)
+        };
+
         setSaving(true);
         try {
             const endpoint = isEdit ? '/master/layanan-update' : '/master/layanan-create';
-            const res = await postData(endpoint, formData);
+            const res = await postData(endpoint, payload);
             showSuccess(toast, res.data.message || 'Berhasil disimpan');
             setDialogVisible(false);
             loadData();
@@ -189,7 +243,7 @@ const Page = () => {
                         Kelola Data Layanan
                     </h3>
                     <p className="text-500 text-sm m-0">
-                        Tambah, edit, atau nonaktifkan layanan treatment dan perawatan klinik.
+                        Tambah, edit, atau kelola katalog layanan treatment medis dan perawatan klinik.
                     </p>
                 </div>
 
@@ -258,10 +312,34 @@ const Page = () => {
                         <div className="flex flex-column gap-3">
                             <div className="flex flex-wrap align-items-center justify-content-between gap-2">
                                 <span className="text-xl font-bold">Data Layanan</span>
-                                <div className="flex align-items-center gap-2 ml-auto w-full md:w-auto">
-                                    <IconField iconPosition="left" className="w-full md:w-20rem">
+                                <div className="flex flex-wrap align-items-center gap-2 ml-auto w-full md:w-auto">
+                                    <Dropdown
+                                        value={filterTipe}
+                                        options={[
+                                            { label: 'Semua Tipe Layanan', value: '' },
+                                            { label: 'Medical Treatment (Wajib)', value: 'MEDICAL TREATMENT' },
+                                            { label: 'Beauty Treatment (Opsional)', value: 'BEAUTY TREATMENT' },
+                                            { label: 'Service Treatment (Langsung)', value: 'SERVICE TREATMENT' },
+                                        ]}
+                                        onChange={(e) => setFilterTipe(e.value)}
+                                        placeholder="Filter Tipe Layanan"
+                                        className="w-full md:w-14rem p-inputtext-sm text-sm border-round-md"
+                                    />
+                                    <Dropdown
+                                        value={filterKategori}
+                                        options={[{ label: 'Semua Kategori', value: '' }, ...kategoriList]}
+                                        onChange={(e) => setFilterKategori(e.value)}
+                                        placeholder="Filter Kategori"
+                                        className="w-full md:w-12rem p-inputtext-sm text-sm border-round-md"
+                                    />
+                                    <IconField iconPosition="left" className="w-full md:w-16rem">
                                         <InputIcon className="pi pi-search" />
-                                        <InputText value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="Cari Data..." className="w-full text-sm" />
+                                        <InputText
+                                            value={keyword}
+                                            onChange={(e) => setKeyword(e.target.value)}
+                                            placeholder="Cari Layanan..."
+                                            className="w-full text-sm"
+                                        />
                                     </IconField>
                                     <Button
                                         type="button"
@@ -270,7 +348,11 @@ const Page = () => {
                                         severity="danger"
                                         tooltip="Reset Filter"
                                         tooltipOptions={{ position: 'bottom' }}
-                                        onClick={() => setKeyword('')}
+                                        onClick={() => {
+                                            setKeyword('');
+                                            setFilterTipe('');
+                                            setFilterKategori('');
+                                        }}
                                     />
                                 </div>
                             </div>
@@ -310,46 +392,70 @@ const Page = () => {
                             />
                         )}
                     ></Column>
-                    <Column field="kode_layanan" header="Kode" sortable headerStyle={{ fontWeight: 'bold' }}></Column>
+                    <Column field="kode_layanan" header="Kode" sortable headerStyle={{ fontWeight: 'bold', width: '7rem' }}></Column>
                     <Column field="nama" header="Nama Layanan" sortable headerStyle={{ fontWeight: 'bold' }}></Column>
+
+                    {/* Single Unified Column: Tipe Layanan & Alur Konsultasi */}
                     <Column
                         field="tipe"
                         header="Tipe Layanan"
                         sortable
-                        headerStyle={{ fontWeight: 'bold' }}
+                        headerStyle={{ fontWeight: 'bold', minWidth: '15rem' }}
                         body={(r) => {
                             const val = r.tipe || 'BEAUTY TREATMENT';
-                            let severity: 'danger' | 'info' | 'success' | 'warning' = 'info';
-                            let text = 'BEAUTY TREATMENT (Opsional)';
-                            if (val === 'MEDICAL TREATMENT') {
+                            let severity: 'danger' | 'info' | 'success' = 'info';
+                            let title = 'Beauty Treatment';
+                            let desc = 'Konsultasi Opsional';
+
+                            if (val === 'MEDICAL TREATMENT' || r.wajib_konsultasi === 'wajib') {
                                 severity = 'danger';
-                                text = 'MEDICAL TREATMENT (Wajib Konsul)';
-                            } else if (val === 'SERVICE TREATMENT') {
+                                title = 'Medical Treatment';
+                                desc = 'Wajib Konsultasi';
+                            } else if (val === 'SERVICE TREATMENT' || r.wajib_konsultasi === 'tidak') {
                                 severity = 'success';
-                                text = 'SERVICE TREATMENT (Tidak Perlu Konsul)';
+                                title = 'Service Treatment';
+                                desc = 'Langsung Tindakan';
                             }
-                            return <Tag value={text} severity={severity} className="text-xs px-2 py-1" />;
+
+                            return (
+                                <div className="flex flex-column gap-1">
+                                    <div className="flex align-items-center gap-2">
+                                        <Tag
+                                            value={title}
+                                            severity={severity}
+                                            className="text-xs font-semibold px-2 py-1"
+                                        />
+                                    </div>
+                                    <span className="text-500 text-xs flex align-items-center gap-1">
+                                        <i className="pi pi-info-circle text-xs" />
+                                        {desc}
+                                    </span>
+                                </div>
+                            );
                         }}
                     ></Column>
+
                     <Column field="nama_kategori" header="Kategori" body={(r) => r.nama_kategori || r.kode_kategori_layanan || '-'}></Column>
-                    <Column field="nama_ruangan" header="Ruangan" body={(r) => r.nama_ruangan ? `${r.kode_ruangan ? r.kode_ruangan + ' - ' : ''}${r.nama_ruangan}` : (r.kode_ruangan || '-')}></Column>
+                    
                     <Column
-                        field="wajib_konsultasi"
-                        header="Status Konsultasi"
-                        body={(r) => {
-                            const val = r.wajib_konsultasi || 'tidak';
-                            let severity: 'danger' | 'info' | 'warning' = 'info';
-                            let text = 'Tidak';
-                            if (val === 'wajib') {
-                                severity = 'danger';
-                                text = `Wajib${r.nama_ruangan_konsultasi ? ` (${r.nama_ruangan_konsultasi})` : ''}`;
-                            } else if (val === 'opsional') {
-                                severity = 'warning';
-                                text = `Opsional${r.nama_ruangan_konsultasi ? ` (${r.nama_ruangan_konsultasi})` : ''}`;
-                            }
-                            return <Tag value={text} severity={severity} className="text-xs px-2 py-1" />;
-                        }}
+                        field="nama_ruangan"
+                        header="Ruangan"
+                        style={{ minWidth: '11rem' }}
+                        body={(r) => (
+                            <div className="flex flex-column">
+                                <span className="text-800 font-medium text-sm">
+                                    {r.nama_ruangan ? `${r.kode_ruangan ? r.kode_ruangan + ' - ' : ''}${r.nama_ruangan}` : (r.kode_ruangan || '-')}
+                                </span>
+                                {r.nama_ruangan_konsultasi && r.wajib_konsultasi !== 'tidak' && (
+                                    <span className="text-500 text-xs mt-1 flex align-items-center gap-1" title="Ruang Konsultasi Terjadwal">
+                                        <i className="pi pi-comments text-purple-600 text-xs" />
+                                        Konsul: {r.nama_ruangan_konsultasi}
+                                    </span>
+                                )}
+                            </div>
+                        )}
                     ></Column>
+
                     <Column field="harga" header="Harga" body={(r) => <span className="font-semibold text-green-600">{formatRupiah(r.harga)}</span>}></Column>
                     <Column field="durasi_menit" header="Durasi" body={(r) => `${r.durasi_menit} Menit`}></Column>
                     <Column
@@ -366,7 +472,14 @@ const Page = () => {
                 </DataTable>
             </div>
 
-            <Dialog header={isEdit ? 'Edit Data Layanan' : 'Tambah Data Layanan'} visible={dialogVisible} style={{ width: '550px' }} modal onHide={() => setDialogVisible(false)}>
+            {/* Modal Tambah / Edit Layanan */}
+            <Dialog
+                header={isEdit ? 'Edit Data Layanan' : 'Tambah Data Layanan'}
+                visible={dialogVisible}
+                style={{ width: '550px' }}
+                modal
+                onHide={() => setDialogVisible(false)}
+            >
                 <div className="flex flex-column gap-3 pt-2">
                     {isEdit && (
                         <div>
@@ -376,18 +489,31 @@ const Page = () => {
                     )}
                     <div>
                         <label className="block text-sm font-semibold mb-1">Nama Layanan *</label>
-                        <InputText value={formData.nama} onChange={(e) => setFormData({ ...formData, nama: e.target.value })} placeholder="Masukkan nama layanan" className="w-full text-sm" />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-semibold mb-1">Tipe Layanan *</label>
-                        <Dropdown
-                            value={formData.tipe}
-                            options={tipeOptions}
-                            onChange={(e) => setFormData({ ...formData, tipe: e.value })}
-                            placeholder="Pilih Tipe Layanan"
+                        <InputText
+                            value={formData.nama}
+                            onChange={(e) => setFormData({ ...formData, nama: e.target.value })}
+                            placeholder="Masukkan nama layanan"
                             className="w-full text-sm"
                         />
                     </div>
+
+                    {/* Satu input terpadu: Tipe Layanan & Alur Konsultasi */}
+                    <div>
+                        <label className="block text-sm font-semibold mb-1">Tipe Layanan & Alur Konsultasi *</label>
+                        <Dropdown
+                            value={formData.tipe}
+                            options={tipeLayananOptions}
+                            onChange={(e) => handleTipeChange(e.value)}
+                            placeholder="Pilih Tipe Layanan & Alur Konsultasi"
+                            className="w-full text-sm"
+                        />
+                        <small className="text-500 block mt-1">
+                            {formData.tipe === 'MEDICAL TREATMENT' && '🩺 Wajib melalui ruang konsultasi dokter sebelum tindakan medis.'}
+                            {formData.tipe === 'BEAUTY TREATMENT' && '💆 Pasien dapat memilih konsultasi terlebih dahulu atau langsung tindakan perawatan.'}
+                            {formData.tipe === 'SERVICE TREATMENT' && '✂️ Layanan reguler/salon, pasien langsung diarahkan ke ruang tindakan tanpa konsultasi dokter.'}
+                        </small>
+                    </div>
+
                     <div>
                         <label className="block text-sm font-semibold mb-1">Kategori Layanan *</label>
                         <Dropdown
@@ -398,6 +524,7 @@ const Page = () => {
                             className="w-full text-sm"
                         />
                     </div>
+
                     <div>
                         <label className="block text-sm font-semibold mb-1">Ruangan Tindakan Utama</label>
                         <Dropdown
@@ -409,39 +536,47 @@ const Page = () => {
                             className="w-full text-sm"
                         />
                     </div>
-                    <div>
-                        <label className="block text-sm font-semibold mb-1">Status Wajib Konsultasi *</label>
-                        <Dropdown
-                            value={formData.wajib_konsultasi}
-                            options={wajibKonsultasiOptions}
-                            onChange={(e) => setFormData({ ...formData, wajib_konsultasi: e.value, kode_ruangan_konsultasi: e.value === 'tidak' ? '' : formData.kode_ruangan_konsultasi })}
-                            placeholder="Pilih Status Konsultasi"
-                            className="w-full text-sm"
-                        />
-                    </div>
-                    {formData.wajib_konsultasi && formData.wajib_konsultasi !== 'tidak' && (
+
+                    {/* Ruangan Konsultasi hanya dimunculkan jika bukan SERVICE TREATMENT */}
+                    {formData.tipe !== 'SERVICE TREATMENT' && (
                         <div>
-                            <label className="block text-sm font-semibold mb-1">Ruangan Konsultasi *</label>
+                            <label className="block text-sm font-semibold mb-1">
+                                Ruangan Konsultasi {formData.tipe === 'MEDICAL TREATMENT' ? '*' : '(Opsional)'}
+                            </label>
                             <Dropdown
                                 value={formData.kode_ruangan_konsultasi}
                                 options={ruanganList}
                                 onChange={(e) => setFormData({ ...formData, kode_ruangan_konsultasi: e.value })}
-                                placeholder="Pilih Ruangan Konsultasi"
+                                placeholder="Pilih Ruangan Konsultasi (Default Ruang Konsul)"
                                 showClear
                                 className="w-full text-sm"
                             />
                         </div>
                     )}
+
                     <div className="grid">
                         <div className="col-6">
                             <label className="block text-sm font-semibold mb-1">Harga (Rp) *</label>
-                            <InputNumber value={formData.harga} onValueChange={(e) => setFormData({ ...formData, harga: e.value })} mode="currency" currency="IDR" locale="id-ID" className="w-full text-sm" />
+                            <InputNumber
+                                value={formData.harga}
+                                onValueChange={(e) => setFormData({ ...formData, harga: e.value })}
+                                mode="currency"
+                                currency="IDR"
+                                locale="id-ID"
+                                className="w-full text-sm"
+                            />
                         </div>
                         <div className="col-6">
                             <label className="block text-sm font-semibold mb-1">Durasi (Menit) *</label>
-                            <InputNumber value={formData.durasi_menit} onValueChange={(e) => setFormData({ ...formData, durasi_menit: e.value })} suffix=" menit" className="w-full text-sm" />
+                            <InputNumber
+                                value={formData.durasi_menit}
+                                onValueChange={(e) => setFormData({ ...formData, durasi_menit: e.value })}
+                                suffix=" menit"
+                                className="w-full text-sm"
+                            />
                         </div>
                     </div>
+
                     <div>
                         <label className="block text-sm font-semibold mb-1">Status *</label>
                         <Dropdown

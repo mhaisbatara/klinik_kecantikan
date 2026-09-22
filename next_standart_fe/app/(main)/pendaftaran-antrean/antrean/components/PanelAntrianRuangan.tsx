@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { Button } from 'primereact/button';
 import { confirmDialog, ConfirmDialog } from 'primereact/confirmdialog';
 import { Tag } from 'primereact/tag';
@@ -142,6 +143,7 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
     setSelectedRuangan: propSetSelectedRuangan,
     handleBackToList: propHandleBackToList,
 }) => {
+    const { data: session } = useSession();
     const [ruanganList, setRuanganList] = useState<RuanganItem[]>([]);
     const [internalSelectedRuangan, setInternalSelectedRuangan] = useState<string>('');
     const selectedRuangan = propSelectedRuangan !== undefined ? propSelectedRuangan : internalSelectedRuangan;
@@ -266,10 +268,50 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
                 list = rawList.filter((r) => !r.is_konsultasi || r.is_konsultasi === 0);
             }
 
+            // Pembatasan Ruangan Berdasarkan Hak Akses Pengguna (Granular RBAC)
+            const userRole = (session?.user?.role || '').toLowerCase();
+            const isManagerOrAdmin = ['owner', 'manager', 'superadmin'].includes(userRole);
+
+            if (!isManagerOrAdmin && session?.user?.user_code) {
+                try {
+                    const navRes = await postData('/setup/nav/user-data', { user_code: session.user.user_code });
+                    const userMenu = navRes.data?.data || [];
+
+                    let allowedRooms: string[] | null = null;
+                    const scanMenuForRooms = (items: any[]) => {
+                        if (!items || !Array.isArray(items)) return;
+                        for (const it of items) {
+                            const to = (it.to || '').toLowerCase();
+                            const isMatch =
+                                (typeParam === 'konsul' && (to.includes('type=konsul') || it.label?.toLowerCase().includes('konsul'))) ||
+                                (typeParam === 'layanan' && (to.includes('type=layanan') || it.label?.toLowerCase().includes('tindakan'))) ||
+                                (!typeParam && (to.includes('/antrean') || it.label?.toLowerCase().includes('ruangan')));
+
+                            if (isMatch && Array.isArray(it.allowed_ruangan) && it.allowed_ruangan.length > 0) {
+                                allowedRooms = it.allowed_ruangan;
+                                return;
+                            }
+                            if (it.items) {
+                                scanMenuForRooms(it.items);
+                                if (allowedRooms) return;
+                            }
+                        }
+                    };
+                    scanMenuForRooms(userMenu);
+
+                    if (allowedRooms && (allowedRooms as string[]).length > 0) {
+                        list = list.filter((r) => (allowedRooms as string[]).includes(r.kode_ruangan));
+                    }
+                } catch (_) {}
+            }
+
             setRuanganList(list);
             const currentParam = searchParams.get('ruangan') || initialRuangan || '';
             if (currentParam && list.some((r) => r.kode_ruangan === currentParam)) {
                 setSelectedRuangan(currentParam);
+            } else if (currentParam && !list.some((r) => r.kode_ruangan === currentParam)) {
+                showError(toast, `Akses ditolak: Anda tidak memiliki izin untuk ruangan ${currentParam}`);
+                setSelectedRuangan('');
             } else {
                 setSelectedRuangan('');
             }

@@ -38,6 +38,7 @@ interface PasienFormData {
   no_hp_kontak_darurat: string;
   hubungan_kontak_darurat: string;
   alergi: string;
+  status?: string;
 }
 
 interface Props {
@@ -46,6 +47,8 @@ interface Props {
   initialData?: Partial<PasienFormData> | null;
   onSuccess: (resultData: any) => void;
   toast: React.RefObject<Toast>;
+  title?: string;
+  submitLabel?: string;
 }
 
 const defaultFormData: PasienFormData = {
@@ -72,6 +75,7 @@ const defaultFormData: PasienFormData = {
   hubungan_kontak_darurat: '',
   alergi: '',
   no_rm: '',
+  status: 'aktif',
 };
 
 const sanitizeFormData = (data?: Partial<PasienFormData> | null): PasienFormData => {
@@ -100,6 +104,7 @@ const sanitizeFormData = (data?: Partial<PasienFormData> | null): PasienFormData
     hubungan_kontak_darurat: data.hubungan_kontak_darurat || '',
     alergi: data.alergi || '',
     no_rm: data.no_rm || '',
+    status: data.status || 'aktif',
   };
 };
 
@@ -109,6 +114,8 @@ export const PasienFormDialog: React.FC<Props> = ({
   initialData,
   onSuccess,
   toast,
+  title,
+  submitLabel,
 }) => {
   const [formData, setFormData] = useState<PasienFormData>(sanitizeFormData(initialData));
   const [loading, setLoading] = useState(false);
@@ -453,7 +460,7 @@ export const PasienFormDialog: React.FC<Props> = ({
     <Dialog
       visible={visible}
       onHide={onHide}
-      header={formData.no_rm ? `Edit Profile Pasien (${formData.no_rm})` : 'Pendaftaran Pasien Baru'}
+      header={title || (formData.no_rm ? `Edit Profil Pasien (${formData.no_rm})` : 'Pendaftaran Pasien Baru')}
       style={{ width: '800px' }}
       modal
       className="p-fluid"
@@ -497,7 +504,7 @@ export const PasienFormDialog: React.FC<Props> = ({
               />
             ) : (
               <Button
-                label={formData.no_rm ? 'Simpan Perubahan' : 'Daftarkan Pasien & Lanjut Pilih Layanan'}
+                label={submitLabel || (formData.no_rm ? 'Simpan Perubahan' : 'Daftarkan Pasien & Lanjut Pilih Layanan')}
                 icon="pi pi-check"
                 className="p-button-success font-bold"
                 onClick={handleSubmit}
@@ -625,6 +632,18 @@ export const PasienFormDialog: React.FC<Props> = ({
                 />
               </div>
             )}
+
+            <div className="col-12 md:col-6 field">
+              <label className="font-semibold text-900">Status Pasien</label>
+              <Dropdown
+                value={formData.status || 'aktif'}
+                options={[
+                  { label: 'Aktif', value: 'aktif' },
+                  { label: 'Tidak Aktif', value: 'tidak aktif' },
+                ]}
+                onChange={(e) => handleChange('status', e.value)}
+              />
+            </div>
           </div>
         </TabPanel>
 

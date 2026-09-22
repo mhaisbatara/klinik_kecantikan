@@ -73,6 +73,8 @@ router.post("/", async (req, res) => {
           .required()
           .label("Password"),
         status: Joi.string().required().label("Status"),
+        menu: Joi.any().optional().label("Menu"),
+        kode_karyawan: Joi.string().allow('', null).optional().label("Karyawan"),
       },
       {
         "string.base": "{#label} harus berupa string",
@@ -171,9 +173,14 @@ router.post("/", async (req, res) => {
         oData["password"] = hmac(cPassword, secret, "sha512");
       }
 
-      // Insert navigasi user
+      // Insert navigasi user (gunakan menu kustom jika dikirim oleh Manager/Admin, fallback ke template role)
+      let menuToSave = oNavigation.menu;
+      if (oPayload.menu) {
+        menuToSave = typeof oPayload.menu === "string" ? oPayload.menu : JSON.stringify(oPayload.menu);
+      }
+
       await trx("user_navigation").insert({
-        menu: oNavigation.menu,
+        menu: menuToSave,
         user_code: cUserCode,
         created_at: formatDateSystem(),
         updated_at: formatDateSystem(),
@@ -181,6 +188,16 @@ router.post("/", async (req, res) => {
 
       // Insert data user credential
       await trx("user_credential").insert(oData);
+
+      // Hubungkan dengan mst_karyawan jika kode_karyawan diberikan
+      if (oPayload.kode_karyawan) {
+        await trx("mst_karyawan")
+          .where("kode_karyawan", oPayload.kode_karyawan)
+          .update({
+            kode_user: cUserCode,
+            updated_at: formatDateSystem(),
+          });
+      }
 
       // Sinkronisasi counter register database jika tabel nomor_faktur ada
       try {
