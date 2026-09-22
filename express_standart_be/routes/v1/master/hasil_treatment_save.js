@@ -15,7 +15,7 @@ import DB from "../../../core/config/knex.js";
 import { formatDateSystem } from "../components/tools/date_tools.js";
 import { Logging } from "../components/tools/servertool.js";
 import { status } from "../components/tools/general.js";
-import { syncRekamMedisPerAntrian } from "./ruangan/rekam_medis_service.js";
+import { syncRekamMedisPerAntrian, saveBase64ImageFile } from "./ruangan/rekam_medis_service.js";
 import { syncCompletedItemsToKasirDraft } from "./kasir/kasir_sync_service.js";
 
 const router = express.Router();
@@ -75,10 +75,14 @@ const handleHasilTreatmentSave = async (req, res) => {
 
       const targetKodeRuangan = kode_ruangan || currentAL?.kode_ruangan || "RNG-000";
 
+      // Simpan file foto jika berformat base64 (jika sudah berupa file path, saveBase64ImageFile langsung mengembalikan path tanpa menulis ulang ke disk)
+      const cleanFotoBefore = saveBase64ImageFile(foto_before, "before");
+      const cleanFotoAfter = saveBase64ImageFile(foto_after, "after");
+
       const formPayload = {
         ...(oPayload.hasil_form || {}),
-        ...(foto_before ? { foto_before } : {}),
-        ...(foto_after ? { foto_after } : {}),
+        ...(cleanFotoBefore ? { foto_before: cleanFotoBefore } : {}),
+        ...(cleanFotoAfter ? { foto_after: cleanFotoAfter } : {}),
       };
 
       // Panggil syncRekamMedisPerAntrian untuk memastikan baris ruangan ada & ter-update
@@ -91,6 +95,7 @@ const handleHasilTreatmentSave = async (req, res) => {
         catatan_hasil_treatment: catatan || null,
         kode_karyawan: oPayload.kode_karyawan || currentAL?.kode_karyawan,
         username,
+        trx,
       });
 
       const id_rekam_medis = rmSyncResult?.id_rekam_medis;

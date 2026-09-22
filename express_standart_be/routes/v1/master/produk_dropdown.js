@@ -24,21 +24,29 @@ const handleProdukDropdown = async (req, res) => {
   const search = oPayload.search || oPayload.keyword || "";
 
   try {
-    let query = DB("mst_produk")
-      .where("status", "aktif")
-      .whereRaw("kode_produk NOT LIKE 'CUSTOM-%' AND kode_produk NOT LIKE 'CST-%'");
+    let query = DB("mst_produk as pr")
+      .leftJoin("mst_kategori_produk as kp", "pr.kode_kategori_produk", "kp.kode_kategori_produk")
+      .where("pr.status", "aktif")
+      .whereRaw("pr.kode_produk NOT LIKE 'CUSTOM-%' AND pr.kode_produk NOT LIKE 'CST-%'");
 
-    if (branchCode) query = query.where("kode_cabang", branchCode);
+    if (branchCode) query = query.where("pr.kode_cabang", branchCode);
 
     query = query
-      .select("kode_produk", "nama", "harga_jual", "satuan")
-      .orderBy("nama", "asc");
+      .select(
+        "pr.kode_produk",
+        "pr.nama",
+        "pr.harga_jual",
+        "pr.satuan",
+        "pr.kode_kategori_produk",
+        "kp.nama as nama_kategori"
+      )
+      .orderBy("pr.nama", "asc");
 
     if (search) {
       const lower = search.toLowerCase();
       query = query.where(function () {
-        this.whereRaw("LOWER(nama) LIKE ?", [`%${lower}%`])
-          .orWhereRaw("LOWER(kode_produk) LIKE ?", [`%${lower}%`]);
+        this.whereRaw("LOWER(pr.nama) LIKE ?", [`%${lower}%`])
+          .orWhereRaw("LOWER(pr.kode_produk) LIKE ?", [`%${lower}%`]);
       });
     }
 

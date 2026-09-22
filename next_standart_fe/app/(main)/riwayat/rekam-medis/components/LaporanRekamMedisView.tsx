@@ -54,6 +54,8 @@ interface KunjunganRecord {
   jam_datang: string;
   status_kunjungan: string;
   layanan: DetailLayanan[];
+  dokter_nama?: string;
+  dokter_jabatan?: string;
 }
 
 export const LaporanRekamMedisView: React.FC = () => {
@@ -139,6 +141,20 @@ export const LaporanRekamMedisView: React.FC = () => {
     fetchRekamMedis();
   }, [tanggalDari, tanggalSampai]);
 
+  const getDokterDisplay = (rec: KunjunganRecord) => {
+    const dokNama =
+      rec.dokter_nama ||
+      rec.layanan?.find((l) => l.rekam_medis?.dokter_penanggung_jawab?.nama)?.rekam_medis?.dokter_penanggung_jawab?.nama ||
+      rec.layanan?.find((l) => l.petugas?.nama)?.petugas?.nama;
+    const dokJabatan =
+      rec.dokter_jabatan ||
+      rec.layanan?.find((l) => l.rekam_medis?.dokter_penanggung_jawab?.jabatan)?.rekam_medis?.dokter_penanggung_jawab?.jabatan ||
+      rec.layanan?.find((l) => l.petugas?.jabatan)?.petugas?.jabatan;
+
+    if (!dokNama) return '-';
+    return dokJabatan ? `${dokNama} — ${dokJabatan}` : dokNama;
+  };
+
   const handleCetakLaporanRM = () => {
     if (records.length === 0) {
       showError(toast, 'Tidak ada data rekam medis untuk dicetak');
@@ -161,6 +177,7 @@ export const LaporanRekamMedisView: React.FC = () => {
         <tr>
           <td style="text-align: center;">${idx + 1}</td>
           <td><strong>${rec.nama_pasien || '-'}</strong></td>
+          <td>${getDokterDisplay(rec)}</td>
           <td style="text-align: center;">${rec.no_rm || '-'}</td>
           <td style="text-align: center;">${rec.kode_kunjungan}</td>
           <td>${formatDateIndo(rec.tanggal_kunjungan)} (${rec.jam_datang} WIB)</td>
@@ -216,6 +233,7 @@ export const LaporanRekamMedisView: React.FC = () => {
               <tr>
                 <th>#</th>
                 <th>Nama Pasien</th>
+                <th>Dokter/Petugas</th>
                 <th>No. RM</th>
                 <th>Kode Kunjungan</th>
                 <th>Tanggal &amp; Jam</th>
@@ -255,6 +273,7 @@ export const LaporanRekamMedisView: React.FC = () => {
       'Kode Kunjungan': rec.kode_kunjungan,
       'No. RM': rec.no_rm,
       'Nama Pasien': rec.nama_pasien,
+      'Dokter/Petugas': getDokterDisplay(rec),
       Tanggal: formatDateIndo(rec.tanggal_kunjungan),
       'Jam Datang': `${rec.jam_datang} WIB`,
       'Status Kunjungan': String(rec.status_kunjungan || '').toUpperCase(),
@@ -481,6 +500,19 @@ export const LaporanRekamMedisView: React.FC = () => {
           <Column field="kode_kunjungan" header="Kode Kunjungan" sortable className="font-semibold text-800 font-mono" style={{ minWidth: '11rem' }} />
           <Column field="no_rm" header="No. RM" sortable className="font-semibold text-gray-700" style={{ minWidth: '9rem' }} />
           <Column field="nama_pasien" header="Nama Pasien" sortable className="font-bold text-gray-800" style={{ minWidth: '13rem' }} />
+          <Column
+            header="Dokter/Petugas"
+            style={{ minWidth: '14rem' }}
+            body={(r: KunjunganRecord) => {
+              const display = getDokterDisplay(r);
+              if (display === '-') return <span className="text-gray-400 italic text-xs">-</span>;
+              return (
+                <span className="text-xs font-semibold text-gray-800">
+                  {display}
+                </span>
+              );
+            }}
+          />
           <Column
             field="tanggal_kunjungan"
             header="Tanggal &amp; Waktu"

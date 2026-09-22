@@ -23,7 +23,7 @@ router.post("/", async (req, res) => {
         if (keyword) { const lower = keyword.toLowerCase(); qb.where(function () { this.whereRaw("LOWER(p.kode_produk) LIKE ?", [`%${lower}%`]).orWhereRaw("LOWER(p.nama) LIKE ?", [`%${lower}%`]).orWhereRaw("LOWER(k.nama) LIKE ?", [`%${lower}%`]); }); }
         if (filterStatus) qb.where("p.status", filterStatus);
       });
-    const selectFields = ["p.kode_produk", "p.kode_kategori_produk", "k.nama as nama_kategori", "p.nama", "p.satuan", "p.harga_beli", "p.harga_jual", "p.stok_minimum", "p.stok_tersedia", "p.status", "p.created_by", "p.created_at", "p.updated_at"];
+    const selectFields = ["p.kode_produk", "p.kode_kategori_produk", "k.nama as nama_kategori", "p.nama", "p.satuan", "p.harga_beli", "p.harga_jual", "p.stok_minimum", "p.stok_tersedia", "p.no_batch", "p.tanggal_kadaluarsa", "p.status", "p.created_by", "p.created_at", "p.updated_at"];
     let totalRecords = 0, vaData = [];
     if (hasPagination) {
       const offset = (page - 1) * perPage;

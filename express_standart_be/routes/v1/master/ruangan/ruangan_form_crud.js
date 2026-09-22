@@ -1,6 +1,7 @@
 import express from "express";
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 import DB from "../../../../core/config/knex.js";
 import { formatDateSystem } from "../../components/tools/date_tools.js";
 import { Logging } from "../../components/tools/servertool.js";
@@ -276,7 +277,8 @@ router.post("/ruangan-form-upload-foto", async (req, res) => {
     }
 
     const buffer = Buffer.from(base64Data, "base64");
-    const uploadDir = path.join(process.cwd(), "public", "uploads", "ruangan_form");
+    const currentDir = path.dirname(fileURLToPath(import.meta.url));
+    const uploadDir = path.resolve(currentDir, "../../../../public/uploads/ruangan_form");
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }

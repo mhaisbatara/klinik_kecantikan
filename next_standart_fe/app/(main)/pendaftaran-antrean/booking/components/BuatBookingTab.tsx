@@ -41,6 +41,7 @@ import {
   RotateCcw,
   Trash2,
   Info,
+  ChevronDown,
   Users,
 } from 'lucide-react';
 
@@ -1876,7 +1877,7 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated }) => 
                             <div className="flex align-items-center mb-2" style={{ minHeight: '26px' }}>
                               {hasCompanions ? (
                                 <div
-                                  className="companion-tooltip-target inline-flex align-items-center gap-1.5 text-[11px] min-w-0 cursor-pointer overflow-hidden px-2 py-0.5 border-round-md bg-emerald-50 text-emerald-800 border-1 border-emerald-200 hover:bg-emerald-100 transition-colors"
+                                  className="companion-tooltip-target inline-flex align-items-center gap-1.5 text-[11px] min-w-0 cursor-pointer overflow-hidden text-emerald-800 hover:text-emerald-900 transition-colors"
                                   data-pr-tooltip={`Daftar Pendamping: ${fullCompanionNames}`}
                                   data-pr-position="top"
                                   onClick={(e) => {
@@ -1890,7 +1891,6 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated }) => 
                                     companionOpRef.current?.toggle(e);
                                   }}
                                 >
-                                  <Users size={12} className="text-emerald-700 flex-shrink-0" />
                                   <span className="font-semibold text-emerald-800 flex-shrink-0">
                                     +{totalCompanions} pendamping
                                   </span>
@@ -1900,7 +1900,7 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated }) => 
                                   >
                                     ({companionSummary})
                                   </span>
-                                  <Info size={12} className="text-emerald-600 flex-shrink-0 ml-0.5 opacity-80" />
+                                  <ChevronDown size={12} className="text-emerald-600 flex-shrink-0 ml-0.5 opacity-80" />
                                 </div>
                               ) : (
                                 <span className="text-[11px] text-400 italic">Tanpa petugas pendamping</span>

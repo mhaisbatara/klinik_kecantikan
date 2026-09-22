@@ -266,21 +266,6 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
         </div>
 
         <div className="flex align-items-center gap-2 flex-wrap">
-          {totalPromoItemsCount > 0 && (
-            <span
-              className="inline-flex align-items-center gap-1.5 text-xs font-bold px-3 py-1.5 border-round-pill cursor-pointer transition-all"
-              style={{
-                background: showOnlyPromo ? 'linear-gradient(135deg, #ef4444, #f97316)' : '#fff1f2',
-                color: showOnlyPromo ? '#ffffff' : '#e11d48',
-                border: '1.5px solid #fecdd3',
-                boxShadow: showOnlyPromo ? '0 2px 8px rgba(239,68,68,0.3)' : 'none',
-              }}
-              onClick={() => setShowOnlyPromo(!showOnlyPromo)}
-            >
-              <i className="pi pi-percentage text-xs" />
-              {totalPromoItemsCount} Promo Aktif
-            </span>
-          )}
           {countLayanan > 0 && (
             <span
               className="inline-flex align-items-center gap-1.5 text-xs font-bold px-3 py-1.5 border-round-pill"
@@ -543,12 +528,7 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                   {/* FOOTER */}
                   <div className="mt-2 pt-2 border-top-1 surface-border flex align-items-center justify-content-between gap-2">
                     <div className="flex align-items-center gap-1 flex-wrap">
-                      {item.is_promo && item.harga_asal && item.harga_asal > item.harga && (
-                        <span className="text-xs text-400 line-through font-semibold">
-                          {formatRupiah(item.harga_asal)}
-                        </span>
-                      )}
-                      <span className="text-xs font-black" style={{ color: item.is_promo ? '#e11d48' : currentTab.accent }}>
+                      <span className="text-xs font-black" style={{ color: item.is_promo ? '#0f766e' : currentTab.accent }}>
                         {formatRupiah(item.harga)}
                       </span>
                     </div>

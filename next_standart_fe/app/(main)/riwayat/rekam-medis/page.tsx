@@ -9,16 +9,23 @@ import {
   LaporanTreatmentView,
   LaporanProdukView,
   LaporanPaketView,
+  LaporanMembershipView,
   LaporanPasienView,
   LaporanKunjunganView,
+  LaporanAppointmentView,
   LaporanDokterView,
   LaporanBeauticianView,
+  LaporanKomisiView,
   LaporanInventoryView,
+  LaporanStokOpnameView,
+  LaporanPembelianView,
+  LaporanExpiredView,
+  LaporanDepositView,
   LaporanVoucherView,
+  LaporanCrmView,
   LaporanKeuanganView,
 } from './components/LaporanViews';
 import { LaporanRekamMedisView } from './components/LaporanRekamMedisView';
-import ModulWipCard from './components/ModulWipCard';
 import { Skeleton } from 'primereact/skeleton';
 
 const LaporanContent: React.FC = () => {
@@ -44,40 +51,22 @@ const LaporanContent: React.FC = () => {
       {activeModule === 'treatment' && <LaporanTreatmentView />}
       {activeModule === 'produk' && <LaporanProdukView />}
       {activeModule === 'paket' && <LaporanPaketView />}
+      {activeModule === 'membership' && <LaporanMembershipView />}
       {activeModule === 'pasien' && <LaporanPasienView />}
       {activeModule === 'kunjungan' && <LaporanKunjunganView />}
+      {activeModule === 'appointment' && <LaporanAppointmentView />}
       {activeModule === 'dokter' && <LaporanDokterView />}
       {activeModule === 'beautician' && <LaporanBeauticianView />}
+      {activeModule === 'komisi' && <LaporanKomisiView />}
       {activeModule === 'inventory' && <LaporanInventoryView />}
-      {activeModule === 'keuangan' && <LaporanKeuanganView />}
+      {activeModule === 'stok_opname' && <LaporanStokOpnameView />}
+      {activeModule === 'pembelian' && <LaporanPembelianView />}
+      {activeModule === 'expired' && <LaporanExpiredView />}
+      {activeModule === 'deposit' && <LaporanDepositView />}
       {activeModule === 'voucher' && <LaporanVoucherView />}
+      {activeModule === 'crm' && <LaporanCrmView />}
+      {activeModule === 'keuangan' && <LaporanKeuanganView />}
       {activeModule === 'rekam_medis' && <LaporanRekamMedisView />}
-
-      {/* ─── MODUL DALAM PROGRES PENGERJAAN ─── */}
-      {activeModule === 'membership' && (
-        <ModulWipCard moduleName="Laporan Membership" onBackToActive={() => navigateToActive('penjualan')} />
-      )}
-      {activeModule === 'appointment' && (
-        <ModulWipCard moduleName="Laporan Appointment" onBackToActive={() => navigateToActive('penjualan')} />
-      )}
-      {activeModule === 'komisi' && (
-        <ModulWipCard moduleName="Laporan Komisi" onBackToActive={() => navigateToActive('penjualan')} />
-      )}
-      {activeModule === 'stok_opname' && (
-        <ModulWipCard moduleName="Laporan Stok Opname" onBackToActive={() => navigateToActive('penjualan')} />
-      )}
-      {activeModule === 'pembelian' && (
-        <ModulWipCard moduleName="Laporan Pembelian" onBackToActive={() => navigateToActive('penjualan')} />
-      )}
-      {activeModule === 'expired' && (
-        <ModulWipCard moduleName="Laporan Expired" onBackToActive={() => navigateToActive('penjualan')} />
-      )}
-      {activeModule === 'deposit' && (
-        <ModulWipCard moduleName="Laporan Deposit" onBackToActive={() => navigateToActive('penjualan')} />
-      )}
-      {activeModule === 'crm' && (
-        <ModulWipCard moduleName="Laporan CRM" onBackToActive={() => navigateToActive('penjualan')} />
-      )}
     </div>
   );
 };

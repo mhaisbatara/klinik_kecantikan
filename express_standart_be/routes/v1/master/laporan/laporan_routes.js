@@ -17,10 +17,11 @@ const router = express.Router();
  */
 router.post("/options", async (req, res) => {
   try {
-    const [karyawanList, ruanganList, kategoriList] = await Promise.all([
+    const [karyawanList, ruanganList, kategoriList, levelMembershipList] = await Promise.all([
       DB("mst_karyawan").select("kode_karyawan", "nama", "jabatan").orderBy("nama", "asc"),
       DB("mst_ruangan").select("kode_ruangan", "nama_ruangan").orderBy("nama_ruangan", "asc"),
       DB("mst_kategori_produk").select("kode_kategori_produk", "nama").orderBy("nama", "asc"),
+      DB("mst_level_membership").select("kode_level", "nama_level").orderBy("minimal_poin", "asc"),
     ]);
 
     const petugasOptions = karyawanList.map((k) => ({
@@ -44,6 +45,11 @@ router.post("/options", async (req, res) => {
     const kategoriOptions = kategoriList.map((kp) => ({
       label: kp.nama,
       value: kp.kode_kategori_produk,
+    }));
+
+    const levelMembershipOptions = levelMembershipList.map((lm) => ({
+      label: lm.nama_level,
+      value: lm.kode_level,
     }));
 
     const metodeBayarOptions = [
@@ -82,6 +88,7 @@ router.post("/options", async (req, res) => {
         dokter: dokterOptions,
         ruangan: ruanganOptions,
         kategori_produk: kategoriOptions,
+        level_membership: levelMembershipOptions,
         metode_bayar: metodeBayarOptions,
         status_penjualan: statusPenjualanOptions,
         status_treatment: statusTreatmentOptions,
@@ -666,11 +673,17 @@ router.post("/pasien", async (req, res) => {
       .limit(perPage)
       .offset(offset);
 
+    const mappedRows = rows.map((r) => ({
+      ...r,
+      total_kunjungan: parseInt(r.total_kunjungan || 0, 10),
+      total_transaksi: parseFloat(r.total_transaksi || 0),
+    }));
+
     return res.status(200).json({
       status: status.SUKSES,
       message: "Data Laporan Pasien berhasil dimuat",
       datetime: formatDateSystem(),
-      data: rows,
+      data: mappedRows,
       total_data: totalData,
     });
   } catch (err) {
@@ -1115,6 +1128,816 @@ router.post("/keuangan", async (req, res) => {
     });
   } catch (err) {
     Logging(err, { file: "laporan_routes.js", func: "keuangan", request: body });
+    return res.status(500).json({ status: status.BAD_REQUEST, message: err.message });
+  }
+});
+
+/**
+ * 13. LAPORAN APPOINTMENT
+ */
+router.post("/appointment", async (req, res) => {
+  const { body } = req;
+  const branchCode = getBranchScope(req, body.kode_cabang);
+  const keyword = (body.keyword || "").trim();
+  const tanggal_dari = body.tanggal_dari || null;
+  const tanggal_sampai = body.tanggal_sampai || null;
+  const filterStatus = body.status || null;
+  const filterDokter = body.kode_dokter || null;
+  const page = parseInt(body.page) || 1;
+  const perPage = parseInt(body.perPage) || 10;
+  const offset = (page - 1) * perPage;
+
+  try {
+    const baseQuery = DB("trx_booking as b")
+      .leftJoin("mst_pasien as p", "b.no_rm", "p.no_rm")
+      .leftJoin("mst_jadwal_karyawan as j", "b.kode_jadwal", "j.kode_jadwal")
+      .leftJoin("mst_karyawan as k", function () {
+        this.on("j.no_sip", "=", "k.no_sip")
+          .orOn("j.no_sip", "=", "k.kode_karyawan");
+      })
+      .leftJoin("mst_layanan as l", "b.kode_layanan", "l.kode_layanan")
+      .leftJoin("mst_paket_layanan as pkt", "b.kode_layanan", "pkt.kode_paket_layanan")
+      .modify((qb) => {
+        if (branchCode) {
+          qb.where("b.kode_cabang", branchCode);
+        }
+        if (tanggal_dari) {
+          qb.whereRaw("DATE(b.tanggal_booking) >= ?", [tanggal_dari]);
+        }
+        if (tanggal_sampai) {
+          qb.whereRaw("DATE(b.tanggal_booking) <= ?", [tanggal_sampai]);
+        }
+        if (filterStatus) {
+          if (Array.isArray(filterStatus) && filterStatus.length > 0) {
+            qb.whereIn("b.status", filterStatus);
+          } else if (typeof filterStatus === "string" && filterStatus.trim() && filterStatus !== "ALL") {
+            qb.where("b.status", filterStatus.trim());
+          }
+        }
+        if (filterDokter) {
+          qb.where(function () {
+            this.where("k.kode_karyawan", filterDokter).orWhere("k.no_sip", filterDokter);
+          });
+        }
+        if (keyword) {
+          const lower = keyword.toLowerCase();
+          qb.where(function () {
+            this.whereRaw("LOWER(b.kode_booking) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(b.no_rm) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(p.nama) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(p.no_hp) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(k.nama) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(l.nama) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(pkt.nama) LIKE ?", [`%${lower}%`]);
+          });
+        }
+      });
+
+    const countResult = await baseQuery.clone().count("b.id as total").first();
+    const totalData = parseInt(countResult?.total || 0, 10);
+
+    const rows = await baseQuery
+      .clone()
+      .select(
+        "b.id",
+        "b.kode_booking",
+        "b.no_rm",
+        "p.nama as nama_pasien",
+        "p.no_hp",
+        "b.kode_ruangan",
+        "b.jenis_layanan",
+        "b.kode_layanan",
+        DB.raw("COALESCE(l.nama, pkt.nama, b.kode_layanan) as nama_layanan"),
+        "b.kode_jadwal",
+        "b.tanggal_booking",
+        "b.jam_booking",
+        "b.butuh_konsul",
+        DB.raw("CASE WHEN b.butuh_konsul = 1 AND k.nama IS NOT NULL THEN k.nama ELSE '-' END as dokter_tujuan"),
+        "k.nama as nama_petugas_jadwal",
+        "k.jabatan as jabatan_petugas_jadwal",
+        "b.total_biaya",
+        "b.status",
+        "b.catatan_pasien",
+        "b.created_at"
+      )
+      .orderBy("b.tanggal_booking", "desc")
+      .orderBy("b.jam_booking", "desc")
+      .limit(perPage)
+      .offset(offset);
+
+    // Summary counters
+    const summaryRows = await baseQuery.clone().select("b.status");
+    const totalAppointment = summaryRows.length;
+    const terkonfirmasi = summaryRows.filter((r) => ["dikonfirmasi", "selesai"].includes(String(r.status).toLowerCase())).length;
+    const menunggu = summaryRows.filter((r) => ["menunggu", "pending", "draft"].includes(String(r.status).toLowerCase())).length;
+    const batal = summaryRows.filter((r) => ["batal", "dibatalkan", "tidak_hadir"].includes(String(r.status).toLowerCase())).length;
+
+    return res.status(200).json({
+      status: status.SUKSES,
+      message: "Data Laporan Appointment berhasil dimuat",
+      datetime: formatDateSystem(),
+      data: rows.map((r) => ({
+        ...r,
+        total_biaya: parseFloat(r.total_biaya || 0),
+      })),
+      total_data: totalData,
+      summary: {
+        total_appointment: totalAppointment,
+        terkonfirmasi,
+        menunggu,
+        batal,
+      },
+    });
+  } catch (err) {
+    Logging(err, { file: "laporan_routes.js", func: "appointment", request: body });
+    return res.status(500).json({ status: status.BAD_REQUEST, message: err.message });
+  }
+});
+
+/**
+ * 14. LAPORAN STOK OPNAME
+ */
+const handleStokOpname = async (req, res) => {
+  const { body } = req;
+  const branchCode = getBranchScope(req, body.kode_cabang);
+  const keyword = (body.keyword || "").trim();
+  const tanggal_dari = body.tanggal_dari || null;
+  const tanggal_sampai = body.tanggal_sampai || null;
+  const filterJenis = body.jenis_movement || null;
+  const page = parseInt(body.page) || 1;
+  const perPage = parseInt(body.perPage) || 10;
+  const offset = (page - 1) * perPage;
+
+  try {
+    const baseQuery = DB("trx_stok_movement as m")
+      .leftJoin("mst_produk as p", "m.kode_produk", "p.kode_produk")
+      .modify((qb) => {
+        if (branchCode) {
+          qb.where("m.kode_cabang", branchCode);
+        }
+        if (tanggal_dari) {
+          qb.whereRaw("DATE(m.tanggal) >= ?", [tanggal_dari]);
+        }
+        if (tanggal_sampai) {
+          qb.whereRaw("DATE(m.tanggal) <= ?", [tanggal_sampai]);
+        }
+        if (filterJenis) {
+          if (Array.isArray(filterJenis) && filterJenis.length > 0) {
+            qb.whereIn("m.jenis_movement", filterJenis);
+          } else if (typeof filterJenis === "string" && filterJenis.trim() && filterJenis !== "ALL") {
+            qb.where("m.jenis_movement", filterJenis.trim());
+          }
+        }
+        if (keyword) {
+          const lower = keyword.toLowerCase();
+          qb.where(function () {
+            this.whereRaw("LOWER(m.kode_stok_movement) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(m.kode_produk) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(p.nama) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(m.referensi) LIKE ?", [`%${lower}%`]);
+          });
+        }
+      });
+
+    const countResult = await baseQuery.clone().count("m.id as total").first();
+    const totalData = parseInt(countResult?.total || 0, 10);
+
+    const rows = await baseQuery
+      .clone()
+      .select(
+        "m.id",
+        "m.kode_stok_movement",
+        "m.kode_produk",
+        "p.nama as nama_produk",
+        "m.jenis_movement",
+        "m.referensi",
+        "m.qty",
+        "m.stok_sebelum",
+        "m.stok_sesudah",
+        "m.tanggal",
+        "m.created_at",
+        "m.created_by"
+      )
+      .orderBy("m.tanggal", "desc")
+      .orderBy("m.id", "desc")
+      .limit(perPage)
+      .offset(offset);
+
+    // Summary counters
+    const allRows = await baseQuery.clone().select("m.stok_sebelum", "m.stok_sesudah", "m.qty", "m.jenis_movement");
+    const totalItem = allRows.length;
+    const stokSesuai = allRows.filter((r) => r.stok_sebelum === r.stok_sesudah || r.qty === 0).length;
+    const selisihLebih = allRows.filter((r) => r.stok_sesudah > r.stok_sebelum || (r.jenis_movement === "masuk" && r.qty > 0)).length;
+    const selisihKurang = allRows.filter((r) => r.stok_sesudah < r.stok_sebelum || (r.jenis_movement === "keluar" && r.qty > 0)).length;
+
+    return res.status(200).json({
+      status: status.SUKSES,
+      message: "Data Laporan Stok Opname berhasil dimuat",
+      datetime: formatDateSystem(),
+      data: rows.map((r) => ({
+        ...r,
+        stok_sebelum: parseInt(r.stok_sebelum || 0, 10),
+        stok_sesudah: parseInt(r.stok_sesudah || 0, 10),
+        qty: parseInt(r.qty || 0, 10),
+      })),
+      total_data: totalData,
+      summary: {
+        total_item: totalItem,
+        stok_sesuai: stokSesuai,
+        selisih_lebih: selisihLebih,
+        selisih_kurang: selisihKurang,
+      },
+    });
+  } catch (err) {
+    Logging(err, { file: "laporan_routes.js", func: "stok-opname", request: body });
+    return res.status(500).json({ status: status.BAD_REQUEST, message: err.message });
+  }
+};
+
+router.post("/stok-opname", handleStokOpname);
+router.post("/stok_opname", handleStokOpname);
+
+/**
+ * 15. LAPORAN PEMBELIAN
+ */
+router.post("/pembelian", async (req, res) => {
+  const { body } = req;
+  const branchCode = getBranchScope(req, body.kode_cabang);
+  const keyword = (body.keyword || "").trim();
+  const tanggal_dari = body.tanggal_dari || null;
+  const tanggal_sampai = body.tanggal_sampai || null;
+  const filterStatus = body.status || null;
+  const filterSupplier = body.kode_supplier || null;
+  const page = parseInt(body.page) || 1;
+  const perPage = parseInt(body.perPage) || 10;
+  const offset = (page - 1) * perPage;
+
+  try {
+    const baseQuery = DB("trx_purchase_order as po")
+      .leftJoin("mst_supplier as s", "po.kode_supplier", "s.kode_supplier")
+      .modify((qb) => {
+        if (branchCode) {
+          qb.where("po.kode_cabang", branchCode);
+        }
+        if (tanggal_dari) {
+          qb.whereRaw("DATE(po.tanggal_po) >= ?", [tanggal_dari]);
+        }
+        if (tanggal_sampai) {
+          qb.whereRaw("DATE(po.tanggal_po) <= ?", [tanggal_sampai]);
+        }
+        if (filterStatus) {
+          if (Array.isArray(filterStatus) && filterStatus.length > 0) {
+            qb.whereIn("po.status", filterStatus);
+          } else if (typeof filterStatus === "string" && filterStatus.trim() && filterStatus !== "ALL") {
+            qb.where("po.status", filterStatus.trim());
+          }
+        }
+        if (filterSupplier) {
+          qb.where("po.kode_supplier", filterSupplier);
+        }
+        if (keyword) {
+          const lower = keyword.toLowerCase();
+          qb.where(function () {
+            this.whereRaw("LOWER(po.kode_po) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(s.nama) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(po.kode_supplier) LIKE ?", [`%${lower}%`]);
+          });
+        }
+      });
+
+    const countResult = await baseQuery.clone().count("po.id as total").first();
+    const totalData = parseInt(countResult?.total || 0, 10);
+
+    const rows = await baseQuery
+      .clone()
+      .select(
+        "po.id",
+        "po.kode_po",
+        "po.tanggal_po",
+        "po.kode_supplier",
+        "s.nama as nama_supplier",
+        "s.no_hp as no_hp_supplier",
+        DB.raw("(SELECT COUNT(d.id) FROM trx_detail_purchase_order d WHERE d.kode_po = po.kode_po) as total_item"),
+        "po.total_po",
+        "po.status",
+        "po.created_at",
+        "po.created_by"
+      )
+      .orderBy("po.tanggal_po", "desc")
+      .orderBy("po.id", "desc")
+      .limit(perPage)
+      .offset(offset);
+
+    // Summary calculation
+    const allSummary = await baseQuery.clone().select("po.status", "po.total_po");
+    const totalPo = allSummary.length;
+    const barangDiterima = allSummary.filter((r) => String(r.status).toLowerCase() === "diterima").length;
+    const totalTagihanPo = allSummary.reduce((acc, curr) => acc + parseFloat(curr.total_po || 0), 0);
+    const menungguSupplier = allSummary.filter((r) => ["draft", "dikirim", "menunggu"].includes(String(r.status).toLowerCase())).length;
+
+    return res.status(200).json({
+      status: status.SUKSES,
+      message: "Data Laporan Pembelian berhasil dimuat",
+      datetime: formatDateSystem(),
+      data: rows.map((r) => ({
+        ...r,
+        total_item: parseInt(r.total_item || 0, 10),
+        total_po: parseFloat(r.total_po || 0),
+      })),
+      total_data: totalData,
+      summary: {
+        total_po: totalPo,
+        barang_diterima: barangDiterima,
+        total_tagihan_po: totalTagihanPo,
+        menunggu_supplier: menungguSupplier,
+      },
+    });
+  } catch (err) {
+    Logging(err, { file: "laporan_routes.js", func: "pembelian", request: body });
+    return res.status(500).json({ status: status.BAD_REQUEST, message: err.message });
+  }
+});
+
+/**
+ * 16. LAPORAN MEMBERSHIP
+ */
+router.post("/membership", async (req, res) => {
+  const { body } = req;
+  const branchCode = getBranchScope(req, body.kode_cabang);
+  const keyword = (body.keyword || "").trim();
+  const filterLevel = body.kode_level || null;
+  const filterStatus = body.status || null;
+  const page = parseInt(body.page) || 1;
+  const perPage = parseInt(body.perPage) || 10;
+  const offset = (page - 1) * perPage;
+
+  try {
+    const baseQuery = DB("mst_pasien as p")
+      .leftJoin("mst_level_membership as lm", "p.kode_level_membership", "lm.kode_level")
+      .modify((qb) => {
+        if (branchCode) {
+          qb.where("p.kode_cabang", branchCode);
+        }
+        if (filterLevel) {
+          if (filterLevel === "non_member") {
+            qb.whereNull("p.kode_level_membership");
+          } else {
+            qb.where("p.kode_level_membership", filterLevel);
+          }
+        }
+        if (filterStatus) {
+          if (Array.isArray(filterStatus) && filterStatus.length > 0) {
+            qb.whereIn("p.status", filterStatus);
+          } else if (typeof filterStatus === "string" && filterStatus.trim() && filterStatus !== "ALL") {
+            qb.where("p.status", filterStatus.trim());
+          }
+        }
+        if (keyword) {
+          const lower = keyword.toLowerCase();
+          qb.where(function () {
+            this.whereRaw("LOWER(p.no_rm) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(p.nama) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(p.nik) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(p.no_hp) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(lm.nama_level) LIKE ?", [`%${lower}%`]);
+          });
+        }
+      });
+
+    const countResult = await baseQuery.clone().count("p.id as total").first();
+    const totalData = parseInt(countResult?.total || 0, 10);
+
+    const rows = await baseQuery
+      .clone()
+      .select(
+        "p.id",
+        "p.no_rm",
+        "p.nama as nama_pasien",
+        "p.no_hp",
+        "p.kode_level_membership",
+        DB.raw("COALESCE(lm.nama_level, 'Non-Member') as nama_level"),
+        "p.tanggal_gabung_membership",
+        "p.total_poin",
+        "p.status",
+        "p.created_at"
+      )
+      .orderBy("p.total_poin", "desc")
+      .orderBy("p.created_at", "desc")
+      .limit(perPage)
+      .offset(offset);
+
+    // Summary calculation
+    const allSummary = await baseQuery.clone().select("p.kode_level_membership", "p.total_poin", "p.status");
+    const totalPasien = allSummary.length;
+    const memberAktif = allSummary.filter((r) => r.kode_level_membership !== null && r.status === "aktif").length;
+    const akumulasiPoin = allSummary.reduce((acc, curr) => acc + parseInt(curr.total_poin || 0, 10), 0);
+    const nonMember = allSummary.filter((r) => !r.kode_level_membership).length;
+
+    return res.status(200).json({
+      status: status.SUKSES,
+      message: "Data Laporan Membership berhasil dimuat",
+      datetime: formatDateSystem(),
+      data: rows.map((r) => ({
+        ...r,
+        total_poin: parseInt(r.total_poin || 0, 10),
+      })),
+      total_data: totalData,
+      summary: {
+        total_pasien: totalPasien,
+        member_aktif: memberAktif,
+        akumulasi_poin: akumulasiPoin,
+        non_member: nonMember,
+      },
+    });
+  } catch (err) {
+    Logging(err, { file: "laporan_routes.js", func: "membership", request: body });
+    return res.status(500).json({ status: status.BAD_REQUEST, message: err.message });
+  }
+});
+
+/**
+ * 17. LAPORAN KOMISI
+ */
+router.post("/komisi", async (req, res) => {
+  const { body } = req;
+  const branchCode = getBranchScope(req, body.kode_cabang);
+  const keyword = (body.keyword || "").trim();
+  const tanggal_dari = body.tanggal_dari || null;
+  const tanggal_sampai = body.tanggal_sampai || null;
+  const filterKaryawan = body.kode_karyawan || null;
+  const filterStatusPencairan = body.status_pencairan || null;
+  const page = parseInt(body.page) || 1;
+  const perPage = parseInt(body.perPage) || 10;
+  const offset = (page - 1) * perPage;
+
+  try {
+    const baseQuery = DB("trx_komisi as k")
+      .leftJoin("mst_karyawan as kar", "k.kode_karyawan", "kar.kode_karyawan")
+      .modify((qb) => {
+        if (branchCode) {
+          qb.where("k.kode_cabang", branchCode);
+        }
+        if (tanggal_dari) {
+          qb.whereRaw("DATE(k.created_at) >= ?", [tanggal_dari]);
+        }
+        if (tanggal_sampai) {
+          qb.whereRaw("DATE(k.created_at) <= ?", [tanggal_sampai]);
+        }
+        if (filterKaryawan) {
+          qb.where("k.kode_karyawan", filterKaryawan);
+        }
+        if (filterStatusPencairan) {
+          if (Array.isArray(filterStatusPencairan) && filterStatusPencairan.length > 0) {
+            qb.whereIn("k.status_pencairan", filterStatusPencairan);
+          } else if (typeof filterStatusPencairan === "string" && filterStatusPencairan.trim() && filterStatusPencairan !== "ALL") {
+            qb.where("k.status_pencairan", filterStatusPencairan.trim());
+          }
+        }
+        if (keyword) {
+          const lower = keyword.toLowerCase();
+          qb.where(function () {
+            this.whereRaw("LOWER(k.kode_karyawan) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(kar.nama) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(kar.jabatan) LIKE ?", [`%${lower}%`]);
+          });
+        }
+      });
+
+    // We group by employee and status
+    const groupedQuery = baseQuery
+      .clone()
+      .select(
+        "k.kode_karyawan",
+        "kar.nama as nama_tenaga_medis",
+        "kar.jabatan as peran",
+        DB.raw("COUNT(k.id) as total_tindakan"),
+        DB.raw("COALESCE(SUM(k.nilai_omzet), 0) as nilai_omzet"),
+        DB.raw("COALESCE(SUM(k.nominal_komisi), 0) as nominal_komisi"),
+        "k.status_pencairan"
+      )
+      .groupBy("k.kode_karyawan", "kar.nama", "kar.jabatan", "k.status_pencairan");
+
+    const allGrouped = await groupedQuery;
+    const totalData = allGrouped.length;
+    const paginatedRows = allGrouped.slice(offset, offset + perPage);
+
+    // Summary calculation
+    const totalTindakan = allGrouped.reduce((acc, curr) => acc + parseInt(curr.total_tindakan || 0, 10), 0);
+    const totalOmzet = allGrouped.reduce((acc, curr) => acc + parseFloat(curr.nilai_omzet || 0), 0);
+    const totalKomisi = allGrouped.reduce((acc, curr) => acc + parseFloat(curr.nominal_komisi || 0), 0);
+    const komisiDicairkan = allGrouped
+      .filter((r) => r.status_pencairan === "sudah_dicairkan")
+      .reduce((acc, curr) => acc + parseFloat(curr.nominal_komisi || 0), 0);
+
+    return res.status(200).json({
+      status: status.SUKSES,
+      message: "Data Laporan Komisi berhasil dimuat",
+      datetime: formatDateSystem(),
+      data: paginatedRows.map((r) => ({
+        ...r,
+        total_tindakan: parseInt(r.total_tindakan || 0, 10),
+        nilai_omzet: parseFloat(r.nilai_omzet || 0),
+        nominal_komisi: parseFloat(r.nominal_komisi || 0),
+      })),
+      total_data: totalData,
+      summary: {
+        total_tindakan: totalTindakan,
+        total_omzet: totalOmzet,
+        total_komisi: totalKomisi,
+        komisi_dicairkan: komisiDicairkan,
+      },
+    });
+  } catch (err) {
+    Logging(err, { file: "laporan_routes.js", func: "komisi", request: body });
+    return res.status(500).json({ status: status.BAD_REQUEST, message: err.message });
+  }
+});
+
+/**
+ * 18. LAPORAN EXPIRED
+ */
+router.post("/expired", async (req, res) => {
+  const { body } = req;
+  const branchCode = getBranchScope(req, body.kode_cabang);
+  const keyword = (body.keyword || "").trim();
+  const filterStatusExpired = body.status_expired || null;
+  const page = parseInt(body.page) || 1;
+  const perPage = parseInt(body.perPage) || 10;
+  const offset = (page - 1) * perPage;
+
+  try {
+    const baseQuery = DB("mst_produk as p")
+      .whereRaw("p.kode_produk NOT LIKE 'CUSTOM-%' AND p.kode_produk NOT LIKE 'CST-%'")
+      .modify((qb) => {
+        if (branchCode) {
+          qb.where("p.kode_cabang", branchCode);
+        }
+        if (keyword) {
+          const lower = keyword.toLowerCase();
+          qb.where(function () {
+            this.whereRaw("LOWER(p.kode_produk) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(p.nama) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(p.no_batch) LIKE ?", [`%${lower}%`]);
+          });
+        }
+      });
+
+    const allProducts = await baseQuery.clone().select(
+      "p.id",
+      "p.kode_produk",
+      "p.nama as nama_produk",
+      "p.no_batch",
+      "p.tanggal_kadaluarsa",
+      "p.stok_tersedia",
+      "p.satuan",
+      "p.status"
+    );
+
+    const now = new Date();
+    const mappedWithStatus = allProducts.map((p) => {
+      let statusExp = "belum_diisi";
+      let sisaHari = null;
+      if (p.tanggal_kadaluarsa) {
+        const expDate = new Date(p.tanggal_kadaluarsa);
+        sisaHari = Math.ceil((expDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        if (sisaHari < 30) {
+          statusExp = "kritis";
+        } else if (sisaHari < 90) {
+          statusExp = "perhatian";
+        } else {
+          statusExp = "aman";
+        }
+      }
+      return {
+        ...p,
+        sisa_hari: sisaHari,
+        status_expired: statusExp,
+        stok_tersedia: parseInt(p.stok_tersedia || 0, 10),
+      };
+    });
+
+    const filtered = mappedWithStatus.filter((p) => {
+      if (!filterStatusExpired || filterStatusExpired === "ALL") return true;
+      if (Array.isArray(filterStatusExpired)) return filterStatusExpired.includes(p.status_expired);
+      return p.status_expired === filterStatusExpired;
+    });
+
+    const priorityMap = { kritis: 1, perhatian: 2, aman: 3, belum_diisi: 4 };
+    filtered.sort((a, b) => {
+      const pDiff = (priorityMap[a.status_expired] || 5) - (priorityMap[b.status_expired] || 5);
+      if (pDiff !== 0) return pDiff;
+      if (a.sisa_hari !== null && b.sisa_hari !== null) return a.sisa_hari - b.sisa_hari;
+      return 0;
+    });
+
+    const totalData = filtered.length;
+    const paginated = filtered.slice(offset, offset + perPage);
+
+    const totalProduk = mappedWithStatus.length;
+    const kritis = mappedWithStatus.filter((p) => p.status_expired === "kritis").length;
+    const perhatian = mappedWithStatus.filter((p) => p.status_expired === "perhatian").length;
+    const aman = mappedWithStatus.filter((p) => p.status_expired === "aman").length;
+    const belumDiisi = mappedWithStatus.filter((p) => p.status_expired === "belum_diisi").length;
+
+    return res.status(200).json({
+      status: status.SUKSES,
+      message: "Data Laporan Expired berhasil dimuat",
+      datetime: formatDateSystem(),
+      data: paginated,
+      total_data: totalData,
+      summary: {
+        total_produk: totalProduk,
+        kritis,
+        perhatian,
+        aman,
+        belum_diisi: belumDiisi,
+      },
+    });
+  } catch (err) {
+    Logging(err, { file: "laporan_routes.js", func: "expired", request: body });
+    return res.status(500).json({ status: status.BAD_REQUEST, message: err.message });
+  }
+});
+
+/**
+ * 19. LAPORAN DEPOSIT
+ */
+router.post("/deposit", async (req, res) => {
+  const { body } = req;
+  const branchCode = getBranchScope(req, body.kode_cabang);
+  const keyword = (body.keyword || "").trim();
+  const filterStatus = body.status || null;
+  const page = parseInt(body.page) || 1;
+  const perPage = parseInt(body.perPage) || 10;
+  const offset = (page - 1) * perPage;
+
+  try {
+    const baseQuery = DB("mst_pasien as p")
+      .leftJoin("trx_deposit as d", "p.no_rm", "d.no_rm")
+      .modify((qb) => {
+        if (branchCode) {
+          qb.where("p.kode_cabang", branchCode);
+        }
+        if (keyword) {
+          const lower = keyword.toLowerCase();
+          qb.where(function () {
+            this.whereRaw("LOWER(p.no_rm) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(p.nama) LIKE ?", [`%${lower}%`]);
+          });
+        }
+      })
+      .select(
+        "p.no_rm",
+        "p.nama as nama_pasien",
+        "p.saldo_deposit",
+        DB.raw("COUNT(d.id) as total_riwayat"),
+        DB.raw("CASE WHEN p.saldo_deposit > 0 THEN 'aktif' ELSE 'nonaktif' END as status_deposit")
+      )
+      .groupBy("p.no_rm", "p.nama", "p.saldo_deposit")
+      .havingRaw("COUNT(d.id) > 0 OR p.saldo_deposit > 0");
+
+    const allRows = await baseQuery;
+
+    const filtered = allRows.filter((r) => {
+      if (!filterStatus || filterStatus === "ALL") return true;
+      if (Array.isArray(filterStatus)) return filterStatus.includes(r.status_deposit);
+      return r.status_deposit === filterStatus;
+    });
+
+    const totalData = filtered.length;
+    const paginated = filtered.slice(offset, offset + perPage);
+
+    const totalPasienDeposit = allRows.length;
+    const totalSaldoMengendap = allRows.reduce((acc, curr) => acc + parseFloat(curr.saldo_deposit || 0), 0);
+    const totalRiwayatTrx = allRows.reduce((acc, curr) => acc + parseInt(curr.total_riwayat || 0, 10), 0);
+
+    return res.status(200).json({
+      status: status.SUKSES,
+      message: "Data Laporan Deposit berhasil dimuat",
+      datetime: formatDateSystem(),
+      data: paginated.map((r) => ({
+        ...r,
+        saldo_deposit: parseFloat(r.saldo_deposit || 0),
+        total_riwayat: parseInt(r.total_riwayat || 0, 10),
+      })),
+      total_data: totalData,
+      summary: {
+        total_pasien: totalPasienDeposit,
+        total_saldo: totalSaldoMengendap,
+        total_riwayat: totalRiwayatTrx,
+      },
+    });
+  } catch (err) {
+    Logging(err, { file: "laporan_routes.js", func: "deposit", request: body });
+    return res.status(500).json({ status: status.BAD_REQUEST, message: err.message });
+  }
+});
+
+/**
+ * 20. LAPORAN CRM
+ */
+router.post("/crm", async (req, res) => {
+  const { body } = req;
+  const branchCode = getBranchScope(req, body.kode_cabang);
+  const keyword = (body.keyword || "").trim();
+  const tanggal_dari = body.tanggal_dari || null;
+  const tanggal_sampai = body.tanggal_sampai || null;
+  const filterTipe = body.tipe_followup || null;
+  const filterKanal = body.kanal_komunikasi || null;
+  const filterStatus = body.status || null;
+  const page = parseInt(body.page) || 1;
+  const perPage = parseInt(body.perPage) || 10;
+  const offset = (page - 1) * perPage;
+
+  try {
+    const baseQuery = DB("trx_crm_interaksi as crm")
+      .leftJoin("mst_pasien as p", "crm.no_rm", "p.no_rm")
+      .modify((qb) => {
+        if (branchCode) {
+          qb.where("crm.kode_cabang", branchCode);
+        }
+        if (tanggal_dari) {
+          qb.whereRaw("DATE(crm.tanggal_kirim) >= ?", [tanggal_dari]);
+        }
+        if (tanggal_sampai) {
+          qb.whereRaw("DATE(crm.tanggal_kirim) <= ?", [tanggal_sampai]);
+        }
+        if (filterTipe) {
+          if (Array.isArray(filterTipe) && filterTipe.length > 0) {
+            qb.whereIn("crm.tipe_followup", filterTipe);
+          } else if (typeof filterTipe === "string" && filterTipe.trim() && filterTipe !== "ALL") {
+            qb.where("crm.tipe_followup", filterTipe.trim());
+          }
+        }
+        if (filterKanal) {
+          if (Array.isArray(filterKanal) && filterKanal.length > 0) {
+            qb.whereIn("crm.kanal_komunikasi", filterKanal);
+          } else if (typeof filterKanal === "string" && filterKanal.trim() && filterKanal !== "ALL") {
+            qb.where("crm.kanal_komunikasi", filterKanal.trim());
+          }
+        }
+        if (filterStatus) {
+          if (Array.isArray(filterStatus) && filterStatus.length > 0) {
+            qb.whereIn("crm.status", filterStatus);
+          } else if (typeof filterStatus === "string" && filterStatus.trim() && filterStatus !== "ALL") {
+            qb.where("crm.status", filterStatus.trim());
+          }
+        }
+        if (keyword) {
+          const lower = keyword.toLowerCase();
+          qb.where(function () {
+            this.whereRaw("LOWER(crm.kode_interaksi) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(crm.no_rm) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(p.nama) LIKE ?", [`%${lower}%`])
+              .orWhereRaw("LOWER(crm.pesan) LIKE ?", [`%${lower}%`]);
+          });
+        }
+      });
+
+    const countResult = await baseQuery.clone().count("crm.id as total").first();
+    const totalData = parseInt(countResult?.total || 0, 10);
+
+    const rows = await baseQuery
+      .clone()
+      .select(
+        "crm.id",
+        "crm.kode_interaksi",
+        "crm.no_rm",
+        "p.nama as nama_pasien",
+        "crm.tipe_followup",
+        "crm.tanggal_kirim",
+        "crm.kanal_komunikasi",
+        "crm.pesan",
+        "crm.status",
+        "crm.created_at"
+      )
+      .orderBy("crm.tanggal_kirim", "desc")
+      .orderBy("crm.id", "desc")
+      .limit(perPage)
+      .offset(offset);
+
+    // Summary calculation
+    const allSummary = await baseQuery.clone().select("crm.status");
+    const totalInteraksi = allSummary.length;
+    const terkirim = allSummary.filter((r) => r.status === "terkirim").length;
+    const pending = allSummary.filter((r) => r.status === "pending").length;
+    const gagal = allSummary.filter((r) => r.status === "gagal").length;
+
+    return res.status(200).json({
+      status: status.SUKSES,
+      message: "Data Laporan CRM berhasil dimuat",
+      datetime: formatDateSystem(),
+      data: rows,
+      total_data: totalData,
+      summary: {
+        total_interaksi: totalInteraksi,
+        terkirim,
+        pending,
+        gagal,
+      },
+    });
+  } catch (err) {
+    Logging(err, { file: "laporan_routes.js", func: "crm", request: body });
     return res.status(500).json({ status: status.BAD_REQUEST, message: err.message });
   }
 });

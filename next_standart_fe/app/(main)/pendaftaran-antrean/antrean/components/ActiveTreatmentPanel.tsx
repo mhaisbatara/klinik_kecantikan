@@ -94,6 +94,7 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
     });
     const [lanjutKeTindakan, setLanjutKeTindakan] = useState<boolean>(true);
     const [uploadingBefore, setUploadingBefore] = useState<boolean>(false);
+    const pendingBeforePhotoRef = useRef<{ base64: string; fileName: string } | null>(null);
     const [resepProdukDokter, setResepProdukDokter] = useState<any[]>([]);
     const [loadingResepProduk, setLoadingResepProduk] = useState<boolean>(false);
 
@@ -538,28 +539,21 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
             showError(toast, 'File harus berupa gambar (JPG, PNG, WEBP, dll)');
             return;
         }
-        setUploadingBefore(true);
         try {
+            setUploadingBefore(true);
             const base64 = await new Promise<string>((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onload = () => resolve(reader.result as string);
                 reader.onerror = (err) => reject(err);
                 reader.readAsDataURL(file);
             });
-            const res = await postData('/master/ruangan-form-upload-foto', {
-                image_base64: base64,
-                file_name: file.name,
-                prefix: 'before',
-            });
-            if (res?.data?.status === 200 || res?.status === 200) {
-                const filePath = res.data?.data?.file_path || res.data?.file_path || '';
-                setHeaderRMData((prev) => ({ ...prev, foto_before: filePath }));
-                showSuccess(toast, 'Foto Before berhasil diunggah!');
-            } else {
-                showError(toast, res?.data?.message || 'Gagal mengunggah foto');
-            }
+
+            pendingBeforePhotoRef.current = { base64, fileName: file.name };
+            setHeaderRMData((prev) => ({ ...prev, foto_before: base64 }));
+            const inputEl = document.getElementById('before_photo_input_tindakan') as HTMLInputElement | null;
+            if (inputEl) inputEl.value = '';
         } catch (_) {
-            showError(toast, 'Gagal mengunggah foto');
+            showError(toast, 'Gagal memproses foto before');
         } finally {
             setUploadingBefore(false);
         }
@@ -617,12 +611,33 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                 petugas_pendamping: finalTerapisList,
             };
 
+            let finalHeaderData = { ...headerRMData };
+            if (pendingBeforePhotoRef.current || (finalHeaderData.foto_before && finalHeaderData.foto_before.startsWith('data:image/'))) {
+                try {
+                    const base64Data = pendingBeforePhotoRef.current?.base64 || finalHeaderData.foto_before;
+                    const fileName = pendingBeforePhotoRef.current?.fileName || 'foto_before.jpg';
+                    const resUpload = await postData('/master/ruangan-form-upload-foto', {
+                        image_base64: base64Data,
+                        file_name: fileName,
+                        prefix: 'before',
+                    });
+                    const pathUpload = resUpload?.data?.data?.file_path || resUpload?.data?.file_path;
+                    if (pathUpload) {
+                        pendingBeforePhotoRef.current = null;
+                        finalHeaderData.foto_before = pathUpload;
+                        setHeaderRMData((prev) => ({ ...prev, foto_before: pathUpload }));
+                    }
+                } catch (errUpload) {
+                    console.error('Gagal upload foto before saat simpan form:', errUpload);
+                }
+            }
+
             const payload: any = {
                 kode_antrian_layanan: activePatient.kode_antrian_layanan,
                 kode_karyawan: finalNoSip,
                 no_sip: finalNoSip,
                 hasil_form: updatedFormData,
-                header_data: headerRMData,
+                header_data: finalHeaderData,
                 lanjut_ke_tindakan: lanjutKeTindakan ? 1 : 0,
                 catatan_petugas: catatanPetugas,
                 rekomendasi_items: rekomendasiItems,
@@ -864,7 +879,7 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                             {hasCompanions && (
                                 <div className="flex align-items-center mb-2" style={{ minHeight: '26px' }}>
                                     <div
-                                        className="inline-flex align-items-center gap-1.5 text-[11px] min-w-0 cursor-pointer overflow-hidden px-2 py-0.5 border-round-md bg-emerald-50 text-emerald-800 border-1 border-emerald-200 hover:bg-emerald-100 transition-colors shadow-xs"
+                                        className="inline-flex align-items-center gap-1.5 text-[11px] min-w-0 cursor-pointer overflow-hidden text-emerald-800 hover:text-emerald-900 transition-colors"
                                         title={`Daftar Pendamping: ${fullCompanionNames}`}
                                         onClick={(e) => {
                                             e.stopPropagation();
@@ -877,7 +892,6 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                                             helperOpRef.current?.toggle(e);
                                         }}
                                     >
-                                        <Users size={12} className="text-emerald-700 flex-shrink-0" />
                                         <span className="font-semibold text-emerald-800 flex-shrink-0">
                                             +{totalCompanions} pendamping
                                         </span>
@@ -887,7 +901,7 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                                         >
                                             ({companionSummary})
                                         </span>
-                                        <Info size={12} className="text-emerald-600 flex-shrink-0 ml-0.5 opacity-80" />
+                                        <ChevronDown size={12} className="text-emerald-600 flex-shrink-0 ml-0.5 opacity-80" />
                                     </div>
                                 </div>
                             )}
@@ -1581,7 +1595,10 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                                                         outlined
                                                         severity="danger"
                                                         className="text-xs font-bold p-1 px-2.5"
-                                                        onClick={() => setHeaderRMData({ ...headerRMData, foto_before: '' })}
+                                                        onClick={() => {
+                                                            pendingBeforePhotoRef.current = null;
+                                                            setHeaderRMData({ ...headerRMData, foto_before: '' });
+                                                        }}
                                                     />
                                                 </div>
                                             )}

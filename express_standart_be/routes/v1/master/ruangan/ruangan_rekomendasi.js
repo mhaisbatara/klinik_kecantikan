@@ -149,7 +149,8 @@ const handleGetRekomendasiOptions = async (req, res) => {
           jenis_diskon: promo.jenis_diskon,
           nilai_diskon: diskonNilai,
           harga_asal: item.harga,
-          harga: hargaDiskon,
+          harga: item.harga, // Base price tetap harga asli/normal
+          harga_promo: hargaDiskon, // Metadata estimasi promo
         };
       }
 
@@ -584,6 +585,7 @@ router.post("/antrian-layanan-pendaftaran-items", async (req, res) => {
 
     let query = DB("trx_detail_antrian_layanan as dal")
       .leftJoin("mst_layanan as l", "dal.kode_layanan", "l.kode_layanan")
+      .leftJoin("mst_kategori_layanan as kl", "l.kode_kategori_layanan", "kl.kode_kategori_layanan")
       .leftJoin("mst_paket_layanan as p", "dal.kode_layanan", "p.kode_paket_layanan")
       .leftJoin("mst_ruangan as r_lay", "l.kode_ruangan", "r_lay.kode_ruangan")
       .leftJoin("mst_ruangan as r_pkt", "p.kode_ruangan", "r_pkt.kode_ruangan");
@@ -596,9 +598,12 @@ router.post("/antrian-layanan-pendaftaran-items", async (req, res) => {
 
     const rawItems = await query.select(
       "dal.*",
+      "l.harga as lay_master_harga",
       "l.kode_ruangan as lay_ruangan",
+      "kl.nama as lay_nama_kategori",
       "r_lay.nama_ruangan as lay_nama_ruangan",
       "r_lay.is_konsultasi as lay_is_konsul",
+      "p.harga_paket as pkt_master_harga",
       "p.kode_ruangan as pkt_ruangan",
       "r_pkt.nama_ruangan as pkt_nama_ruangan",
       "r_pkt.is_konsultasi as pkt_is_konsul"
@@ -621,13 +626,30 @@ router.post("/antrian-layanan-pendaftaran-items", async (req, res) => {
         const isPaket = jenisStr.includes("paket");
         const roomCode = isPaket ? (i.pkt_ruangan || i.kode_ruangan) : (i.lay_ruangan || i.kode_ruangan);
         const roomName = isPaket ? (i.pkt_nama_ruangan || i.nama_ruangan) : (i.lay_nama_ruangan || i.nama_ruangan);
+        const isKlaim = jenisStr.includes("klaim");
+
+        // Base price selalu harga master normal, bukan harga setelah diskon promo
+        let basePrice = isPaket
+          ? (i.pkt_master_harga !== null && i.pkt_master_harga !== undefined ? parseFloat(i.pkt_master_harga) : parseFloat(i.harga || 0))
+          : (i.lay_master_harga !== null && i.lay_master_harga !== undefined ? parseFloat(i.lay_master_harga) : parseFloat(i.harga || 0));
+
+        if (isKlaim) {
+          basePrice = 0;
+        }
 
         return {
           jenis: isPaket ? "paket_layanan" : (jenisStr || "layanan"),
           tipe: isPaket ? "paket_layanan" : "layanan_biasa",
           kode: i.kode_layanan,
           nama: i.nama_layanan,
-          harga: parseFloat(i.harga || 0),
+          nama_kategori: i.lay_nama_kategori || (isPaket ? "Paket Layanan" : "Perawatan"),
+          harga: basePrice,
+          harga_asal: basePrice,
+          is_promo: Boolean(i.kode_promo || i.nama_promo),
+          kode_promo: i.kode_promo || null,
+          nama_promo: i.nama_promo || null,
+          jenis_diskon: i.jenis_diskon || null,
+          nilai_diskon: i.nilai_diskon ? parseFloat(i.nilai_diskon) : null,
           kode_ruangan: roomCode || "RNG-001",
           nama_ruangan: roomName || "Ruang Treatment",
           is_locked: true,

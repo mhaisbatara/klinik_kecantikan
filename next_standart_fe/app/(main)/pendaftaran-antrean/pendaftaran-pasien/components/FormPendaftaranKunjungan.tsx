@@ -34,6 +34,7 @@ import {
   AlertCircle,
   RotateCcw,
   Info,
+  ChevronDown,
   Users,
   Ticket,
 } from 'lucide-react';
@@ -1316,7 +1317,7 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
                         {hasCompanions && (
                           <div className="flex align-items-center mb-2" style={{ minHeight: '26px' }}>
                             <div
-                              className="inline-flex align-items-center gap-1.5 text-[11px] min-w-0 cursor-pointer overflow-hidden px-2 py-0.5 border-round-md bg-emerald-50 text-emerald-800 border-1 border-emerald-200 hover:bg-emerald-100 transition-colors"
+                              className="inline-flex align-items-center gap-1.5 text-[11px] min-w-0 cursor-pointer overflow-hidden text-emerald-800 hover:text-emerald-900 transition-colors"
                               title={`Daftar Pendamping: ${fullCompanionNames}`}
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -1329,7 +1330,6 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
                                 companionOpRef.current?.toggle(e);
                               }}
                             >
-                              <Users size={12} className="text-emerald-700 flex-shrink-0" />
                               <span className="font-semibold text-emerald-800 flex-shrink-0">
                                 +{totalCompanions} pendamping
                               </span>
@@ -1339,7 +1339,7 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
                               >
                                 ({companionSummary})
                               </span>
-                              <Info size={12} className="text-emerald-600 flex-shrink-0 ml-0.5 opacity-80" />
+                              <ChevronDown size={12} className="text-emerald-600 flex-shrink-0 ml-0.5 opacity-80" />
                             </div>
                           </div>
                         )}
