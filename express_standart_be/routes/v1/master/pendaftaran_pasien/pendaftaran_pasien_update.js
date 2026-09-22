@@ -134,6 +134,7 @@ const handleUpdate = async (req, res) => {
       hubungan_kontak_darurat: oPayload.hubungan_kontak_darurat !== undefined ? oPayload.hubungan_kontak_darurat : dataBefore.hubungan_kontak_darurat,
       alergi: oPayload.alergi !== undefined ? oPayload.alergi : dataBefore.alergi,
       foto: oPayload.foto !== undefined ? oPayload.foto : dataBefore.foto,
+      status: oPayload.status !== undefined ? oPayload.status : dataBefore.status,
       updated_by: username,
       updated_at: formatDateSystem(),
     };

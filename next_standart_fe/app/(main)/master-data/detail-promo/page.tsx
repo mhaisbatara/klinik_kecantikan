@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import postData from '@/lib/axios/postData';
 import { Toast } from 'primereact/toast';
 import { DataTable } from 'primereact/datatable';
@@ -18,6 +19,7 @@ import { InputIcon } from 'primereact/inputicon';
 import { showError, showSuccess } from '@/lib/tools/generalTools';
 
 const Page = () => {
+    const router = useRouter();
     const toast = useRef<Toast>(null);
 
     const [data, setData] = useState<any[]>([]);
@@ -29,6 +31,7 @@ const Page = () => {
     const [page, setPage] = useState<number>(1);
     const [rows, setRows] = useState<number>(10);
     const [keyword, setKeyword] = useState<string>('');
+    const [filterStatus, setFilterStatus] = useState<string>('');
     const [selectedRows, setSelectedRows] = useState<any[]>([]);
     const [expandedRows, setExpandedRows] = useState<any>(null);
 
@@ -45,7 +48,12 @@ const Page = () => {
     const loadData = async () => {
         setLoading(true);
         try {
-            const res = await postData('/master/detail-promo-data', { page, perPage: rows, keyword });
+            const res = await postData('/master/detail-promo-data', {
+                page,
+                perPage: rows,
+                keyword,
+                status: filterStatus || undefined
+            });
             setData(res.data.data || []);
             setTotalRecords(res.data.total_data || 0);
         } catch (error: any) {
@@ -105,7 +113,7 @@ const Page = () => {
 
     useEffect(() => {
         loadData();
-    }, [page, rows, keyword]);
+    }, [page, rows, keyword, filterStatus]);
 
     useEffect(() => {
         loadPromos();
@@ -418,6 +426,7 @@ const Page = () => {
                     </p>
                 </div>
 
+                {/* ACTION BUTTONS TOOLBAR */}
                 <div className="flex flex-row flex-wrap align-items-center gap-2 mb-4">
                     <Button
                         size="small"
@@ -462,8 +471,18 @@ const Page = () => {
                         loading={loading}
                         onClick={loadData}
                     />
+                    <Divider layout="vertical" className="m-0 h-2rem" />
+                    <Button
+                        size="small"
+                        label="Master Data Promo"
+                        icon="pi pi-percentage"
+                        outlined
+                        className="border-round-md font-medium px-3 border-purple-600 text-purple-600"
+                        onClick={() => router.push('/master-data/promo')}
+                    />
                 </div>
 
+                {/* DATA TABLE */}
                 <DataTable
                     value={data}
                     loading={loading}
@@ -491,17 +510,33 @@ const Page = () => {
                     header={
                         <div className="flex flex-column gap-3">
                             <div className="flex flex-wrap align-items-center justify-content-between gap-2">
-                                <span className="text-xl font-bold">Data Detail Promo Produk &amp; Layanan</span>
-                                <div className="flex align-items-center gap-2 ml-auto w-full md:w-auto">
-                                    <IconField iconPosition="left" className="w-full md:w-20rem">
+                                <span className="text-xl font-bold text-900">Data Detail Promo Produk &amp; Layanan</span>
+                                <div className="flex flex-wrap align-items-center gap-2 ml-auto w-full md:w-auto">
+                                    {/* Filter Status Promo */}
+                                    <Dropdown
+                                        value={filterStatus}
+                                        options={[
+                                            { label: 'Semua Status Promo', value: '' },
+                                            { label: 'Promo Aktif', value: 'aktif' },
+                                            { label: 'Promo Nonaktif', value: 'nonaktif' },
+                                        ]}
+                                        onChange={(e) => setFilterStatus(e.value)}
+                                        placeholder="Status Promo"
+                                        className="p-inputtext-sm text-sm border-round-md w-full md:w-13rem"
+                                    />
+
+                                    {/* Search Field */}
+                                    <IconField iconPosition="left" className="w-full md:w-18rem">
                                         <InputIcon className="pi pi-search" />
                                         <InputText
                                             value={keyword}
                                             onChange={(e) => setKeyword(e.target.value)}
-                                            placeholder="Cari Promo, Produk, atau Layanan..."
+                                            placeholder="Cari Promo / Produk / Layanan..."
                                             className="w-full text-sm"
                                         />
                                     </IconField>
+
+                                    {/* Reset Filter Button */}
                                     <Button
                                         type="button"
                                         icon="pi pi-filter-slash"
@@ -509,95 +544,151 @@ const Page = () => {
                                         severity="danger"
                                         tooltip="Reset Filter"
                                         tooltipOptions={{ position: 'bottom' }}
-                                        onClick={() => setKeyword('')}
+                                        onClick={() => {
+                                            setKeyword('');
+                                            setFilterStatus('');
+                                        }}
                                     />
                                 </div>
                             </div>
-                            <div className="flex flex-wrap align-items-center gap-3 px-1 py-2 border-round-md surface-100 text-xs font-medium text-color-secondary">
-                                <span className="flex align-items-center gap-1">
+
+                            {/* STATUS LEGEND BAR */}
+                            <div className="flex flex-wrap align-items-center gap-3 px-2 py-2 border-round-md surface-100 text-xs font-medium text-color-secondary">
+                                <span className="flex align-items-center gap-1 font-bold">
                                     <i className="pi pi-info-circle" />
-                                    <span className="font-semibold">KETERANGAN STATUS:</span>
+                                    <span>KETERANGAN STATUS:</span>
                                 </span>
                                 <span className="flex align-items-center gap-1">
-                                    <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', backgroundColor: '#22c55e', boxShadow: '0 1px 3px #22c55e55' }} />
-                                    Aktif
+                                    <span
+                                        style={{
+                                            display: 'inline-block',
+                                            width: '12px',
+                                            height: '12px',
+                                            borderRadius: '3px',
+                                            backgroundColor: '#22c55e',
+                                            boxShadow: '0 1px 3px #22c55e55',
+                                        }}
+                                    />
+                                    Aktif &amp; Berlaku
                                 </span>
                                 <span className="flex align-items-center gap-1">
-                                    <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', backgroundColor: '#ef4444', boxShadow: '0 1px 3px #ef444455' }} />
-                                    Tidak Aktif
+                                    <span
+                                        style={{
+                                            display: 'inline-block',
+                                            width: '12px',
+                                            height: '12px',
+                                            borderRadius: '3px',
+                                            backgroundColor: '#ef4444',
+                                            boxShadow: '0 1px 3px #ef444455',
+                                        }}
+                                    />
+                                    Tidak Aktif / Berakhir
                                 </span>
                             </div>
                         </div>
                     }
                 >
                     <Column expander style={{ width: '3rem' }} />
-                    <Column selectionMode="multiple" headerStyle={{ width: '3rem' }}></Column>
+                    <Column selectionMode="multiple" headerStyle={{ width: '3rem' }} />
+
+                    {/* Status Column */}
                     <Column
-                        header=""
-                        headerStyle={{ width: '3rem' }}
-                        align="center"
-                        body={(r) => (
-                            <span
-                                style={{
-                                    display: 'inline-block',
-                                    width: '14px',
-                                    height: '14px',
-                                    borderRadius: '3px',
-                                    backgroundColor: r.status === 'aktif' ? '#22c55e' : '#ef4444',
-                                    boxShadow: r.status === 'aktif' ? '0 1px 3px #22c55e55' : '0 1px 3px #ef444455'
-                                }}
-                                title={r.status === 'aktif' ? 'Status: Aktif' : 'Status: Tidak Aktif'}
-                            />
-                        )}
-                    ></Column>
-                    <Column field="kode_promo" header="Kode" sortable headerStyle={{ fontWeight: 'bold' }}></Column>
-                    <Column field="nama" header="Nama Promo" sortable headerStyle={{ fontWeight: 'bold' }}></Column>
-                    <Column
-                        header="Detail Item Promo"
+                        header="Status"
+                        headerStyle={{ width: '4rem', textAlign: 'center' }}
+                        bodyStyle={{ textAlign: 'center' }}
                         body={(r) => {
-                            const total = r.details?.length || 0;
-                            const prodCount = (r.details || []).filter((d: any) => d.jenis_item === 'produk').length;
-                            const layCount = (r.details || []).filter((d: any) => d.jenis_item === 'layanan').length;
+                            const sisa = r.sisa_hari !== undefined ? parseInt(r.sisa_hari, 10) : 0;
+                            const isAktif = r.status === 'aktif' && sisa > 0;
+                            const dotColor = isAktif ? '#22c55e' : '#ef4444';
+                            const dotTitle = isAktif
+                                ? `Status: Aktif (Sisa ${sisa} Hari)`
+                                : r.status === 'nonaktif'
+                                ? 'Status: Nonaktif'
+                                : 'Status: Kedaluwarsa (0 Hari)';
                             return (
-                                <div className="flex flex-column gap-1">
-                                    <Button
-                                        label={`Lihat Detail (${total})`}
-                                        icon="pi pi-eye"
-                                        text
-                                        size="small"
-                                        className="p-button-sm text-primary font-semibold p-1"
-                                        onClick={() => toggleRowExpansion(r)}
+                                <div className="flex justify-content-center">
+                                    <span
+                                        style={{
+                                            display: 'inline-block',
+                                            width: '14px',
+                                            height: '14px',
+                                            borderRadius: '3px',
+                                            backgroundColor: dotColor,
+                                            boxShadow: `0 1px 3px ${dotColor}66`,
+                                        }}
+                                        title={dotTitle}
                                     />
-                                    {total > 0 && (
-                                        <div className="flex align-items-center gap-1 text-[11px] text-500 font-medium">
-                                            {prodCount > 0 && <span>{prodCount} Produk</span>}
-                                            {prodCount > 0 && layCount > 0 && <span>•</span>}
-                                            {layCount > 0 && <span>{layCount} Layanan</span>}
-                                        </div>
-                                    )}
                                 </div>
                             );
                         }}
-                    ></Column>
+                    />
+
+                    {/* Kode Promo */}
+                    <Column
+                        field="kode_promo"
+                        header="Kode"
+                        sortable
+                        headerStyle={{ fontWeight: 'bold', width: '7rem' }}
+                        body={(r) => (
+                            <span className="font-mono font-bold text-purple-700 bg-purple-50 px-2 py-1 border-round text-xs white-space-nowrap">
+                                {r.kode_promo}
+                            </span>
+                        )}
+                    />
+
+                    {/* Nama Promo */}
+                    <Column
+                        field="nama"
+                        header="Nama Promo"
+                        sortable
+                        headerStyle={{ fontWeight: 'bold' }}
+                        body={(r) => (
+                            <div>
+                                <span className="font-bold text-900 text-sm block">{r.nama}</span>
+                                <span className="text-xs text-500">
+                                    {r.details?.length || 0} item terkonfigurasi
+                                </span>
+                            </div>
+                        )}
+                    />
+
+                    {/* Detail Item Promo */}
+                    <Column
+                        header="Detail Item Promo"
+                        headerStyle={{ fontWeight: 'bold' }}
+                        body={(r) => {
+                            const total = r.details?.length || 0;
+                            return (
+                                <Button
+                                    label={total > 0 ? `Lihat Detail (${total})` : 'Belum Ada Item'}
+                                    icon="pi pi-eye"
+                                    size="small"
+                                    outlined
+                                    severity={total > 0 ? 'info' : 'secondary'}
+                                    className="p-button-sm text-xs font-semibold py-1 px-2 border-round-md"
+                                    style={{ width: 'fit-content' }}
+                                    onClick={() => toggleRowExpansion(r)}
+                                />
+                            );
+                        }}
+                    />
+
+                    {/* Diskon */}
                     <Column
                         field="nilai_diskon"
                         header="Diskon"
+                        headerStyle={{ fontWeight: 'bold' }}
                         body={(r) => (
-                            <span className="font-semibold text-purple-600">
+                            <span className="font-bold text-purple-700 bg-purple-50 px-2 py-1 border-round text-xs border-1 border-purple-200 white-space-nowrap">
                                 {r.jenis_diskon === 'persen' ? `${Number(r.nilai_diskon)}%` : formatRupiah(r.nilai_diskon)}
                             </span>
                         )}
-                    ></Column>
+                    />
+
+                    {/* Periode & Masa Berlaku (Consolidated) */}
                     <Column
-                        field="sisa_hari"
-                        header="Masa Berlaku"
-                        body={(r) => {
-                            const sisa = r.sisa_hari !== undefined ? parseInt(r.sisa_hari, 10) : 0;
-                            return `${sisa} Hari`;
-                        }}
-                    ></Column>
-                    <Column
-                        header="Periode Aktif Promo"
+                        header="Periode &amp; Masa Berlaku"
+                        headerStyle={{ fontWeight: 'bold' }}
                         body={(r) => {
                             const start = formatYmd(r.tanggal_mulai);
                             const end = formatYmd(r.tanggal_selesai);
@@ -607,9 +698,9 @@ const Page = () => {
                             if (isInactive) {
                                 return (
                                     <div className="flex flex-column gap-1 text-xs">
-                                        <Tag severity="danger" value="0 Hari (Nonaktif)" className="text-[10px] py-0 px-2 font-bold" style={{ width: 'fit-content' }} />
+                                        <Tag severity="danger" value="Berakhir / Nonaktif" className="text-[10px] py-0 px-2 font-bold" style={{ width: 'fit-content' }} />
                                         {start && end && (
-                                            <span className="text-400 text-[11px]">
+                                            <span className="text-500 text-xs">
                                                 {start} s/d {end}
                                             </span>
                                         )}
@@ -624,18 +715,20 @@ const Page = () => {
                                         Sisa {sisa} Hari
                                     </span>
                                     {start && end && (
-                                        <span className="text-500 text-[11px]">
+                                        <span className="text-500 text-xs">
                                             {start} s/d {end}
                                         </span>
                                     )}
                                 </div>
                             );
                         }}
-                    ></Column>
+                    />
+
+                    {/* Aksi */}
                     <Column
                         header="Aksi"
                         align="center"
-                        headerStyle={{ width: '8rem', textAlign: 'center' }}
+                        headerStyle={{ width: '7rem', textAlign: 'center' }}
                         body={(r) => (
                             <div className="flex align-items-center justify-content-center gap-2">
                                 <Button
@@ -656,7 +749,7 @@ const Page = () => {
                                 />
                             </div>
                         )}
-                    ></Column>
+                    />
                 </DataTable>
             </div>
 
@@ -722,20 +815,18 @@ const Page = () => {
                                     type="button"
                                     label="Tambah Produk"
                                     icon="pi pi-box"
-                                    outlined
                                     size="small"
                                     severity="info"
-                                    className="p-button-sm text-xs font-medium"
+                                    className="p-button-sm text-xs font-bold px-3 py-2 border-round-md shadow-1"
                                     onClick={handleAddProduk}
                                 />
                                 <Button
                                     type="button"
                                     label="Tambah Layanan"
                                     icon="pi pi-heart"
-                                    outlined
                                     size="small"
                                     severity="success"
-                                    className="p-button-sm text-xs font-medium"
+                                    className="p-button-sm text-xs font-bold px-3 py-2 border-round-md shadow-1"
                                     onClick={handleAddLayanan}
                                 />
                             </div>

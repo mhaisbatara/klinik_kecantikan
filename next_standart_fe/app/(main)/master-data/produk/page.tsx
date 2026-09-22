@@ -153,22 +153,11 @@ const Page = () => {
                         Kelola Data Produk & Skincare
                     </h3>
                     <p className="text-500 text-sm m-0">
-                        Tambah, edit, atau nonaktifkan produk dan skincare yang dijual di klinik.
+                        Katalog produk dan skincare yang dijual di klinik. Pengadaan produk baru dilakukan melalui menu Inventori.
                     </p>
                 </div>
 
-
                 <div className="flex flex-row flex-wrap align-items-center gap-2 mb-4">
-                    <Button
-                        size="small"
-                        label="Baru"
-                        icon="pi pi-plus"
-                        outlined
-                        severity="success"
-                        className="border-round-md font-medium px-3"
-                        onClick={handleOpenCreate}
-                    />
-                    <Divider layout="vertical" className="m-0 h-2rem" />
                     <Button
                         size="small"
                         label="Cetak"

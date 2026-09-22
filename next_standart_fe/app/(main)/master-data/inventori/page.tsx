@@ -428,6 +428,81 @@ const Page = () => {
                 </div>
 
                 {/* =========================================================
+                    5 KPI CARDS STRIP (Standard Modern Design)
+                    ========================================================= */}
+                <div className="grid m-0 mb-4">
+                    {/* 1. Total SKU */}
+                    <div className="col-12 sm:col-6 lg:col-2 p-1">
+                        <div className="p-3 border-round-xl surface-ground border-1 border-200 flex align-items-center justify-content-between h-full">
+                            <div>
+                                <span className="text-xs text-500 font-semibold uppercase block mb-1">Total SKU</span>
+                                <span className="text-2xl font-bold text-900">{summary.total_sku || 0}</span>
+                                <span className="text-xs text-500 block mt-1">Katalog produk aktif</span>
+                            </div>
+                            <div className="w-3rem h-3rem border-round-lg bg-purple-100 flex align-items-center justify-content-center text-purple-700">
+                                <i className="pi pi-tags text-xl" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 2. Total Stok Unit */}
+                    <div className="col-12 sm:col-6 lg:col-2 p-1">
+                        <div className="p-3 border-round-xl surface-ground border-1 border-200 flex align-items-center justify-content-between h-full">
+                            <div>
+                                <span className="text-xs text-500 font-semibold uppercase block mb-1">Stok Fisik</span>
+                                <span className="text-2xl font-bold text-blue-600">{summary.total_stok_unit || 0}</span>
+                                <span className="text-xs text-500 block mt-1">Total unit di klinik</span>
+                            </div>
+                            <div className="w-3rem h-3rem border-round-lg bg-blue-100 flex align-items-center justify-content-center text-blue-700">
+                                <i className="pi pi-box text-xl" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 3. Stok Menipis */}
+                    <div className="col-12 sm:col-6 lg:col-2 p-1">
+                        <div className="p-3 border-round-xl surface-ground border-1 border-200 flex align-items-center justify-content-between h-full">
+                            <div>
+                                <span className="text-xs text-500 font-semibold uppercase block mb-1">Stok Menipis</span>
+                                <span className="text-2xl font-bold text-orange-600">{summary.stok_menipis || 0}</span>
+                                <span className="text-xs text-500 block mt-1">&le; Buffer minimum</span>
+                            </div>
+                            <div className="w-3rem h-3rem border-round-lg bg-orange-100 flex align-items-center justify-content-center text-orange-700">
+                                <i className="pi pi-exclamation-triangle text-xl" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 4. Stok Habis */}
+                    <div className="col-12 sm:col-6 lg:col-2 p-1">
+                        <div className="p-3 border-round-xl surface-ground border-1 border-200 flex align-items-center justify-content-between h-full">
+                            <div>
+                                <span className="text-xs text-500 font-semibold uppercase block mb-1">Stok Habis</span>
+                                <span className="text-2xl font-bold text-red-600">{summary.stok_habis || 0}</span>
+                                <span className="text-xs text-500 block mt-1">Stok 0 unit</span>
+                            </div>
+                            <div className="w-3rem h-3rem border-round-lg bg-red-100 flex align-items-center justify-content-center text-red-700">
+                                <i className="pi pi-times-circle text-xl" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 5. Total Valuasi Aset */}
+                    <div className="col-12 sm:col-12 lg:col-4 p-1">
+                        <div className="p-3 border-round-xl surface-ground border-1 border-200 flex align-items-center justify-content-between h-full bg-green-50">
+                            <div>
+                                <span className="text-xs text-green-800 font-semibold uppercase block mb-1">Total Valuasi Aset Stok</span>
+                                <span className="text-2xl font-black text-green-900">{formatRupiah(summary.total_aset || 0)}</span>
+                                <span className="text-xs text-green-700 block mt-1">Akumulasi harga beli persediaan</span>
+                            </div>
+                            <div className="w-3rem h-3rem border-round-lg bg-green-100 flex align-items-center justify-content-center text-green-700">
+                                <i className="pi pi-money-bill text-xl" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* =========================================================
                     TAB VIEW: INVENTORI, RIWAYAT PO, LOG MUTASI
                     ========================================================= */}
                 <TabView activeIndex={activeIndex} onTabChange={(e) => setActiveIndex(e.index)}>
@@ -476,172 +551,6 @@ const Page = () => {
                             />
                         </div>
 
-                        {/* =========================================================
-                            5 KPI CARDS STRIP
-                            ========================================================= */}
-                        <div className="grid m-0 mb-4">
-                            {/* 1. Total SKU */}
-                            <div className="col-12 sm:col-6 lg:col-2 p-1">
-                                <div className="surface-card border-1 border-200 border-round-xl p-3 h-full flex flex-column justify-content-between shadow-sm">
-                                    <div className="flex justify-content-between align-items-center mb-1">
-                                        <span className="text-xs font-bold text-500 uppercase">Total SKU</span>
-                                        <i className="pi pi-tags text-primary text-sm font-bold" />
-                                    </div>
-                                    <div className="text-2xl font-bold text-900 my-1">{summary.total_sku || 0}</div>
-                                    <span className="text-xs text-500">Katalog produk aktif</span>
-                                </div>
-                            </div>
-
-                            {/* 2. Total Stok Unit */}
-                            <div className="col-12 sm:col-6 lg:col-2 p-1">
-                                <div className="surface-card border-1 border-200 border-round-xl p-3 h-full flex flex-column justify-content-between shadow-sm">
-                                    <div className="flex justify-content-between align-items-center mb-1">
-                                        <span className="text-xs font-bold text-500 uppercase">Stok Fisik</span>
-                                        <i className="pi pi-box text-blue-600 text-sm font-bold" />
-                                    </div>
-                                    <div className="text-2xl font-bold text-blue-700 my-1">{summary.total_stok_unit || 0}</div>
-                                    <span className="text-xs text-500">Total unit di klinik</span>
-                                </div>
-                            </div>
-
-                            {/* 3. Stok Menipis */}
-                            <div className="col-12 sm:col-6 lg:col-2 p-1">
-                                <div className="surface-card border-1 border-200 border-round-xl p-3 h-full flex flex-column justify-content-between shadow-sm">
-                                    <div className="flex justify-content-between align-items-center mb-1">
-                                        <span className="text-xs font-bold text-orange-600 uppercase">Stok Menipis</span>
-                                        <i className="pi pi-exclamation-triangle text-orange-600 text-sm font-bold" />
-                                    </div>
-                                    <div className="text-2xl font-bold text-orange-600 my-1">{summary.stok_menipis || 0}</div>
-                                    <span className="text-xs text-500">Mendekati buffer min</span>
-                                </div>
-                            </div>
-
-                            {/* 4. Stok Habis */}
-                            <div className="col-12 sm:col-6 lg:col-2 p-1">
-                                <div className="surface-card border-1 border-200 border-round-xl p-3 h-full flex flex-column justify-content-between shadow-sm">
-                                    <div className="flex justify-content-between align-items-center mb-1">
-                                        <span className="text-xs font-bold text-red-600 uppercase">Stok Habis</span>
-                                        <i className="pi pi-times-circle text-red-600 text-sm font-bold" />
-                                    </div>
-                                    <div className="text-2xl font-bold text-red-600 my-1">{summary.stok_habis || 0}</div>
-                                    <span className="text-xs text-500">Stok 0 unit</span>
-                                </div>
-                            </div>
-
-                            {/* 5. Total Valuasi Aset */}
-                            <div className="col-12 sm:col-12 lg:col-4 p-1">
-                                <div className="surface-card border-1 border-200 border-round-xl p-3 h-full flex flex-column justify-content-between shadow-sm bg-green-50">
-                                    <div className="flex justify-content-between align-items-center mb-1">
-                                        <span className="text-xs font-bold text-green-800 uppercase">Total Valuasi Aset Stok</span>
-                                        <i className="pi pi-money-bill text-green-700 text-sm font-bold" />
-                                    </div>
-                                    <div className="text-2xl font-black text-green-900 my-1">{formatRupiah(summary.total_aset || 0)}</div>
-                                    <span className="text-xs text-green-700">Akumulasi harga beli persediaan</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* TOOLBAR FILTER & SEARCH */}
-                        <div className="flex flex-column gap-3 mb-3">
-                            <div className="flex flex-wrap align-items-center justify-content-between gap-2">
-                                <span className="text-lg font-bold text-900">Data Stok Produk Klinik</span>
-                                <div className="flex flex-wrap align-items-center gap-2 ml-auto w-full md:w-auto">
-                                    {/* Filter Status Stok */}
-                                    <Dropdown
-                                        value={filterStatusStok}
-                                        options={[
-                                            { label: 'Semua Status Stok', value: '' },
-                                            { label: '🟢 Stok Aman', value: 'aman' },
-                                            { label: '🟠 Stok Menipis', value: 'menipis' },
-                                            { label: '🔴 Stok Habis', value: 'habis' },
-                                        ]}
-                                        onChange={(e) => setFilterStatusStok(e.value)}
-                                        placeholder="Status Stok"
-                                        className="text-sm w-full md:w-11rem"
-                                    />
-
-                                    {/* Filter Supplier */}
-                                    <Dropdown
-                                        value={filterSupplier}
-                                        options={[{ label: 'Semua Supplier', value: '' }, ...supplierList]}
-                                        onChange={(e) => setFilterSupplier(e.value)}
-                                        placeholder="Supplier"
-                                        className="text-sm w-full md:w-12rem"
-                                    />
-
-                                    {/* Search Field */}
-                                    <IconField iconPosition="left" className="w-full md:w-16rem">
-                                        <InputIcon className="pi pi-search" />
-                                        <InputText
-                                            value={keyword}
-                                            onChange={(e) => setKeyword(e.target.value)}
-                                            placeholder="Cari Produk / Supplier..."
-                                            className="w-full text-sm"
-                                        />
-                                    </IconField>
-
-                                    {/* Reset Filter Button */}
-                                    <Button
-                                        type="button"
-                                        icon="pi pi-filter-slash"
-                                        outlined
-                                        severity="danger"
-                                        tooltip="Reset Filter"
-                                        onClick={() => {
-                                            setKeyword('');
-                                            setFilterStatusStok('');
-                                            setFilterKategori('');
-                                            setFilterSupplier('');
-                                        }}
-                                    />
-                                </div>
-                            </div>
-
-                            {/* STATUS LEGEND BAR */}
-                            <div className="flex flex-wrap align-items-center gap-3 px-2 py-2 border-round-md surface-100 text-xs font-medium text-color-secondary">
-                                <span className="flex align-items-center gap-1 font-bold">
-                                    <i className="pi pi-info-circle" />
-                                    <span>KETERANGAN STATUS:</span>
-                                </span>
-                                <span className="flex align-items-center gap-1">
-                                    <span
-                                        style={{
-                                            display: 'inline-block',
-                                            width: '12px',
-                                            height: '12px',
-                                            borderRadius: '3px',
-                                            backgroundColor: '#22c55e',
-                                        }}
-                                    />
-                                    Stok Aman (&gt; Min)
-                                </span>
-                                <span className="flex align-items-center gap-1">
-                                    <span
-                                        style={{
-                                            display: 'inline-block',
-                                            width: '12px',
-                                            height: '12px',
-                                            borderRadius: '3px',
-                                            backgroundColor: '#f97316',
-                                        }}
-                                    />
-                                    Stok Menipis (&le; Min)
-                                </span>
-                                <span className="flex align-items-center gap-1">
-                                    <span
-                                        style={{
-                                            display: 'inline-block',
-                                            width: '12px',
-                                            height: '12px',
-                                            borderRadius: '3px',
-                                            backgroundColor: '#ef4444',
-                                        }}
-                                    />
-                                    Stok Habis (0)
-                                </span>
-                            </div>
-                        </div>
-
                         {/* DATA TABLE STOK PRODUK */}
                         <DataTable
                             value={dataProduk}
@@ -664,14 +573,128 @@ const Page = () => {
                             rowsPerPageOptions={[10, 25, 50]}
                             paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
                             currentPageReportTemplate="Menampilkan {first} - {last} dari {totalRecords} data"
+                            header={
+                                <div className="flex flex-column gap-3">
+                                    <div className="flex flex-wrap align-items-center justify-content-between gap-2">
+                                        <span className="text-xl font-bold text-900">Data Stok Produk Klinik</span>
+                                        <div className="flex flex-wrap align-items-center gap-2 ml-auto w-full md:w-auto">
+                                            {/* Filter Status Stok */}
+                                            <Dropdown
+                                                value={filterStatusStok}
+                                                options={[
+                                                    { label: 'Semua Status Stok', value: '' },
+                                                    { label: 'Stok Aman', value: 'aman' },
+                                                    { label: 'Stok Menipis', value: 'menipis' },
+                                                    { label: 'Stok Habis', value: 'habis' },
+                                                ]}
+                                                onChange={(e) => setFilterStatusStok(e.value)}
+                                                placeholder="Status Stok"
+                                                className="p-inputtext-sm text-sm border-round-md w-full md:w-11rem"
+                                            />
+
+                                            {/* Filter Kategori */}
+                                            <Dropdown
+                                                value={filterKategori}
+                                                options={[{ label: 'Semua Kategori', value: '' }, ...kategoriList]}
+                                                onChange={(e) => setFilterKategori(e.value)}
+                                                placeholder="Filter Kategori"
+                                                className="p-inputtext-sm text-sm border-round-md w-full md:w-12rem"
+                                            />
+
+                                            {/* Filter Supplier */}
+                                            <Dropdown
+                                                value={filterSupplier}
+                                                options={[{ label: 'Semua Supplier', value: '' }, ...supplierList]}
+                                                onChange={(e) => setFilterSupplier(e.value)}
+                                                placeholder="Supplier"
+                                                className="p-inputtext-sm text-sm border-round-md w-full md:w-12rem"
+                                            />
+
+                                            {/* Search Field */}
+                                            <IconField iconPosition="left" className="w-full md:w-16rem">
+                                                <InputIcon className="pi pi-search" />
+                                                <InputText
+                                                    value={keyword}
+                                                    onChange={(e) => setKeyword(e.target.value)}
+                                                    placeholder="Cari Produk / Supplier..."
+                                                    className="w-full text-sm"
+                                                />
+                                            </IconField>
+
+                                            {/* Reset Filter Button */}
+                                            <Button
+                                                type="button"
+                                                icon="pi pi-filter-slash"
+                                                outlined
+                                                severity="danger"
+                                                tooltip="Reset Filter"
+                                                tooltipOptions={{ position: 'bottom' }}
+                                                onClick={() => {
+                                                    setKeyword('');
+                                                    setFilterStatusStok('');
+                                                    setFilterKategori('');
+                                                    setFilterSupplier('');
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* STATUS LEGEND BAR */}
+                                    <div className="flex flex-wrap align-items-center gap-3 px-2 py-2 border-round-md surface-100 text-xs font-medium text-color-secondary">
+                                        <span className="flex align-items-center gap-1 font-bold">
+                                            <i className="pi pi-info-circle" />
+                                            <span>KETERANGAN STATUS:</span>
+                                        </span>
+                                        <span className="flex align-items-center gap-1">
+                                            <span
+                                                style={{
+                                                    display: 'inline-block',
+                                                    width: '12px',
+                                                    height: '12px',
+                                                    borderRadius: '3px',
+                                                    backgroundColor: '#22c55e',
+                                                    boxShadow: '0 1px 3px #22c55e55',
+                                                }}
+                                            />
+                                            Stok Aman (&gt; Min)
+                                        </span>
+                                        <span className="flex align-items-center gap-1">
+                                            <span
+                                                style={{
+                                                    display: 'inline-block',
+                                                    width: '12px',
+                                                    height: '12px',
+                                                    borderRadius: '3px',
+                                                    backgroundColor: '#f97316',
+                                                    boxShadow: '0 1px 3px #f9731655',
+                                                }}
+                                            />
+                                            Stok Menipis (&le; Min)
+                                        </span>
+                                        <span className="flex align-items-center gap-1">
+                                            <span
+                                                style={{
+                                                    display: 'inline-block',
+                                                    width: '12px',
+                                                    height: '12px',
+                                                    borderRadius: '3px',
+                                                    backgroundColor: '#ef4444',
+                                                    boxShadow: '0 1px 3px #ef444455',
+                                                }}
+                                            />
+                                            Stok Habis (0)
+                                        </span>
+                                    </div>
+                                </div>
+                            }
                         >
                             <Column selectionMode="multiple" headerStyle={{ width: '3rem' }} />
 
-                            {/* Status Dot */}
+                            {/* Status Indicator Square */}
                             <Column
-                                header=""
-                                headerStyle={{ width: '2.5rem' }}
-                                align="center"
+                                header="Status"
+                                headerStyle={{ width: '4rem', textAlign: 'center' }}
+                                bodyStyle={{ textAlign: 'center' }}
                                 body={(r) => {
                                     let dotColor = '#22c55e';
                                     let dotTitle = 'Stok Aman';
@@ -683,22 +706,34 @@ const Page = () => {
                                         dotTitle = 'Stok Menipis';
                                     }
                                     return (
-                                        <span
-                                            style={{
-                                                display: 'inline-block',
-                                                width: '13px',
-                                                height: '13px',
-                                                borderRadius: '3px',
-                                                backgroundColor: dotColor,
-                                                boxShadow: `0 1px 3px ${dotColor}55`,
-                                            }}
-                                            title={dotTitle}
-                                        />
+                                        <div className="flex justify-content-center">
+                                            <span
+                                                style={{
+                                                    display: 'inline-block',
+                                                    width: '14px',
+                                                    height: '14px',
+                                                    borderRadius: '3px',
+                                                    backgroundColor: dotColor,
+                                                    boxShadow: `0 1px 3px ${dotColor}66`,
+                                                }}
+                                                title={dotTitle}
+                                            />
+                                        </div>
                                     );
                                 }}
                             />
 
-                            <Column field="kode_produk" header="Kode" sortable headerStyle={{ fontWeight: 'bold' }} />
+                            <Column
+                                field="kode_produk"
+                                header="Kode"
+                                sortable
+                                headerStyle={{ fontWeight: 'bold', width: '7rem' }}
+                                body={(r) => (
+                                    <span className="font-mono font-bold text-purple-700 bg-purple-50 px-2 py-1 border-round text-xs">
+                                        {r.kode_produk}
+                                    </span>
+                                )}
+                            />
                             <Column
                                 field="nama"
                                 header="Nama Produk"
@@ -706,7 +741,7 @@ const Page = () => {
                                 headerStyle={{ fontWeight: 'bold' }}
                                 body={(r) => (
                                     <div>
-                                        <span className="font-semibold text-900 block">{r.nama}</span>
+                                        <span className="font-bold text-900 text-sm block">{r.nama}</span>
                                         <span className="text-xs text-500">{r.nama_kategori || 'Tanpa Kategori'}</span>
                                     </div>
                                 )}
@@ -717,9 +752,9 @@ const Page = () => {
                                 header="Supplier Rekanan"
                                 body={(r) =>
                                     r.nama_supplier ? (
-                                        <div className="text-xs">
-                                            <span className="font-medium text-800">{r.nama_supplier}</span>
-                                            <span className="text-500 block">{r.kode_supplier}</span>
+                                        <div>
+                                            <span className="font-medium text-800 text-sm block">{r.nama_supplier}</span>
+                                            <span className="text-xs text-500 font-mono">{r.kode_supplier}</span>
                                         </div>
                                     ) : (
                                         <span className="text-xs text-400 italic">Belum di-assign</span>
@@ -769,7 +804,7 @@ const Page = () => {
                                 header="Buffer Min."
                                 headerStyle={{ textAlign: 'center' }}
                                 bodyStyle={{ textAlign: 'center' }}
-                                body={(r) => <Tag value={`${r.stok_minimum} ${r.satuan}`} severity="warning" className="text-[10px]" />}
+                                body={(r) => <Tag value={`${r.stok_minimum} ${r.satuan}`} severity="warning" className="text-xs" />}
                             />
 
                             <Column
@@ -778,7 +813,7 @@ const Page = () => {
                                 headerStyle={{ textAlign: 'right' }}
                                 bodyStyle={{ textAlign: 'right' }}
                                 body={(r) => (
-                                    <span className="text-xs font-bold text-slate-800">{formatRupiah(r.nilai_aset)}</span>
+                                    <span className="text-xs font-bold text-900">{formatRupiah(r.nilai_aset)}</span>
                                 )}
                             />
 
@@ -815,31 +850,6 @@ const Page = () => {
 
                     {/* ── TAB 2: RIWAYAT PURCHASE ORDER ── */}
                     <TabPanel header="Riwayat Restock & PO Supplier" leftIcon="pi pi-truck mr-2">
-                        <div className="flex flex-wrap align-items-center justify-content-between gap-2 mb-3 pt-2">
-                            <div>
-                                <span className="text-lg font-bold text-900 block">Riwayat Faktur & Purchase Order</span>
-                                <span className="text-xs text-500">Penerimaan pasokan produk dari rekanan supplier</span>
-                            </div>
-                            <div className="flex align-items-center gap-2">
-                                <IconField iconPosition="left" className="w-full md:w-20rem">
-                                    <InputIcon className="pi pi-search" />
-                                    <InputText
-                                        value={keywordPo}
-                                        onChange={(e) => setKeywordPo(e.target.value)}
-                                        placeholder="Cari Kode PO / Supplier..."
-                                        className="w-full text-sm"
-                                    />
-                                </IconField>
-                                <Button
-                                    icon="pi pi-refresh"
-                                    outlined
-                                    severity="success"
-                                    loading={loadingPo}
-                                    onClick={loadPoData}
-                                />
-                            </div>
-                        </div>
-
                         <DataTable
                             value={dataPo}
                             loading={loadingPo}
@@ -859,8 +869,45 @@ const Page = () => {
                             rowsPerPageOptions={[10, 25, 50]}
                             paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
                             currentPageReportTemplate="Menampilkan {first} - {last} dari {totalPoRecords} data"
+                            header={
+                                <div className="flex flex-wrap align-items-center justify-content-between gap-2">
+                                    <div>
+                                        <span className="text-xl font-bold text-900 block">Riwayat Faktur & Purchase Order</span>
+                                        <span className="text-xs text-500">Penerimaan pasokan produk dari rekanan supplier</span>
+                                    </div>
+                                    <div className="flex align-items-center gap-2 ml-auto w-full md:w-auto">
+                                        <IconField iconPosition="left" className="w-full md:w-20rem">
+                                            <InputIcon className="pi pi-search" />
+                                            <InputText
+                                                value={keywordPo}
+                                                onChange={(e) => setKeywordPo(e.target.value)}
+                                                placeholder="Cari Kode PO / Supplier..."
+                                                className="w-full text-sm"
+                                            />
+                                        </IconField>
+                                        <Button
+                                            icon="pi pi-refresh"
+                                            outlined
+                                            severity="success"
+                                            tooltip="Refresh Data"
+                                            tooltipOptions={{ position: 'bottom' }}
+                                            loading={loadingPo}
+                                            onClick={loadPoData}
+                                        />
+                                    </div>
+                                </div>
+                            }
                         >
-                            <Column field="kode_po" header="Nomor PO" sortable className="font-bold text-primary text-sm" />
+                            <Column
+                                field="kode_po"
+                                header="Nomor PO"
+                                sortable
+                                body={(r) => (
+                                    <span className="font-mono font-bold text-purple-700 bg-purple-50 px-2 py-1 border-round text-xs">
+                                        {r.kode_po}
+                                    </span>
+                                )}
+                            />
                             <Column
                                 field="tanggal_po"
                                 header="Tanggal PO"
@@ -873,14 +920,15 @@ const Page = () => {
                                 body={(r) => (
                                     <div>
                                         <span className="font-semibold text-900 text-sm block">{r.nama_supplier}</span>
-                                        <span className="text-xs text-500">{r.kode_supplier}</span>
+                                        <span className="text-xs text-500 font-mono">{r.kode_supplier}</span>
                                     </div>
                                 )}
                             />
                             <Column
+                                field="item_count"
                                 header="Item Dibeli"
                                 body={(r) => (
-                                    <span className="text-xs text-700">
+                                    <span className="text-xs text-700 font-medium">
                                         {r.items?.length || 0} macam barang
                                     </span>
                                 )}
@@ -897,7 +945,7 @@ const Page = () => {
                                     <Tag
                                         value={String(r.status || 'DITERIMA').toUpperCase()}
                                         severity="success"
-                                        className="text-[10px] font-bold uppercase"
+                                        className="text-xs font-bold uppercase"
                                     />
                                 )}
                             />
@@ -922,43 +970,6 @@ const Page = () => {
 
                     {/* ── TAB 3: LOG MUTASI STOK ── */}
                     <TabPanel header="Log Mutasi Stok" leftIcon="pi pi-list mr-2">
-                        <div className="flex flex-wrap align-items-center justify-content-between gap-2 mb-3 pt-2">
-                            <div>
-                                <span className="text-lg font-bold text-900 block">Kartu Audit Mutasi Stok Fisik</span>
-                                <span className="text-xs text-500">Pencatatan riwayat penambahan, pengurangan, dan penyesuaian stok</span>
-                            </div>
-                            <div className="flex flex-wrap align-items-center gap-2">
-                                <Dropdown
-                                    value={filterJenisMutasi}
-                                    options={[
-                                        { label: 'Semua Mutasi', value: '' },
-                                        { label: 'Stok Masuk', value: 'masuk' },
-                                        { label: 'Stok Keluar', value: 'keluar' },
-                                        { label: 'Penyesuaian', value: 'penyesuaian' },
-                                    ]}
-                                    onChange={(e) => setFilterJenisMutasi(e.value)}
-                                    placeholder="Jenis Mutasi"
-                                    className="text-sm w-full md:w-11rem"
-                                />
-                                <IconField iconPosition="left" className="w-full md:w-16rem">
-                                    <InputIcon className="pi pi-search" />
-                                    <InputText
-                                        value={keywordMutasi}
-                                        onChange={(e) => setKeywordMutasi(e.target.value)}
-                                        placeholder="Cari Kode / Produk / Ref..."
-                                        className="w-full text-sm"
-                                    />
-                                </IconField>
-                                <Button
-                                    icon="pi pi-refresh"
-                                    outlined
-                                    severity="success"
-                                    loading={loadingMutasi}
-                                    onClick={loadMutasiData}
-                                />
-                            </div>
-                        </div>
-
                         <DataTable
                             value={dataMutasi}
                             loading={loadingMutasi}
@@ -978,6 +989,46 @@ const Page = () => {
                             rowsPerPageOptions={[10, 25, 50]}
                             paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
                             currentPageReportTemplate="Menampilkan {first} - {last} dari {totalMutasiRecords} data"
+                            header={
+                                <div className="flex flex-wrap align-items-center justify-content-between gap-2">
+                                    <div>
+                                        <span className="text-xl font-bold text-900 block">Kartu Audit Mutasi Stok Fisik</span>
+                                        <span className="text-xs text-500">Pencatatan riwayat penambahan, pengurangan, dan penyesuaian stok</span>
+                                    </div>
+                                    <div className="flex flex-wrap align-items-center gap-2 ml-auto w-full md:w-auto">
+                                        <Dropdown
+                                            value={filterJenisMutasi}
+                                            options={[
+                                                { label: 'Semua Mutasi', value: '' },
+                                                { label: 'Stok Masuk', value: 'masuk' },
+                                                { label: 'Stok Keluar', value: 'keluar' },
+                                                { label: 'Penyesuaian', value: 'penyesuaian' },
+                                            ]}
+                                            onChange={(e) => setFilterJenisMutasi(e.value)}
+                                            placeholder="Jenis Mutasi"
+                                            className="p-inputtext-sm text-sm border-round-md w-full md:w-11rem"
+                                        />
+                                        <IconField iconPosition="left" className="w-full md:w-16rem">
+                                            <InputIcon className="pi pi-search" />
+                                            <InputText
+                                                value={keywordMutasi}
+                                                onChange={(e) => setKeywordMutasi(e.target.value)}
+                                                placeholder="Cari Kode / Produk / Ref..."
+                                                className="w-full text-sm"
+                                            />
+                                        </IconField>
+                                        <Button
+                                            icon="pi pi-refresh"
+                                            outlined
+                                            severity="success"
+                                            tooltip="Refresh Data"
+                                            tooltipOptions={{ position: 'bottom' }}
+                                            loading={loadingMutasi}
+                                            onClick={loadMutasiData}
+                                        />
+                                    </div>
+                                </div>
+                            }
                         >
                             <Column
                                 field="created_at"

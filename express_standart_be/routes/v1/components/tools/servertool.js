@@ -195,6 +195,7 @@ export const validatePayload = async (
     table = "",
     excludedField = "",
     allowUnknown = false,
+    branchCode = "",
   } = {},
 ) => {
   try {

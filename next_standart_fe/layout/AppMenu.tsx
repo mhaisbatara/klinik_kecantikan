@@ -130,11 +130,33 @@ const AppMenu = () => {
         }
     }, [state.searchVal]);
 
+    const userRole = (session?.user?.role || '').toLowerCase();
+    const isOwnerOrManagerRole = userRole === 'owner' || userRole === 'manager';
+
+    const getRoleAllowedReports = () => {
+        if (isOwnerOrManagerRole) return LAPORAN_MENU_ITEMS;
+        if (userRole === 'dokter') {
+            return LAPORAN_MENU_ITEMS.filter((it) => ['dokter', 'rekam_medis', 'pasien', 'kunjungan'].includes(it.id));
+        }
+        if (userRole === 'beautician') {
+            return LAPORAN_MENU_ITEMS.filter((it) => ['beautician', 'treatment'].includes(it.id));
+        }
+        if (userRole === 'kasir') {
+            return LAPORAN_MENU_ITEMS.filter((it) => ['penjualan', 'keuangan', 'voucher', 'deposit', 'pasien'].includes(it.id));
+        }
+        if (userRole === 'warehouse') {
+            return LAPORAN_MENU_ITEMS.filter((it) => ['inventory', 'pembelian', 'expired', 'stok_opname', 'produk'].includes(it.id));
+        }
+        return LAPORAN_MENU_ITEMS;
+    };
+
+    const roleReports = getRoleAllowedReports();
+
     const filteredReports = state.searchVal.trim()
-        ? LAPORAN_MENU_ITEMS.filter((it) =>
+        ? roleReports.filter((it) =>
               it.label.toLowerCase().includes(state.searchVal.toLowerCase())
           )
-        : LAPORAN_MENU_ITEMS;
+        : roleReports;
 
     const [ruanganList, setRuanganList] = useState<RuanganItem[]>([]);
     const [loadRuangan, setLoadRuangan] = useState<boolean>(true);
@@ -263,7 +285,9 @@ const AppMenu = () => {
                         };
                         subItems.sort((a, b) => getOrderScore(a) - getOrderScore(b));
                     }
-                    if (groupLabel.includes('master data')) {
+                    const currentRole = (session?.user?.role || '').toLowerCase();
+                    const isOwnerOrManagerCurrent = currentRole === 'owner' || currentRole === 'manager';
+                    if (groupLabel.includes('master data') && isOwnerOrManagerCurrent) {
                         DEFAULT_MASTER_DATA_ITEMS.forEach((defItem) => {
                             const exists = subItems.some(
                                 (it) => it.to === defItem.to || (it.label || '').toLowerCase() === defItem.label.toLowerCase()
@@ -342,10 +366,12 @@ const AppMenu = () => {
                 })
                 .map(transformItem);
 
-            const isSuperAdminRole = (session?.user?.role || '').toLowerCase() === 'superadmin';
+            const currentRole = (session?.user?.role || '').toLowerCase();
+            const isSuperAdminRole = currentRole === 'superadmin';
+            const isOwnerOrManager = currentRole === 'owner' || currentRole === 'manager';
 
-            if (!isSuperAdminRole) {
-                // Garansi Master Data selalu ada di sidebar (khusus pengguna non-superadmin seperti Manager)
+            if (isOwnerOrManager) {
+                // Garansi Master Data selalu ada di sidebar (khusus pengguna Owner / Manager)
                 const hasMasterData = transformedMenu.some(
                     (it) => (it.label || '').toLowerCase().includes('master data') && !(it.label || '').toLowerCase().includes('pengaturan')
                 );
@@ -368,7 +394,7 @@ const AppMenu = () => {
                     }
                 }
 
-                // Garansi Pendaftaran & Antrean selalu ada di sidebar
+                // Garansi Pendaftaran & Antrean selalu ada di sidebar untuk Owner / Manager
                 const hasPendaftaran = transformedMenu.some(
                     (it) => {
                         const lbl = (it.label || '').toLowerCase();
@@ -391,7 +417,7 @@ const AppMenu = () => {
                     }
                 }
 
-                // Garansi Pengaturan Klinik selalu ada di sidebar
+                // Garansi Pengaturan Klinik selalu ada di sidebar untuk Owner / Manager
                 const hasPengaturan = transformedMenu.some(
                     (it) => (it.label || '').toLowerCase().includes('pengaturan') || (it.label || '').toLowerCase().includes('setup')
                 );
@@ -403,7 +429,7 @@ const AppMenu = () => {
                     };
                     transformedMenu.push(transformItem(pengaturanGroup));
                 }
-            } else {
+            } else if (isSuperAdminRole) {
                 // Khusus Superadmin: HANYA Dashboard dan Pengaturan Klinik
                 transformedMenu = transformedMenu.filter((it) => {
                     const lbl = (it.label || '').toLowerCase();
@@ -604,17 +630,18 @@ const AppMenu = () => {
                             return lbl.includes('pengaturan') || lbl.includes('master data & user') || lbl.includes('setup');
                         };
 
-                        const userRole = (session?.user?.role || '').toLowerCase();
-                        const isSuperAdminRole = userRole === 'superadmin';
+                        const currentRole = (session?.user?.role || '').toLowerCase();
+                        const isSuperAdminRole = currentRole === 'superadmin';
+                        const isOwnerOrManager = currentRole === 'owner' || currentRole === 'manager';
 
                         // 1. Home / Dashboard
                         const homeItems = state.filteredMenu.filter(isHomeItem);
-                        // 2. Master Data (hanya untuk non-superadmin seperti Manager)
+                        // 2. Master Data (tampilkan jika ada di menu pengguna dan bukan superadmin)
                         const masterDataItems = !isSuperAdminRole ? state.filteredMenu.filter(isMasterDataItem) : [];
-                        // 3. Pendaftaran (hanya untuk non-superadmin seperti Manager)
+                        // 3. Pendaftaran (tampilkan jika ada di menu pengguna dan bukan superadmin)
                         const pendaftaranItems = !isSuperAdminRole ? state.filteredMenu.filter(isPendaftaranItem) : [];
-                        // 7. Pengaturan
-                        const pengaturanItems = state.filteredMenu.filter(isPengaturanItem);
+                        // 7. Pengaturan (HANYA untuk Superadmin dan Owner/Manager)
+                        const pengaturanItems = (isSuperAdminRole || isOwnerOrManager) ? state.filteredMenu.filter(isPengaturanItem) : [];
 
                         // Item tambahan lainnya di luar kategori utama dan bukan kasir/laporan/layanan
                         const extraItems = state.filteredMenu.filter((item) => {
@@ -636,13 +663,12 @@ const AppMenu = () => {
                                 <li className="menu-separator" key={`separator-${i}`}></li>
                             );
 
-                        // Superadmin HANYA mengakses Dashboard & Pengaturan (tidak mengakses operasional layanan, kasir, laporan).
-                        // Manager dan peran lainnya dapat mengakses semuanya (Layanan, Kasir, Laporan).
-                        const canAccessTindakan = !isSuperAdminRole;
-                        const canAccessKonsul = !isSuperAdminRole;
-                        const canAccessLayanan = !isSuperAdminRole;
+                        // Hak Akses Operasional Berdasarkan Role
+                        const canAccessTindakan = isOwnerOrManager || ['dokter', 'beautician'].includes(currentRole);
+                        const canAccessKonsul = isOwnerOrManager || currentRole === 'dokter';
+                        const canAccessLayanan = canAccessTindakan || canAccessKonsul;
+                        const canAccessKasir = isOwnerOrManager || currentRole === 'kasir';
                         const canAccessLaporan = !isSuperAdminRole;
-                        const canAccessKasir = !isSuperAdminRole;
 
                         let idx = 0;
                         return (

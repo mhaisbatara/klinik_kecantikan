@@ -44,14 +44,20 @@ router.post("/", async (req, res) => {
       const prevRecord = await qPrev.forUpdate().first();
       if (!prevRecord) { const e = new Error("Data tidak ditemukan"); e.statusCode = 404; throw e; }
 
-      const wajibKonsul = oPayload.wajib_konsultasi || prevRecord.wajib_konsultasi || "tidak";
+      const tipe = oPayload.tipe || prevRecord.tipe || "BEAUTY TREATMENT";
+      let wajibKonsul = oPayload.wajib_konsultasi;
+      if (!wajibKonsul) {
+        if (tipe === "MEDICAL TREATMENT") wajibKonsul = "wajib";
+        else if (tipe === "SERVICE TREATMENT") wajibKonsul = "tidak";
+        else wajibKonsul = "opsional";
+      }
       const oData = {
         kode_kategori_layanan: oPayload.kode_kategori_layanan,
         kode_ruangan: oPayload.kode_ruangan || null,
         wajib_konsultasi: wajibKonsul,
         kode_ruangan_konsultasi: wajibKonsul !== "tidak" ? (oPayload.kode_ruangan_konsultasi || null) : null,
         nama: oPayload.nama,
-        tipe: oPayload.tipe || prevRecord.tipe || "BEAUTY TREATMENT",
+        tipe: tipe,
         harga: oPayload.harga,
         durasi_menit: oPayload.durasi_menit,
         status: oPayload.status,

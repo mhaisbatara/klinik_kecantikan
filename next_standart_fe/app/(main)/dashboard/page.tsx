@@ -11,6 +11,12 @@ import StatStrip from './components/StatStrip';
 import PaymentDonutPanel from './components/PaymentDonutPanel';
 import TopTreatmentsPanel from './components/TopTreatmentsPanel';
 import StaffActivityTable from './components/StaffActivityTable';
+import {
+  DokterView,
+  BeauticianView,
+  KasirView,
+  WarehouseView,
+} from './components/RoleViews';
 
 const DashboardPage: React.FC = () => {
   const { data: session } = useSession();
@@ -20,11 +26,17 @@ const DashboardPage: React.FC = () => {
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // Mengambil data real-time langsung dari database backend
+  const userRole = (session?.user?.role || 'owner').toLowerCase();
+  const userName = session?.user?.name || session?.user?.username || 'Pengguna';
+
+  // Mengambil data real-time langsung dari database backend berdasarkan role pengguna
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      const res = await postData('/master/dashboard/role-data', { role: 'owner' });
+      const res = await postData('/master/dashboard/role-data', {
+        role: userRole,
+        kode_cabang: session?.user?.kode_cabang || null,
+      });
       if (['00', '0000'].includes(res?.data?.status)) {
         setDashboardData(res.data.data || {});
       } else {
@@ -38,10 +50,173 @@ const DashboardPage: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchDashboardData();
-  }, []);
+    if (session?.user) {
+      fetchDashboardData();
+    }
+  }, [session]);
 
-  // Mapping data dari backend database
+  // ─── VIEW KHUSUS DOKTER ───
+  if (userRole === 'dokter') {
+    return (
+      <div className="clinic-dashboard w-full" style={{ backgroundColor: '#F8FAFC', padding: '24px' }}>
+        <Toast ref={toast} />
+        <div className="flex flex-column sm:flex-row justify-content-between align-items-start sm:align-items-center gap-3 mb-4">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-900 m-0 tracking-tight">Portal Medis Dokter</h1>
+            <p className="text-xs md:text-sm m-0 mt-1 text-500">
+              Selamat datang, <strong style={{ color: '#0f766e' }}>{userName}</strong> — jadwal konsultasi & tindakan pasien hari ini.
+            </p>
+          </div>
+          <div className="flex align-items-center gap-2">
+            <button
+              type="button"
+              className="btn-primary-clinic"
+              onClick={() => router.push('/pendaftaran-antrean/antrean?type=konsul')}
+            >
+              <i className="pi pi-comments mr-2" /> Antrean Konsultasi
+            </button>
+            <button
+              type="button"
+              className="btn-ghost-clinic"
+              onClick={() => router.push('/riwayat/rekam-medis')}
+            >
+              <i className="pi pi-file mr-2" /> Rekam Medis
+            </button>
+            <button
+              type="button"
+              className="btn-icon-clinic"
+              title="Segarkan data"
+              onClick={fetchDashboardData}
+            >
+              <i className={`pi pi-refresh text-xs ${loading ? 'pi-spin' : ''}`} />
+            </button>
+          </div>
+        </div>
+        <DokterView data={dashboardData} onRefresh={fetchDashboardData} loading={loading} />
+      </div>
+    );
+  }
+
+  // ─── VIEW KHUSUS BEAUTICIAN / TERAPIS ───
+  if (userRole === 'beautician') {
+    return (
+      <div className="clinic-dashboard w-full" style={{ backgroundColor: '#F8FAFC', padding: '24px' }}>
+        <Toast ref={toast} />
+        <div className="flex flex-column sm:flex-row justify-content-between align-items-start sm:align-items-center gap-3 mb-4">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-900 m-0 tracking-tight">Portal Tindakan & Terapi</h1>
+            <p className="text-xs md:text-sm m-0 mt-1 text-500">
+              Selamat datang, <strong style={{ color: '#9333ea' }}>{userName}</strong> — antrean ruangan perawatan & treatment estetika.
+            </p>
+          </div>
+          <div className="flex align-items-center gap-2">
+            <button
+              type="button"
+              className="btn-primary-clinic"
+              onClick={() => router.push('/pendaftaran-antrean/antrean?type=layanan')}
+            >
+              <i className="pi pi-sparkles mr-2" /> Tindakan Perawatan
+            </button>
+            <button
+              type="button"
+              className="btn-icon-clinic"
+              title="Segarkan data"
+              onClick={fetchDashboardData}
+            >
+              <i className={`pi pi-refresh text-xs ${loading ? 'pi-spin' : ''}`} />
+            </button>
+          </div>
+        </div>
+        <BeauticianView data={dashboardData} onRefresh={fetchDashboardData} loading={loading} />
+      </div>
+    );
+  }
+
+  // ─── VIEW KHUSUS KASIR ───
+  if (userRole === 'kasir') {
+    return (
+      <div className="clinic-dashboard w-full" style={{ backgroundColor: '#F8FAFC', padding: '24px' }}>
+        <Toast ref={toast} />
+        <div className="flex flex-column sm:flex-row justify-content-between align-items-start sm:align-items-center gap-3 mb-4">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-900 m-0 tracking-tight">Terminal Kasir Klinik</h1>
+            <p className="text-xs md:text-sm m-0 mt-1 text-500">
+              Selamat datang, <strong style={{ color: '#16a34a' }}>{userName}</strong> — transaksi pembayaran, kasir, dan pendaftaran kunjungan.
+            </p>
+          </div>
+          <div className="flex align-items-center gap-2">
+            <button
+              type="button"
+              className="btn-primary-clinic"
+              onClick={() => router.push('/kasir')}
+            >
+              <i className="pi pi-calculator mr-2" /> Buka Kasir
+            </button>
+            <button
+              type="button"
+              className="btn-ghost-clinic"
+              onClick={() => router.push('/pendaftaran-antrean/pendaftaran-pasien')}
+            >
+              <i className="pi pi-user-plus mr-2" /> Pendaftaran Pasien
+            </button>
+            <button
+              type="button"
+              className="btn-icon-clinic"
+              title="Segarkan data"
+              onClick={fetchDashboardData}
+            >
+              <i className={`pi pi-refresh text-xs ${loading ? 'pi-spin' : ''}`} />
+            </button>
+          </div>
+        </div>
+        <KasirView data={dashboardData} onRefresh={fetchDashboardData} loading={loading} />
+      </div>
+    );
+  }
+
+  // ─── VIEW KHUSUS WAREHOUSE / LOGISTIK ───
+  if (userRole === 'warehouse') {
+    return (
+      <div className="clinic-dashboard w-full" style={{ backgroundColor: '#F8FAFC', padding: '24px' }}>
+        <Toast ref={toast} />
+        <div className="flex flex-column sm:flex-row justify-content-between align-items-start sm:align-items-center gap-3 mb-4">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-900 m-0 tracking-tight">Manajemen Logistik & Farmasi</h1>
+            <p className="text-xs md:text-sm m-0 mt-1 text-500">
+              Selamat datang, <strong style={{ color: '#ea580c' }}>{userName}</strong> — monitoring stok produk, inventori, dan pengadaan logistik.
+            </p>
+          </div>
+          <div className="flex align-items-center gap-2">
+            <button
+              type="button"
+              className="btn-primary-clinic"
+              onClick={() => router.push('/master-data/produk')}
+            >
+              <i className="pi pi-box mr-2" /> Katalog Produk
+            </button>
+            <button
+              type="button"
+              className="btn-ghost-clinic"
+              onClick={() => router.push('/master-data/inventori')}
+            >
+              <i className="pi pi-database mr-2" /> Stok Inventori
+            </button>
+            <button
+              type="button"
+              className="btn-icon-clinic"
+              title="Segarkan data"
+              onClick={fetchDashboardData}
+            >
+              <i className={`pi pi-refresh text-xs ${loading ? 'pi-spin' : ''}`} />
+            </button>
+          </div>
+        </div>
+        <WarehouseView data={dashboardData} onRefresh={fetchDashboardData} loading={loading} />
+      </div>
+    );
+  }
+
+  // ─── VIEW OWNER / MANAGER / SUPERADMIN (EKSEKUTIF) ───
   const owner = dashboardData?.owner || {};
   const kpi = owner.kpi || {};
   const inventory = owner.inventory || {};
@@ -61,8 +236,6 @@ const DashboardPage: React.FC = () => {
   const doctors = sdm.dokter || [];
   const staff = sdm.beautician || [];
 
-  const userName = session?.user?.name || session?.user?.username || 'Superadmin';
-
   return (
     <div
       className="clinic-dashboard w-full"
@@ -80,30 +253,58 @@ const DashboardPage: React.FC = () => {
       >
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-900 m-0 tracking-tight">
-            Klinik Kecantikan
+            Klinik Kecantikan {session?.user?.nama_cabang ? `— ${session.user.nama_cabang}` : ''}
           </h1>
           <p className="text-xs md:text-sm m-0 mt-1" style={{ color: '#6F7A74' }}>
-            Selamat datang, <strong style={{ color: '#202A26' }}>{userName}</strong> — ringkasan
-            performa hari ini.
+            Selamat datang, <strong style={{ color: '#202A26' }}>{userName}</strong> ({userRole === 'superadmin' ? 'Superadmin' : 'Manager Klinik'}) — ringkasan performa hari ini.
           </p>
         </div>
 
         {/* 3 Tombol Aksi */}
         <div className="flex align-items-center gap-2">
-          <button
-            type="button"
-            className="btn-primary-clinic"
-            onClick={() => router.push('/pendaftaran-antrean/antrean')}
-          >
-            Pendaftaran & Antrean
-          </button>
-          <button
-            type="button"
-            className="btn-ghost-clinic"
-            onClick={() => router.push('/riwayat/rekam-medis')}
-          >
-            Laporan & Analitik
-          </button>
+          {userRole !== 'superadmin' ? (
+            <>
+              <button
+                type="button"
+                className="btn-primary-clinic"
+                onClick={() => router.push('/setup/users')}
+              >
+                <i className="pi pi-users mr-2" />
+                Kelola Staf & Hak Akses
+              </button>
+              <button
+                type="button"
+                className="btn-ghost-clinic"
+                onClick={() => router.push('/pendaftaran-antrean/antrean')}
+              >
+                Pendaftaran & Antrean
+              </button>
+              <button
+                type="button"
+                className="btn-ghost-clinic"
+                onClick={() => router.push('/riwayat/rekam-medis')}
+              >
+                Laporan & Analitik
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="btn-primary-clinic"
+                onClick={() => router.push('/setup/monitoring-cabang')}
+              >
+                Monitoring Cabang
+              </button>
+              <button
+                type="button"
+                className="btn-ghost-clinic"
+                onClick={() => router.push('/setup/users')}
+              >
+                Manajemen User
+              </button>
+            </>
+          )}
           <button
             type="button"
             className="btn-icon-clinic"
@@ -115,7 +316,7 @@ const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* ─── 2. HERO REVENUE + STAT STRIP (SATU PANEL CONTAINER DENGAN PEMISAH JELAS) ─── */}
+      {/* ─── 2. HERO REVENUE + STAT STRIP ─── */}
       <div
         className="clinic-panel overflow-hidden bg-white"
         style={{ marginBottom: '24px' }}
@@ -142,19 +343,16 @@ const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* ─── 3. DUA PANEL BERDAMPINGAN: KOMPOSISI & TOP TREATMENT (EQUAL HEIGHT, 24PX GAP) ─── */}
+      {/* ─── 3. DUA PANEL BERDAMPINGAN: KOMPOSISI & TOP TREATMENT ─── */}
       <div
         className="clinic-two-col-grid"
         style={{ marginBottom: '24px' }}
       >
-        {/* Panel Kiri: Komposisi Pembayaran */}
         <PaymentDonutPanel paymentData={paymentData} totalOmzet={totalOmzet} />
-
-        {/* Panel Kanan: Treatment Paling Diminati */}
         <TopTreatmentsPanel treatments={topTreatments} />
       </div>
 
-      {/* ─── 4. DUA TABEL BERDAMPINGAN: AKTIVITAS DOKTER & BEAUTICIAN (EQUAL HEIGHT, 24PX GAP) ─── */}
+      {/* ─── 4. DUA TABEL BERDAMPINGAN: AKTIVITAS DOKTER & BEAUTICIAN ─── */}
       <StaffActivityTable doctors={doctors} staff={staff} />
     </div>
   );

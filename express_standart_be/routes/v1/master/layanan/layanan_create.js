@@ -46,7 +46,13 @@ router.post("/", async (req, res) => {
       kodeLayanan = `LAY-${String(nextSeq).padStart(3, "0")}`;
 
       const branchCode = oPayload.kode_cabang || req?.auth?.kode_cabang || "CBG-001";
-      const wajibKonsul = oPayload.wajib_konsultasi || "tidak";
+      const tipe = oPayload.tipe || "BEAUTY TREATMENT";
+      let wajibKonsul = oPayload.wajib_konsultasi;
+      if (!wajibKonsul) {
+        if (tipe === "MEDICAL TREATMENT") wajibKonsul = "wajib";
+        else if (tipe === "SERVICE TREATMENT") wajibKonsul = "tidak";
+        else wajibKonsul = "opsional";
+      }
       const oData = {
         kode_cabang: branchCode,
         kode_layanan: kodeLayanan,
@@ -55,7 +61,7 @@ router.post("/", async (req, res) => {
         wajib_konsultasi: wajibKonsul,
         kode_ruangan_konsultasi: wajibKonsul !== "tidak" ? (oPayload.kode_ruangan_konsultasi || null) : null,
         nama: oPayload.nama,
-        tipe: oPayload.tipe || "BEAUTY TREATMENT",
+        tipe: tipe,
         harga: oPayload.harga,
         durasi_menit: oPayload.durasi_menit,
         status: oPayload.status,

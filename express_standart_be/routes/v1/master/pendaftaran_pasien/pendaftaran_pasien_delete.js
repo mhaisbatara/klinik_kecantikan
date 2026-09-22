@@ -57,6 +57,44 @@ router.post("/", async (req, res) => {
       }
 
       const validRMs = records.map((r) => r.no_rm);
+
+      // Cek apakah ada riwayat kunjungan atau booking aktif
+      const countKunjungan = await trx("trx_kunjungan").whereIn("no_rm", validRMs).count("id as total").first();
+      const countBooking = await trx("trx_booking").whereIn("no_rm", validRMs).count("id as total").first();
+      const totalLinked = Number(countKunjungan?.total || 0) + Number(countBooking?.total || 0);
+
+      if (totalLinked > 0) {
+        await trx("mst_pasien")
+          .whereIn("no_rm", validRMs)
+          .update({
+            status: "tidak aktif",
+            updated_by: username,
+            updated_at: formatDateSystem(),
+          });
+
+        for (const record of records) {
+          await ChangesLog(
+            {
+              description: `Nonaktifkan Data Pasien ${record.nama} (${record.no_rm}) karena memiliki riwayat layanan`,
+              tableName: "mst_pasien",
+              referenceCode: record.no_rm,
+              action: "UPDATE",
+              dataBefore: record,
+              dataAfter: { ...record, status: "tidak aktif" },
+              user: username,
+              tz: oPayload.tz || "UTC",
+            },
+            trx
+          );
+        }
+
+        return res.status(200).json({
+          status: status.SUKSES,
+          message: "Pasien memiliki riwayat kunjungan/transaksi. Status pasien berhasil diubah menjadi Tidak Aktif.",
+          datetime: formatDateSystem(),
+        });
+      }
+
       await trx("mst_pasien")
         .whereIn("no_rm", validRMs)
         .del();
