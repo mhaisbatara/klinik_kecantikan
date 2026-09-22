@@ -24,12 +24,13 @@ import {
   SummaryCardItem,
 } from './LaporanStandardHeader';
 
-export const formatRupiah = (num: number) => {
+export const formatRupiah = (num: any) => {
+  const val = typeof num === 'number' ? num : parseFloat(num || 0);
   return new Intl.NumberFormat('id-ID', {
     style: 'currency',
     currency: 'IDR',
     minimumFractionDigits: 0,
-  }).format(num || 0);
+  }).format(Number.isFinite(val) ? val : 0);
 };
 
 export const formatDateIndo = (dateStr?: string | null) => {
@@ -1633,7 +1634,7 @@ export const LaporanPasienView: React.FC = () => {
     printHtmlTable('Laporan Pasien', cols, rows);
   };
 
-  const totalAkumulasi = data.reduce((acc, curr) => acc + (curr.total_transaksi || 0), 0);
+  const totalAkumulasi = data.reduce((acc, curr) => acc + (parseFloat(curr.total_transaksi) || 0), 0);
 
   const summaryCards: SummaryCardItem[] = [
     { label: 'Total Pasien Terdaftar', value: `${data.length} Pasien`, icon: 'pi pi-users', color: 'blue' },
@@ -3263,3 +3264,1764 @@ export const LaporanKeuanganView: React.FC = () => {
     </>
   );
 };
+
+/* =========================================================================
+   12. LAPORAN APPOINTMENT VIEW
+   ========================================================================= */
+export const LaporanAppointmentView: React.FC = () => {
+  const [data, setData] = useState<any[]>([]);
+  const [summary, setSummary] = useState<any>({});
+  const [loading, setLoading] = useState<boolean>(true);
+  const [keyword, setKeyword] = useState<string>('');
+  const [tanggalAwal, setTanggalAwal] = useState<Date | null>(null);
+  const [tanggalAkhir, setTanggalAkhir] = useState<Date | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
+  const toast = useRef<Toast>(null);
+
+  const optionsStatusAppointment = [
+    { label: 'Semua Status', value: '' },
+    { label: 'Dikonfirmasi', value: 'dikonfirmasi' },
+    { label: 'Menunggu Jadwal', value: 'menunggu' },
+    { label: 'Selesai', value: 'selesai' },
+    { label: 'Dibatalkan', value: 'batal' },
+    { label: 'Tidak Hadir', value: 'tidak_hadir' },
+  ];
+
+  const getStatusSeverity = (st?: string) => {
+    switch (st?.toLowerCase()) {
+      case 'selesai':
+      case 'dikonfirmasi':
+        return 'success';
+      case 'menunggu':
+      case 'pending':
+        return 'warning';
+      case 'batal':
+      case 'dibatalkan':
+      case 'tidak_hadir':
+        return 'danger';
+      default:
+        return 'info';
+    }
+  };
+
+  const fetchData = async (
+    tAwal = tanggalAwal,
+    tAkhir = tanggalAkhir,
+    sStatus = selectedStatus,
+    kw = keyword
+  ) => {
+    setLoading(true);
+    try {
+      const payload: any = {
+        keyword: kw !== undefined ? kw : keyword,
+        perPage: 100,
+      };
+      if (tAwal) payload.tanggal_dari = tAwal.toISOString().slice(0, 10);
+      if (tAkhir) payload.tanggal_sampai = tAkhir.toISOString().slice(0, 10);
+      if (sStatus) payload.status = sStatus;
+
+      const res = await postData('/master/laporan/appointment', payload);
+      if (['00', '0000'].includes(res?.data?.status)) {
+        setData(res.data.data || []);
+        setSummary(res.data.summary || {});
+      }
+    } catch (err: any) {
+      showError(toast, err?.message || 'Gagal memuat data appointment');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const handleExport = async () => {
+    const exportData = data.map((r, i) => ({
+      No: i + 1,
+      'Kode Booking': r.kode_booking,
+      'Nama Pasien': r.nama_pasien || '-',
+      'No. RM': r.no_rm,
+      'Dokter Tujuan': r.dokter_tujuan || '-',
+      'Jadwal Konsultasi': `${formatDateIndo(r.tanggal_booking)} (${String(r.jam_booking || '').slice(0, 5)} WIB)`,
+      Layanan: r.nama_layanan || '-',
+      Status: r.status?.toUpperCase() || '-',
+    }));
+    await exportToXLSX({
+      data: exportData,
+      fileName: `Laporan_Appointment_${new Date().toISOString().slice(0, 10)}`,
+    });
+  };
+
+  const handlePrint = () => {
+    const cols = ['#', 'Kode Booking', 'Nama Pasien', 'Dokter Tujuan', 'Jadwal Konsultasi', 'Layanan', 'Status'];
+    const rows = data
+      .map(
+        (r, i) => `
+      <tr>
+        <td style="text-align: center">${i + 1}</td>
+        <td><strong>${r.kode_booking}</strong></td>
+        <td>${r.nama_pasien || '-'}</td>
+        <td>${r.dokter_tujuan || '-'}</td>
+        <td>${formatDateIndo(r.tanggal_booking)} (${String(r.jam_booking || '').slice(0, 5)} WIB)</td>
+        <td>${r.nama_layanan || '-'}</td>
+        <td style="text-align: center; font-weight: bold; text-transform: uppercase;">${r.status || '-'}</td>
+      </tr>
+    `
+      )
+      .join('');
+    printHtmlTable('Laporan Appointment & Booking', cols, rows);
+  };
+
+  const summaryCards: SummaryCardItem[] = [
+    { label: 'Total Appointment', value: `${summary.total_appointment ?? data.length} Booking`, icon: 'pi pi-calendar', color: 'blue' },
+    { label: 'Appointment Terkonfirmasi', value: `${summary.terkonfirmasi ?? data.filter((d) => ['dikonfirmasi', 'selesai'].includes(d.status)).length} Selesai`, icon: 'pi pi-check-circle', color: 'green' },
+    { label: 'Menunggu Jadwal', value: `${summary.menunggu ?? data.filter((d) => ['menunggu', 'pending'].includes(d.status)).length} Antrean`, icon: 'pi pi-clock', color: 'amber' },
+    { label: 'Batal / Tidak Hadir', value: `${summary.batal ?? data.filter((d) => ['batal', 'dibatalkan', 'tidak_hadir'].includes(d.status)).length} Batal`, icon: 'pi pi-times-circle', color: 'red' },
+  ];
+
+  return (
+    <>
+      <Toast ref={toast} />
+
+      <LaporanHeader
+        icon="pi pi-calendar-plus"
+        title="Laporan Appointment & Booking"
+        subtitle="Data riwayat booking konsultasi, jadwal appointment pasien, status reservasi, dan dokter penanggung jawab."
+      />
+
+      <LaporanSummaryCards items={summaryCards} />
+
+      <div className="card">
+        <LaporanActionBar
+          onPrint={handlePrint}
+          onExport={handleExport}
+          onRefresh={() => fetchData()}
+          loadingRefresh={loading}
+        />
+
+        <DataTable
+          value={data}
+          loading={loading}
+          scrollable
+          paginator
+          rows={10}
+          rowsPerPageOptions={[10, 25, 50]}
+          emptyMessage="Data Laporan Appointment Belum Ditemukan"
+          className="p-datatable-sm"
+          header={
+            <LaporanTableHeaderFilter
+              tanggalAwal={tanggalAwal}
+              setTanggalAwal={setTanggalAwal}
+              tanggalAkhir={tanggalAkhir}
+              setTanggalAkhir={setTanggalAkhir}
+              searchVal={keyword}
+              setSearchVal={setKeyword}
+              onSearchKeyDown={(e) => e.key === 'Enter' && fetchData(tanggalAwal, tanggalAkhir, selectedStatus, keyword)}
+              isFiltered={Boolean(tanggalAwal || tanggalAkhir || selectedStatus)}
+              onReset={() => {
+                setTanggalAwal(null);
+                setTanggalAkhir(null);
+                setKeyword('');
+                setSelectedStatus(null);
+                fetchData(null, null, null, '');
+              }}
+              searchPlaceholder="Cari Kode Booking, Pasien, Dokter..."
+              filterOverlay={(close) => (
+                <LaporanFilterPopup
+                  title="Filter Laporan Appointment"
+                  onClose={close}
+                  onApply={() => fetchData(tanggalAwal, tanggalAkhir, selectedStatus, keyword)}
+                  onReset={() => {
+                    setSelectedStatus(null);
+                    fetchData(tanggalAwal, tanggalAkhir, null, keyword);
+                  }}
+                >
+                  <div className="field col-12 mb-3">
+                    <label className="font-semibold text-xs text-700 block mb-2">Status Appointment</label>
+                    <Dropdown
+                      value={selectedStatus}
+                      options={optionsStatusAppointment}
+                      optionLabel="label"
+                      optionValue="value"
+                      placeholder="Semua Status"
+                      showClear
+                      className="w-full text-sm"
+                      onChange={(e) => setSelectedStatus(e.value || null)}
+                    />
+                  </div>
+                </LaporanFilterPopup>
+              )}
+            />
+          }
+        >
+          <Column header="#" body={(_, opt) => opt.rowIndex + 1} style={{ width: '3.5rem', textAlign: 'center' }} />
+          <Column field="kode_booking" header="Kode Booking" sortable className="font-semibold text-800 font-mono" style={{ minWidth: '11rem' }} />
+          <Column field="nama_pasien" header="Nama Pasien" sortable className="font-bold text-gray-800" style={{ minWidth: '13rem' }} />
+          <Column
+            field="dokter_tujuan"
+            header="Dokter Tujuan"
+            sortable
+            body={(r) => (
+              <span className={r.dokter_tujuan && r.dokter_tujuan !== '-' ? 'font-medium text-teal-800' : 'text-gray-400 italic'}>
+                {r.dokter_tujuan || '-'}
+              </span>
+            )}
+            style={{ minWidth: '13rem' }}
+          />
+          <Column
+            field="tanggal_booking"
+            header="Jadwal Konsultasi"
+            sortable
+            body={(r) => `${formatDateIndo(r.tanggal_booking)} (${String(r.jam_booking || '').slice(0, 5)} WIB)`}
+            style={{ minWidth: '13rem' }}
+          />
+          <Column field="nama_layanan" header="Layanan" sortable style={{ minWidth: '14rem' }} />
+          <Column
+            field="status"
+            header="Status"
+            sortable
+            align="center"
+            body={(r) => <Tag value={String(r.status || '').toUpperCase()} severity={getStatusSeverity(r.status)} className="text-xs" />}
+            style={{ minWidth: '9rem' }}
+          />
+        </DataTable>
+      </div>
+    </>
+  );
+};
+
+/* =========================================================================
+   13. LAPORAN STOK OPNAME VIEW
+   ========================================================================= */
+export const LaporanStokOpnameView: React.FC = () => {
+  const [data, setData] = useState<any[]>([]);
+  const [summary, setSummary] = useState<any>({});
+  const [loading, setLoading] = useState<boolean>(true);
+  const [keyword, setKeyword] = useState<string>('');
+  const [tanggalAwal, setTanggalAwal] = useState<Date | null>(null);
+  const [tanggalAkhir, setTanggalAkhir] = useState<Date | null>(null);
+  const [selectedJenis, setSelectedJenis] = useState<string | null>(null);
+  const toast = useRef<Toast>(null);
+
+  const optionsJenisMovement = [
+    { label: 'Semua Pergerakan', value: '' },
+    { label: 'Penyesuaian (Opname)', value: 'penyesuaian' },
+    { label: 'Stok Masuk', value: 'masuk' },
+    { label: 'Stok Keluar', value: 'keluar' },
+  ];
+
+  const fetchData = async (
+    tAwal = tanggalAwal,
+    tAkhir = tanggalAkhir,
+    sJenis = selectedJenis,
+    kw = keyword
+  ) => {
+    setLoading(true);
+    try {
+      const payload: any = {
+        keyword: kw !== undefined ? kw : keyword,
+        perPage: 100,
+      };
+      if (tAwal) payload.tanggal_dari = tAwal.toISOString().slice(0, 10);
+      if (tAkhir) payload.tanggal_sampai = tAkhir.toISOString().slice(0, 10);
+      if (sJenis) payload.jenis_movement = sJenis;
+
+      const res = await postData('/master/laporan/stok-opname', payload);
+      if (['00', '0000'].includes(res?.data?.status)) {
+        setData(res.data.data || []);
+        setSummary(res.data.summary || {});
+      }
+    } catch (err: any) {
+      showError(toast, err?.message || 'Gagal memuat data stok opname');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const handleExport = async () => {
+    const exportData = data.map((r, i) => ({
+      No: i + 1,
+      'Kode Produk': r.kode_produk,
+      'Nama Produk': r.nama_produk || '-',
+      'Stok Sistem': r.stok_sebelum,
+      'Stok Fisik': r.stok_sesudah,
+      'Selisih Unit': r.qty,
+      Keterangan: r.referensi || r.jenis_movement || '-',
+      Tanggal: formatDateIndo(r.tanggal),
+    }));
+    await exportToXLSX({
+      data: exportData,
+      fileName: `Laporan_Stok_Opname_${new Date().toISOString().slice(0, 10)}`,
+    });
+  };
+
+  const handlePrint = () => {
+    const cols = ['#', 'Kode Produk', 'Nama Produk', 'Stok Sistem', 'Stok Fisik', 'Selisih Unit', 'Keterangan'];
+    const rows = data
+      .map(
+        (r, i) => `
+      <tr>
+        <td style="text-align: center">${i + 1}</td>
+        <td><strong>${r.kode_produk}</strong></td>
+        <td>${r.nama_produk || '-'}</td>
+        <td style="text-align: center">${r.stok_sebelum}</td>
+        <td style="text-align: center">${r.stok_sesudah}</td>
+        <td style="text-align: center; font-weight: bold; color: ${r.stok_sesudah >= r.stok_sebelum ? '#059669' : '#dc2626'}">
+          ${r.stok_sesudah >= r.stok_sebelum ? `+${r.qty}` : `-${r.qty}`}
+        </td>
+        <td>${r.referensi || r.jenis_movement || '-'}</td>
+      </tr>
+    `
+      )
+      .join('');
+    printHtmlTable('Laporan Stok Opname & Penyesuaian', cols, rows);
+  };
+
+  const summaryCards: SummaryCardItem[] = [
+    { label: 'Total Item Dihitung', value: `${summary.total_item ?? data.length} Item`, icon: 'pi pi-box', color: 'blue' },
+    { label: 'Stok Sesuai', value: `${summary.stok_sesuai ?? data.filter((d) => d.stok_sebelum === d.stok_sesudah).length} Item`, icon: 'pi pi-check-circle', color: 'green' },
+    { label: 'Selisih Lebih', value: `${summary.selisih_lebih ?? data.filter((d) => d.stok_sesudah > d.stok_sebelum).length} Item`, icon: 'pi pi-arrow-up-right', color: 'amber' },
+    { label: 'Selisih Kurang', value: `${summary.selisih_kurang ?? data.filter((d) => d.stok_sesudah < d.stok_sebelum).length} Item`, icon: 'pi pi-arrow-down-right', color: 'red' },
+  ];
+
+  return (
+    <>
+      <Toast ref={toast} />
+
+      <LaporanHeader
+        icon="pi pi-check-square"
+        title="Laporan Stok Opname & Penyesuaian"
+        subtitle="Pencatatan pergerakan stok, hasil opname fisik, selisih stok sistem vs fisik, dan log mutasi inventori produk."
+      />
+
+      <LaporanSummaryCards items={summaryCards} />
+
+      <div className="card">
+        <LaporanActionBar
+          onPrint={handlePrint}
+          onExport={handleExport}
+          onRefresh={() => fetchData()}
+          loadingRefresh={loading}
+        />
+
+        <DataTable
+          value={data}
+          loading={loading}
+          scrollable
+          paginator
+          rows={10}
+          rowsPerPageOptions={[10, 25, 50]}
+          emptyMessage="Data Laporan Stok Opname Belum Ditemukan"
+          className="p-datatable-sm"
+          header={
+            <LaporanTableHeaderFilter
+              tanggalAwal={tanggalAwal}
+              setTanggalAwal={setTanggalAwal}
+              tanggalAkhir={tanggalAkhir}
+              setTanggalAkhir={setTanggalAkhir}
+              searchVal={keyword}
+              setSearchVal={setKeyword}
+              onSearchKeyDown={(e) => e.key === 'Enter' && fetchData(tanggalAwal, tanggalAkhir, selectedJenis, keyword)}
+              isFiltered={Boolean(tanggalAwal || tanggalAkhir || selectedJenis)}
+              onReset={() => {
+                setTanggalAwal(null);
+                setTanggalAkhir(null);
+                setKeyword('');
+                setSelectedJenis(null);
+                fetchData(null, null, null, '');
+              }}
+              searchPlaceholder="Cari Kode Produk, Nama Produk, Referensi..."
+              filterOverlay={(close) => (
+                <LaporanFilterPopup
+                  title="Filter Laporan Stok Opname"
+                  onClose={close}
+                  onApply={() => fetchData(tanggalAwal, tanggalAkhir, selectedJenis, keyword)}
+                  onReset={() => {
+                    setSelectedJenis(null);
+                    fetchData(tanggalAwal, tanggalAkhir, null, keyword);
+                  }}
+                >
+                  <div className="field col-12 mb-3">
+                    <label className="font-semibold text-xs text-700 block mb-2">Jenis Movement</label>
+                    <Dropdown
+                      value={selectedJenis}
+                      options={optionsJenisMovement}
+                      optionLabel="label"
+                      optionValue="value"
+                      placeholder="Semua Pergerakan"
+                      showClear
+                      className="w-full text-sm"
+                      onChange={(e) => setSelectedJenis(e.value || null)}
+                    />
+                  </div>
+                </LaporanFilterPopup>
+              )}
+            />
+          }
+        >
+          <Column header="#" body={(_, opt) => opt.rowIndex + 1} style={{ width: '3.5rem', textAlign: 'center' }} />
+          <Column field="kode_produk" header="Kode Produk" sortable className="font-semibold text-800 font-mono" style={{ minWidth: '9rem' }} />
+          <Column field="nama_produk" header="Nama Produk" sortable className="font-bold text-gray-800" style={{ minWidth: '14rem' }} />
+          <Column field="stok_sebelum" header="Stok Sistem" sortable align="center" style={{ minWidth: '8rem' }} />
+          <Column field="stok_sesudah" header="Stok Fisik" sortable align="center" style={{ minWidth: '8rem' }} />
+          <Column
+            field="qty"
+            header="Selisih Unit"
+            sortable
+            align="center"
+            body={(r) => {
+              const isDiff = r.stok_sesudah !== r.stok_sebelum;
+              const isPositive = r.stok_sesudah > r.stok_sebelum || (r.jenis_movement === 'masuk' && r.qty > 0);
+              const color = isDiff ? (isPositive ? 'text-emerald-700 font-bold' : 'text-red-600 font-bold') : 'text-gray-600';
+              const sign = isDiff ? (isPositive ? '+' : '-') : '';
+              return <span className={color}>{sign}{Math.abs(r.qty)} Unit</span>;
+            }}
+            style={{ minWidth: '9rem' }}
+          />
+          <Column field="referensi" header="Keterangan" body={(r) => r.referensi || r.jenis_movement || '-'} style={{ minWidth: '12rem' }} />
+        </DataTable>
+      </div>
+    </>
+  );
+};
+
+/* =========================================================================
+   14. LAPORAN PEMBELIAN VIEW
+   ========================================================================= */
+export const LaporanPembelianView: React.FC = () => {
+  const [data, setData] = useState<any[]>([]);
+  const [summary, setSummary] = useState<any>({});
+  const [loading, setLoading] = useState<boolean>(true);
+  const [keyword, setKeyword] = useState<string>('');
+  const [tanggalAwal, setTanggalAwal] = useState<Date | null>(null);
+  const [tanggalAkhir, setTanggalAkhir] = useState<Date | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
+  const toast = useRef<Toast>(null);
+
+  const optionsStatusPO = [
+    { label: 'Semua Status PO', value: '' },
+    { label: 'Diterima', value: 'diterima' },
+    { label: 'Dikirim', value: 'dikirim' },
+    { label: 'Draft / Menunggu', value: 'draft' },
+    { label: 'Batal', value: 'batal' },
+  ];
+
+  const getStatusSeverity = (st?: string) => {
+    switch (st?.toLowerCase()) {
+      case 'diterima':
+        return 'success';
+      case 'dikirim':
+        return 'info';
+      case 'draft':
+      case 'menunggu':
+        return 'warning';
+      case 'batal':
+        return 'danger';
+      default:
+        return 'secondary';
+    }
+  };
+
+  const fetchData = async (
+    tAwal = tanggalAwal,
+    tAkhir = tanggalAkhir,
+    sStatus = selectedStatus,
+    kw = keyword
+  ) => {
+    setLoading(true);
+    try {
+      const payload: any = {
+        keyword: kw !== undefined ? kw : keyword,
+        perPage: 100,
+      };
+      if (tAwal) payload.tanggal_dari = tAwal.toISOString().slice(0, 10);
+      if (tAkhir) payload.tanggal_sampai = tAkhir.toISOString().slice(0, 10);
+      if (sStatus) payload.status = sStatus;
+
+      const res = await postData('/master/laporan/pembelian', payload);
+      if (['00', '0000'].includes(res?.data?.status)) {
+        setData(res.data.data || []);
+        setSummary(res.data.summary || {});
+      }
+    } catch (err: any) {
+      showError(toast, err?.message || 'Gagal memuat data pembelian');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const handleExport = async () => {
+    const exportData = data.map((r, i) => ({
+      No: i + 1,
+      'No. Faktur PO': r.kode_po,
+      'Tanggal Pembelian': formatDateIndo(r.tanggal_po),
+      'Nama Supplier': r.nama_supplier || '-',
+      'Total Item': r.total_item,
+      'Nilai Tagihan': r.total_po,
+      Status: r.status?.toUpperCase() || '-',
+    }));
+    await exportToXLSX({
+      data: exportData,
+      fileName: `Laporan_Pembelian_${new Date().toISOString().slice(0, 10)}`,
+    });
+  };
+
+  const handlePrint = () => {
+    const cols = ['#', 'No. Faktur PO', 'Tanggal Pembelian', 'Nama Supplier', 'Total Item', 'Nilai Tagihan', 'Status'];
+    const rows = data
+      .map(
+        (r, i) => `
+      <tr>
+        <td style="text-align: center">${i + 1}</td>
+        <td><strong>${r.kode_po}</strong></td>
+        <td>${formatDateIndo(r.tanggal_po)}</td>
+        <td>${r.nama_supplier || '-'}</td>
+        <td style="text-align: center">${r.total_item} Item</td>
+        <td style="text-align: right; font-weight: bold">${formatRupiah(r.total_po)}</td>
+        <td style="text-align: center; font-weight: bold; text-transform: uppercase;">${r.status || '-'}</td>
+      </tr>
+    `
+      )
+      .join('');
+    printHtmlTable('Laporan Pembelian (Purchase Order)', cols, rows);
+  };
+
+  const summaryCards: SummaryCardItem[] = [
+    { label: 'Total PO Pembelian', value: `${summary.total_po ?? data.length} Transaksi`, icon: 'pi pi-shopping-bag', color: 'blue' },
+    { label: 'Barang Diterima', value: `${summary.barang_diterima ?? data.filter((d) => d.status === 'diterima').length} Faktur`, icon: 'pi pi-check-circle', color: 'green' },
+    { label: 'Total Tagihan PO', value: formatRupiah(summary.total_tagihan_po ?? data.reduce((acc, c) => acc + (parseFloat(c.total_po) || 0), 0)), icon: 'pi pi-wallet', color: 'purple' },
+    { label: 'Menunggu Supplier', value: `${summary.menunggu_supplier ?? data.filter((d) => ['draft', 'dikirim', 'menunggu'].includes(d.status)).length} PO`, icon: 'pi pi-clock', color: 'amber' },
+  ];
+
+  return (
+    <>
+      <Toast ref={toast} />
+
+      <LaporanHeader
+        icon="pi pi-truck"
+        title="Laporan Pembelian (Purchase Order)"
+        subtitle="Rekapitulasi pengadaan barang ke supplier, status penerimaan pesanan, dan nilai tagihan purchase order."
+      />
+
+      <LaporanSummaryCards items={summaryCards} />
+
+      <div className="card">
+        <LaporanActionBar
+          onPrint={handlePrint}
+          onExport={handleExport}
+          onRefresh={() => fetchData()}
+          loadingRefresh={loading}
+        />
+
+        <DataTable
+          value={data}
+          loading={loading}
+          scrollable
+          paginator
+          rows={10}
+          rowsPerPageOptions={[10, 25, 50]}
+          emptyMessage="Data Laporan Pembelian Belum Ditemukan"
+          className="p-datatable-sm"
+          header={
+            <LaporanTableHeaderFilter
+              tanggalAwal={tanggalAwal}
+              setTanggalAwal={setTanggalAwal}
+              tanggalAkhir={tanggalAkhir}
+              setTanggalAkhir={setTanggalAkhir}
+              searchVal={keyword}
+              setSearchVal={setKeyword}
+              onSearchKeyDown={(e) => e.key === 'Enter' && fetchData(tanggalAwal, tanggalAkhir, selectedStatus, keyword)}
+              isFiltered={Boolean(tanggalAwal || tanggalAkhir || selectedStatus)}
+              onReset={() => {
+                setTanggalAwal(null);
+                setTanggalAkhir(null);
+                setKeyword('');
+                setSelectedStatus(null);
+                fetchData(null, null, null, '');
+              }}
+              searchPlaceholder="Cari No. Faktur PO, Supplier..."
+              filterOverlay={(close) => (
+                <LaporanFilterPopup
+                  title="Filter Laporan Pembelian"
+                  onClose={close}
+                  onApply={() => fetchData(tanggalAwal, tanggalAkhir, selectedStatus, keyword)}
+                  onReset={() => {
+                    setSelectedStatus(null);
+                    fetchData(tanggalAwal, tanggalAkhir, null, keyword);
+                  }}
+                >
+                  <div className="field col-12 mb-3">
+                    <label className="font-semibold text-xs text-700 block mb-2">Status PO</label>
+                    <Dropdown
+                      value={selectedStatus}
+                      options={optionsStatusPO}
+                      optionLabel="label"
+                      optionValue="value"
+                      placeholder="Semua Status"
+                      showClear
+                      className="w-full text-sm"
+                      onChange={(e) => setSelectedStatus(e.value || null)}
+                    />
+                  </div>
+                </LaporanFilterPopup>
+              )}
+            />
+          }
+        >
+          <Column header="#" body={(_, opt) => opt.rowIndex + 1} style={{ width: '3.5rem', textAlign: 'center' }} />
+          <Column field="kode_po" header="No. Faktur PO" sortable className="font-semibold text-800 font-mono" style={{ minWidth: '12rem' }} />
+          <Column
+            field="tanggal_po"
+            header="Tanggal Pembelian"
+            sortable
+            body={(r) => formatDateIndo(r.tanggal_po)}
+            style={{ minWidth: '11rem' }}
+          />
+          <Column field="nama_supplier" header="Nama Supplier" sortable className="font-bold text-gray-800" style={{ minWidth: '13rem' }} />
+          <Column
+            field="total_item"
+            header="Total Item"
+            sortable
+            align="center"
+            body={(r) => <span className="font-medium text-gray-700">{r.total_item} Item</span>}
+            style={{ minWidth: '8rem' }}
+          />
+          <Column
+            field="total_po"
+            header="Nilai Tagihan"
+            sortable
+            align="right"
+            body={(r) => <span className="font-bold text-emerald-700">{formatRupiah(r.total_po)}</span>}
+            style={{ minWidth: '11rem' }}
+          />
+          <Column
+            field="status"
+            header="Status"
+            sortable
+            align="center"
+            body={(r) => <Tag value={String(r.status || '').toUpperCase()} severity={getStatusSeverity(r.status)} className="text-xs" />}
+            style={{ minWidth: '9rem' }}
+          />
+        </DataTable>
+      </div>
+    </>
+  );
+};
+
+/* =========================================================================
+   16. LAPORAN MEMBERSHIP VIEW
+   ========================================================================= */
+export const LaporanMembershipView: React.FC = () => {
+  const [data, setData] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [keyword, setKeyword] = useState<string>('');
+  const [selectedLevel, setSelectedLevel] = useState<string | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
+  const [optionsLevel, setOptionsLevel] = useState<any[]>([
+    { label: 'Semua Level Tier', value: '' },
+    { label: 'Silver', value: 'LVL-001' },
+    { label: 'Gold', value: 'LVL-002' },
+    { label: 'Platinum', value: 'LVL-003' },
+    { label: 'Non-Member', value: 'non_member' },
+  ]);
+  const [summary, setSummary] = useState({ total_pasien: 0, member_aktif: 0, akumulasi_poin: 0, non_member: 0 });
+  const toast = useRef<Toast>(null);
+
+  const fetchData = async (kw = keyword, sLvl = selectedLevel, sSt = selectedStatus) => {
+    setLoading(true);
+    try {
+      const payload: any = { keyword: kw, perPage: 100 };
+      if (sLvl) payload.kode_level = sLvl;
+      if (sSt) payload.status = sSt;
+      const res = await postData('/master/laporan/membership', payload);
+      if (['00', '0000'].includes(res?.data?.status)) {
+        setData(res.data.data || []);
+        if (res.data.summary) setSummary(res.data.summary);
+      }
+    } catch (err: any) {
+      showError(toast, err?.message || 'Gagal memuat data membership');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const handleExport = async () => {
+    const exportData = data.map((r, i) => ({
+      No: i + 1,
+      'Kode Member': r.no_rm,
+      'No. RM': r.no_rm,
+      'Nama Pasien': r.nama_pasien,
+      'Level Tier': r.nama_level,
+      'Tanggal Gabung': r.tanggal_gabung_membership ? formatDateIndo(r.tanggal_gabung_membership) : '-',
+      'Total Poin': r.total_poin || 0,
+      Status: r.status === 'aktif' ? 'Aktif' : 'Nonaktif',
+    }));
+    await exportToXLSX({
+      data: exportData,
+      fileName: `Laporan_Membership_${new Date().toISOString().slice(0, 10)}`,
+    });
+  };
+
+  const handlePrint = () => {
+    const cols = ['#', 'Kode Member', 'No. RM', 'Nama Pasien', 'Level Tier', 'Tanggal Gabung', 'Total Poin', 'Status'];
+    const rows = data
+      .map(
+        (r, i) => `
+        <tr>
+          <td style="text-align: center;">${i + 1}</td>
+          <td style="text-align: center; font-family: monospace;">${r.no_rm || '-'}</td>
+          <td style="text-align: center; font-family: monospace;">${r.no_rm || '-'}</td>
+          <td><strong>${r.nama_pasien || '-'}</strong></td>
+          <td style="text-align: center;">${r.nama_level || '-'}</td>
+          <td style="text-align: center;">${r.tanggal_gabung_membership ? formatDateIndo(r.tanggal_gabung_membership) : '-'}</td>
+          <td style="text-align: right; font-weight: bold;">${new Intl.NumberFormat('id-ID').format(r.total_poin || 0)}</td>
+          <td style="text-align: center; text-transform: uppercase;">${r.status || '-'}</td>
+        </tr>
+      `
+      )
+      .join('');
+    printHtmlTable('Laporan Membership Pasien', cols, rows);
+  };
+
+  const summaryCards: SummaryCardItem[] = [
+    { label: 'Total Pasien Terdaftar', value: `${summary.total_pasien || data.length} Pasien`, icon: 'pi pi-users', color: 'blue' },
+    { label: 'Member Aktif', value: `${summary.member_aktif} Member`, icon: 'pi pi-id-card', color: 'green' },
+    { label: 'Akumulasi Poin Loyalitas', value: `${new Intl.NumberFormat('id-ID').format(summary.akumulasi_poin || 0)} Poin`, icon: 'pi pi-star-fill', color: 'amber' },
+    { label: 'Non-Member / Reguler', value: `${summary.non_member} Pasien`, icon: 'pi pi-user-minus', color: 'purple' },
+  ];
+
+  const getTierSeverity = (tier: string): 'info' | 'warning' | 'secondary' | 'contrast' => {
+    const t = String(tier || '').toLowerCase();
+    if (t.includes('platinum')) return 'contrast';
+    if (t.includes('gold')) return 'warning';
+    if (t.includes('silver')) return 'info';
+    return 'secondary';
+  };
+
+  return (
+    <>
+      <Toast ref={toast} />
+      <LaporanHeader
+        icon="pi pi-id-card"
+        title="Laporan Membership & Loyalty Poin"
+        subtitle="Daftar keanggotaan pasien, tingkatan level membership tier, tanggal bergabung, dan perolehan poin loyalitas."
+      />
+      <LaporanSummaryCards items={summaryCards} />
+      <div className="card">
+        <LaporanActionBar
+          onPrint={handlePrint}
+          onExport={handleExport}
+          onRefresh={() => fetchData()}
+          loadingRefresh={loading}
+        />
+        <LaporanLegendBox
+          items={[
+            { label: 'Member Aktif', color: '#22c55e' },
+            { label: 'Nonaktif', color: '#ef4444' },
+          ]}
+        />
+        <DataTable
+          value={data}
+          loading={loading}
+          scrollable
+          paginator
+          rows={10}
+          rowsPerPageOptions={[10, 25, 50]}
+          emptyMessage="Data Laporan Membership Tidak Ditemukan"
+          className="p-datatable-sm"
+          header={
+            <LaporanTableHeaderFilter
+              searchVal={keyword}
+              setSearchVal={setKeyword}
+              onSearchKeyDown={(e) => e.key === 'Enter' && fetchData()}
+              searchPlaceholder="Cari Nama Pasien, No RM, Tier..."
+              isFiltered={Boolean(selectedLevel || selectedStatus)}
+              onReset={() => {
+                setKeyword('');
+                setSelectedLevel(null);
+                setSelectedStatus(null);
+                fetchData('', null, null);
+              }}
+              filterOverlay={(close) => (
+                <LaporanFilterPopup
+                  title="Filter Laporan Membership"
+                  onClose={close}
+                  onApply={() => fetchData()}
+                  onReset={() => {
+                    setSelectedLevel(null);
+                    setSelectedStatus(null);
+                    fetchData(keyword, null, null);
+                  }}
+                >
+                  <div className="field col-12 mb-3">
+                    <label className="font-semibold text-xs text-700 block mb-2">Level Membership</label>
+                    <Dropdown
+                      value={selectedLevel}
+                      options={optionsLevel}
+                      placeholder="Semua Level Tier"
+                      className="w-full text-sm"
+                      onChange={(e) => setSelectedLevel(e.value || null)}
+                    />
+                  </div>
+                  <div className="field col-12 mb-3">
+                    <label className="font-semibold text-xs text-700 block mb-2">Status Pasien</label>
+                    <Dropdown
+                      value={selectedStatus}
+                      options={[
+                        { label: 'Semua Status', value: '' },
+                        { label: 'Aktif', value: 'aktif' },
+                        { label: 'Nonaktif', value: 'nonaktif' },
+                      ]}
+                      placeholder="Semua Status Pasien"
+                      className="w-full text-sm"
+                      onChange={(e) => setSelectedStatus(e.value || null)}
+                    />
+                  </div>
+                </LaporanFilterPopup>
+              )}
+            />
+          }
+        >
+          <Column header="#" body={(_, opt) => opt.rowIndex + 1} style={{ width: '3.5rem', textAlign: 'center' }} />
+          <Column field="no_rm" header="Kode Member" sortable className="font-semibold text-800 font-mono" style={{ minWidth: '10rem' }} />
+          <Column field="no_rm" header="No. RM" sortable className="font-semibold text-gray-700 font-mono" style={{ minWidth: '9rem' }} />
+          <Column field="nama_pasien" header="Nama Pasien" sortable className="font-bold text-gray-800" style={{ minWidth: '13rem' }} />
+          <Column
+            field="nama_level"
+            header="Level Tier"
+            sortable
+            align="center"
+            body={(r) => <Tag value={r.nama_level || 'Non-Member'} severity={getTierSeverity(r.nama_level)} className="text-xs font-semibold px-2 py-1" />}
+            style={{ minWidth: '10rem' }}
+          />
+          <Column
+            field="tanggal_gabung_membership"
+            header="Tanggal Gabung"
+            sortable
+            body={(r) => (r.tanggal_gabung_membership ? formatDateIndo(r.tanggal_gabung_membership) : <span className="text-gray-400 italic text-xs">-</span>)}
+            style={{ minWidth: '11rem' }}
+          />
+          <Column
+            field="total_poin"
+            header="Total Poin"
+            sortable
+            align="right"
+            body={(r) => <span className="font-bold text-amber-600 flex align-items-center justify-content-end gap-1"><i className="pi pi-star-fill text-xs" />{new Intl.NumberFormat('id-ID').format(r.total_poin || 0)}</span>}
+            style={{ minWidth: '9rem' }}
+          />
+          <Column
+            field="status"
+            header="Status"
+            sortable
+            align="center"
+            body={(r) => <Tag value={String(r.status || 'aktif').toUpperCase()} severity={r.status === 'aktif' ? 'success' : 'danger'} className="text-xs" />}
+            style={{ minWidth: '8rem' }}
+          />
+        </DataTable>
+      </div>
+    </>
+  );
+};
+
+/* =========================================================================
+   17. LAPORAN KOMISI VIEW
+   ========================================================================= */
+export const LaporanKomisiView: React.FC = () => {
+  const [data, setData] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [keyword, setKeyword] = useState<string>('');
+  const [tanggalDari, setTanggalDari] = useState<Date | null>(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
+  const [tanggalSampai, setTanggalSampai] = useState<Date | null>(() => new Date());
+  const [selectedStatusPencairan, setSelectedStatusPencairan] = useState<string | null>(null);
+  const [summary, setSummary] = useState({ total_tindakan: 0, total_omzet: 0, total_komisi: 0, komisi_dicairkan: 0 });
+  const toast = useRef<Toast>(null);
+
+  const fetchData = async (
+    kw = keyword,
+    tDari = tanggalDari,
+    tSampai = tanggalSampai,
+    sCair = selectedStatusPencairan
+  ) => {
+    setLoading(true);
+    try {
+      const payload: any = { keyword: kw, perPage: 100 };
+      if (tDari) payload.tanggal_dari = tDari.toISOString().slice(0, 10);
+      if (tSampai) payload.tanggal_sampai = tSampai.toISOString().slice(0, 10);
+      if (sCair) payload.status_pencairan = sCair;
+      const res = await postData('/master/laporan/komisi', payload);
+      if (['00', '0000'].includes(res?.data?.status)) {
+        setData(res.data.data || []);
+        if (res.data.summary) setSummary(res.data.summary);
+      }
+    } catch (err: any) {
+      showError(toast, err?.message || 'Gagal memuat data komisi');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [tanggalDari, tanggalSampai]);
+
+  const handleExport = async () => {
+    const exportData = data.map((r, i) => ({
+      No: i + 1,
+      'Kode Petugas': r.kode_karyawan,
+      'Nama Tenaga Medis': r.nama_tenaga_medis,
+      Peran: r.peran,
+      'Total Tindakan': r.total_tindakan,
+      'Nilai Omzet': r.nilai_omzet,
+      'Nominal Komisi': r.nominal_komisi,
+      'Status Pencairan': r.status_pencairan === 'sudah_dicairkan' ? 'Sudah Dicairkan' : 'Belum Dicairkan',
+    }));
+    await exportToXLSX({
+      data: exportData,
+      fileName: `Laporan_Komisi_${new Date().toISOString().slice(0, 10)}`,
+    });
+  };
+
+  const handlePrint = () => {
+    const cols = ['#', 'Kode Petugas', 'Nama Tenaga Medis', 'Peran', 'Total Tindakan', 'Nilai Omzet', 'Nominal Komisi', 'Status Pencairan'];
+    const rows = data
+      .map(
+        (r, i) => `
+        <tr>
+          <td style="text-align: center;">${i + 1}</td>
+          <td style="text-align: center; font-family: monospace;">${r.kode_karyawan}</td>
+          <td><strong>${r.nama_tenaga_medis || '-'}</strong></td>
+          <td style="text-align: center;">${r.peran || '-'}</td>
+          <td style="text-align: center;">${r.total_tindakan} Tindakan</td>
+          <td style="text-align: right;">${formatRupiah(r.nilai_omzet)}</td>
+          <td style="text-align: right; font-weight: bold; color: #047857;">${formatRupiah(r.nominal_komisi)}</td>
+          <td style="text-align: center; text-transform: uppercase;">${r.status_pencairan || '-'}</td>
+        </tr>
+      `
+      )
+      .join('');
+    printHtmlTable('Laporan Komisi Tenaga Medis', cols, rows);
+  };
+
+  const summaryCards: SummaryCardItem[] = [
+    { label: 'Total Tindakan Medis', value: `${summary.total_tindakan} Tindakan`, icon: 'pi pi-check-circle', color: 'blue' },
+    { label: 'Total Nilai Omzet', value: formatRupiah(summary.total_omzet), icon: 'pi pi-dollar', color: 'green' },
+    { label: 'Total Estimasi Komisi', value: formatRupiah(summary.total_komisi), icon: 'pi pi-percentage', color: 'amber' },
+    { label: 'Komisi Sudah Dicairkan', value: formatRupiah(summary.komisi_dicairkan), icon: 'pi pi-wallet', color: 'purple' },
+  ];
+
+  return (
+    <>
+      <Toast ref={toast} />
+      <LaporanHeader
+        icon="pi pi-percentage"
+        title="Laporan Komisi & Fee Tenaga Medis"
+        subtitle="Perolehan komisi dokter, terapis, dan tenaga medis berdasarkan tindakan pelayanan klinis yang terlaksana."
+      />
+      <LaporanSummaryCards items={summaryCards} />
+      <div className="card">
+        <LaporanActionBar
+          onPrint={handlePrint}
+          onExport={handleExport}
+          onRefresh={() => fetchData()}
+          loadingRefresh={loading}
+        />
+        <LaporanLegendBox
+          items={[
+            { label: 'Sudah Dicairkan', color: '#22c55e' },
+            { label: 'Belum Dicairkan', color: '#eab308' },
+          ]}
+        />
+        <DataTable
+          value={data}
+          loading={loading}
+          scrollable
+          paginator
+          rows={10}
+          rowsPerPageOptions={[10, 25, 50]}
+          emptyMessage="Belum ada data transaksi komisi tenaga medis."
+          className="p-datatable-sm"
+          header={
+            <LaporanTableHeaderFilter
+              tanggalAwal={tanggalDari}
+              setTanggalAwal={(d) => setTanggalDari(d)}
+              tanggalAkhir={tanggalSampai}
+              setTanggalAkhir={(d) => setTanggalSampai(d)}
+              searchVal={keyword}
+              setSearchVal={setKeyword}
+              onSearchKeyDown={(e) => e.key === 'Enter' && fetchData()}
+              searchPlaceholder="Cari Nama Petugas, Peran..."
+              isFiltered={Boolean(selectedStatusPencairan)}
+              onReset={() => {
+                const now = new Date();
+                const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+                setTanggalDari(firstDay);
+                setTanggalSampai(now);
+                setKeyword('');
+                setSelectedStatusPencairan(null);
+                fetchData('', firstDay, now, null);
+              }}
+              filterOverlay={(close) => (
+                <LaporanFilterPopup
+                  title="Filter Laporan Komisi"
+                  onClose={close}
+                  onApply={() => fetchData()}
+                  onReset={() => {
+                    setSelectedStatusPencairan(null);
+                    fetchData(keyword, tanggalDari, tanggalSampai, null);
+                  }}
+                >
+                  <div className="field col-12 mb-3">
+                    <label className="font-semibold text-xs text-700 block mb-2">Status Pencairan Komisi</label>
+                    <Dropdown
+                      value={selectedStatusPencairan}
+                      options={[
+                        { label: 'Semua Status', value: '' },
+                        { label: 'Belum Dicairkan', value: 'belum_dicairkan' },
+                        { label: 'Sudah Dicairkan', value: 'sudah_dicairkan' },
+                      ]}
+                      placeholder="Semua Status Pencairan"
+                      className="w-full text-sm"
+                      onChange={(e) => setSelectedStatusPencairan(e.value || null)}
+                    />
+                  </div>
+                </LaporanFilterPopup>
+              )}
+            />
+          }
+        >
+          <Column header="#" body={(_, opt) => opt.rowIndex + 1} style={{ width: '3.5rem', textAlign: 'center' }} />
+          <Column field="kode_karyawan" header="Kode Petugas" sortable className="font-semibold text-800 font-mono" style={{ minWidth: '9rem' }} />
+          <Column field="nama_tenaga_medis" header="Nama Tenaga Medis" sortable className="font-bold text-gray-800" style={{ minWidth: '14rem' }} />
+          <Column
+            field="peran"
+            header="Peran"
+            sortable
+            body={(r) => <Tag value={String(r.peran || 'STAFF').toUpperCase()} severity="info" className="text-xs" />}
+            style={{ minWidth: '9rem' }}
+          />
+          <Column
+            field="total_tindakan"
+            header="Total Tindakan"
+            sortable
+            align="center"
+            body={(r) => <span className="font-semibold text-gray-700">{r.total_tindakan} Tindakan</span>}
+            style={{ minWidth: '9rem' }}
+          />
+          <Column
+            field="nilai_omzet"
+            header="Nilai Omzet"
+            sortable
+            align="right"
+            body={(r) => <span className="text-gray-700">{formatRupiah(r.nilai_omzet)}</span>}
+            style={{ minWidth: '11rem' }}
+          />
+          <Column
+            field="nominal_komisi"
+            header="Nominal Komisi"
+            sortable
+            align="right"
+            body={(r) => <span className="font-bold text-emerald-700">{formatRupiah(r.nominal_komisi)}</span>}
+            style={{ minWidth: '11rem' }}
+          />
+          <Column
+            field="status_pencairan"
+            header="Status Pencairan"
+            sortable
+            align="center"
+            body={(r) => (
+              <Tag
+                value={r.status_pencairan === 'sudah_dicairkan' ? 'SUDAH DICAIRKAN' : 'BELUM DICAIRKAN'}
+                severity={r.status_pencairan === 'sudah_dicairkan' ? 'success' : 'warning'}
+                className="text-xs"
+              />
+            )}
+            style={{ minWidth: '11rem' }}
+          />
+        </DataTable>
+      </div>
+    </>
+  );
+};
+
+/* =========================================================================
+   18. LAPORAN EXPIRED VIEW
+   ========================================================================= */
+export const LaporanExpiredView: React.FC = () => {
+  const [data, setData] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [keyword, setKeyword] = useState<string>('');
+  const [selectedStatusExpired, setSelectedStatusExpired] = useState<string | null>(null);
+  const [summary, setSummary] = useState({ total_produk: 0, kritis: 0, perhatian: 0, aman: 0, belum_diisi: 0 });
+  const toast = useRef<Toast>(null);
+
+  const fetchData = async (kw = keyword, sExp = selectedStatusExpired) => {
+    setLoading(true);
+    try {
+      const payload: any = { keyword: kw, perPage: 100 };
+      if (sExp) payload.status_expired = sExp;
+      const res = await postData('/master/laporan/expired', payload);
+      if (['00', '0000'].includes(res?.data?.status)) {
+        setData(res.data.data || []);
+        if (res.data.summary) setSummary(res.data.summary);
+      }
+    } catch (err: any) {
+      showError(toast, err?.message || 'Gagal memuat data expired');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const handleExport = async () => {
+    const exportData = data.map((r, i) => ({
+      No: i + 1,
+      'Kode Produk': r.kode_produk,
+      'Nama Obat/Skincare': r.nama_produk,
+      'No. Batch': r.no_batch || '-',
+      'Tanggal Kadaluarsa': r.tanggal_kadaluarsa ? formatDateIndo(r.tanggal_kadaluarsa) : '-',
+      'Sisa Stok': `${r.stok_tersedia} ${r.satuan || ''}`,
+      'Status Kadaluarsa':
+        r.status_expired === 'kritis'
+          ? 'Kritis (<30 Hari)'
+          : r.status_expired === 'perhatian'
+          ? 'Perhatian (<90 Hari)'
+          : r.status_expired === 'aman'
+          ? 'Aman'
+          : 'Belum Diisi',
+    }));
+    await exportToXLSX({
+      data: exportData,
+      fileName: `Laporan_Expired_${new Date().toISOString().slice(0, 10)}`,
+    });
+  };
+
+  const handlePrint = () => {
+    const cols = ['#', 'Kode Produk', 'Nama Obat/Skincare', 'No. Batch', 'Tgl Kadaluarsa', 'Sisa Stok', 'Status'];
+    const rows = data
+      .map(
+        (r, i) => `
+        <tr>
+          <td style="text-align: center;">${i + 1}</td>
+          <td style="text-align: center; font-family: monospace;">${r.kode_produk}</td>
+          <td><strong>${r.nama_produk}</strong></td>
+          <td style="text-align: center;">${r.no_batch || '-'}</td>
+          <td style="text-align: center;">${r.tanggal_kadaluarsa ? formatDateIndo(r.tanggal_kadaluarsa) : '-'}</td>
+          <td style="text-align: center;">${r.stok_tersedia} ${r.satuan || ''}</td>
+          <td style="text-align: center; font-weight: bold;">${String(r.status_expired || '-').toUpperCase()}</td>
+        </tr>
+      `
+      )
+      .join('');
+    printHtmlTable('Laporan Kadaluarsa (Expired) Obat & Skincare', cols, rows);
+  };
+
+  const summaryCards: SummaryCardItem[] = [
+    { label: 'Total Produk Dipantau', value: `${summary.total_produk || data.length} Produk`, icon: 'pi pi-box', color: 'blue' },
+    { label: 'Kritis (<30 Hari)', value: `${summary.kritis} Produk`, icon: 'pi pi-exclamation-circle', color: 'red' },
+    { label: 'Perhatian (<90 Hari)', value: `${summary.perhatian} Produk`, icon: 'pi pi-clock', color: 'amber' },
+    { label: 'Stok Aman', value: `${summary.aman} Produk`, icon: 'pi pi-shield', color: 'green' },
+  ];
+
+  const renderStatusTag = (r: any) => {
+    switch (r.status_expired) {
+      case 'kritis':
+        return (
+          <Tag
+            value={r.sisa_hari !== null && r.sisa_hari <= 0 ? 'EXPIRED' : `KRITIS (${r.sisa_hari ?? '<30'} HARI)`}
+            severity="danger"
+            className="text-xs font-bold"
+          />
+        );
+      case 'perhatian':
+        return <Tag value={`PERHATIAN (${r.sisa_hari ?? '<90'} HARI)`} severity="warning" className="text-xs font-semibold" />;
+      case 'aman':
+        return <Tag value="AMAN" severity="success" className="text-xs" />;
+      default:
+        return <Tag value="BELUM DIISI" severity="secondary" className="text-xs" />;
+    }
+  };
+
+  return (
+    <>
+      <Toast ref={toast} />
+      <LaporanHeader
+        icon="pi pi-calendar-times"
+        title="Laporan Kadaluarsa (Expired) Produk & Skincare"
+        subtitle="Monitoring masa simpan batch obat, krim racikan, dan produk skincare untuk mencegah penggunaan produk kadaluarsa."
+      />
+      <LaporanSummaryCards items={summaryCards} />
+      <div className="card">
+        <LaporanActionBar
+          onPrint={handlePrint}
+          onExport={handleExport}
+          onRefresh={() => fetchData()}
+          loadingRefresh={loading}
+        />
+        <LaporanLegendBox
+          items={[
+            { label: 'Kritis (<30 Hari)', color: '#ef4444' },
+            { label: 'Perhatian (<90 Hari)', color: '#eab308' },
+            { label: 'Aman', color: '#22c55e' },
+            { label: 'Belum Diisi', color: '#94a3b8' },
+          ]}
+        />
+        <DataTable
+          value={data}
+          loading={loading}
+          scrollable
+          paginator
+          rows={10}
+          rowsPerPageOptions={[10, 25, 50]}
+          emptyMessage="Data Laporan Expired Tidak Ditemukan"
+          className="p-datatable-sm"
+          header={
+            <LaporanTableHeaderFilter
+              searchVal={keyword}
+              setSearchVal={setKeyword}
+              onSearchKeyDown={(e) => e.key === 'Enter' && fetchData()}
+              searchPlaceholder="Cari Produk, No Batch..."
+              isFiltered={Boolean(selectedStatusExpired)}
+              onReset={() => {
+                setKeyword('');
+                setSelectedStatusExpired(null);
+                fetchData('', null);
+              }}
+              filterOverlay={(close) => (
+                <LaporanFilterPopup
+                  title="Filter Status Kadaluarsa"
+                  onClose={close}
+                  onApply={() => fetchData()}
+                  onReset={() => {
+                    setSelectedStatusExpired(null);
+                    fetchData(keyword, null);
+                  }}
+                >
+                  <div className="field col-12 mb-3">
+                    <label className="font-semibold text-xs text-700 block mb-2">Status Kadaluarsa</label>
+                    <Dropdown
+                      value={selectedStatusExpired}
+                      options={[
+                        { label: 'Semua Status', value: '' },
+                        { label: 'Kritis (< 30 Hari)', value: 'kritis' },
+                        { label: 'Perhatian (< 90 Hari)', value: 'perhatian' },
+                        { label: 'Aman (>= 90 Hari)', value: 'aman' },
+                        { label: 'Belum Diisi No. Batch/Tgl', value: 'belum_diisi' },
+                      ]}
+                      placeholder="Semua Status Kadaluarsa"
+                      className="w-full text-sm"
+                      onChange={(e) => setSelectedStatusExpired(e.value || null)}
+                    />
+                  </div>
+                </LaporanFilterPopup>
+              )}
+            />
+          }
+        >
+          <Column header="#" body={(_, opt) => opt.rowIndex + 1} style={{ width: '3.5rem', textAlign: 'center' }} />
+          <Column field="kode_produk" header="Kode Produk" sortable className="font-semibold text-800 font-mono" style={{ minWidth: '9rem' }} />
+          <Column field="nama_produk" header="Nama Obat / Skincare" sortable className="font-bold text-gray-800" style={{ minWidth: '15rem' }} />
+          <Column
+            field="no_batch"
+            header="No. Batch"
+            sortable
+            body={(r) => r.no_batch ? <span className="font-mono text-gray-700 font-semibold">{r.no_batch}</span> : <span className="text-gray-400 italic text-xs">-</span>}
+            style={{ minWidth: '10rem' }}
+          />
+          <Column
+            field="tanggal_kadaluarsa"
+            header="Tanggal Kadaluarsa"
+            sortable
+            body={(r) => r.tanggal_kadaluarsa ? formatDateIndo(r.tanggal_kadaluarsa) : <span className="text-gray-400 italic text-xs">-</span>}
+            style={{ minWidth: '12rem' }}
+          />
+          <Column
+            field="stok_tersedia"
+            header="Sisa Stok"
+            sortable
+            align="center"
+            body={(r) => <span className="font-bold text-gray-700">{r.stok_tersedia} {r.satuan || ''}</span>}
+            style={{ minWidth: '8rem' }}
+          />
+          <Column
+            header="Status"
+            sortable
+            align="center"
+            body={renderStatusTag}
+            style={{ minWidth: '12rem' }}
+          />
+        </DataTable>
+      </div>
+    </>
+  );
+};
+
+/* =========================================================================
+   19. LAPORAN DEPOSIT VIEW
+   ========================================================================= */
+export const LaporanDepositView: React.FC = () => {
+  const [data, setData] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [keyword, setKeyword] = useState<string>('');
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
+  const [summary, setSummary] = useState({ total_pasien: 0, total_saldo: 0, total_riwayat: 0 });
+  const toast = useRef<Toast>(null);
+
+  const fetchData = async (kw = keyword, sStat = selectedStatus) => {
+    setLoading(true);
+    try {
+      const payload: any = { keyword: kw, perPage: 100 };
+      if (sStat) payload.status = sStat;
+      const res = await postData('/master/laporan/deposit', payload);
+      if (['00', '0000'].includes(res?.data?.status)) {
+        setData(res.data.data || []);
+        if (res.data.summary) setSummary(res.data.summary);
+      }
+    } catch (err: any) {
+      showError(toast, err?.message || 'Gagal memuat data deposit');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const handleExport = async () => {
+    const exportData = data.map((r, i) => ({
+      No: i + 1,
+      'No. RM': r.no_rm,
+      'Nama Pasien': r.nama_pasien,
+      'Saldo Terakhir': r.saldo_deposit || 0,
+      'Riwayat Trx': `${r.total_riwayat || 0} kali`,
+      Status: r.status_deposit === 'aktif' ? 'Aktif' : 'Nonaktif',
+    }));
+    await exportToXLSX({
+      data: exportData,
+      fileName: `Laporan_Deposit_${new Date().toISOString().slice(0, 10)}`,
+    });
+  };
+
+  const handlePrint = () => {
+    const cols = ['#', 'No. RM', 'Nama Pasien', 'Saldo Terakhir', 'Riwayat Trx', 'Status'];
+    const rows = data
+      .map(
+        (r, i) => `
+        <tr>
+          <td style="text-align: center;">${i + 1}</td>
+          <td style="text-align: center; font-family: monospace;">${r.no_rm}</td>
+          <td><strong>${r.nama_pasien || '-'}</strong></td>
+          <td style="text-align: right; font-weight: bold; color: #047857;">${formatRupiah(r.saldo_deposit)}</td>
+          <td style="text-align: center;">${r.total_riwayat || 0} Kali</td>
+          <td style="text-align: center; text-transform: uppercase;">${r.status_deposit || '-'}</td>
+        </tr>
+      `
+      )
+      .join('');
+    printHtmlTable('Laporan Deposit Pasien', cols, rows);
+  };
+
+  const summaryCards: SummaryCardItem[] = [
+    { label: 'Pasien Pemilik Deposit', value: `${summary.total_pasien} Pasien`, icon: 'pi pi-users', color: 'blue' },
+    { label: 'Total Saldo Mengendap', value: formatRupiah(summary.total_saldo), icon: 'pi pi-wallet', color: 'green' },
+    { label: 'Total Riwayat Transaksi', value: `${summary.total_riwayat} Transaksi`, icon: 'pi pi-history', color: 'purple' },
+  ];
+
+  return (
+    <>
+      <Toast ref={toast} />
+      <LaporanHeader
+        icon="pi pi-wallet"
+        title="Laporan Saldo Deposit Pasien"
+        subtitle="Saldo uang muka (deposit) mengendap, riwayat mutasi saldo, dan status akun deposit per pasien klinik."
+      />
+      <LaporanSummaryCards items={summaryCards} />
+      <div className="card">
+        <LaporanActionBar
+          onPrint={handlePrint}
+          onExport={handleExport}
+          onRefresh={() => fetchData()}
+          loadingRefresh={loading}
+        />
+        <LaporanLegendBox
+          items={[
+            { label: 'Saldo Aktif (> Rp 0)', color: '#22c55e' },
+            { label: 'Kosong / Nonaktif', color: '#94a3b8' },
+          ]}
+        />
+        <DataTable
+          value={data}
+          loading={loading}
+          scrollable
+          paginator
+          rows={10}
+          rowsPerPageOptions={[10, 25, 50]}
+          emptyMessage="Belum ada data deposit pasien."
+          className="p-datatable-sm"
+          header={
+            <LaporanTableHeaderFilter
+              searchVal={keyword}
+              setSearchVal={setKeyword}
+              onSearchKeyDown={(e) => e.key === 'Enter' && fetchData()}
+              searchPlaceholder="Cari Nama Pasien, No RM..."
+              isFiltered={Boolean(selectedStatus)}
+              onReset={() => {
+                setKeyword('');
+                setSelectedStatus(null);
+                fetchData('', null);
+              }}
+              filterOverlay={(close) => (
+                <LaporanFilterPopup
+                  title="Filter Laporan Deposit"
+                  onClose={close}
+                  onApply={() => fetchData()}
+                  onReset={() => {
+                    setSelectedStatus(null);
+                    fetchData(keyword, null);
+                  }}
+                >
+                  <div className="field col-12 mb-3">
+                    <label className="font-semibold text-xs text-700 block mb-2">Status Saldo</label>
+                    <Dropdown
+                      value={selectedStatus}
+                      options={[
+                        { label: 'Semua Status', value: '' },
+                        { label: 'Aktif (> Rp 0)', value: 'aktif' },
+                        { label: 'Nonaktif / Saldo Nol', value: 'nonaktif' },
+                      ]}
+                      placeholder="Semua Status Saldo"
+                      className="w-full text-sm"
+                      onChange={(e) => setSelectedStatus(e.value || null)}
+                    />
+                  </div>
+                </LaporanFilterPopup>
+              )}
+            />
+          }
+        >
+          <Column header="#" body={(_, opt) => opt.rowIndex + 1} style={{ width: '3.5rem', textAlign: 'center' }} />
+          <Column field="no_rm" header="Kode Kunjungan / No. RM" sortable className="font-semibold text-800 font-mono" style={{ minWidth: '12rem' }} />
+          <Column field="nama_pasien" header="Nama Pasien" sortable className="font-bold text-gray-800" style={{ minWidth: '14rem' }} />
+          <Column
+            field="saldo_deposit"
+            header="Saldo Terakhir"
+            sortable
+            align="right"
+            body={(r) => <span className="font-bold text-emerald-700">{formatRupiah(r.saldo_deposit)}</span>}
+            style={{ minWidth: '11rem' }}
+          />
+          <Column
+            field="total_riwayat"
+            header="Riwayat Trx"
+            sortable
+            align="center"
+            body={(r) => <span className="font-semibold text-gray-700">{r.total_riwayat || 0} Kali Transaksi</span>}
+            style={{ minWidth: '10rem' }}
+          />
+          <Column
+            field="status_deposit"
+            header="Status"
+            sortable
+            align="center"
+            body={(r) => (
+              <Tag
+                value={r.status_deposit === 'aktif' ? 'AKTIF' : 'NONAKTIF'}
+                severity={r.status_deposit === 'aktif' ? 'success' : 'secondary'}
+                className="text-xs"
+              />
+            )}
+            style={{ minWidth: '8rem' }}
+          />
+        </DataTable>
+      </div>
+    </>
+  );
+};
+
+/* =========================================================================
+   20. LAPORAN CRM VIEW
+   ========================================================================= */
+export const LaporanCrmView: React.FC = () => {
+  const [data, setData] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [keyword, setKeyword] = useState<string>('');
+  const [tanggalDari, setTanggalDari] = useState<Date | null>(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
+  const [tanggalSampai, setTanggalSampai] = useState<Date | null>(() => new Date());
+  const [selectedTipe, setSelectedTipe] = useState<string | null>(null);
+  const [selectedKanal, setSelectedKanal] = useState<string | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
+  const [summary, setSummary] = useState({ total_interaksi: 0, terkirim: 0, pending: 0, gagal: 0 });
+  const toast = useRef<Toast>(null);
+
+  const fetchData = async (
+    kw = keyword,
+    tDari = tanggalDari,
+    tSampai = tanggalSampai,
+    sTipe = selectedTipe,
+    sKanal = selectedKanal,
+    sStat = selectedStatus
+  ) => {
+    setLoading(true);
+    try {
+      const payload: any = { keyword: kw, perPage: 100 };
+      if (tDari) payload.tanggal_dari = tDari.toISOString().slice(0, 10);
+      if (tSampai) payload.tanggal_sampai = tSampai.toISOString().slice(0, 10);
+      if (sTipe) payload.tipe_followup = sTipe;
+      if (sKanal) payload.kanal_komunikasi = sKanal;
+      if (sStat) payload.status = sStat;
+      const res = await postData('/master/laporan/crm', payload);
+      if (['00', '0000'].includes(res?.data?.status)) {
+        setData(res.data.data || []);
+        if (res.data.summary) setSummary(res.data.summary);
+      }
+    } catch (err: any) {
+      showError(toast, err?.message || 'Gagal memuat data CRM');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [tanggalDari, tanggalSampai]);
+
+  const handleExport = async () => {
+    const exportData = data.map((r, i) => ({
+      No: i + 1,
+      'No. RM': r.no_rm,
+      'Nama Pasien': r.nama_pasien,
+      'Tipe Follow-up': String(r.tipe_followup || '').replace(/_/g, ' ').toUpperCase(),
+      'Tanggal Terakhir': r.tanggal_kirim ? formatDateIndo(r.tanggal_kirim) : '-',
+      'Kanal Komunikasi': String(r.kanal_komunikasi || '').toUpperCase(),
+      Status: String(r.status || '').toUpperCase(),
+    }));
+    await exportToXLSX({
+      data: exportData,
+      fileName: `Laporan_CRM_${new Date().toISOString().slice(0, 10)}`,
+    });
+  };
+
+  const handlePrint = () => {
+    const cols = ['#', 'No. RM', 'Nama Pasien', 'Tipe Follow-up', 'Tanggal Terakhir', 'Kanal Komunikasi', 'Status'];
+    const rows = data
+      .map(
+        (r, i) => `
+        <tr>
+          <td style="text-align: center;">${i + 1}</td>
+          <td style="text-align: center; font-family: monospace;">${r.no_rm}</td>
+          <td><strong>${r.nama_pasien || '-'}</strong></td>
+          <td>${String(r.tipe_followup || '-').replace(/_/g, ' ').toUpperCase()}</td>
+          <td style="text-align: center;">${r.tanggal_kirim ? formatDateIndo(r.tanggal_kirim) : '-'}</td>
+          <td style="text-align: center;">${String(r.kanal_komunikasi || '-').toUpperCase()}</td>
+          <td style="text-align: center; font-weight: bold;">${String(r.status || '-').toUpperCase()}</td>
+        </tr>
+      `
+      )
+      .join('');
+    printHtmlTable('Laporan CRM & Interaksi Pasien', cols, rows);
+  };
+
+  const summaryCards: SummaryCardItem[] = [
+    { label: 'Total Interaksi CRM', value: `${summary.total_interaksi} Interaksi`, icon: 'pi pi-comments', color: 'blue' },
+    { label: 'Pesan Terkirim', value: `${summary.terkirim} Terkirim`, icon: 'pi pi-send', color: 'green' },
+    { label: 'Pending / Menunggu', value: `${summary.pending} Pending`, icon: 'pi pi-hourglass', color: 'amber' },
+    { label: 'Gagal Terkirim', value: `${summary.gagal} Gagal`, icon: 'pi pi-times-circle', color: 'red' },
+  ];
+
+  const getStatusSeverity = (status: string) => {
+    switch (status) {
+      case 'terkirim':
+        return 'success';
+      case 'pending':
+        return 'warning';
+      case 'gagal':
+        return 'danger';
+      default:
+        return 'info';
+    }
+  };
+
+  return (
+    <>
+      <Toast ref={toast} />
+      <LaporanHeader
+        icon="pi pi-comments"
+        title="Laporan CRM & Follow-Up Pasien"
+        subtitle="Monitoring interaksi komunikasi, ucapan ulang tahun, follow-up hasil treatment, dan reminder kunjungan pasien."
+      />
+      <LaporanSummaryCards items={summaryCards} />
+      <div className="card">
+        <LaporanActionBar
+          onPrint={handlePrint}
+          onExport={handleExport}
+          onRefresh={() => fetchData()}
+          loadingRefresh={loading}
+        />
+        <LaporanLegendBox
+          items={[
+            { label: 'Terkirim', color: '#22c55e' },
+            { label: 'Pending', color: '#eab308' },
+            { label: 'Gagal', color: '#ef4444' },
+          ]}
+        />
+        <DataTable
+          value={data}
+          loading={loading}
+          scrollable
+          paginator
+          rows={10}
+          rowsPerPageOptions={[10, 25, 50]}
+          emptyMessage="Belum ada data riwayat CRM / follow-up pasien."
+          className="p-datatable-sm"
+          header={
+            <LaporanTableHeaderFilter
+              tanggalAwal={tanggalDari}
+              setTanggalAwal={(d) => setTanggalDari(d)}
+              tanggalAkhir={tanggalSampai}
+              setTanggalAkhir={(d) => setTanggalSampai(d)}
+              searchVal={keyword}
+              setSearchVal={setKeyword}
+              onSearchKeyDown={(e) => e.key === 'Enter' && fetchData()}
+              searchPlaceholder="Cari Nama Pasien, No RM, Pesan..."
+              isFiltered={Boolean(selectedTipe || selectedKanal || selectedStatus)}
+              onReset={() => {
+                const now = new Date();
+                const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+                setTanggalDari(firstDay);
+                setTanggalSampai(now);
+                setKeyword('');
+                setSelectedTipe(null);
+                setSelectedKanal(null);
+                setSelectedStatus(null);
+                fetchData('', firstDay, now, null, null, null);
+              }}
+              filterOverlay={(close) => (
+                <LaporanFilterPopup
+                  title="Filter Laporan CRM"
+                  onClose={close}
+                  onApply={() => fetchData()}
+                  onReset={() => {
+                    setSelectedTipe(null);
+                    setSelectedKanal(null);
+                    setSelectedStatus(null);
+                    fetchData(keyword, tanggalDari, tanggalSampai, null, null, null);
+                  }}
+                >
+                  <div className="field col-12 mb-3">
+                    <label className="font-semibold text-xs text-700 block mb-2">Tipe Follow-up</label>
+                    <Dropdown
+                      value={selectedTipe}
+                      options={[
+                        { label: 'Semua Tipe', value: '' },
+                        { label: 'Ucapan Ulang Tahun', value: 'ucapan_ulang_tahun' },
+                        { label: 'Follow Up Treatment', value: 'follow_up_treatment' },
+                        { label: 'Reminder Kunjungan', value: 'reminder_kunjungan' },
+                        { label: 'Lainnya', value: 'lainnya' },
+                      ]}
+                      placeholder="Semua Tipe"
+                      className="w-full text-sm"
+                      onChange={(e) => setSelectedTipe(e.value || null)}
+                    />
+                  </div>
+                  <div className="field col-12 mb-3">
+                    <label className="font-semibold text-xs text-700 block mb-2">Kanal Komunikasi</label>
+                    <Dropdown
+                      value={selectedKanal}
+                      options={[
+                        { label: 'Semua Kanal', value: '' },
+                        { label: 'WhatsApp', value: 'whatsapp' },
+                        { label: 'SMS', value: 'sms' },
+                        { label: 'Email', value: 'email' },
+                        { label: 'Telepon', value: 'telepon' },
+                      ]}
+                      placeholder="Semua Kanal"
+                      className="w-full text-sm"
+                      onChange={(e) => setSelectedKanal(e.value || null)}
+                    />
+                  </div>
+                  <div className="field col-12 mb-3">
+                    <label className="font-semibold text-xs text-700 block mb-2">Status Pengiriman</label>
+                    <Dropdown
+                      value={selectedStatus}
+                      options={[
+                        { label: 'Semua Status', value: '' },
+                        { label: 'Terkirim', value: 'terkirim' },
+                        { label: 'Pending', value: 'pending' },
+                        { label: 'Gagal', value: 'gagal' },
+                      ]}
+                      placeholder="Semua Status"
+                      className="w-full text-sm"
+                      onChange={(e) => setSelectedStatus(e.value || null)}
+                    />
+                  </div>
+                </LaporanFilterPopup>
+              )}
+            />
+          }
+        >
+          <Column header="#" body={(_, opt) => opt.rowIndex + 1} style={{ width: '3.5rem', textAlign: 'center' }} />
+          <Column field="no_rm" header="No. RM" sortable className="font-semibold text-800 font-mono" style={{ minWidth: '9rem' }} />
+          <Column field="nama_pasien" header="Nama Pasien" sortable className="font-bold text-gray-800" style={{ minWidth: '13rem' }} />
+          <Column
+            field="tipe_followup"
+            header="Tipe Follow-up"
+            sortable
+            body={(r) => <Tag value={String(r.tipe_followup || 'LAINNYA').replace(/_/g, ' ').toUpperCase()} severity="info" className="text-xs" />}
+            style={{ minWidth: '12rem' }}
+          />
+          <Column
+            field="tanggal_kirim"
+            header="Tanggal Terakhir"
+            sortable
+            body={(r) => (r.tanggal_kirim ? formatDateIndo(r.tanggal_kirim) : <span className="text-gray-400 italic text-xs">-</span>)}
+            style={{ minWidth: '11rem' }}
+          />
+          <Column
+            field="kanal_komunikasi"
+            header="Kanal Komunikasi"
+            sortable
+            align="center"
+            body={(r) => (
+              <span className="font-semibold text-xs text-gray-700 flex align-items-center justify-content-center gap-1">
+                <i className={r.kanal_komunikasi === 'whatsapp' ? 'pi pi-whatsapp text-green-600' : 'pi pi-comment'} />
+                {String(r.kanal_komunikasi || '').toUpperCase()}
+              </span>
+            )}
+            style={{ minWidth: '11rem' }}
+          />
+          <Column
+            field="status"
+            header="Status"
+            sortable
+            align="center"
+            body={(r) => <Tag value={String(r.status || 'PENDING').toUpperCase()} severity={getStatusSeverity(r.status)} className="text-xs" />}
+            style={{ minWidth: '8rem' }}
+          />
+        </DataTable>
+      </div>
+    </>
+  );
+};
+

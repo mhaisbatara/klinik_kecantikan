@@ -38,7 +38,7 @@ export const LAPORAN_COLUMNS: { title: string; items: ModuleItem[] }[] = [
       { id: 'treatment', label: 'Laporan Treatment', isWip: false },
       { id: 'produk', label: 'Laporan Produk', isWip: false },
       { id: 'paket', label: 'Laporan Paket', isWip: false },
-      { id: 'membership', label: 'Laporan Membership', isWip: true },
+      { id: 'membership', label: 'Laporan Membership', isWip: false },
     ],
   },
   {
@@ -46,7 +46,7 @@ export const LAPORAN_COLUMNS: { title: string; items: ModuleItem[] }[] = [
     items: [
       { id: 'pasien', label: 'Laporan Pasien', isWip: false },
       { id: 'kunjungan', label: 'Laporan Kunjungan', isWip: false },
-      { id: 'appointment', label: 'Laporan Appointment', isWip: true },
+      { id: 'appointment', label: 'Laporan Appointment', isWip: false },
       { id: 'dokter', label: 'Laporan Dokter', isWip: false },
       { id: 'beautician', label: 'Laporan Beautician', isWip: false },
     ],
@@ -54,19 +54,19 @@ export const LAPORAN_COLUMNS: { title: string; items: ModuleItem[] }[] = [
   {
     title: 'Kolom 3',
     items: [
-      { id: 'komisi', label: 'Laporan Komisi', isWip: true },
+      { id: 'komisi', label: 'Laporan Komisi', isWip: false },
       { id: 'inventory', label: 'Laporan Inventory', isWip: false },
-      { id: 'stok_opname', label: 'Laporan Stok Opname', isWip: true },
-      { id: 'pembelian', label: 'Laporan Pembelian', isWip: true },
-      { id: 'expired', label: 'Laporan Expired', isWip: true },
+      { id: 'stok_opname', label: 'Laporan Stok Opname', isWip: false },
+      { id: 'pembelian', label: 'Laporan Pembelian', isWip: false },
+      { id: 'expired', label: 'Laporan Expired', isWip: false },
     ],
   },
   {
     title: 'Kolom 4',
     items: [
-      { id: 'deposit', label: 'Laporan Deposit', isWip: true },
+      { id: 'deposit', label: 'Laporan Deposit', isWip: false },
       { id: 'voucher', label: 'Laporan Voucher', isWip: false },
-      { id: 'crm', label: 'Laporan CRM', isWip: true },
+      { id: 'crm', label: 'Laporan CRM', isWip: false },
       { id: 'keuangan', label: 'Laporan Keuangan', isWip: false },
     ],
   },

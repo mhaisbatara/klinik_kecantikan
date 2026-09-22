@@ -1,3 +1,6 @@
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 import DB from "../../../../core/config/knex.js";
 import { formatDateSystem } from "../../components/tools/date_tools.js";
 import {
@@ -8,6 +11,56 @@ import {
   mapSensitivityToEnum,
   mapKondisiKulitRuanganToEnum,
 } from "./rekam_medis_enum_helper.js";
+
+/**
+ * Menyimpan base64 image data ke disk dan mengembalikan relative file path.
+ * Jika input sudah berupa file path (panjang <= 255 dan bukan data:), kembalikan langsung.
+ */
+export function saveBase64ImageFile(imageBase64, prefix = "foto") {
+  if (!imageBase64 || typeof imageBase64 !== "string") return "";
+  const trimmed = imageBase64.trim();
+  if (!trimmed) return "";
+
+  // Jika sudah berupa path / url file (bukan data: URL)
+  if (!trimmed.startsWith("data:") && trimmed.length <= 255) {
+    return trimmed;
+  }
+
+  try {
+    const matches = trimmed.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+    let extension = ".jpg";
+    let base64Data = trimmed;
+
+    if (matches && matches.length === 3) {
+      const mime = matches[1].toLowerCase();
+      base64Data = matches[2];
+      if (mime.includes("png")) extension = ".png";
+      else if (mime.includes("gif")) extension = ".gif";
+      else if (mime.includes("webp")) extension = ".webp";
+      else extension = ".jpg";
+    } else if (trimmed.includes(";base64,")) {
+      const parts = trimmed.split(";base64,");
+      base64Data = parts[1] || trimmed;
+    }
+
+    const buffer = Buffer.from(base64Data, "base64");
+    const currentDir = path.dirname(fileURLToPath(import.meta.url));
+    const uploadDir = path.resolve(currentDir, "../../../../public/uploads/ruangan_form");
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    const cleanPrefix = prefix ? `${prefix}_` : "";
+    const uniqueFilename = `foto_${cleanPrefix}${Date.now()}_${Math.floor(Math.random() * 1000)}${extension}`;
+    const fullPath = path.join(uploadDir, uniqueFilename);
+
+    fs.writeFileSync(fullPath, buffer);
+    return `/uploads/ruangan_form/${uniqueFilename}`;
+  } catch (err) {
+    console.error("Gagal menyimpan base64 image ke disk:", err);
+    return "";
+  }
+}
 
 /**
  * Sync rekam medis per ruangan untuk kunjungan pasien (kode_kunjungan & kode_ruangan).
@@ -176,18 +229,27 @@ export async function syncRekamMedisPerAntrian({
     let cleanDataForm = {};
 
     if (header_data?.foto_before) {
-      extractedFotos.push({ tipe: "before", url_foto: header_data.foto_before });
+      const cleanUrlBefore = saveBase64ImageFile(header_data.foto_before, "before");
+      if (cleanUrlBefore) extractedFotos.push({ tipe: "before", url_foto: cleanUrlBefore });
     }
 
     if (hasil_form && typeof hasil_form === "object") {
       Object.entries(hasil_form).forEach(([key, val]) => {
         if (val && typeof val === "object" && (val.before || val.after)) {
-          if (val.before) extractedFotos.push({ tipe: "before", url_foto: val.before });
-          if (val.after) extractedFotos.push({ tipe: "after", url_foto: val.after });
+          if (val.before) {
+            const cleanBefore = saveBase64ImageFile(val.before, "before");
+            if (cleanBefore) extractedFotos.push({ tipe: "before", url_foto: cleanBefore });
+          }
+          if (val.after) {
+            const cleanAfter = saveBase64ImageFile(val.after, "after");
+            if (cleanAfter) extractedFotos.push({ tipe: "after", url_foto: cleanAfter });
+          }
         } else if (key === "foto_before" && typeof val === "string" && val) {
-          extractedFotos.push({ tipe: "before", url_foto: val });
+          const cleanBefore = saveBase64ImageFile(val, "before");
+          if (cleanBefore) extractedFotos.push({ tipe: "before", url_foto: cleanBefore });
         } else if (key === "foto_after" && typeof val === "string" && val) {
-          extractedFotos.push({ tipe: "after", url_foto: val });
+          const cleanAfter = saveBase64ImageFile(val, "after");
+          if (cleanAfter) extractedFotos.push({ tipe: "after", url_foto: cleanAfter });
         } else {
           cleanDataForm[key] = val;
         }
@@ -284,22 +346,36 @@ export async function syncRekamMedisPerAntrian({
       id_rekam_medis_ruangan = insertedRoomId;
     }
 
-    // 4. Simpan/link foto ke trx_rekam_medis_foto dengan id_rekam_medis_ruangan (Upsert per tipe)
-    if (id_rekam_medis_ruangan && extractedFotos.length > 0) {
+    // 4. Simpan/link foto ke trx_rekam_medis_foto (Upsert per tipe)
+    if (extractedFotos.length > 0) {
       for (const foto of extractedFotos) {
-        const existingFotoSameTipe = await db("trx_rekam_medis_foto")
-          .where("id_rekam_medis_ruangan", id_rekam_medis_ruangan)
-          .where("tipe", foto.tipe)
-          .first();
+        if (!foto.url_foto) continue;
+
+        let existingFotoSameTipe = null;
+        if (id_rekam_medis_ruangan) {
+          existingFotoSameTipe = await db("trx_rekam_medis_foto")
+            .where("id_rekam_medis_ruangan", id_rekam_medis_ruangan)
+            .where("tipe", foto.tipe)
+            .first();
+        }
+        if (!existingFotoSameTipe && id_rekam_medis) {
+          existingFotoSameTipe = await db("trx_rekam_medis_foto")
+            .where("id_rekam_medis", id_rekam_medis)
+            .where("tipe", foto.tipe)
+            .first();
+        }
 
         if (existingFotoSameTipe) {
           await db("trx_rekam_medis_foto")
             .where("id", existingFotoSameTipe.id)
-            .update({ url_foto: foto.url_foto });
+            .update({
+              ...(id_rekam_medis_ruangan ? { id_rekam_medis_ruangan } : {}),
+              url_foto: foto.url_foto,
+            });
         } else {
           await db("trx_rekam_medis_foto").insert({
             id_rekam_medis: id_rekam_medis,
-            id_rekam_medis_ruangan: id_rekam_medis_ruangan,
+            id_rekam_medis_ruangan: id_rekam_medis_ruangan || null,
             tipe: foto.tipe,
             url_foto: foto.url_foto,
           });

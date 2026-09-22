@@ -4,7 +4,7 @@ import React from 'react';
 import { Dialog } from 'primereact/dialog';
 import { Button } from 'primereact/button';
 import { OverlayPanel } from 'primereact/overlaypanel';
-import { Calendar, Clock, Sparkles, MapPin, Info, Check, Users } from 'lucide-react';
+import { Calendar, Clock, Sparkles, MapPin, Info, Check, Users, ChevronDown } from 'lucide-react';
 import { RuanganGroup, BookingItemDetail } from '../../components/shared/LayananCard';
 
 interface Props {
@@ -368,7 +368,7 @@ export const DialogSemuaBookingRuangan: React.FC<Props> = ({
                               <span className="font-semibold text-green-700">
                                 + {totalCompanions} petugas pendamping{companionSummary ? ` (${companionSummary})` : ''}
                               </span>
-                              <Info size={12} className="text-green-600 opacity-90 flex-shrink-0" />
+                              <ChevronDown size={12} className="text-green-600 opacity-90 flex-shrink-0" />
                             </div>
                           )}
                         </div>

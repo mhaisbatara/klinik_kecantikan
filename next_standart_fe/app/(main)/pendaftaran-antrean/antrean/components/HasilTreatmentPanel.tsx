@@ -34,6 +34,8 @@ interface ProdukItem {
     nama: string;
     harga_jual: number;
     satuan?: string;
+    kode_kategori_produk?: string;
+    nama_kategori?: string;
 }
 
 interface SelectedProduk {
@@ -81,16 +83,22 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
     const [fotoBeforeUrl, setFotoBeforeUrl] = useState<string>(initialFotoBeforeUrl || '');
     const [uploadingFotoBefore, setUploadingFotoBefore] = useState<boolean>(false);
     const fileInputBeforeRef = useRef<HTMLInputElement>(null);
+    const pendingFotoBeforeRef = useRef<{ base64: string; fileName: string } | null>(null);
 
     const [fotoAfterUrl, setFotoAfterUrl] = useState<string>('');
     const [uploadingFoto, setUploadingFoto] = useState<boolean>(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const pendingFotoAfterRef = useRef<{ base64: string; fileName: string } | null>(null);
 
     // Produk Dropdown & Selection state
     const [produkOptions, setProdukOptions] = useState<ProdukItem[]>([]);
     const [loadingProduk, setLoadingProduk] = useState<boolean>(false);
-    const [searchProduk, setSearchProduk] = useState<string>('');
     const [selectedProdukList, setSelectedProdukList] = useState<SelectedProduk[]>([]);
+
+    // State Popup Modal Produk
+    const [showProdukModal, setShowProdukModal] = useState<boolean>(false);
+    const [modalSearch, setModalSearch] = useState<string>('');
+    const [modalCategory, setModalCategory] = useState<string>('ALL');
 
     // State Biaya Custom
     const [showCustomFeeModal, setShowCustomFeeModal] = useState<boolean>(false);
@@ -141,8 +149,23 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
         fetchProdukOptions();
     }, []);
 
+    const prevPatientKeyRef = useRef<string | null>(null);
+    const patientKey = `${activePatient?.kode_antrian_layanan || ''}_${activePatient?.kode_kunjungan || ''}`;
+
     const loadExistingRekomendasiProduk = async (kodeKunjungan: string) => {
         if (!kodeKunjungan) return;
+        if (Array.isArray((activePatient as any)?.rekomendasi_produk_dokter) && (activePatient as any).rekomendasi_produk_dokter.length > 0) {
+            const mapped: SelectedProduk[] = (activePatient as any).rekomendasi_produk_dokter.map((item: any) => ({
+                kode_produk: item.kode_produk,
+                nama: item.nama || item.nama_produk,
+                harga_jual: parseFloat(item.harga_jual || item.harga || 0),
+                satuan: item.satuan || 'pcs',
+                qty: parseInt(item.qty || 1, 10),
+                is_rekomendasi_dokter: true,
+            }));
+            setSelectedProdukList(mapped);
+            return;
+        }
         try {
             const res = await postData('/master/kunjungan-produk-rekomendasi', { kode_kunjungan: kodeKunjungan });
             const list = res.data?.data || [];
@@ -168,8 +191,14 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
             const res = await postData('/master/antrian-layanan-pendaftaran-items', {
                 kode_kunjungan: kodeKunjungan,
             });
-            if (['00', '0000'].includes(res.data?.status) && res.data?.data?.length > 0) {
-                setLayananPasienList(res.data.data);
+            if (['00', '0000', 200, '200'].includes(res.data?.status) || res.status === 200) {
+                if (res.data?.data?.length > 0) {
+                    setLayananPasienList(res.data.data);
+                } else if ((activePatient as any)?.details && (activePatient as any).details.length > 0) {
+                    setLayananPasienList((activePatient as any).details);
+                } else {
+                    setLayananPasienList([]);
+                }
             } else if ((activePatient as any)?.details && (activePatient as any).details.length > 0) {
                 setLayananPasienList((activePatient as any).details);
             } else {
@@ -186,29 +215,46 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
         }
     };
 
-    // Reset state & auto-load rekomendasi produk & layanan pasien saat pasien berganti
+    // Reset state & auto-load rekomendasi produk & layanan pasien HANYA saat pasien berganti
     useEffect(() => {
-        setIsSubmitted(false);
-        onHasilSavedChange?.(false);
-        setFotoBeforeUrl(initialFotoBeforeUrl || savedFormData?.foto_before || (activePatient as any)?.foto_before || '');
-        setFotoAfterUrl('');
-        setCatatan('');
-        setSelectedProdukList([]);
-
-        if (activePatient?.kode_kunjungan) {
-            loadExistingRekomendasiProduk(activePatient.kode_kunjungan);
-            loadLayananPasien(activePatient.kode_kunjungan);
-        } else if ((activePatient as any)?.details && (activePatient as any).details.length > 0) {
-            setLayananPasienList((activePatient as any).details);
-        } else {
-            setLayananPasienList([]);
+        if (!activePatient?.kode_antrian_layanan && !activePatient?.kode_kunjungan) {
+            return;
         }
-    }, [activePatient?.kode_antrian_layanan, activePatient?.kode_kunjungan, initialFotoBeforeUrl]);
 
-    const fetchProdukOptions = async (keyword = '') => {
+        if (prevPatientKeyRef.current !== patientKey) {
+            prevPatientKeyRef.current = patientKey;
+
+            const isAlreadyCompleted = activePatient?.status === 'selesai';
+            setIsSubmitted(isAlreadyCompleted);
+            onHasilSavedChange?.(isAlreadyCompleted);
+
+            setFotoBeforeUrl(initialFotoBeforeUrl || savedFormData?.foto_before || (activePatient as any)?.foto_before || '');
+            setFotoAfterUrl(savedFormData?.foto_after || (activePatient as any)?.foto_after || '');
+            setCatatan(savedCatatanPetugas || (activePatient as any)?.catatan_hasil_treatment || (activePatient as any)?.catatan || '');
+            setSelectedProdukList([]);
+
+            if (activePatient?.kode_kunjungan) {
+                loadExistingRekomendasiProduk(activePatient.kode_kunjungan);
+                loadLayananPasien(activePatient.kode_kunjungan);
+            } else if ((activePatient as any)?.details && (activePatient as any).details.length > 0) {
+                setLayananPasienList((activePatient as any).details);
+            } else {
+                setLayananPasienList([]);
+            }
+        }
+    }, [patientKey, activePatient?.status]);
+
+    // Sinkronisasi foto before jika baru tersedia dari parent tanpa mereset data lain
+    useEffect(() => {
+        if (initialFotoBeforeUrl && !fotoBeforeUrl) {
+            setFotoBeforeUrl(initialFotoBeforeUrl);
+        }
+    }, [initialFotoBeforeUrl]);
+
+    const fetchProdukOptions = async () => {
         setLoadingProduk(true);
         try {
-            const res = await postData('/master/produk-dropdown', { search: keyword });
+            const res = await postData('/master/produk-dropdown', {});
             const list: ProdukItem[] = (res.data?.data || [])
                 .filter((p: any) => !String(p.kode_produk || '').startsWith('CUSTOM-') && !String(p.kode_produk || '').startsWith('CST-'))
                 .map((p: any) => ({
@@ -216,6 +262,8 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                     nama: p.nama,
                     harga_jual: parseFloat(p.harga_jual || 0),
                     satuan: p.satuan || 'pcs',
+                    kode_kategori_produk: p.kode_kategori_produk,
+                    nama_kategori: p.nama_kategori || 'Produk',
                 }));
             setProdukOptions(list);
         } catch (_) {
@@ -225,7 +273,7 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
         }
     };
 
-    // Upload Foto Before
+    // Unggah / Siapkan Foto Before
     const handleBeforeFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (isSubmitted) return;
         const file = e.target.files?.[0];
@@ -236,8 +284,8 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
             return;
         }
 
-        setUploadingFotoBefore(true);
         try {
+            setUploadingFotoBefore(true);
             const base64 = await new Promise<string>((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onload = () => resolve(reader.result as string);
@@ -245,28 +293,18 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                 reader.readAsDataURL(file);
             });
 
-            const res = await postData('/master/ruangan-form-upload-foto', {
-                image_base64: base64,
-                file_name: file.name,
-                prefix: 'before',
-            });
-
-            if (res?.data?.status === 200 || res?.status === 200) {
-                const filePath = res.data?.data?.file_path || res.data?.file_path || '';
-                setFotoBeforeUrl(filePath);
-                onFotoBeforeChange?.(filePath);
-                showSuccess(toast, 'Foto Before berhasil diunggah!');
-            } else {
-                showError(toast, res?.data?.message || 'Gagal mengunggah foto');
-            }
+            pendingFotoBeforeRef.current = { base64, fileName: file.name };
+            setFotoBeforeUrl(base64);
+            onFotoBeforeChange?.(base64);
+            if (fileInputBeforeRef.current) fileInputBeforeRef.current.value = '';
         } catch (_) {
-            showError(toast, 'Gagal memproses gambar');
+            showError(toast, 'Gagal memproses foto before');
         } finally {
             setUploadingFotoBefore(false);
         }
     };
 
-    // Upload Foto After
+    // Unggah / Siapkan Foto After
     const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (isSubmitted) return;
         const file = e.target.files?.[0];
@@ -277,7 +315,6 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
             return;
         }
 
-        setUploadingFoto(true);
         try {
             const base64 = await new Promise<string>((resolve, reject) => {
                 const reader = new FileReader();
@@ -286,23 +323,11 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                 reader.readAsDataURL(file);
             });
 
-            const res = await postData('/master/ruangan-form-upload-foto', {
-                image_base64: base64,
-                file_name: file.name,
-                prefix: 'after',
-            });
-
-            if (res?.data?.status === 200 || res?.status === 200) {
-                const filePath = res.data?.data?.file_path || res.data?.file_path || '';
-                setFotoAfterUrl(filePath);
-                showSuccess(toast, 'Foto After berhasil diunggah!');
-            } else {
-                showError(toast, res?.data?.message || 'Gagal mengunggah foto');
-            }
+            pendingFotoAfterRef.current = { base64, fileName: file.name };
+            setFotoAfterUrl(base64);
+            if (fileInputRef.current) fileInputRef.current.value = '';
         } catch (_) {
             showError(toast, 'Gagal memproses gambar');
-        } finally {
-            setUploadingFoto(false);
         }
     };
 
@@ -327,8 +352,16 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                     idx === existingIndex ? { ...p, qty: p.qty + 1 } : p
                 );
             }
-            return [...prev, { ...prod, qty: 1 }];
+            return [...prev, {
+                kode_produk: prod.kode_produk,
+                nama: prod.nama,
+                harga_jual: prod.harga_jual,
+                satuan: prod.satuan || 'pcs',
+                qty: 1
+            }];
         });
+
+        showSuccess(toast, `Produk "${prod.nama}" ditambahkan!`);
     };
 
     // Update Qty produk
@@ -372,6 +405,53 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
         setSubmitting(true);
 
         try {
+            let finalFotoBefore = fotoBeforeUrl;
+
+            // Simpan / Upload Foto Before jika berupa base64 atau pending saat tombol selesai di-klik
+            if (pendingFotoBeforeRef.current || (finalFotoBefore && finalFotoBefore.startsWith('data:image/'))) {
+                try {
+                    const base64Data = pendingFotoBeforeRef.current?.base64 || finalFotoBefore;
+                    const fileName = pendingFotoBeforeRef.current?.fileName || 'foto_before.jpg';
+                    const resBefore = await postData('/master/ruangan-form-upload-foto', {
+                        image_base64: base64Data,
+                        file_name: fileName,
+                        prefix: 'before',
+                    });
+                    const pathBefore = resBefore?.data?.data?.file_path || resBefore?.data?.file_path;
+                    if (pathBefore) {
+                        finalFotoBefore = pathBefore;
+                        pendingFotoBeforeRef.current = null;
+                        setFotoBeforeUrl(finalFotoBefore);
+                        onFotoBeforeChange?.(finalFotoBefore);
+                    }
+                } catch (errBefore) {
+                    console.error('Gagal mengunggah foto before saat selesai:', errBefore);
+                }
+            }
+
+            let finalFotoAfter = fotoAfterUrl;
+
+            // Simpan / Upload Foto After jika berupa base64 atau pending saat tombol selesai di-klik
+            if (pendingFotoAfterRef.current || (finalFotoAfter && finalFotoAfter.startsWith('data:image/'))) {
+                try {
+                    const base64Data = pendingFotoAfterRef.current?.base64 || finalFotoAfter;
+                    const fileName = pendingFotoAfterRef.current?.fileName || 'foto_after.jpg';
+                    const resAfter = await postData('/master/ruangan-form-upload-foto', {
+                        image_base64: base64Data,
+                        file_name: fileName,
+                        prefix: 'after',
+                    });
+                    const pathAfter = resAfter?.data?.data?.file_path || resAfter?.data?.file_path;
+                    if (pathAfter) {
+                        finalFotoAfter = pathAfter;
+                        pendingFotoAfterRef.current = null;
+                        setFotoAfterUrl(finalFotoAfter);
+                    }
+                } catch (errAfter) {
+                    console.error('Gagal mengunggah foto after saat selesai:', errAfter);
+                }
+            }
+
             const payload = {
                 kode_kunjungan: activePatient.kode_kunjungan,
                 no_rm: activePatient.no_rm,
@@ -379,14 +459,14 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                 kode_antrian_layanan: activePatient.kode_antrian_layanan,
                 kode_ruangan: kodeRuangan,
                 nama_ruangan: namaRuangan,
-                foto_before: fotoBeforeUrl,
-                foto_after: fotoAfterUrl,
+                foto_before: finalFotoBefore,
+                foto_after: finalFotoAfter,
                 catatan: catatan,
                 catatan_petugas: savedCatatanPetugas,
                 hasil_form: {
                     ...(savedFormData || {}),
-                    ...(fotoBeforeUrl ? { foto_before: fotoBeforeUrl } : {}),
-                    ...(fotoAfterUrl ? { foto_after: fotoAfterUrl } : {}),
+                    ...(finalFotoBefore ? { foto_before: finalFotoBefore } : {}),
+                    ...(finalFotoAfter ? { foto_after: finalFotoAfter } : {}),
                 },
                 kode_karyawan: selectedPetugas || activePatient.kode_karyawan,
                 produk_items: selectedProdukList.map((p) => ({
@@ -400,7 +480,7 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
 
             const res = await postData('/master/hasil-treatment-save', payload);
 
-            if (res?.data?.status === 200 || res?.status === 200) {
+            if (['00', '0000', 200, '200'].includes(res?.data?.status) || res?.status === 200) {
                 showSuccess(
                     toast,
                     res.data?.message || 'Hasil treatment & rekomendasi produk berhasil disimpan ke kasir!'
@@ -422,13 +502,31 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
         }
     };
 
-    // Filter produk options berdasarkan search text
-    const filteredProdukOptions = produkOptions.filter(
-        (p) =>
-            !searchProduk ||
-            p.nama.toLowerCase().includes(searchProduk.toLowerCase()) ||
-            p.kode_produk.toLowerCase().includes(searchProduk.toLowerCase())
-    );
+    // Kategori produk unik untuk filter di modal
+    const availableCategories = React.useMemo(() => {
+        const setCats = new Set<string>();
+        produkOptions.forEach((p) => {
+            if (p.nama_kategori) setCats.add(p.nama_kategori);
+        });
+        return Array.from(setCats);
+    }, [produkOptions]);
+
+    // Filter produk options di modal: jangan munculkan yang sudah dipilih agar tidak duplikat
+    const modalFilteredProduk = React.useMemo(() => {
+        const selectedCodes = new Set(selectedProdukList.map((p) => p.kode_produk));
+        return produkOptions.filter((p) => {
+            if (selectedCodes.has(p.kode_produk)) return false;
+            if (modalCategory !== 'ALL' && p.nama_kategori !== modalCategory) return false;
+            if (modalSearch.trim()) {
+                const q = modalSearch.toLowerCase();
+                const matchName = p.nama.toLowerCase().includes(q);
+                const matchCode = p.kode_produk.toLowerCase().includes(q);
+                const matchCat = (p.nama_kategori || '').toLowerCase().includes(q);
+                if (!matchName && !matchCode && !matchCat) return false;
+            }
+            return true;
+        });
+    }, [produkOptions, selectedProdukList, modalCategory, modalSearch]);
 
     return (
         <div className="card shadow-2 border-round-xl p-4 surface-card border-top-3 border-teal-500 mb-4">
@@ -534,6 +632,7 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                 outlined
                                                 severity="danger"
                                                 onClick={() => {
+                                                    pendingFotoBeforeRef.current = null;
                                                     setFotoBeforeUrl('');
                                                     onFotoBeforeChange?.('');
                                                 }}
@@ -609,7 +708,10 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                 size="small"
                                                 outlined
                                                 severity="danger"
-                                                onClick={() => setFotoAfterUrl('')}
+                                                onClick={() => {
+                                                    pendingFotoAfterRef.current = null;
+                                                    setFotoAfterUrl('');
+                                                }}
                                                 className="text-xs font-bold p-1 px-2"
                                             />
                                         </div>
@@ -659,100 +761,9 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                 {/* ── SEKSI KANAN: PRODUK TAMBAHAN KASIR ── */}
                 <div className="col-12 lg:col-7">
                     <div className="p-3 surface-50 border-round-xl border-1 surface-border flex flex-column gap-3 h-full">
+
+                        {/* 1. LAYANAN / TINDAKAN YANG DIPILIH PASIEN DARI PENDAFTARAN / SETELAH KONSULTASI */}
                         <div>
-                            <div className="flex align-items-center justify-content-between mb-2">
-                                <label className="block text-xs font-extrabold text-teal-800 uppercase tracking-wider flex align-items-center gap-2 m-0">
-                                    <i className="pi pi-shopping-bag text-teal-600 text-sm" />
-                                    PILIH PRODUK TAMBAHAN UNTUK KASIR
-                                </label>
-                                <Button
-                                    type="button"
-                                    label="Biaya Custom"
-                                    icon="pi pi-plus"
-                                    size="small"
-                                    className="text-xs font-bold py-1.5 px-3 border-round-lg bg-teal-50 text-teal-700 border-1 border-teal-300 hover:bg-teal-100 hover:border-teal-400 shadow-none transition-all"
-                                    disabled={isSubmitted}
-                                    onClick={() => setShowCustomFeeModal(true)}
-                                />
-                            </div>
-
-                            {/* Search Box */}
-                            <div className="flex gap-2 mb-3">
-                                <IconField iconPosition="left" className="w-full">
-                                    <InputIcon className="pi pi-search text-xs text-400" />
-                                    <InputText
-                                        value={searchProduk}
-                                        onChange={(e) => setSearchProduk(e.target.value)}
-                                        placeholder="Cari nama atau kode produk..."
-                                        disabled={isSubmitted}
-                                        className="p-inputtext-sm w-full border-round-lg text-xs"
-                                    />
-                                </IconField>
-                                <Button
-                                    icon="pi pi-refresh"
-                                    outlined
-                                    size="small"
-                                    severity="secondary"
-                                    onClick={() => fetchProdukOptions(searchProduk)}
-                                    loading={loadingProduk}
-                                    disabled={isSubmitted}
-                                    title="Refresh Produk"
-                                />
-                            </div>
-
-                            {/* List Opsi Produk */}
-                            <div
-                                className="surface-card border-1 surface-border border-round-lg p-2 overflow-y-auto shadow-1 pr-1 custom-thin-scrollbar max-h-[180px]"
-                                style={{ maxHeight: '180px' }}
-                            >
-                                {loadingProduk ? (
-                                    <div className="text-center py-3">
-                                        <ProgressSpinner style={{ width: '24px', height: '24px' }} />
-                                    </div>
-                                ) : filteredProdukOptions.length === 0 ? (
-                                    <div className="text-center py-3 text-xs text-500">
-                                        Tidak ada produk ditemukan
-                                    </div>
-                                ) : (
-                                    <div className="flex flex-column gap-1">
-                                        {filteredProdukOptions.map((prod) => (
-                                            <div
-                                                key={prod.kode_produk}
-                                                className={`flex align-items-center justify-content-between p-2 border-round-lg transition-all ${
-                                                    isSubmitted
-                                                        ? 'opacity-60 cursor-not-allowed'
-                                                        : 'cursor-pointer hover:surface-100'
-                                                }`}
-                                                style={{ transition: 'all 0.15s ease' }}
-                                                onClick={() => !isSubmitted && handleAddProduk(prod)}
-                                            >
-                                                <div className="min-w-0 pr-2">
-                                                    <span className="font-bold text-xs text-900 block truncate">{prod.nama}</span>
-                                                    <span className="text-[10px] text-500">
-                                                        {prod.kode_produk} • {formatRupiah(prod.harga_jual)} / {prod.satuan || 'pcs'}
-                                                    </span>
-                                                </div>
-                                                <div
-                                                    className="flex align-items-center justify-content-center flex-shrink-0 text-teal-600 bg-teal-50 border-1 border-teal-200"
-                                                    style={{
-                                                        width: '24px',
-                                                        height: '24px',
-                                                        borderRadius: '6px',
-                                                        pointerEvents: 'none'
-                                                    }}
-                                                    title="Tambah produk"
-                                                >
-                                                    <Plus size={13} />
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* 1. LAYANAN / TINDAKAN YANG DIPILIH PASIEN DARI PENDAFTARAN */}
-                        <div className="border-top-1 surface-border pt-3">
                             <div className="flex align-items-center justify-content-between mb-2">
                                 <span className="text-xs font-bold text-teal-900 uppercase tracking-wider flex align-items-center gap-1.5">
                                     <TagIcon size={14} className="text-teal-600" />
@@ -762,7 +773,7 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                     className="text-[11px] font-bold text-teal-700 bg-teal-50 px-2.5 py-0.5 border-1 border-teal-200"
                                     style={{ borderRadius: '9999px' }}
                                 >
-                                    Pendaftaran
+                                    Tindakan
                                 </span>
                             </div>
 
@@ -839,11 +850,20 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                         <CheckCircle2 size={15} />
                                                     </div>
                                                     <div className="min-w-0">
-                                                        <span className="font-bold text-xs text-900 block overflow-hidden text-ellipsis white-space-nowrap">
-                                                            {lay.nama_layanan || lay.nama}
-                                                        </span>
+                                                        <div className="flex align-items-center gap-2 flex-wrap">
+                                                            <span className="font-bold text-xs text-900 block overflow-hidden text-ellipsis white-space-nowrap">
+                                                                {lay.nama_layanan || lay.nama}
+                                                            </span>
+                                                            {lay.is_promo && (
+                                                                <span
+                                                                    className="text-[10px] font-extrabold px-2 py-0.5 border-round-pill bg-red-50 text-red-600 border-1 border-red-200"
+                                                                >
+                                                                    PROMO {lay.jenis_diskon === 'persen' ? `-${lay.nilai_diskon}%` : ''}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                         <span className="text-[11px] text-teal-600 font-medium block">
-                                                            {lay.nama_ruangan || namaRuangan || 'Ruangan Tindakan'}
+                                                            {lay.nama_kategori || lay.nama_ruangan || namaRuangan || 'Ruangan Tindakan'}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -863,39 +883,60 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                             )}
                         </div>
 
-                        {/* 2. PRODUK REKOMENDASI DOKTER & TERPILIH */}
+                        {/* 2. PRODUK TAMBAHAN UNTUK KASIR */}
                         <div className="border-top-1 surface-border pt-3 flex-1 flex flex-column">
                             <div className="flex align-items-center justify-content-between mb-2">
-                                <span className="text-xs font-bold text-teal-900 uppercase tracking-wider flex align-items-center gap-1.5">
-                                    <Sparkles size={14} className="text-amber-500" />
-                                    Produk Rekomendasi Dokter &amp; Terpilih ({selectedProdukList.length})
-                                </span>
-                                {selectedProdukList.length > 0 && !isSubmitted && (
-                                    <button
+                                <label className="block text-xs font-extrabold text-teal-800 uppercase tracking-wider flex align-items-center gap-2 m-0">
+                                    <ShoppingBag size={14} className="text-teal-600" />
+                                    PRODUK TAMBAHAN UNTUK KASIR ({selectedProdukList.length})
+                                </label>
+                                <div className="flex align-items-center gap-2">
+                                    <Button
                                         type="button"
-                                        onClick={() => setSelectedProdukList([])}
-                                        className="inline-flex align-items-center gap-1 text-[11px] font-semibold text-red-600 hover:text-red-700 border-none bg-transparent cursor-pointer px-2 py-1 border-round"
-                                        style={{ transition: 'all 0.15s ease' }}
-                                        onMouseEnter={(e) => (e.currentTarget.style.background = '#fef2f2')}
-                                        onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                                        title="Kosongkan daftar produk terpilih"
-                                    >
-                                        <Trash2 size={12} className="text-red-600" />
-                                        <span>Kosongkan</span>
-                                    </button>
-                                )}
+                                        label="Tambah Produk"
+                                        icon="pi pi-plus"
+                                        size="small"
+                                        className="text-xs font-bold py-1.5 px-3 border-round-lg bg-teal-600 text-white border-none hover:bg-teal-700 shadow-1 transition-all"
+                                        disabled={isSubmitted}
+                                        onClick={() => setShowProdukModal(true)}
+                                    />
+                                    <Button
+                                        type="button"
+                                        label="Biaya Custom"
+                                        icon="pi pi-plus"
+                                        size="small"
+                                        className="text-xs font-bold py-1.5 px-3 border-round-lg bg-teal-50 text-teal-700 border-1 border-teal-300 hover:bg-teal-100 hover:border-teal-400 shadow-none transition-all"
+                                        disabled={isSubmitted}
+                                        onClick={() => setShowCustomFeeModal(true)}
+                                    />
+                                    {selectedProdukList.length > 0 && !isSubmitted && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedProdukList([])}
+                                            className="inline-flex align-items-center gap-1 text-[11px] font-semibold text-red-600 hover:text-red-700 border-none bg-transparent cursor-pointer px-2 py-1 border-round"
+                                            style={{ transition: 'all 0.15s ease' }}
+                                            onMouseEnter={(e) => (e.currentTarget.style.background = '#fef2f2')}
+                                            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                                            title="Kosongkan daftar produk terpilih"
+                                        >
+                                            <Trash2 size={12} className="text-red-600" />
+                                            <span>Kosongkan</span>
+                                        </button>
+                                    )}
+                                </div>
                             </div>
 
+                            {/* Daftar Produk Terpilih atau Empty State */}
                             {selectedProdukList.length === 0 ? (
                                 <div
-                                    className="text-center py-4 px-3 surface-card border-1 border-dashed surface-border flex-1 flex flex-column align-items-center justify-content-center gap-1.5"
-                                    style={{ borderRadius: '13px', minHeight: '120px' }}
+                                    className="text-center py-4 px-3 surface-card border-1 border-dashed surface-border border-round-xl flex-1 flex flex-column align-items-center justify-content-center gap-2"
+                                    style={{ minHeight: '120px' }}
                                 >
                                     <div
-                                        className="flex align-items-center justify-content-center mb-1"
+                                        className="flex align-items-center justify-content-center"
                                         style={{
-                                            width: '36px',
-                                            height: '36px',
+                                            width: '38px',
+                                            height: '38px',
                                             borderRadius: '50%',
                                             background: '#f1f5f9',
                                             color: '#94a3b8'
@@ -903,8 +944,17 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                     >
                                         <ShoppingBag size={18} />
                                     </div>
-                                    <span className="text-xs text-600 font-semibold">Belum ada produk tambahan terpilih</span>
-                                    <span className="text-[11px] text-400">Pilih rekomendasi produk dokter di atas untuk menambahkan ke kasir</span>
+                                    <span className="text-xs text-600 font-semibold">Belum ada produk tambahan</span>
+                                    <Button
+                                        type="button"
+                                        label="Tambah Produk"
+                                        icon="pi pi-plus"
+                                        size="small"
+                                        outlined
+                                        className="text-xs font-bold mt-1 text-teal-700 border-teal-400 hover:bg-teal-50"
+                                        disabled={isSubmitted}
+                                        onClick={() => setShowProdukModal(true)}
+                                    />
                                 </div>
                             ) : (
                                 <div
@@ -916,107 +966,69 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                         return (
                                             <div
                                                 key={item.kode_produk}
-                                                className="treatment-summary-card surface-card border-1 surface-border p-2.5 flex flex-column sm:flex-row sm:align-items-center justify-content-between gap-2"
-                                                style={{
-                                                    borderRadius: '13px',
-                                                    boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-                                                    transition: 'all 0.2s ease'
-                                                }}
+                                                className="surface-card p-3 border-round-xl border-1 surface-border shadow-1 hover:shadow-2 transition-all flex align-items-center justify-content-between gap-3"
                                             >
-                                                <div className="flex-1 min-w-0 pr-1">
+                                                {/* Item Info (Nama, Kode & Harga Satuan) */}
+                                                <div className="flex-1 min-w-0 flex flex-column gap-1 justify-content-center">
                                                     <div className="flex align-items-center gap-1.5 flex-wrap">
-                                                        <span className="font-bold text-xs text-900 overflow-hidden text-ellipsis white-space-nowrap" title={item.nama}>
+                                                        <span className="font-bold text-xs text-slate-900 line-height-2" title={item.nama}>
                                                             {item.nama}
                                                         </span>
+                                                        <span className="text-[10px] text-slate-400 font-mono">
+                                                            {item.kode_produk}
+                                                        </span>
                                                         {item.is_rekomendasi_dokter && (
-                                                            <Tag value="Resep Dokter" severity="warning" className="text-[10px] py-0 px-1.5 font-bold" />
+                                                            <span className="text-[10px] font-bold px-1.5 py-0.2 border-round bg-amber-50 text-amber-700 border-1 border-amber-200">
+                                                                Resep Dokter
+                                                            </span>
                                                         )}
                                                     </div>
-                                                    <span className="text-[11px] text-teal-700 font-medium block mt-0.5">
-                                                        {formatRupiah(item.harga_jual)} &times; {item.qty} = <strong className="font-bold text-teal-900">{formatRupiah(subtotal)}</strong>
-                                                    </span>
+                                                    <div className="text-xs text-slate-500 font-medium">
+                                                        {formatRupiah(item.harga_jual)} / {item.satuan || 'pcs'}
+                                                    </div>
                                                 </div>
 
-                                                <div className="flex align-items-center justify-content-between sm:justify-content-end gap-2 flex-shrink-0">
+                                                {/* Controls (Qty Stepper, Subtotal & Hapus) */}
+                                                <div className="flex align-items-center gap-2.5 flex-shrink-0">
                                                     {!isSubmitted ? (
-                                                        <>
-                                                            {/* Stepper Kuantitas: - outline, qty, + solid teal */}
-                                                            <div
-                                                                className="inline-flex align-items-center p-0.5 border-1 surface-border surface-ground"
-                                                                style={{ borderRadius: '8px' }}
-                                                            >
-                                                                {/* Tombol - (outline) */}
-                                                                <button
-                                                                    type="button"
-                                                                    disabled={isSubmitted}
-                                                                    onClick={() => handleUpdateQty(item.kode_produk, -1)}
-                                                                    className="flex align-items-center justify-content-center surface-card border-1 surface-border text-600 hover:text-900 cursor-pointer p-0"
-                                                                    style={{
-                                                                        width: '22px',
-                                                                        height: '22px',
-                                                                        borderRadius: '6px',
-                                                                        transition: 'all 0.15s ease'
-                                                                    }}
-                                                                    title="Kurangi kuantitas"
-                                                                >
-                                                                    <Minus size={11} />
-                                                                </button>
-
-                                                                {/* Qty value */}
-                                                                <span
-                                                                    className="font-bold text-xs text-800 text-center select-none"
-                                                                    style={{ minWidth: '24px' }}
-                                                                >
-                                                                    {item.qty}
-                                                                </span>
-
-                                                                {/* Tombol + (solid teal) */}
-                                                                <button
-                                                                    type="button"
-                                                                    disabled={isSubmitted}
-                                                                    onClick={() => handleUpdateQty(item.kode_produk, 1)}
-                                                                    className="flex align-items-center justify-content-center text-white border-none cursor-pointer p-0 shadow-1"
-                                                                    style={{
-                                                                        width: '22px',
-                                                                        height: '22px',
-                                                                        borderRadius: '6px',
-                                                                        background: '#0d9488',
-                                                                        transition: 'all 0.15s ease'
-                                                                    }}
-                                                                    onMouseEnter={(e) => (e.currentTarget.style.background = '#0f766e')}
-                                                                    onMouseLeave={(e) => (e.currentTarget.style.background = '#0d9488')}
-                                                                    title="Tambah kuantitas"
-                                                                >
-                                                                    <Plus size={11} />
-                                                                </button>
-                                                            </div>
-
-                                                            {/* Tombol Hapus */}
+                                                        <div className="flex align-items-center gap-1 bg-slate-100 p-1 border-round-lg border-1 surface-border">
                                                             <button
                                                                 type="button"
-                                                                disabled={isSubmitted}
-                                                                onClick={() => handleRemoveProduk(item.kode_produk)}
-                                                                className="flex align-items-center justify-content-center p-1 border-none bg-transparent text-red-500 hover:text-red-700 cursor-pointer border-round"
-                                                                style={{
-                                                                    width: '26px',
-                                                                    height: '26px',
-                                                                    borderRadius: '6px',
-                                                                    transition: 'all 0.15s ease'
-                                                                }}
-                                                                onMouseEnter={(e) => (e.currentTarget.style.background = '#fee2e2')}
-                                                                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                                                                title="Hapus produk ini"
-                                                            >
-                                                                <Trash2 size={14} />
-                                                            </button>
-                                                        </>
+                                                                onClick={() => handleUpdateQty(item.kode_produk, -1)}
+                                                                className="border-none bg-white hover:bg-slate-200 border-round-md font-bold cursor-pointer text-slate-700 shadow-1 flex align-items-center justify-content-center"
+                                                                style={{ width: '24px', height: '24px', fontSize: '12px' }}
+                                                                title="Kurangi kuantitas"
+                                                            >−</button>
+                                                            <span className="font-extrabold text-xs px-1 text-slate-900 min-w-[20px] text-center">
+                                                                {item.qty}
+                                                            </span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleUpdateQty(item.kode_produk, 1)}
+                                                                className="border-none bg-teal-600 hover:bg-teal-700 text-white border-round-md font-bold cursor-pointer shadow-1 flex align-items-center justify-content-center"
+                                                                style={{ width: '24px', height: '24px', fontSize: '12px' }}
+                                                                title="Tambah kuantitas"
+                                                            >+</button>
+                                                        </div>
                                                     ) : (
-                                                        <span
-                                                            className="font-bold text-xs text-teal-800 bg-teal-50 px-2 py-0.5 border-1 border-teal-200"
-                                                            style={{ borderRadius: '6px' }}
+                                                        <span className="font-extrabold text-xs text-slate-700">x{item.qty}</span>
+                                                    )}
+
+                                                    {/* Subtotal */}
+                                                    <div className="text-right flex-shrink-0" style={{ minWidth: '85px' }}>
+                                                        <div className="font-bold text-xs text-teal-700">{formatRupiah(subtotal)}</div>
+                                                    </div>
+
+                                                    {/* Hapus button */}
+                                                    {!isSubmitted && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleRemoveProduk(item.kode_produk)}
+                                                            className="border-none bg-transparent cursor-pointer text-slate-400 hover:text-red-600 p-1 flex-shrink-0 transition-colors"
+                                                            title="Hapus Produk"
                                                         >
-                                                            x{item.qty}
-                                                        </span>
+                                                            <i className="pi pi-trash text-xs" />
+                                                        </button>
                                                     )}
                                                 </div>
                                             </div>
@@ -1310,7 +1322,7 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                         className="surface-card p-3 border-1 surface-border shadow-1 flex flex-column gap-2"
                         style={{ borderRadius: '14px' }}
                     >
-                        {/* Layanan Pasien Dari Pendaftaran */}
+                        {/* Layanan Pasien Dari Pendaftaran / Konsultasi */}
                         {layananPasienList.length > 0 && (
                             <div className="flex flex-column gap-2">
                                 <div className="flex align-items-center justify-content-between text-xs">
@@ -1332,8 +1344,15 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                     isEven ? 'surface-100 border-200' : 'surface-50 surface-border'
                                                 }`}
                                             >
-                                                <span className="font-medium text-800">{lay.nama_layanan || lay.nama}</span>
-                                                <span className="font-bold text-teal-700">{isKlaim ? 'Klaim (Rp 0)' : formatRupiah(hrg)}</span>
+                                                <div className="flex align-items-center gap-1.5 min-w-0">
+                                                    <span className="font-medium text-800 truncate">{lay.nama_layanan || lay.nama}</span>
+                                                    {lay.is_promo && (
+                                                        <span className="text-[9px] font-extrabold px-1.5 py-0.2 border-round bg-red-50 text-red-600 border-1 border-red-200 flex-shrink-0">
+                                                            PROMO {lay.jenis_diskon === 'persen' ? `-${lay.nilai_diskon}%` : ''}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <span className="font-bold text-teal-700 flex-shrink-0">{isKlaim ? 'Klaim (Rp 0)' : formatRupiah(hrg)}</span>
                                             </div>
                                         );
                                     })}
@@ -1481,6 +1500,194 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                         className="bg-teal-600 border-none font-bold text-sm"
                         onClick={handleAddCustomFee}
                     />
+                </div>
+            </Dialog>
+
+            {/* POPUP MODAL DAFTAR PRODUK TAMBAHAN */}
+            <Dialog
+                visible={showProdukModal}
+                onHide={() => setShowProdukModal(false)}
+                closable={false}
+                header={
+                    <div className="flex align-items-center justify-content-between w-full">
+                        <div className="flex align-items-center gap-2.5">
+                            <div
+                                className="flex align-items-center justify-content-center flex-shrink-0 border-round-lg text-teal-700 bg-teal-50 border-1 border-teal-200"
+                                style={{ width: '36px', height: '36px' }}
+                            >
+                                <ShoppingBag size={18} />
+                            </div>
+                            <div>
+                                <span className="text-base font-bold text-slate-900 block" style={{ lineHeight: 1.2 }}>
+                                    Pilih Produk Tambahan Kasir
+                                </span>
+                                <span className="text-xs text-slate-500 font-normal">
+                                    Pilih produk untuk ditambahkan ke rincian tagihan kasir
+                                </span>
+                            </div>
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={() => setShowProdukModal(false)}
+                            className="flex align-items-center justify-content-center border-none bg-transparent text-slate-400 hover:text-slate-700 hover:surface-200 cursor-pointer p-0 border-round-circle transition-all"
+                            style={{ width: '32px', height: '32px' }}
+                            title="Tutup dialog"
+                        >
+                            <X size={18} />
+                        </button>
+                    </div>
+                }
+                style={{ width: '720px', maxWidth: '95vw' }}
+                contentStyle={{ maxHeight: '72vh', overflowY: 'auto' }}
+                modal
+                className="p-fluid"
+                footer={
+                    <div className="flex align-items-center justify-content-between pt-2 border-top-1 surface-border w-full">
+                        <span className="text-xs text-500 font-medium">
+                            {modalFilteredProduk.length} produk tersedia
+                        </span>
+                        <Button
+                            label="Tutup / Selesai"
+                            icon="pi pi-check"
+                            size="small"
+                            className="bg-teal-600 border-none font-bold text-xs px-3 py-2 text-white"
+                            onClick={() => setShowProdukModal(false)}
+                        />
+                    </div>
+                }
+            >
+                <div className="flex flex-column gap-3 pt-2">
+                    {/* Search & Refresh */}
+                    <div className="flex gap-2">
+                        <IconField iconPosition="left" className="w-full">
+                            <InputIcon className="pi pi-search text-xs text-400" />
+                            <InputText
+                                value={modalSearch}
+                                onChange={(e) => setModalSearch(e.target.value)}
+                                placeholder="Cari nama atau kode produk..."
+                                className="p-inputtext-sm w-full border-round-lg text-xs"
+                                autoFocus
+                            />
+                        </IconField>
+                        {modalSearch && (
+                            <Button
+                                icon="pi pi-times"
+                                outlined
+                                size="small"
+                                severity="secondary"
+                                onClick={() => setModalSearch('')}
+                                title="Hapus pencarian"
+                            />
+                        )}
+                        <Button
+                            icon="pi pi-refresh"
+                            outlined
+                            size="small"
+                            severity="secondary"
+                            onClick={() => fetchProdukOptions()}
+                            loading={loadingProduk}
+                            title="Segarkan data produk"
+                        />
+                    </div>
+
+                    {/* Filter Kategori Chips (bila tersedia) */}
+                    {availableCategories.length > 0 && (
+                        <div className="flex align-items-center gap-1.5 flex-wrap overflow-x-auto pb-1 custom-thin-scrollbar">
+                            <span className="text-[11px] font-bold text-slate-500 mr-1 uppercase">Kategori:</span>
+                            <button
+                                type="button"
+                                onClick={() => setModalCategory('ALL')}
+                                className={`px-3 py-1 text-xs font-bold border-round-pill border-none cursor-pointer transition-all ${
+                                    modalCategory === 'ALL'
+                                        ? 'bg-teal-600 text-white shadow-1'
+                                        : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+                                }`}
+                            >
+                                Semua
+                            </button>
+                            {availableCategories.map((cat) => {
+                                const isAct = modalCategory === cat;
+                                return (
+                                    <button
+                                        key={cat}
+                                        type="button"
+                                        onClick={() => setModalCategory(cat)}
+                                        className={`px-3 py-1 text-xs font-bold border-round-pill border-none cursor-pointer transition-all ${
+                                            isAct
+                                                ? 'bg-teal-600 text-white shadow-1'
+                                                : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+                                        }`}
+                                    >
+                                        {cat}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {/* Daftar Produk Grid (Persis seperti kotak-kotak di Menu Kasir) */}
+                    <div
+                        className="surface-ground border-1 surface-border border-round-xl p-2.5 overflow-y-auto shadow-inner custom-thin-scrollbar"
+                        style={{ maxHeight: '420px', minHeight: '180px' }}
+                    >
+                        {loadingProduk ? (
+                            <div className="text-center py-5">
+                                <ProgressSpinner style={{ width: '28px', height: '28px' }} />
+                                <p className="text-xs text-slate-500 m-0 mt-2">Memuat daftar produk...</p>
+                            </div>
+                        ) : modalFilteredProduk.length === 0 ? (
+                            <div className="text-center py-5 text-xs text-slate-500 flex flex-column align-items-center justify-content-center gap-2">
+                                <ShoppingBag size={28} className="text-300" />
+                                <span>
+                                    {modalSearch || modalCategory !== 'ALL'
+                                        ? 'Tidak ada produk yang cocok dengan pencarian / filter.'
+                                        : 'Semua produk yang tersedia telah dipilih.'}
+                                </span>
+                            </div>
+                        ) : (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(175px, 1fr))', gap: '12px' }}>
+                                {modalFilteredProduk.map((prod) => (
+                                    <div
+                                        key={prod.kode_produk}
+                                        onClick={() => handleAddProduk(prod)}
+                                        className="surface-card p-3 border-round-xl border-1 surface-border shadow-1 hover:shadow-2 hover:border-teal-500 cursor-pointer transition-all user-select-none relative flex flex-column justify-content-between"
+                                        style={{ minHeight: '115px' }}
+                                    >
+                                        <div className="mb-2">
+                                            <div className="flex align-items-start justify-content-between gap-1 mb-1">
+                                                <div className="font-bold text-xs text-slate-900 line-height-2 flex-1" title={prod.nama}>
+                                                    {prod.nama}
+                                                </div>
+                                            </div>
+                                            <div className="text-[10px] text-slate-400 font-mono mb-1">
+                                                {prod.kode_produk}
+                                            </div>
+                                            <div className="text-[11px] text-slate-500 font-medium">
+                                                {prod.nama_kategori || 'Produk'}
+                                            </div>
+                                        </div>
+
+                                        <div className="flex align-items-center justify-content-between pt-2 border-top-1 surface-border">
+                                            <span className="font-black text-sm text-teal-700">{formatRupiah(prod.harga_jual)}</span>
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleAddProduk(prod);
+                                                }}
+                                                className="border-none bg-teal-600 hover:bg-teal-700 text-white border-round-md font-bold cursor-pointer shadow-1 flex align-items-center justify-content-center transition-all"
+                                                style={{ width: '26px', height: '26px' }}
+                                                title="Tambah produk"
+                                            >
+                                                <Plus size={13} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 </div>
             </Dialog>
         </div>

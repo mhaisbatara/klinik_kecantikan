@@ -39,6 +39,8 @@ const Page = () => {
         satuan: 'Pcs',
         harga_beli: 0,
         harga_jual: 0,
+        no_batch: '',
+        tanggal_kadaluarsa: '',
         status: 'aktif',
     });
     const [saving, setSaving] = useState<boolean>(false);
@@ -84,6 +86,8 @@ const Page = () => {
             satuan: 'Pcs',
             harga_beli: 0,
             harga_jual: 0,
+            no_batch: '',
+            tanggal_kadaluarsa: '',
             status: 'aktif',
         });
         setDialogVisible(true);
@@ -92,7 +96,11 @@ const Page = () => {
     const handleOpenEdit = (rowData: any) => {
         setIsEdit(true);
         setSubmitted(false);
-        setFormData({ ...rowData });
+        setFormData({
+            ...rowData,
+            no_batch: rowData.no_batch || '',
+            tanggal_kadaluarsa: rowData.tanggal_kadaluarsa ? String(rowData.tanggal_kadaluarsa).slice(0, 10) : '',
+        });
         setDialogVisible(true);
     };
 
@@ -281,6 +289,8 @@ const Page = () => {
                     <Column field="nama" header="Nama Produk" sortable headerStyle={{ fontWeight: 'bold' }}></Column>
                     <Column field="nama_kategori" header="Kategori" body={(r) => r.nama_kategori || r.kode_kategori_produk || '-'}></Column>
                     <Column field="satuan" header="Satuan"></Column>
+                    <Column field="no_batch" header="No. Batch" body={(r) => r.no_batch || '-'}></Column>
+                    <Column field="tanggal_kadaluarsa" header="Tgl Kadaluarsa" body={(r) => r.tanggal_kadaluarsa ? String(r.tanggal_kadaluarsa).slice(0, 10) : '-'}></Column>
                     <Column field="harga_beli" header="Harga Beli" body={(r) => formatRupiah(r.harga_beli)}></Column>
                     <Column field="harga_jual" header="Harga Jual" body={(r) => <span className="font-semibold text-green-600">{formatRupiah(r.harga_jual)}</span>}></Column>
                     <Column
@@ -342,6 +352,16 @@ const Page = () => {
                         <div className="col-6">
                             <label className="block text-sm font-semibold mb-1">Harga Jual *</label>
                             <InputNumber value={formData.harga_jual} onValueChange={(e) => setFormData({ ...formData, harga_jual: e.value })} mode="currency" currency="IDR" locale="id-ID" className="w-full text-sm" />
+                        </div>
+                    </div>
+                    <div className="grid">
+                        <div className="col-6">
+                            <label className="block text-sm font-semibold mb-1">No. Batch</label>
+                            <InputText value={formData.no_batch} onChange={(e) => setFormData({ ...formData, no_batch: e.target.value })} placeholder="misal: BTH-2026-001" className="w-full text-sm" />
+                        </div>
+                        <div className="col-6">
+                            <label className="block text-sm font-semibold mb-1">Tanggal Kadaluarsa</label>
+                            <InputText type="date" value={formData.tanggal_kadaluarsa} onChange={(e) => setFormData({ ...formData, tanggal_kadaluarsa: e.target.value })} className="w-full text-sm" />
                         </div>
                     </div>
                     <div className="p-2 border-round surface-100 text-xs text-color-secondary flex align-items-center gap-2 mt-1">

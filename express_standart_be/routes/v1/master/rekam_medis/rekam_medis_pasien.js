@@ -730,6 +730,8 @@ const handleGetRekamMedis = async (req, res) => {
         kode_kunjungan: k.kode_kunjungan,
         no_rm: k.no_rm,
         nama_pasien: k.nama_pasien || "-",
+        dokter_nama: resolvedDokterNama || headerRM.dokter_nama || "-",
+        dokter_jabatan: resolvedDokterJabatan || headerRM.dokter_jabatan || "-",
         nik: k.nik || "-",
         jenis_kelamin: k.jenis_kelamin || "-",
         tanggal_lahir: k.tanggal_lahir || null,
