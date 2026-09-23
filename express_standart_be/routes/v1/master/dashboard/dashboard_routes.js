@@ -186,7 +186,7 @@ router.post("/role-data", async (req, res) => {
 
     const qBeautician = DB("mst_karyawan as k")
       .leftJoin("trx_antrian_layanan as al", "k.kode_karyawan", "al.kode_karyawan")
-      .whereIn("k.jabatan", ["perawat", "terapis"]);
+      .whereIn("k.jabatan", ["perawat", "terapis", "beautician"]);
     if (branchCode) qBeautician.where("k.kode_cabang", branchCode);
     const beauticianPerforma = await qBeautician
       .select("k.nama", "k.jabatan", "k.kode_karyawan")
@@ -322,6 +322,24 @@ router.post("/role-data", async (req, res) => {
       .orderBy("po.tanggal_po", "desc")
       .limit(6);
 
+    // ── 6. METRIK ADMIN (PENDAFTARAN & ANTREAN) ──
+    const qPasienBaruToday = DB("mst_pasien").whereRaw("DATE(created_at) = ?", [todayStr]);
+    if (branchCode) qPasienBaruToday.where("kode_cabang", branchCode);
+    const pasienBaruToday = await qPasienBaruToday.count("id as count").first();
+
+    const qAntreanPendaftaranToday = DB("trx_antrian_layanan as al")
+      .whereRaw("DATE(al.created_at) = ?", [todayStr]);
+    if (branchCode) qAntreanPendaftaranToday.where("al.kode_cabang", branchCode);
+    const antreanPendaftaranToday = await qAntreanPendaftaranToday.count("id as count").first();
+
+    const qRecentKunjungan = DB("trx_kunjungan as k")
+      .leftJoin("mst_pasien as p", "k.no_rm", "p.no_rm")
+      .select("k.id", "k.kode_kunjungan", "k.no_rm", "p.nama as nama_pasien", "k.tanggal_kunjungan", "k.status")
+      .orderBy("k.created_at", "desc")
+      .limit(8);
+    if (branchCode) qRecentKunjungan.where("k.kode_cabang", branchCode);
+    const recentKunjunganList = await qRecentKunjungan;
+
     return res.status(200).json({
       status: status.SUKSES,
       message: "Data Dashboard Role-Based berhasil dimuat",
@@ -378,6 +396,15 @@ router.post("/role-data", async (req, res) => {
             stok_menipis: parseInt(inventorySummary?.stok_menipis || 0, 10),
             stok_habis: parseInt(inventorySummary?.stok_habis || 0, 10),
           },
+        },
+        admin: {
+          summary: {
+            kunjungan_hari_ini: parseInt(kunjunganToday?.count || 0, 10),
+            total_pasien: parseInt(totalPasien?.count || 0, 10),
+            pasien_baru_hari_ini: parseInt(pasienBaruToday?.count || 0, 10),
+            antrean_hari_ini: parseInt(antreanPendaftaranToday?.count || 0, 10),
+          },
+          kunjungan_terbaru: recentKunjunganList || [],
         },
       },
     });

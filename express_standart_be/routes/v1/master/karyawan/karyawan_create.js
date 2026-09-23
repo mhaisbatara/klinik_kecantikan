@@ -10,7 +10,7 @@ router.post("/", async (req, res) => {
   const username = req?.auth?.username || "";
   try {
     const cValidation = await validatePayload(
-      { nama: Joi.string().max(100).required().label("Nama Karyawan"), no_sip: Joi.string().max(20).required().label("No SIP"), jabatan: Joi.string().valid("dokter", "perawat", "admin", "kasir", "apoteker", "terapis").required().label("Jabatan"), no_hp: Joi.string().max(20).allow("", null).label("No HP"), email: Joi.string().email().max(100).allow("", null).label("Email"), kode_user: Joi.string().allow("", null).label("Kode User"), status: Joi.string().valid("aktif", "nonaktif").required().label("Status") },
+      { nama: Joi.string().max(100).required().label("Nama Karyawan"), no_sip: Joi.string().max(20).required().label("No SIP"), jabatan: Joi.string().valid("owner", "manager", "dokter", "beautician", "terapis", "kasir", "warehouse", "logistik", "superadmin", "perawat", "admin", "apoteker").required().label("Jabatan"), no_hp: Joi.string().max(20).allow("", null).label("No HP"), email: Joi.string().email().max(100).allow("", null).label("Email"), kode_user: Joi.string().allow("", null).label("Kode User"), status: Joi.string().valid("aktif", "nonaktif").required().label("Status") },
       { "any.required": "{#label} wajib diisi", "any.only": "{#label} tidak valid" },
       oPayload, { uniqueField: ["no_sip"], table: "mst_karyawan", allowUnknown: true }
     );

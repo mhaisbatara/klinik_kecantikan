@@ -73,7 +73,7 @@ const MASTER_FULL_MENU = [
       { label: "Manajemen Cabang", icon: "pi pi-fw pi-building", to: "/setup/cabang" },
       { label: "Pengaturan Klinik", icon: "pi pi-fw pi-sliders-h", to: "/setup/config" },
       { label: "Manajemen User", icon: "pi pi-fw pi-users", to: "/setup/users" },
-      { label: "Manajemen Menu", icon: "pi pi-fw pi-bars", to: "/setup/navigation" }
+      { label: "Manajemen Role", icon: "pi pi-fw pi-shield", to: "/setup/navigation" }
     ]
   }
 ];
@@ -238,16 +238,6 @@ const KASIR_MENU = [
     ]
   },
   {
-    label: "Pendaftaran & Antrean",
-    icon: "pi pi-fw pi-calendar",
-    items: [
-      { label: "Antrean Pendaftaran", icon: "pi pi-fw pi-ticket", to: "/antrian-awal" },
-      { label: "Pasien Baru", icon: "UserPlus", to: "/pendaftaran-antrean/registrasi-pasien" },
-      { label: "Pendaftaran Kunjungan", icon: "ClipboardList", to: "/pendaftaran-antrean/pendaftaran-pasien" },
-      { label: "Data Pasien", icon: "pi pi-fw pi-user", to: "/master-data-user/data-pasien" }
-    ]
-  },
-  {
     label: "PROMO & DISKON",
     icon: "pi pi-fw pi-percentage",
     items: [
@@ -311,7 +301,7 @@ const SUPERADMIN_MENU = [
       { label: "Manajemen Cabang", icon: "pi pi-fw pi-building", to: "/setup/cabang" },
       { label: "Pengaturan Klinik", icon: "pi pi-fw pi-sliders-h", to: "/setup/config" },
       { label: "Manajemen User", icon: "pi pi-fw pi-users", to: "/setup/users" },
-      { label: "Manajemen Menu", icon: "pi pi-fw pi-bars", to: "/setup/navigation" }
+      { label: "Manajemen Role", icon: "pi pi-fw pi-shield", to: "/setup/navigation" }
     ]
   }
 ];

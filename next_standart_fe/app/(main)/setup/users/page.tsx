@@ -35,6 +35,7 @@ interface UserRecord {
 
 const SUPERADMIN_ROLE_OPTIONS = [
   { label: 'Owner / Manager', value: 'owner' },
+  { label: 'Admin', value: 'admin' },
   { label: 'Dokter', value: 'dokter' },
   { label: 'Beautician / Terapis', value: 'beautician' },
   { label: 'Kasir', value: 'kasir' },
@@ -43,6 +44,7 @@ const SUPERADMIN_ROLE_OPTIONS = [
 ];
 
 const MANAGER_ROLE_OPTIONS = [
+  { label: 'Admin', value: 'admin' },
   { label: 'Beautician / Terapis', value: 'beautician' },
   { label: 'Kasir', value: 'kasir' },
   { label: 'Warehouse / Logistik', value: 'warehouse' },
@@ -134,6 +136,12 @@ const AVAILABLE_MODULE_CATEGORIES: PermissionCategory[] = [
 ];
 
 const ROLE_PRESET_PATHS: Record<string, string[]> = {
+  admin: [
+    '/antrian-awal',
+    '/pendaftaran-antrean/registrasi-pasien',
+    '/pendaftaran-antrean/pendaftaran-pasien',
+    '/master-data-user/data-pasien',
+  ],
   beautician: [
     '/pendaftaran-antrean/antrean?type=layanan',
     '/pendaftaran-antrean/antrean',
@@ -143,10 +151,6 @@ const ROLE_PRESET_PATHS: Record<string, string[]> = {
   ],
   kasir: [
     '/kasir',
-    '/antrian-awal',
-    '/pendaftaran-antrean/registrasi-pasien',
-    '/pendaftaran-antrean/pendaftaran-pasien',
-    '/master-data-user/data-pasien',
     '/master-data/promo',
     '/master-data/detail-promo',
     '/riwayat/rekam-medis',
@@ -413,13 +417,23 @@ export default function ManajemenUserPage() {
     const emp = karyawanList.find((k) => k.kode_karyawan === kodeKaryawan);
     if (!emp) return;
 
-    let mappedRole = 'beautician';
+    let mappedRole = 'admin';
     const jab = (emp.jabatan || '').toLowerCase();
-    if (jab.includes('dokter')) mappedRole = 'dokter';
-    else if (jab.includes('terapis')) mappedRole = 'beautician';
-    else if (jab.includes('perawat')) mappedRole = 'beautician';
-    else if (jab.includes('kasir')) mappedRole = 'kasir';
-    else if (jab.includes('apoteker') || jab.includes('logistik') || jab.includes('admin')) mappedRole = 'warehouse';
+    if (jab === 'admin' || (jab.includes('admin') && !jab.includes('superadmin')) || jab.includes('resepsionis') || jab.includes('front')) {
+      mappedRole = 'admin';
+    } else if (jab.includes('warehouse') || jab.includes('logistik') || jab.includes('gudang') || jab.includes('apoteker')) {
+      mappedRole = 'warehouse';
+    } else if (jab.includes('dokter')) {
+      mappedRole = 'dokter';
+    } else if (jab.includes('kasir')) {
+      mappedRole = 'kasir';
+    } else if (jab.includes('owner') || jab.includes('manager')) {
+      mappedRole = 'owner';
+    } else if (jab.includes('superadmin') || jab.includes('it')) {
+      mappedRole = 'superadmin';
+    } else if (jab.includes('beautician') || jab.includes('terapis') || jab.includes('perawat')) {
+      mappedRole = 'beautician';
+    }
 
     const empEmail = emp.email || `${(emp.nama || 'staf').toLowerCase().replace(/[^a-z0-9]/g, '.')}@klinik.com`;
 
@@ -433,14 +447,28 @@ export default function ManajemenUserPage() {
       kode_cabang: emp.kode_cabang || prev.kode_cabang,
     }));
 
-    const preset = ROLE_PRESET_PATHS[mappedRole] || [];
-    setSelectedPermissions(new Set(preset));
-
-    if (mappedRole === 'beautician' || mappedRole === 'dokter') {
+    if (mappedRole === 'superadmin') {
+      const all = new Set<string>();
+      AVAILABLE_MODULE_CATEGORIES.forEach((cat) => {
+        cat.items.forEach((it) => all.add(it.to));
+      });
+      setSelectedPermissions(all);
       setSelectedTindakanRooms(new Set(tindakanRooms.map((r) => r.kode_ruangan)));
-    }
-    if (mappedRole === 'dokter') {
       setSelectedKonsulRooms(new Set(konsulRooms.map((r) => r.kode_ruangan)));
+    } else {
+      const preset = ROLE_PRESET_PATHS[mappedRole] || (mappedRole === 'manager' ? ROLE_PRESET_PATHS['owner'] : []);
+      setSelectedPermissions(new Set(preset));
+
+      if (mappedRole === 'beautician' || mappedRole === 'dokter') {
+        setSelectedTindakanRooms(new Set(tindakanRooms.map((r) => r.kode_ruangan)));
+      } else {
+        setSelectedTindakanRooms(new Set());
+      }
+      if (mappedRole === 'dokter') {
+        setSelectedKonsulRooms(new Set(konsulRooms.map((r) => r.kode_ruangan)));
+      } else {
+        setSelectedKonsulRooms(new Set());
+      }
     }
   };
 
@@ -551,9 +579,27 @@ export default function ManajemenUserPage() {
 
   const handleRoleChange = (newRole: string) => {
     setFormData((prev: any) => ({ ...prev, role: newRole }));
-    const preset = ROLE_PRESET_PATHS[newRole];
-    if (preset) {
+    if (newRole === 'superadmin') {
+      const all = new Set<string>();
+      AVAILABLE_MODULE_CATEGORIES.forEach((cat) => {
+        cat.items.forEach((it) => all.add(it.to));
+      });
+      setSelectedPermissions(all);
+      setSelectedTindakanRooms(new Set(tindakanRooms.map((r) => r.kode_ruangan)));
+      setSelectedKonsulRooms(new Set(konsulRooms.map((r) => r.kode_ruangan)));
+    } else {
+      const preset = ROLE_PRESET_PATHS[newRole] || (newRole === 'manager' ? ROLE_PRESET_PATHS['owner'] : []);
       setSelectedPermissions(new Set(preset));
+      if (newRole === 'beautician' || newRole === 'dokter') {
+        setSelectedTindakanRooms(new Set(tindakanRooms.map((r) => r.kode_ruangan)));
+      } else {
+        setSelectedTindakanRooms(new Set());
+      }
+      if (newRole === 'dokter') {
+        setSelectedKonsulRooms(new Set(konsulRooms.map((r) => r.kode_ruangan)));
+      } else {
+        setSelectedKonsulRooms(new Set());
+      }
     }
   };
 
@@ -584,9 +630,26 @@ export default function ManajemenUserPage() {
   };
 
   const applyPreset = () => {
-    const preset = ROLE_PRESET_PATHS[formData.role];
+    if (formData.role === 'superadmin') {
+      selectAllPermissions();
+      setSelectedTindakanRooms(new Set(tindakanRooms.map((r) => r.kode_ruangan)));
+      setSelectedKonsulRooms(new Set(konsulRooms.map((r) => r.kode_ruangan)));
+      showSuccess(toast, "Preset hak akses role 'SUPERADMIN' diterapkan.");
+      return;
+    }
+    const preset = ROLE_PRESET_PATHS[formData.role] || (formData.role === 'manager' ? ROLE_PRESET_PATHS['owner'] : null);
     if (preset) {
       setSelectedPermissions(new Set(preset));
+      if (formData.role === 'beautician' || formData.role === 'dokter') {
+        setSelectedTindakanRooms(new Set(tindakanRooms.map((r) => r.kode_ruangan)));
+      } else {
+        setSelectedTindakanRooms(new Set());
+      }
+      if (formData.role === 'dokter') {
+        setSelectedKonsulRooms(new Set(konsulRooms.map((r) => r.kode_ruangan)));
+      } else {
+        setSelectedKonsulRooms(new Set());
+      }
       showSuccess(toast, `Preset hak akses role '${formData.role.toUpperCase()}' diterapkan.`);
     }
   };
@@ -653,14 +716,28 @@ export default function ManajemenUserPage() {
         </div>
         <div className="flex align-items-center gap-2 flex-shrink-0">
           <Tag
-            value={k.jabatan?.toUpperCase() || 'STAF'}
+            value={
+              k.jabatan === 'admin'
+                ? 'ADMIN'
+                : k.jabatan === 'beautician' || k.jabatan === 'terapis'
+                ? 'BEAUTICIAN / TERAPIS'
+                : k.jabatan === 'warehouse' || k.jabatan === 'logistik'
+                ? 'WAREHOUSE / LOGISTIK'
+                : k.jabatan === 'owner' || k.jabatan === 'manager'
+                ? 'OWNER / MANAGER'
+                : k.jabatan === 'superadmin'
+                ? 'SUPERADMIN / IT'
+                : k.jabatan?.toUpperCase() || 'STAF'
+            }
             severity={
               k.jabatan === 'dokter'
                 ? 'danger'
                 : k.jabatan === 'kasir'
                 ? 'success'
-                : k.jabatan === 'terapis'
+                : k.jabatan === 'beautician' || k.jabatan === 'terapis'
                 ? 'warning'
+                : k.jabatan === 'warehouse' || k.jabatan === 'logistik'
+                ? 'secondary'
                 : 'info'
             }
             className="text-xs px-2.5 py-1 font-bold"
@@ -1343,19 +1420,19 @@ export default function ManajemenUserPage() {
                       >
                         {/* Header Kategori */}
                         <div className="flex align-items-center justify-content-between mb-2 pb-2 border-bottom-1 surface-border">
-                          <div className="flex align-items-center gap-2">
+                          <div
+                            className="flex align-items-center gap-2 cursor-pointer select-none"
+                            onClick={() => toggleCategory(cat)}
+                          >
                             <Checkbox
-                              inputId={`cat-${idx}`}
                               checked={isCatAllChecked}
-                              onChange={() => toggleCategory(cat)}
+                              readOnly
+                              className="pointer-events-none"
                             />
-                            <label
-                              htmlFor={`cat-${idx}`}
-                              className="font-bold text-sm text-900 cursor-pointer flex align-items-center gap-2"
-                            >
+                            <span className="font-bold text-sm text-900 flex align-items-center gap-2">
                               <i className={`${cat.icon} text-purple-600 text-sm`} />
                               <span>{cat.category}</span>
-                            </label>
+                            </span>
                           </div>
                           <span className="text-xs text-500 font-semibold bg-white px-2 py-0.5 border-round border-1 surface-border">
                             {checkedCount}/{cat.items.length} Modul Aktif
@@ -1370,30 +1447,31 @@ export default function ManajemenUserPage() {
                             const isKonsulModule = item.to.includes('type=konsul');
 
                             return (
-                              <div key={item.id} className="flex flex-column gap-2">
+                              <div
+                                key={item.id}
+                                className={`border-round-lg transition-all border-1 overflow-hidden ${
+                                  isChecked
+                                    ? 'bg-white shadow-1 border-purple-200'
+                                    : 'bg-white/60 border-transparent hover:bg-white hover:border-200'
+                                }`}
+                              >
                                 <div
-                                  className={`p-2.5 border-round-md flex align-items-start gap-3 transition-all cursor-pointer ${
-                                    isChecked
-                                      ? 'bg-white shadow-1 border-1 border-purple-200'
-                                      : 'bg-white/60 border-1 border-transparent hover:bg-white hover:border-200'
-                                  }`}
+                                  className="p-3 flex align-items-start gap-3 cursor-pointer select-none"
                                   onClick={() => togglePermission(item.to)}
                                 >
                                   <Checkbox
-                                    inputId={`item-${item.id}`}
                                     checked={isChecked}
-                                    onChange={() => togglePermission(item.to)}
-                                    className="mt-0.5"
+                                    readOnly
+                                    className="mt-0.5 pointer-events-none"
                                   />
                                   <div className="flex-1">
-                                    <label
-                                      htmlFor={`item-${item.id}`}
+                                    <div
                                       className={`text-sm font-semibold cursor-pointer block ${
                                         isChecked ? 'text-purple-900' : 'text-800'
                                       }`}
                                     >
                                       {item.label}
-                                    </label>
+                                    </div>
                                     <p className="text-xs text-500 m-0 mt-0.5 leading-normal">{item.desc}</p>
                                   </div>
                                 </div>
@@ -1401,64 +1479,90 @@ export default function ManajemenUserPage() {
                                 {/* RINCIAN RUANGAN TINDAKAN */}
                                 {isChecked && isTindakanModule && (
                                   <div
-                                    className="ml-4 p-3 bg-purple-50/70 border-round-lg border-1 border-purple-200"
+                                    className="px-3 pb-3"
                                     onClick={(e) => e.stopPropagation()}
                                   >
-                                    <div className="flex flex-wrap align-items-center justify-content-between gap-2 mb-2 pb-1 border-bottom-1 border-purple-100">
-                                      <span className="text-xs font-bold text-purple-900 flex align-items-center gap-1.5">
-                                        <i className="pi pi-building text-purple-600" />
-                                        Akses Ruangan Tindakan ({selectedTindakanRooms.size}/{tindakanRooms.length} aktif)
-                                      </span>
-                                      <div className="flex align-items-center gap-2">
-                                        <Button
-                                          type="button"
-                                          size="small"
-                                          text
-                                          label="Pilih Semua"
-                                          className="p-0 text-xs text-purple-700 font-bold"
-                                          onClick={() =>
-                                            setSelectedTindakanRooms(new Set(tindakanRooms.map((r) => r.kode_ruangan)))
-                                          }
-                                        />
-                                        <span className="text-xs text-300">|</span>
-                                        <Button
-                                          type="button"
-                                          size="small"
-                                          text
-                                          label="Kosongkan"
-                                          className="p-0 text-xs text-red-500 font-bold"
-                                          onClick={() => setSelectedTindakanRooms(new Set())}
-                                        />
+                                    <div className="p-3 bg-purple-50/70 border-round-xl border-1 border-purple-200 shadow-xs">
+                                      <div className="flex flex-wrap align-items-center justify-content-between gap-2 mb-3 pb-2 border-bottom-1 border-purple-200/60">
+                                        <div className="flex align-items-center gap-2">
+                                          <i className="pi pi-building text-purple-600 text-base" />
+                                          <span className="text-sm font-bold text-purple-900">
+                                            Akses Ruangan Tindakan
+                                          </span>
+                                          <span className="text-xs px-2 py-0.5 border-round-md font-semibold bg-purple-200/80 text-purple-900">
+                                            {selectedTindakanRooms.size}/{tindakanRooms.length} aktif
+                                          </span>
+                                        </div>
+                                        <div className="flex align-items-center gap-1.5">
+                                          <Button
+                                            type="button"
+                                            size="small"
+                                            text
+                                            label="Pilih Semua"
+                                            icon="pi pi-check"
+                                            className="px-2 py-1 text-xs text-purple-700 font-bold hover:bg-purple-100 border-round-md"
+                                            onClick={() =>
+                                              setSelectedTindakanRooms(new Set(tindakanRooms.map((r) => r.kode_ruangan)))
+                                            }
+                                          />
+                                          <span className="text-xs text-300">|</span>
+                                          <Button
+                                            type="button"
+                                            size="small"
+                                            text
+                                            label="Kosongkan"
+                                            icon="pi pi-times"
+                                            className="px-2 py-1 text-xs text-red-500 font-bold hover:bg-red-50 border-round-md"
+                                            onClick={() => setSelectedTindakanRooms(new Set())}
+                                          />
+                                        </div>
                                       </div>
-                                    </div>
-                                    <div className="grid grid-nogutter gap-2">
-                                      {tindakanRooms.map((room) => {
-                                        const isRoomChecked = selectedTindakanRooms.has(room.kode_ruangan);
-                                        return (
-                                          <div
-                                            key={room.kode_ruangan}
-                                            onClick={() => {
-                                              const next = new Set(selectedTindakanRooms);
-                                              if (isRoomChecked) next.delete(room.kode_ruangan);
-                                              else next.add(room.kode_ruangan);
-                                              setSelectedTindakanRooms(next);
-                                            }}
-                                            className={`cursor-pointer px-2.5 py-1.5 border-round-md text-xs flex align-items-center gap-2 border-1 transition-all ${
-                                              isRoomChecked
-                                                ? 'bg-purple-100 border-purple-400 text-purple-900 font-medium'
-                                                : 'bg-white border-200 text-600 hover:surface-100'
-                                            }`}
-                                          >
-                                            <i
-                                              className={`pi ${
-                                                isRoomChecked ? 'pi-check-circle text-purple-600' : 'pi-circle text-400'
-                                              } text-xs`}
-                                            />
-                                            <span className="font-mono font-bold text-xs">{room.kode_ruangan}</span>
-                                            <span className="text-xs">{room.nama_ruangan}</span>
-                                          </div>
-                                        );
-                                      })}
+                                      <div
+                                        className="w-full"
+                                        style={{
+                                          display: 'grid',
+                                          gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))',
+                                          gap: '10px',
+                                        }}
+                                      >
+                                        {tindakanRooms.map((room) => {
+                                          const isRoomChecked = selectedTindakanRooms.has(room.kode_ruangan);
+                                          return (
+                                            <div
+                                              key={room.kode_ruangan}
+                                              onClick={() => {
+                                                const next = new Set(selectedTindakanRooms);
+                                                if (isRoomChecked) next.delete(room.kode_ruangan);
+                                                else next.add(room.kode_ruangan);
+                                                setSelectedTindakanRooms(next);
+                                              }}
+                                              className={`cursor-pointer px-3 py-2.5 border-round-lg flex align-items-center gap-2.5 border-1 transition-all select-none ${
+                                                isRoomChecked
+                                                  ? 'bg-purple-100 border-purple-400 text-purple-950 font-semibold shadow-1'
+                                                  : 'bg-white border-200 text-700 hover:bg-purple-50/50 hover:border-purple-300'
+                                              }`}
+                                            >
+                                              <i
+                                                className={`pi ${
+                                                  isRoomChecked ? 'pi-check-circle text-purple-600' : 'pi-circle text-400'
+                                                } text-base flex-shrink-0`}
+                                              />
+                                              <span
+                                                className={`font-mono font-bold text-xs px-2 py-1 border-round flex-shrink-0 ${
+                                                  isRoomChecked
+                                                    ? 'bg-purple-200 text-purple-900 border-1 border-purple-300'
+                                                    : 'bg-surface-200 text-600 border-1 border-200'
+                                                }`}
+                                              >
+                                                {room.kode_ruangan}
+                                              </span>
+                                              <span className="text-sm font-medium white-space-nowrap overflow-hidden text-overflow-ellipsis flex-1">
+                                                {room.nama_ruangan}
+                                              </span>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
                                     </div>
                                   </div>
                                 )}
@@ -1466,64 +1570,90 @@ export default function ManajemenUserPage() {
                                 {/* RINCIAN RUANGAN KONSULTASI */}
                                 {isChecked && isKonsulModule && (
                                   <div
-                                    className="ml-4 p-3 bg-purple-50/70 border-round-lg border-1 border-purple-200"
+                                    className="px-3 pb-3"
                                     onClick={(e) => e.stopPropagation()}
                                   >
-                                    <div className="flex flex-wrap align-items-center justify-content-between gap-2 mb-2 pb-1 border-bottom-1 border-purple-100">
-                                      <span className="text-xs font-bold text-purple-900 flex align-items-center gap-1.5">
-                                        <i className="pi pi-comments text-purple-600" />
-                                        Akses Ruangan Konsultasi ({selectedKonsulRooms.size}/{konsulRooms.length} aktif)
-                                      </span>
-                                      <div className="flex align-items-center gap-2">
-                                        <Button
-                                          type="button"
-                                          size="small"
-                                          text
-                                          label="Pilih Semua"
-                                          className="p-0 text-xs text-purple-700 font-bold"
-                                          onClick={() =>
-                                            setSelectedKonsulRooms(new Set(konsulRooms.map((r) => r.kode_ruangan)))
-                                          }
-                                        />
-                                        <span className="text-xs text-300">|</span>
-                                        <Button
-                                          type="button"
-                                          size="small"
-                                          text
-                                          label="Kosongkan"
-                                          className="p-0 text-xs text-red-500 font-bold"
-                                          onClick={() => setSelectedKonsulRooms(new Set())}
-                                        />
+                                    <div className="p-3 bg-purple-50/70 border-round-xl border-1 border-purple-200 shadow-xs">
+                                      <div className="flex flex-wrap align-items-center justify-content-between gap-2 mb-3 pb-2 border-bottom-1 border-purple-200/60">
+                                        <div className="flex align-items-center gap-2">
+                                          <i className="pi pi-comments text-purple-600 text-base" />
+                                          <span className="text-sm font-bold text-purple-900">
+                                            Akses Ruangan Konsultasi
+                                          </span>
+                                          <span className="text-xs px-2 py-0.5 border-round-md font-semibold bg-purple-200/80 text-purple-900">
+                                            {selectedKonsulRooms.size}/{konsulRooms.length} aktif
+                                          </span>
+                                        </div>
+                                        <div className="flex align-items-center gap-1.5">
+                                          <Button
+                                            type="button"
+                                            size="small"
+                                            text
+                                            label="Pilih Semua"
+                                            icon="pi pi-check"
+                                            className="px-2 py-1 text-xs text-purple-700 font-bold hover:bg-purple-100 border-round-md"
+                                            onClick={() =>
+                                              setSelectedKonsulRooms(new Set(konsulRooms.map((r) => r.kode_ruangan)))
+                                            }
+                                          />
+                                          <span className="text-xs text-300">|</span>
+                                          <Button
+                                            type="button"
+                                            size="small"
+                                            text
+                                            label="Kosongkan"
+                                            icon="pi pi-times"
+                                            className="px-2 py-1 text-xs text-red-500 font-bold hover:bg-red-50 border-round-md"
+                                            onClick={() => setSelectedKonsulRooms(new Set())}
+                                          />
+                                        </div>
                                       </div>
-                                    </div>
-                                    <div className="grid grid-nogutter gap-2">
-                                      {konsulRooms.map((room) => {
-                                        const isRoomChecked = selectedKonsulRooms.has(room.kode_ruangan);
-                                        return (
-                                          <div
-                                            key={room.kode_ruangan}
-                                            onClick={() => {
-                                              const next = new Set(selectedKonsulRooms);
-                                              if (isRoomChecked) next.delete(room.kode_ruangan);
-                                              else next.add(room.kode_ruangan);
-                                              setSelectedKonsulRooms(next);
-                                            }}
-                                            className={`cursor-pointer px-2.5 py-1.5 border-round-md text-xs flex align-items-center gap-2 border-1 transition-all ${
-                                              isRoomChecked
-                                                ? 'bg-purple-100 border-purple-400 text-purple-900 font-medium'
-                                                : 'bg-white border-200 text-600 hover:surface-100'
-                                            }`}
-                                          >
-                                            <i
-                                              className={`pi ${
-                                                isRoomChecked ? 'pi-check-circle text-purple-600' : 'pi-circle text-400'
-                                              } text-xs`}
-                                            />
-                                            <span className="font-mono font-bold text-xs">{room.kode_ruangan}</span>
-                                            <span className="text-xs">{room.nama_ruangan}</span>
-                                          </div>
-                                        );
-                                      })}
+                                      <div
+                                        className="w-full"
+                                        style={{
+                                          display: 'grid',
+                                          gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))',
+                                          gap: '10px',
+                                        }}
+                                      >
+                                        {konsulRooms.map((room) => {
+                                          const isRoomChecked = selectedKonsulRooms.has(room.kode_ruangan);
+                                          return (
+                                            <div
+                                              key={room.kode_ruangan}
+                                              onClick={() => {
+                                                const next = new Set(selectedKonsulRooms);
+                                                if (isRoomChecked) next.delete(room.kode_ruangan);
+                                                else next.add(room.kode_ruangan);
+                                                setSelectedKonsulRooms(next);
+                                              }}
+                                              className={`cursor-pointer px-3 py-2.5 border-round-lg flex align-items-center gap-2.5 border-1 transition-all select-none ${
+                                                isRoomChecked
+                                                  ? 'bg-purple-100 border-purple-400 text-purple-950 font-semibold shadow-1'
+                                                  : 'bg-white border-200 text-700 hover:bg-purple-50/50 hover:border-purple-300'
+                                              }`}
+                                            >
+                                              <i
+                                                className={`pi ${
+                                                  isRoomChecked ? 'pi-check-circle text-purple-600' : 'pi-circle text-400'
+                                                } text-base flex-shrink-0`}
+                                              />
+                                              <span
+                                                className={`font-mono font-bold text-xs px-2 py-1 border-round flex-shrink-0 ${
+                                                  isRoomChecked
+                                                    ? 'bg-purple-200 text-purple-900 border-1 border-purple-300'
+                                                    : 'bg-surface-200 text-600 border-1 border-200'
+                                                }`}
+                                              >
+                                                {room.kode_ruangan}
+                                              </span>
+                                              <span className="text-sm font-medium white-space-nowrap overflow-hidden text-overflow-ellipsis flex-1">
+                                                {room.nama_ruangan}
+                                              </span>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
                                     </div>
                                   </div>
                                 )}

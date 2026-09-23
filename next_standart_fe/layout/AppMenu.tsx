@@ -77,7 +77,7 @@ const DEFAULT_PENGATURAN_ITEMS: AppMenuItem[] = [
     { label: 'Pengaturan Klinik', icon: 'pi pi-fw pi-sliders-h', to: '/setup/config' },
     { label: 'Data Pasien', icon: 'pi pi-fw pi-user', to: '/master-data-user/data-pasien' },
     { label: 'Manajemen User', icon: 'pi pi-fw pi-users', to: '/setup/users' },
-    { label: 'Manajemen Menu', icon: 'pi pi-fw pi-bars', to: '/setup/navigation' },
+    { label: 'Manajemen Role', icon: 'pi pi-fw pi-shield', to: '/setup/navigation' },
 ];
 
 const DEFAULT_SUPERADMIN_PENGATURAN_ITEMS: AppMenuItem[] = [
@@ -85,7 +85,7 @@ const DEFAULT_SUPERADMIN_PENGATURAN_ITEMS: AppMenuItem[] = [
     { label: 'Manajemen Cabang', icon: 'pi pi-fw pi-building', to: '/setup/cabang' },
     { label: 'Pengaturan Klinik', icon: 'pi pi-fw pi-sliders-h', to: '/setup/config' },
     { label: 'Manajemen User', icon: 'pi pi-fw pi-users', to: '/setup/users' },
-    { label: 'Manajemen Menu', icon: 'pi pi-fw pi-bars', to: '/setup/navigation' },
+    { label: 'Manajemen Role', icon: 'pi pi-fw pi-shield', to: '/setup/navigation' },
 ];
 
 const AppMenu = () => {
@@ -146,6 +146,9 @@ const AppMenu = () => {
         }
         if (userRole === 'warehouse') {
             return LAPORAN_MENU_ITEMS.filter((it) => ['inventory', 'pembelian', 'expired', 'stok_opname', 'produk'].includes(it.id));
+        }
+        if (userRole === 'admin') {
+            return LAPORAN_MENU_ITEMS.filter((it) => ['pasien', 'kunjungan', 'appointment'].includes(it.id));
         }
         return LAPORAN_MENU_ITEMS;
     };
@@ -349,7 +352,7 @@ const AppMenu = () => {
                             if (to === '/setup/cabang') return { ...it, label: 'Manajemen Cabang', icon: 'pi pi-fw pi-building' };
                             if (to === '/master-data-user/data-pasien') return { ...it, label: 'Data Pasien', icon: 'pi pi-fw pi-user' };
                             if (to === '/setup/users') return { ...it, label: 'Manajemen User', icon: 'pi pi-fw pi-users' };
-                            if (to === '/setup/navigation') return { ...it, label: 'Manajemen Menu', icon: 'pi pi-fw pi-bars' };
+                            if (to === '/setup/navigation') return { ...it, label: 'Manajemen Role', icon: 'pi pi-fw pi-shield' };
                             return it;
                         });
                     }
