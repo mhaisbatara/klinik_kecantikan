@@ -950,268 +950,203 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
             {/* ═══════════════════════════════════════════════════════════════════ */}
             {/* SATU CARD TERPADU: STATUS PASIEN + FORM PENANGANAN (MENYATU)        */}
             {/* ═══════════════════════════════════════════════════════════════════ */}
-            <div className="card shadow-2 border-round-xl p-0 mb-4 surface-card overflow-hidden border-1 surface-border">
+            <div className="card shadow-2 border-round-xl p-0 mb-3 surface-card overflow-hidden border-1 surface-border">
                 {/* SECTION 1: NO. ANTREAN & INFO PASIEN (SOLID TEAL-700 GRADIENT - SAMA DENGAN TAB FORM PENANGANAN) */}
                 <div
-                    className="p-4 sm:p-5 text-white"
+                    className="p-3.5 sm:p-4 text-white"
                     style={{
                         background: 'linear-gradient(135deg, #0e8174 0%, #084a42 100%)',
                         borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
                     }}
                 >
-                    {/* 1. TOP ROW: NO. ANTREAN WHITE CARD + PATIENT INFO */}
-                    <div className="flex flex-column sm:flex-row align-items-start sm:align-items-center gap-4 mb-4">
-                        {/* Nomor Antrean: KOTAK PUTIH SOLID (fokus utama kontras tinggi vs dark green) */}
-                        <div
-                            className="bg-white border-round-xl flex flex-column align-items-center justify-content-center px-4 py-3 shadow-3 flex-shrink-0"
-                            style={{ minWidth: '108px' }}
-                        >
-                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">
-                                NO. ANTREAN
-                            </span>
-                            <span className="text-4xl sm:text-5xl font-black text-gray-900 line-height-1 tracking-tight">
-                                {activePatient.nomor_antrian}
-                            </span>
+                    {/* 1. TOP ROW: NO. ANTREAN WHITE CARD + PATIENT INFO + STATUS BADGE */}
+                    <div className="flex flex-column sm:flex-row align-items-start justify-content-between gap-3 mb-3">
+                        {/* Sisi Kiri: Kotak No. Antrean + Detail Pasien */}
+                        <div className="flex align-items-center" style={{ gap: '16px' }}>
+                            {/* Nomor Antrean: KOTAK PUTIH SOLID TIKET-CARD */}
+                            <div
+                                className="bg-white flex flex-column align-items-center justify-content-center flex-shrink-0"
+                                style={{
+                                    width: '100px',
+                                    minWidth: '100px',
+                                    height: '84px',
+                                    borderRadius: '14px',
+                                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                                    padding: '8px'
+                                }}
+                            >
+                                <span
+                                    className="font-bold uppercase tracking-wider text-center"
+                                    style={{
+                                        fontSize: '11px',
+                                        color: '#0e8174',
+                                        letterSpacing: '0.4px',
+                                        lineHeight: '1.2'
+                                    }}
+                                >
+                                    NO. ANTREAN
+                                </span>
+                                <span
+                                    className="font-black text-gray-900 tracking-tight text-center"
+                                    style={{
+                                        fontSize: '36px',
+                                        lineHeight: '1',
+                                        marginTop: '2px'
+                                    }}
+                                >
+                                    {activePatient.nomor_antrian}
+                                </span>
+                            </div>
+
+                            {/* Info Pasien (Nama + RM di baris 1, Chip Layanan di baris 2) */}
+                            <div className="flex flex-column justify-content-center" style={{ gap: '10px' }}>
+                                {/* Baris 1: Nama Pasien & No. RM (Sejajar Sempurna) */}
+                                <div className="flex align-items-center flex-wrap" style={{ gap: '12px' }}>
+                                    <h2
+                                        className="text-2xl sm:text-3xl font-black text-white m-0 tracking-tight"
+                                        style={{ lineHeight: '1.2' }}
+                                    >
+                                        {activePatient.nama_pasien || 'Pasien'}
+                                    </h2>
+                                    <span
+                                        className="font-bold tracking-wide"
+                                        style={{
+                                            color: '#a7f3d0',
+                                            fontSize: '14px',
+                                            lineHeight: '1.2',
+                                            display: 'inline-flex',
+                                            alignItems: 'center'
+                                        }}
+                                    >
+                                        RM: {activePatient.no_rm}
+                                    </span>
+                                </div>
+
+                                {/* Baris 2: Chip Layanan */}
+                                <div className="flex align-items-center flex-wrap" style={{ gap: '8px' }}>
+                                    <span
+                                        className="inline-flex align-items-center px-3 py-1 font-medium"
+                                        style={{
+                                            background: 'rgba(255, 255, 255, 0.14)',
+                                            border: '1px solid rgba(255, 255, 255, 0.25)',
+                                            borderRadius: '8px',
+                                            color: '#ffffff',
+                                            fontSize: '13px',
+                                            gap: '8px',
+                                            lineHeight: '1.4'
+                                        }}
+                                    >
+                                        <Stethoscope size={15} style={{ color: '#ffffff' }} className="flex-shrink-0" />
+                                        <span className="capitalize">{activePatient.nama_layanan || 'Konsultasi'}</span>
+                                    </span>
+                                    {resepProdukDokter.length > 0 && (
+                                        <span
+                                            className="inline-flex align-items-center px-3 py-1 font-medium"
+                                            style={{
+                                                background: 'rgba(245, 158, 11, 0.18)',
+                                                border: '1px solid rgba(251, 191, 36, 0.4)',
+                                                borderRadius: '8px',
+                                                color: '#fef3c7',
+                                                fontSize: '13px',
+                                                gap: '8px',
+                                                lineHeight: '1.4'
+                                            }}
+                                        >
+                                            <ShoppingBag size={14} style={{ color: '#fbbf24' }} className="flex-shrink-0" />
+                                            <span>Resep Dokter: <strong className="text-white">{resepProdukDokter.length} Produk</strong></span>
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
                         </div>
 
-                        {/* Detail Pasien & Metadata */}
-                        <div className="flex-1 flex flex-column gap-1">
-                            {/* Status Badge (BENAR-BENAR TANPA BORDER / OUTLINE) */}
-                            <div className="flex align-items-center gap-2.5 flex-wrap mb-1">
-                                {/* Badge Status: Background hijau lebih terang dari card, BENAR-BENAR TANPA BORDER / OUTLINE */}
-                                <span
-                                    className="inline-flex align-items-center gap-2 text-xs font-bold px-3 py-1 border-none outline-none"
-                                    style={{
-                                        background: 'rgba(255, 255, 255, 0.22)',
-                                        color: '#ffffff',
-                                        border: 'none',
-                                        outline: 'none',
-                                        boxShadow: 'none',
-                                        borderRadius: '6px'
-                                    }}
-                                >
-                                    <span
-                                        className="w-2 h-2 border-round-circle inline-block flex-shrink-0 bg-white"
-                                        style={{ boxShadow: '0 0 6px rgba(255, 255, 255, 0.8)' }}
-                                    />
-                                    <span>SEDANG DITANGANI</span>
-                                </span>
-                            </div>
-
-                            {/* Nama Pasien & No. RM */}
-                            <div className="flex align-items-baseline gap-2.5 flex-wrap mt-0.5">
-                                <h2 className="text-2xl sm:text-3xl font-black text-white m-0 tracking-tight">
-                                    {activePatient.nama_pasien || 'Pasien'}
-                                </h2>
-                                <span
-                                    className="text-xs font-medium px-2 py-0.5"
-                                    style={{
-                                        background: 'rgba(255, 255, 255, 0.1)',
-                                        borderRadius: '4px',
-                                        color: '#a7f3d0'
-                                    }}
-                                >
-                                    RM: <strong className="text-white">{activePatient.no_rm}</strong>
-                                </span>
-                            </div>
-
-                            {/* Metadata Tags: Layanan, Ruangan, Petugas (Halus, Semi-transparan, Bebas dari Kotak Berat) */}
-                            <div className="flex align-items-center gap-2 flex-wrap text-xs mt-3">
-                                <span
-                                    className="inline-flex align-items-center gap-2 px-3 py-1.5 font-medium"
-                                    style={{
-                                        background: 'rgba(255, 255, 255, 0.08)',
-                                        border: '1px solid rgba(255, 255, 255, 0.14)',
-                                        borderRadius: '6px',
-                                        color: 'rgba(255, 255, 255, 0.92)'
-                                    }}
-                                >
-                                    <Briefcase size={14} style={{ color: '#a7f3d0' }} className="flex-shrink-0" />
-                                    <span>{activePatient.nama_layanan}</span>
-                                </span>
-                                <span
-                                    className="inline-flex align-items-center gap-2 px-3 py-1.5 font-medium"
-                                    style={{
-                                        background: 'rgba(255, 255, 255, 0.08)',
-                                        border: '1px solid rgba(255, 255, 255, 0.14)',
-                                        borderRadius: '6px',
-                                        color: 'rgba(255, 255, 255, 0.92)'
-                                    }}
-                                >
-                                    <Building2 size={14} style={{ color: '#a7f3d0' }} className="flex-shrink-0" />
-                                    <span>{namaRuangan}</span>
-                                </span>
-                                {(scheduledPj?.nama_karyawan || scheduledPj?.nama || activePatient.nama_petugas) && (
-                                    <span
-                                        className="inline-flex align-items-center gap-2 px-3 py-1.5 font-medium"
-                                        style={{
-                                            background: 'rgba(255, 255, 255, 0.08)',
-                                            border: '1px solid rgba(255, 255, 255, 0.14)',
-                                            borderRadius: '6px',
-                                            color: 'rgba(255, 255, 255, 0.92)'
-                                        }}
-                                    >
-                                        <Stethoscope size={14} style={{ color: '#a7f3d0' }} className="flex-shrink-0" />
-                                        <span>Dokter: <strong className="text-white">{scheduledPj?.nama_karyawan || scheduledPj?.nama || activePatient.nama_petugas}</strong></span>
-                                    </span>
-                                )}
-                                {selectedTerapisList.length > 0 && (
-                                    <span
-                                        className="inline-flex align-items-center gap-2 px-3 py-1.5 font-medium"
-                                        style={{
-                                            background: 'rgba(255, 255, 255, 0.08)',
-                                            border: '1px solid rgba(255, 255, 255, 0.14)',
-                                            borderRadius: '6px',
-                                            color: 'rgba(255, 255, 255, 0.92)'
-                                        }}
-                                    >
-                                        <Sparkles size={14} style={{ color: '#d8b4fe' }} className="flex-shrink-0" />
-                                        <span>
-                                            Terapis ({selectedTerapisList.length}):{' '}
-                                            <strong className="text-white">
-                                                {selectedTerapisList.map((t: any) => t.nama).join(', ')}
-                                            </strong>
-                                        </span>
-                                    </span>
-                                )}
-                                {resepProdukDokter.length > 0 && (
-                                    <span
-                                        className="inline-flex align-items-center gap-2 px-3 py-1.5 font-medium"
-                                        style={{
-                                            background: 'rgba(245, 158, 11, 0.18)',
-                                            border: '1px solid rgba(251, 191, 36, 0.4)',
-                                            borderRadius: '6px',
-                                            color: '#fef3c7'
-                                        }}
-                                    >
-                                        <ShoppingBag size={14} style={{ color: '#fbbf24' }} className="flex-shrink-0" />
-                                        <span>Resep Dokter: <strong className="text-white">{resepProdukDokter.length} Produk</strong></span>
-                                    </span>
-                                )}
-                            </div>
+                        {/* Sisi Kanan: Status Badge Sedang ditangani */}
+                        <div className="flex-shrink-0 align-self-start pt-1">
+                            <span
+                                className="inline-flex align-items-center font-semibold"
+                                style={{
+                                    background: 'rgba(255, 255, 255, 0.22)',
+                                    border: '1px solid rgba(255, 255, 255, 0.35)',
+                                    color: '#ffffff',
+                                    borderRadius: '9999px',
+                                    padding: '7px 20px',
+                                    fontSize: '13px',
+                                    letterSpacing: '0.3px',
+                                    boxShadow: '0 2px 6px rgba(0, 0, 0, 0.08)'
+                                }}
+                            >
+                                Sedang ditangani
+                            </span>
                         </div>
                     </div>
 
-                    {/* 2. BOTTOM ROW: ACTION BUTTONS WITH CLEAR VISUAL HIERARCHY */}
+                    {/* 2. BOTTOM ROW: ACTION BUTTONS (BATALKAN, RIWAYAT PASIEN, PANGGIL ULANG - SEJAJAR DI KANAN DENGAN JARAK JELAS) */}
                     <div
-                        className="flex flex-column sm:flex-row align-items-stretch sm:align-items-center justify-content-between gap-3 pt-3 mt-1"
-                        style={{ borderTop: '1px solid rgba(255, 255, 255, 0.12)' }}
+                        className="flex align-items-center justify-content-end flex-wrap pt-3 mt-3"
+                        style={{
+                            borderTop: '1px solid rgba(255, 255, 255, 0.14)',
+                            gap: '12px'
+                        }}
                     >
-                        {/* Tombol Batalkan: Outline merah tipis di atas background gelap card */}
-                        <div>
-                            <Button
-                                type="button"
-                                size="small"
-                                className="text-xs font-semibold px-3 py-2 transition-all flex align-items-center gap-2 border-1"
-                                style={{
-                                    background: 'rgba(239, 68, 68, 0.12)',
-                                    borderColor: 'rgba(248, 113, 113, 0.35)',
-                                    color: '#fca5a5',
-                                    borderRadius: '8px'
-                                }}
-                                onClick={() => handleAksi(activePatient, 'batal')}
-                            >
-                                <Ban size={15} style={{ color: '#fca5a5' }} />
-                                <span>Batalkan</span>
-                            </Button>
-                        </div>
+                        {/* Tombol Batalkan */}
+                        <Button
+                            type="button"
+                            size="small"
+                            className="text-xs font-semibold transition-all flex align-items-center border-1"
+                            style={{
+                                background: 'rgba(239, 68, 68, 0.14)',
+                                borderColor: 'rgba(248, 113, 113, 0.4)',
+                                color: '#fca5a5',
+                                borderRadius: '8px',
+                                padding: '8px 16px',
+                                gap: '8px'
+                            }}
+                            onClick={() => handleAksi(activePatient, 'batal')}
+                        >
+                            <Ban size={15} style={{ color: '#fca5a5' }} />
+                            <span>Batalkan</span>
+                        </Button>
 
-                        {/* Tombol Sekunder & Utama: di ujung kanan dengan hierarki visual */}
-                        <div className="flex align-items-center gap-2.5 flex-wrap justify-content-end">
-                            {/* Tombol Sekunder 1: Riwayat Pasien (Outline putih tipis, semi-transparan gelap) */}
-                            <Button
-                                type="button"
-                                size="small"
-                                className="text-xs font-semibold px-3 py-2 transition-all flex align-items-center gap-2 border-1"
-                                style={{
-                                    background: 'rgba(255, 255, 255, 0.08)',
-                                    borderColor: 'rgba(255, 255, 255, 0.22)',
-                                    color: '#ffffff',
-                                    borderRadius: '8px'
-                                }}
-                                onClick={() => setDrawerRiwayatVisible(true)}
-                            >
-                                <History size={15} style={{ color: 'rgba(255, 255, 255, 0.75)' }} />
-                                <span>Riwayat Pasien</span>
-                            </Button>
+                        {/* Tombol Riwayat pasien */}
+                        <Button
+                            type="button"
+                            size="small"
+                            className="text-xs font-semibold transition-all flex align-items-center border-1"
+                            style={{
+                                background: 'rgba(255, 255, 255, 0.1)',
+                                borderColor: 'rgba(255, 255, 255, 0.25)',
+                                color: '#ffffff',
+                                borderRadius: '8px',
+                                padding: '8px 16px',
+                                gap: '8px'
+                            }}
+                            onClick={() => setDrawerRiwayatVisible(true)}
+                        >
+                            <History size={15} style={{ color: '#ffffff' }} />
+                            <span>Riwayat pasien</span>
+                        </Button>
 
-                            {/* Tombol Sekunder 2: Panggil Ulang (Outline putih tipis, semi-transparan gelap) */}
-                            <Button
-                                type="button"
-                                size="small"
-                                className="text-xs font-semibold px-3 py-2 transition-all flex align-items-center gap-2 border-1"
-                                style={{
-                                    background: 'rgba(255, 255, 255, 0.08)',
-                                    borderColor: 'rgba(255, 255, 255, 0.22)',
-                                    color: '#ffffff',
-                                    borderRadius: '8px'
-                                }}
-                                onClick={() => {
-                                    playChime();
-                                    speakNomorLayanan(activePatient.nomor_antrian, activePatient.nama_pasien, namaRuangan);
-                                }}
-                            >
-                                <Volume2 size={15} style={{ color: 'rgba(255, 255, 255, 0.75)' }} />
-                                <span>Panggil Ulang</span>
-                            </Button>
-
-                            {/* Tombol Utama (PRIMARY HERO CTA): Selesaikan Konsultasi / Tindakan (SATU-SATUNYA SOLID TERANG/PUTIH) */}
-                            <Button
-                                type="button"
-                                disabled={
-                                    isKonsultasi
-                                        ? (!isFormSaved && !activePatient?.hasil_form)
-                                        : ((!isFormSaved && !activePatient?.hasil_form) || !isHasilSaved)
-                                }
-                                className="text-xs font-bold px-4 py-2.5 transition-all flex align-items-center gap-2 border-1"
-                                style={
-                                    (isKonsultasi
-                                        ? (!isFormSaved && !activePatient?.hasil_form)
-                                        : ((!isFormSaved && !activePatient?.hasil_form) || !isHasilSaved))
-                                        ? {
-                                              background: 'rgba(255, 255, 255, 0.1)',
-                                              borderColor: 'rgba(255, 255, 255, 0.15)',
-                                              color: 'rgba(255, 255, 255, 0.4)',
-                                              borderRadius: '8px',
-                                              cursor: 'not-allowed'
-                                          }
-                                        : {
-                                              background: '#ffffff',
-                                              borderColor: '#ffffff',
-                                              color: '#064e3b',
-                                              borderRadius: '8px',
-                                              boxShadow: '0 4px 14px rgba(0, 0, 0, 0.22)',
-                                              fontWeight: 700,
-                                              cursor: 'pointer'
-                                          }
-                                }
-                                tooltip={
-                                    !isKonsultasi && !isHasilSaved
-                                        ? 'Tombol Selesaikan Tindakan baru bisa diklik setelah data Form Hasil Treatment (Step 2) disimpan'
-                                        : ''
-                                }
-                                tooltipOptions={{ position: 'bottom' }}
-                                onClick={() => {
-                                    if (!isKonsultasi && !isHasilSaved) {
-                                        showError(toast, 'Selesaikan Tindakan baru bisa diklik setelah data Form Hasil Treatment (Step 2) disimpan!');
-                                        return;
-                                    }
-                                    handleAksi(activePatient, 'selesai', true);
-                                }}
-                            >
-                                <CheckCircle2
-                                    size={16}
-                                    style={{
-                                        color: (isKonsultasi
-                                            ? (!isFormSaved && !activePatient?.hasil_form)
-                                            : ((!isFormSaved && !activePatient?.hasil_form) || !isHasilSaved))
-                                            ? 'rgba(255, 255, 255, 0.4)'
-                                            : '#064e3b'
-                                    }}
-                                />
-                                <span>{isKonsultasi ? "Selesaikan Konsultasi" : "Selesaikan Tindakan"}</span>
-                            </Button>
-                        </div>
+                        {/* Tombol Panggil ulang */}
+                        <Button
+                            type="button"
+                            size="small"
+                            className="text-xs font-semibold transition-all flex align-items-center border-1"
+                            style={{
+                                background: 'rgba(255, 255, 255, 0.1)',
+                                borderColor: 'rgba(255, 255, 255, 0.25)',
+                                color: '#ffffff',
+                                borderRadius: '8px',
+                                padding: '8px 16px',
+                                gap: '8px'
+                            }}
+                            onClick={() => {
+                                playChime();
+                                speakNomorLayanan(activePatient.nomor_antrian, activePatient.nama_pasien, namaRuangan);
+                            }}
+                        >
+                            <Volume2 size={15} style={{ color: '#ffffff' }} />
+                            <span>Panggil ulang</span>
+                        </Button>
                     </div>
                 </div>
 

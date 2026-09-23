@@ -244,6 +244,28 @@ export const terbitkanAntreanLanjutanRuangan = async (trx, {
       continue;
     }
 
+    // Cek ketersediaan jadwal dokter / petugas aktif hari ini di ruangan tujuan
+    const HARI_MAP = ["minggu", "senin", "selasa", "rabu", "kamis", "jumat", "sabtu"];
+    const [yr, mo, dy] = todayYmd.split("-").map(Number);
+    const todayDay = HARI_MAP[new Date(yr, mo - 1, dy).getDay()];
+
+    const activeStaffInRoom = await trx("mst_jadwal_karyawan as j")
+      .where("j.kode_ruangan", group.kode_ruangan)
+      .where("j.hari", todayDay)
+      .where("j.status", "aktif")
+      .modify((qb) => {
+        if (branchCode) qb.where("j.kode_cabang", branchCode);
+      })
+      .select("j.id");
+
+    if (!activeStaffInRoom || activeStaffInRoom.length === 0) {
+      const err = new Error(
+        `Ruangan "${group.nama_ruangan}" (${group.kode_ruangan}) tidak memiliki dokter atau petugas jaga aktif hari ini (${todayDay.toUpperCase()}). Tidak dapat menerbitkan rujukan ke ruangan ini.`
+      );
+      err.statusCode = 422;
+      throw err;
+    }
+
     // Urutan kode_antrian_layanan (global)
     const lastAntrianLayanan = await trx("trx_antrian_layanan")
       .where("kode_antrian_layanan", "like", `${prefixAntrianLayanan}%`)

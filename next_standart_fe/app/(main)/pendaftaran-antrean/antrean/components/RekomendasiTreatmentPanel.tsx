@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Button } from 'primereact/button';
-import { InputText } from 'primereact/inputtext';
 import { ProgressSpinner } from 'primereact/progressspinner';
 import { Toast } from 'primereact/toast';
+import { Tag } from 'primereact/tag';
+import { Checkbox } from 'primereact/checkbox';
+import { OverlayPanel } from 'primereact/overlaypanel';
 import postData from '@/lib/axios/postData';
 import { showError } from '@/lib/tools/generalTools';
 
@@ -13,8 +15,12 @@ export interface RekomendasiItem {
   tipe: string;
   kode: string;
   nama: string;
+  foto?: string | null;
+  wajib_konsultasi?: 'tidak' | 'opsional' | 'wajib' | string;
+  durasi_menit?: number;
   harga: number;
   harga_asal?: number;
+  harga_promo?: number;
   is_promo?: boolean;
   kode_promo?: string;
   nama_promo?: string;
@@ -27,10 +33,13 @@ export interface RekomendasiItem {
   kode_kategori?: string;
   nama_kategori?: string;
   masa_berlaku_hari?: number;
+  total_sesi?: number;
   is_locked?: boolean;
   is_pendaftaran?: boolean;
   is_petugas_available?: boolean;
   alasan_tidak_tersedia?: string | null;
+  has_dokter?: boolean;
+  dokter_nama?: string | null;
   petugas_jaga_count?: number;
   petugas_pj_nama?: string | null;
   petugas_jaga_names?: string[];
@@ -44,14 +53,35 @@ interface RekomendasiTreatmentPanelProps {
   kodeCabang?: string | null;
 }
 
-type TabKey = 'layanan' | 'paket_layanan' | 'produk' | 'paket_produk';
+export const getItemConsultType = (item: {
+  wajib_konsultasi?: string;
+  tipe?: string;
+  tipe_paket?: string;
+  jenis?: string;
+}) => {
+  const wk = (item.wajib_konsultasi || '').toString().trim().toLowerCase();
+  if (wk === 'wajib') {
+    return { isWajib: true, isService: false, isOpsional: false };
+  }
+  if (wk === 'tidak') {
+    return { isWajib: false, isService: true, isOpsional: false };
+  }
+  if (wk === 'opsional') {
+    return { isWajib: false, isService: false, isOpsional: true };
+  }
 
-const TABS: { key: TabKey; label: string; icon: string; accent: string; bgActive: string }[] = [
-  { key: 'layanan', label: 'Layanan', icon: 'pi-briefcase', accent: '#0d9488', bgActive: '#f0fdfa' },
-  { key: 'paket_layanan', label: 'Paket Layanan', icon: 'pi-box', accent: '#7c3aed', bgActive: '#faf5ff' },
-  { key: 'produk', label: 'Produk', icon: 'pi-shopping-bag', accent: '#d97706', bgActive: '#fffbeb' },
-  { key: 'paket_produk', label: 'Paket Produk', icon: 'pi-tags', accent: '#4338ca', bgActive: '#eef2ff' },
-];
+  const effectiveTipe = (
+    item.tipe_paket || item.tipe || ''
+  ).toString().trim().toUpperCase();
+
+  const isWajib = effectiveTipe === 'MEDICAL TREATMENT';
+  const isService = effectiveTipe === 'SERVICE TREATMENT';
+  const isOpsional = !isWajib && !isService;
+  return { isWajib, isService, isOpsional };
+};
+
+export const formatRupiah = (val: number) =>
+  new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val || 0);
 
 export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps> = ({
   toast,
@@ -61,23 +91,48 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
   kodeCabang,
 }) => {
   const [loading, setLoading] = useState<boolean>(true);
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<TabKey>('layanan');
-  const [selectedRoomFilter, setSelectedRoomFilter] = useState<string>('ALL');
-  const [showOnlyPromo, setShowOnlyPromo] = useState<boolean>(false);
+  const [activeTabKey, setActiveTabKey] = useState<string>('');
 
-  const [options, setOptions] = useState<Record<TabKey, RekomendasiItem[]>>({
+  const [options, setOptions] = useState<{
+    ruangan: Array<{
+      kode: string;
+      nama: string;
+      has_petugas?: boolean;
+      has_dokter?: boolean;
+      dokter_nama?: string | null;
+      dokter_names?: string[];
+      dokter_count?: number;
+      petugas_count?: number;
+      petugas_pj?: string | null;
+      petugas_pj_jabatan?: string | null;
+      petugas_jaga_names?: string[];
+      shift?: string | null;
+      companions?: Array<{
+        nama_petugas: string;
+        jabatan_petugas?: string | null;
+        jam_mulai?: string | null;
+        jam_selesai?: string | null;
+      }>;
+    }>;
+    layanan: RekomendasiItem[];
+    paket_layanan: RekomendasiItem[];
+    produk: RekomendasiItem[];
+    paket_produk: RekomendasiItem[];
+  }>({
+    ruangan: [],
     layanan: [],
     paket_layanan: [],
     produk: [],
     paket_produk: [],
   });
 
+  const companionOpRef = useRef<OverlayPanel>(null);
+
   useEffect(() => {
     fetchOptions();
   }, [kodeCabang]);
 
-  const lastNavigatedKeyRef = React.useRef<string>('');
+  const lastNavigatedKeyRef = useRef<string>('');
 
   useEffect(() => {
     if (selectedItems && selectedItems.length > 0) {
@@ -86,22 +141,11 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
         const itemKey = `${targetItem.jenis}_${targetItem.kode}`;
         if (lastNavigatedKeyRef.current !== itemKey) {
           lastNavigatedKeyRef.current = itemKey;
-          let targetTab: TabKey = 'layanan';
           const j = (targetItem.jenis || '').toLowerCase();
-          if (j.includes('paket') && j.includes('produk')) {
-            targetTab = 'paket_produk';
-          } else if (j.includes('paket')) {
-            targetTab = 'paket_layanan';
-          } else if (j.includes('produk')) {
-            targetTab = 'produk';
-          } else {
-            targetTab = 'layanan';
-          }
-
-          setActiveTab(targetTab);
-
-          if (targetItem.kode_ruangan) {
-            setSelectedRoomFilter(targetItem.kode_ruangan);
+          if (j.includes('produk')) {
+            setActiveTabKey('TAB_PRODUK');
+          } else if (targetItem.kode_ruangan) {
+            setActiveTabKey(targetItem.kode_ruangan);
           }
         }
       }
@@ -134,6 +178,7 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
         };
 
         setOptions({
+          ruangan: res.data.data.ruangan || [],
           layanan: (res.data.data.layanan || []).filter(isNotKonsul),
           paket_layanan: (res.data.data.paket_layanan || []).filter(isNotKonsul),
           produk: res.data.data.produk || [],
@@ -161,8 +206,54 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
   const roomList = useMemo(() => {
     const roomsMap = new Map<
       string,
-      { kode: string; nama: string; has_petugas: boolean; petugas_count: number; petugas_pj?: string | null }
+      {
+        kode: string;
+        nama: string;
+        has_petugas: boolean;
+        has_dokter: boolean;
+        dokter_nama: string | null;
+        dokter_count: number;
+        petugas_count: number;
+        petugas_pj?: string | null;
+        petugas_pj_jabatan?: string | null;
+        petugas_jaga_names: string[];
+        shift?: string | null;
+        companions?: Array<{
+          nama_petugas: string;
+          jabatan_petugas?: string | null;
+          jam_mulai?: string | null;
+          jam_selesai?: string | null;
+        }>;
+      }
     >();
+
+    (options.ruangan || []).forEach((r) => {
+      const k = r.kode || (r as any).kode_ruangan || 'UNASSIGNED';
+      const n = r.nama || (r as any).nama_ruangan || k;
+      const isKonsul =
+        (n || '').toLowerCase().includes('konsultasi') ||
+        (n || '').toLowerCase().includes('ruangan 1') ||
+        (n || '').toLowerCase().includes('ruangan 2') ||
+        ['RNG-007', 'RNG-010', 'RNG-011', 'RNG-012'].includes(k);
+
+      if (!isKonsul && !roomsMap.has(k)) {
+        roomsMap.set(k, {
+          kode: k,
+          nama: n,
+          has_petugas: Boolean(r.has_petugas),
+          has_dokter: Boolean(r.has_dokter),
+          dokter_nama: r.dokter_nama || null,
+          dokter_count: r.dokter_count || 0,
+          petugas_count: r.petugas_count || 0,
+          petugas_pj: r.petugas_pj || null,
+          petugas_pj_jabatan: r.petugas_pj_jabatan || null,
+          petugas_jaga_names: r.petugas_jaga_names || [],
+          shift: r.shift || null,
+          companions: r.companions || [],
+        });
+      }
+    });
+
     [...options.layanan, ...options.paket_layanan].forEach((item) => {
       const k = item.kode_ruangan || 'UNASSIGNED';
       const n = item.nama_ruangan || item.kode_ruangan || 'Ruangan Lainnya';
@@ -171,33 +262,100 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
         (n || '').toLowerCase().includes('ruangan 1') ||
         (n || '').toLowerCase().includes('ruangan 2') ||
         ['RNG-007', 'RNG-010', 'RNG-011', 'RNG-012'].includes(k);
-      if (!isKonsul) {
-        const itemHasStaff = item.is_petugas_available !== false;
-        if (!roomsMap.has(k)) {
-          roomsMap.set(k, {
-            kode: k,
-            nama: n,
-            has_petugas: itemHasStaff,
-            petugas_count: item.petugas_jaga_count || 0,
-            petugas_pj: item.petugas_pj_nama || null,
-          });
-        } else {
-          const entry = roomsMap.get(k)!;
-          if (itemHasStaff) {
-            entry.has_petugas = true;
-          }
-          if ((item.petugas_jaga_count || 0) > entry.petugas_count) {
-            entry.petugas_count = item.petugas_jaga_count || 0;
-          }
-          if (!entry.petugas_pj && item.petugas_pj_nama) {
-            entry.petugas_pj = item.petugas_pj_nama;
-          }
-        }
+      if (!isKonsul && !roomsMap.has(k)) {
+        roomsMap.set(k, {
+          kode: k,
+          nama: n,
+          has_petugas: item.is_petugas_available !== false,
+          has_dokter: Boolean(item.has_dokter),
+          dokter_nama: item.dokter_nama || null,
+          dokter_count: item.has_dokter ? 1 : 0,
+          petugas_count: item.petugas_jaga_count || 0,
+          petugas_pj: item.petugas_pj_nama || null,
+          petugas_pj_jabatan: null,
+          petugas_jaga_names: item.petugas_jaga_names || [],
+          shift: null,
+          companions: [],
+        });
       }
     });
-    return Array.from(roomsMap.values())
-      .sort((a, b) => a.nama.localeCompare(b.nama, undefined, { numeric: true, sensitivity: 'base' }));
-  }, [options.layanan, options.paket_layanan]);
+
+    return Array.from(roomsMap.values()).sort((a, b) =>
+      a.nama.localeCompare(b.nama, undefined, { numeric: true, sensitivity: 'base' })
+    );
+  }, [options.ruangan, options.layanan, options.paket_layanan]);
+
+  const cleanSelectedItems = useMemo(() => {
+    const map = new Map<string, RekomendasiItem>();
+    (selectedItems || []).forEach((item) => {
+      const normJenis = (item.jenis || '').includes('paket') ? 'paket_layanan' : item.jenis;
+      const key = `${normJenis}_${item.kode}`;
+      if (!map.has(key)) {
+        map.set(key, item);
+      }
+    });
+    return Array.from(map.values());
+  }, [selectedItems]);
+
+  // Tab Definitions (Ruangan 1..N + Tab Produk)
+  const allTabs = useMemo(() => {
+    const tabs: Array<{
+      key: string;
+      label: string;
+      icon: string;
+      isProduct?: boolean;
+      selectedCount: number;
+    }> = [];
+
+    roomList.forEach((r) => {
+      const countInRoom = cleanSelectedItems.filter(
+        (s) => ['layanan', 'paket_layanan'].includes(s.jenis) && (s.kode_ruangan || 'UNASSIGNED') === r.kode
+      ).length;
+
+      tabs.push({
+        key: r.kode,
+        label: r.nama,
+        icon: countInRoom > 0 ? 'pi-check-circle' : 'pi-building',
+        isProduct: false,
+        selectedCount: countInRoom,
+      });
+    });
+
+    const productCount = cleanSelectedItems.filter((s) => ['produk', 'paket_produk'].includes(s.jenis)).length;
+    tabs.push({
+      key: 'TAB_PRODUK',
+      label: 'Produk',
+      icon: 'pi-shopping-bag',
+      isProduct: true,
+      selectedCount: productCount,
+    });
+
+    return tabs;
+  }, [roomList, cleanSelectedItems]);
+
+  useEffect(() => {
+    if (allTabs.length > 0 && (!activeTabKey || !allTabs.some((t) => t.key === activeTabKey))) {
+      setActiveTabKey(allTabs[0].key);
+    }
+  }, [allTabs, activeTabKey]);
+
+  const isProductTab = activeTabKey === 'TAB_PRODUK';
+  const isRuangDisabled =
+    !isProductTab && activeTreatmentRoom !== null && activeTreatmentRoom.kode_ruangan !== activeTabKey;
+
+  const currentRoomObj = useMemo(
+    () => roomList.find((r) => r.kode === activeTabKey) || null,
+    [roomList, activeTabKey]
+  );
+
+  const displayItems = useMemo(() => {
+    if (isProductTab) {
+      return [...options.produk, ...options.paket_produk];
+    }
+    return [...options.layanan, ...options.paket_layanan].filter(
+      (item) => (item.kode_ruangan || 'UNASSIGNED') === activeTabKey
+    );
+  }, [isProductTab, activeTabKey, options]);
 
   const isItemSelected = (item: RekomendasiItem) =>
     selectedItems.some((s) => s.jenis === item.jenis && s.kode === item.kode);
@@ -221,7 +379,7 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
         showError(
           toast,
           item.alasan_tidak_tersedia ||
-            `Tidak dapat memilih layanan "${item.nama}". Ruangan ${item.nama_ruangan || 'tujuan'} tidak memiliki petugas/terapis yang bertugas hari ini.`
+            `Tidak dapat memilih layanan "${item.nama}". Ruangan ${item.nama_ruangan || 'tujuan'} tidak memiliki dokter/petugas yang bertugas hari ini.`
         );
         return;
       }
@@ -247,231 +405,162 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
     );
   };
 
-  const filterItems = (list: RekomendasiItem[], checkRoom = false) => {
-    let result = list;
-    if (checkRoom && selectedRoomFilter !== 'ALL') {
-      result = result.filter((i) => (i.kode_ruangan || 'UNASSIGNED') === selectedRoomFilter);
-    }
-    if (showOnlyPromo) {
-      result = result.filter((i) => i.is_promo);
-    }
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (i) =>
-          i.nama.toLowerCase().includes(q) ||
-          i.kode.toLowerCase().includes(q) ||
-          (i.nama_ruangan && i.nama_ruangan.toLowerCase().includes(q)) ||
-          (i.nama_kategori && i.nama_kategori.toLowerCase().includes(q)) ||
-          (i.nama_promo && i.nama_promo.toLowerCase().includes(q))
-      );
-    }
-    return result;
-  };
-
-  const currentTab = TABS.find((t) => t.key === activeTab)!;
-  const isServiceTab = activeTab === 'layanan' || activeTab === 'paket_layanan';
-  const displayItems = filterItems(options[activeTab], isServiceTab);
-
-  const totalPromoItemsCount = useMemo(() => {
-    return Object.values(options).flatMap((arr) => arr).filter((i) => i.is_promo).length;
-  }, [options]);
-
-  const cleanSelectedItems = useMemo(() => {
-    const map = new Map<string, RekomendasiItem>();
-    (selectedItems || []).forEach((item) => {
-      const normJenis = (item.jenis || '').includes('paket') ? 'paket_layanan' : item.jenis;
-      const key = `${normJenis}_${item.kode}`;
-      if (!map.has(key)) {
-        map.set(key, item);
-      }
-    });
-    return Array.from(map.values());
-  }, [selectedItems]);
-
-  const countLayanan = cleanSelectedItems.filter((s) => ['layanan', 'paket_layanan'].includes(s.jenis)).length;
-  const countProduk = cleanSelectedItems.filter((s) => ['produk', 'paket_produk'].includes(s.jenis)).length;
   const totalHargaSelected = cleanSelectedItems.reduce((sum, i) => sum + (i.harga || 0) * (i.qty || 1), 0);
-
-  const formatRupiah = (val: number) =>
-    new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
 
   return (
     <div
-      className="p-3.5 border-round-2xl surface-card select-none"
+      className="p-3 border-round-xl border-1 surface-border bg-white select-none"
       style={{
-        border: '1.5px solid #e2e8f0',
-        boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
         userSelect: 'none',
         WebkitUserSelect: 'none',
       }}
     >
       {/* ── HEADER ── */}
-      <div className="flex flex-column sm:flex-row sm:align-items-center justify-content-between mb-3 pb-2.5 border-bottom-1 surface-border gap-2">
-        <div className="flex align-items-center gap-2.5">
+      <div className="flex flex-column sm:flex-row sm:align-items-center justify-content-between mb-2 pb-2 border-bottom-1 surface-border gap-2">
+        <div className="flex align-items-center flex-1 min-w-0" style={{ gap: '10px' }}>
           <div
-            className="flex align-items-center justify-content-center border-round-xl"
+            className="flex align-items-center justify-content-center border-circle bg-blue-50 flex-shrink-0"
             style={{
-              width: '38px',
-              height: '38px',
-              background: 'linear-gradient(135deg, #0d9488, #059669)',
-              boxShadow: '0 3px 10px rgba(13, 148, 136, 0.25)',
+              width: '32px',
+              height: '32px',
+              backgroundColor: '#e0f2fe',
             }}
           >
-            <i className="pi pi-sparkles text-white text-base" />
+            <i className="pi pi-sparkles text-sm" style={{ color: '#0284c7' }} />
           </div>
-          <div>
-            <span style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a', display: 'block', lineHeight: 1.2 }}>
-              Treatment &amp; Produk Rekomendasi
+          <div className="flex flex-column justify-content-center min-w-0">
+            <span style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a', display: 'block', lineHeight: 1.2 }}>
+              Pilih Layanan &amp; Paket Rekomendasi
             </span>
-            <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>
-              Pilih tindakan lanjut &amp; produk rekomendasi untuk pasien ini
+            <span
+              className="text-overflow-ellipsis white-space-nowrap overflow-hidden"
+              style={{ fontSize: '11px', color: '#64748b', fontWeight: 500, marginTop: '2px' }}
+              title="Pilih layanan/paket tindakan lanjutan pasien dalam ruangan yang sama"
+            >
+              Pilih layanan/paket tindakan lanjutan pasien dalam ruangan yang sama
             </span>
           </div>
         </div>
 
-        <div className="flex align-items-center gap-2 flex-wrap">
-          {countLayanan > 0 && (
-            <span
-              className="inline-flex align-items-center gap-1.5 text-xs font-bold px-3 py-1.5 border-round-pill"
-              style={{ background: '#ccfbf1', color: '#0f766e', border: '1.5px solid #99f6e4' }}
-            >
-              <i className="pi pi-ticket text-xs" />
-              {countLayanan} Antrean
-            </span>
-          )}
-          {countProduk > 0 && (
-            <span
-              className="inline-flex align-items-center gap-1.5 text-xs font-bold px-3 py-1.5 border-round-pill"
-              style={{ background: '#fef3c7', color: '#b45309', border: '1.5px solid #fde68a' }}
-            >
-              <i className="pi pi-shopping-bag text-xs" />
-              {countProduk} Produk
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* ── SEARCH & PROMO FILTER TOGGLE ── */}
-      <div className="flex flex-column sm:flex-row gap-2 mb-3">
-        <div className="p-inputgroup flex-1">
-          <span className="p-inputgroup-addon surface-50 border-1 border-300 border-right-none border-round-left-xl">
-            <i className="pi pi-search text-500 text-xs" />
-          </span>
-          <InputText
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Cari layanan, paket, produk, atau nama promo..."
-            className="p-inputtext-sm text-xs border-1 border-300 shadow-none focus:border-teal-500"
-            style={{
-              borderRadius: searchQuery ? '0' : '0 12px 12px 0',
-            }}
-          />
-          {searchQuery && (
-            <Button
-              icon="pi pi-times"
-              className="p-button-text p-button-secondary p-button-sm border-1 border-300 border-left-none border-round-right-xl"
-              onClick={() => setSearchQuery('')}
-            />
-          )}
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setShowOnlyPromo(!showOnlyPromo)}
-          className="px-3 py-2 border-round-xl text-xs font-extrabold border-1 cursor-pointer flex align-items-center justify-content-center gap-2 transition-all flex-shrink-0"
-          style={{
-            borderColor: showOnlyPromo ? '#ef4444' : '#cbd5e1',
-            background: showOnlyPromo ? 'linear-gradient(135deg, #ef4444, #f97316)' : '#ffffff',
-            color: showOnlyPromo ? '#ffffff' : '#e11d48',
-          }}
-        >
-          <i className="pi pi-percentage text-xs" />
-          Hanya Promo 🔥
-        </button>
-      </div>
-
-      {/* ── ROOM LOCK BANNER ── */}
-      {activeTreatmentRoom && (
-        <div
-          className="flex align-items-center gap-2 mb-3 px-3 py-2 border-round-xl text-xs font-medium"
-          style={{ background: 'linear-gradient(90deg, #f0fdfa, #ecfdf5)', border: '1.5px solid #6ee7b7', color: '#065f46' }}
-        >
-          <i className="pi pi-lock text-emerald-600 text-xs" />
-          <span>
-            Ruangan Aktif: <strong>{activeTreatmentRoom.nama_ruangan}</strong>
-            <span className="ml-2 font-normal text-500">— Layanan dari ruangan lain terkunci</span>
-          </span>
-        </div>
-      )}
-
-      {/* ── SEGMENTED CONTROL TABS ── */}
-      <div className="flex gap-1.5 mb-3 p-1.5 border-round-xl overflow-x-auto surface-100 border-1 surface-border">
-        {TABS.map((tab) => {
-          const count = filterItems(options[tab.key], tab.key === 'layanan' || tab.key === 'paket_layanan').length;
-          const isActive = activeTab === tab.key;
-          return (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => {
-                setActiveTab(tab.key);
-                setSelectedRoomFilter('ALL');
-              }}
-              className="flex-1 border-none py-2 px-3 border-round-lg cursor-pointer transition-all flex align-items-center justify-content-center gap-2 shadow-1"
-              style={{
-                minWidth: '120px',
-                border: isActive ? `1.5px solid ${tab.accent}` : '1.5px solid transparent',
-                background: isActive ? '#ffffff' : 'transparent',
-                boxShadow: isActive ? '0 2px 8px rgba(0, 0, 0, 0.08)' : 'none',
-              }}
-            >
-              <i className={`pi ${tab.icon}`} style={{ fontSize: '13px', color: isActive ? tab.accent : '#94a3b8' }} />
-              <span style={{ fontSize: '12px', fontWeight: isActive ? 800 : 600, color: isActive ? tab.accent : '#64748b', whiteSpace: 'nowrap' }}>
-                {tab.label}
-              </span>
-              {count > 0 && (
+        <div className="flex align-items-center gap-2 flex-shrink-0">
+          {/* Active Room Doctor / Staff Duty Popover Button */}
+          {!isProductTab && currentRoomObj && (() => {
+            if (!currentRoomObj.has_petugas) {
+              return (
                 <span
-                  className="text-[10px] font-extrabold px-2 py-0.5 border-round-pill text-white"
-                  style={{ background: isActive ? tab.accent : '#94a3b8' }}
+                  className="inline-flex align-items-center border-round-pill bg-rose-50 text-rose-700 border-1 border-rose-200 font-bold"
+                  style={{
+                    padding: '4px 10px',
+                    gap: '6px',
+                    fontSize: '11px',
+                  }}
+                  title={`Tidak ada dokter atau petugas bertugas di ${currentRoomObj.nama}`}
                 >
-                  {count}
+                  <i className="pi pi-exclamation-circle text-rose-500 text-xs flex-shrink-0" />
+                  <span>{currentRoomObj.nama}: Tidak Ada Petugas</span>
                 </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+              );
+            }
 
-      {/* ── ROOM FILTER CHIPS (ONLY FOR SERVICE TABS) ── */}
-      {isServiceTab && roomList.length > 0 && (
-        <div className="flex align-items-center gap-1.5 flex-wrap mb-3 p-2 surface-50 border-round-xl border-1 surface-border">
-          <span className="text-xs font-extrabold text-500 mr-1 flex align-items-center gap-1 uppercase tracking-wider">
-            <i className="pi pi-filter text-xs text-teal-600" />
-            Ruangan:
-          </span>
-          {[{ kode: 'ALL', nama: 'Semua' }, ...roomList].map((r) => {
-            const isActive = selectedRoomFilter === r.kode;
-            const isLocked = r.kode !== 'ALL' && activeTreatmentRoom !== null && activeTreatmentRoom.kode_ruangan !== r.kode;
+            const hasCompanions = Boolean(currentRoomObj.companions && currentRoomObj.companions.length > 0);
 
             return (
               <button
-                key={r.kode}
                 type="button"
-                onClick={() => setSelectedRoomFilter(r.kode)}
-                className="px-3 py-1 text-xs font-bold border-round-pill border-1 cursor-pointer transition-all flex align-items-center gap-1"
+                onClick={(e) => companionOpRef.current?.toggle(e)}
+                className="inline-flex align-items-center border-round-pill cursor-pointer transition-all border-1 hover:shadow-1"
                 style={{
-                  borderColor: isActive ? currentTab.accent : '#cbd5e1',
-                  background: isActive ? currentTab.accent : isLocked ? '#f8fafc' : '#ffffff',
-                  color: isActive ? '#ffffff' : isLocked ? '#94a3b8' : '#334155',
-                  opacity: isLocked ? 0.6 : 1,
+                  background: '#f0fdf4',
+                  color: '#166534',
+                  borderColor: '#86efac',
+                  padding: '3px 10px',
+                  gap: '6px',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  boxShadow: '0 1px 2px rgba(22, 101, 52, 0.06)',
+                }}
+                title="Klik untuk melihat tim petugas & pendamping"
+              >
+                <i className="pi pi-users text-xs text-emerald-600 flex-shrink-0" />
+                <span className="white-space-nowrap">
+                  {currentRoomObj.nama} ({currentRoomObj.dokter_nama || currentRoomObj.petugas_pj || `${currentRoomObj.petugas_count} Petugas`})
+                </span>
+                {hasCompanions && (
+                  <span
+                    className="text-xs font-bold px-1.5 py-0 border-round-pill bg-emerald-100 text-emerald-800 flex-shrink-0"
+                    style={{ fontSize: '10px' }}
+                  >
+                    +{currentRoomObj.companions?.length} Pendamping
+                  </span>
+                )}
+                <i className="pi pi-chevron-down text-xs text-emerald-700 flex-shrink-0 ml-0.5 opacity-80" />
+              </button>
+            );
+          })()}
+        </div>
+      </div>
+
+      {/* ── ROOM & PRODUCT TABS (SAMAKAN PERSIS DENGAN PENDAFTARAN PASIEN) ── */}
+      <div
+        className="border-bottom-2 surface-border mb-3 overflow-x-auto flex align-items-center"
+        style={{
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+          WebkitOverflowScrolling: 'touch',
+          borderColor: '#e2e8f0',
+        }}
+      >
+        <div className="flex align-items-center" style={{ gap: '6px' }}>
+          {allTabs.map((tab) => {
+            const isActive = activeTabKey === tab.key;
+            const hasSelected = tab.selectedCount > 0;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setActiveTabKey(tab.key)}
+                className={`px-3 py-2 font-semibold text-xs border-none bg-transparent cursor-pointer flex align-items-center transition-colors relative white-space-nowrap ${
+                  isActive ? 'text-primary font-bold' : 'text-600 hover:text-900'
+                }`}
+                style={{
+                  borderBottom: isActive ? '2px solid var(--primary-color, #10b981)' : '2px solid transparent',
+                  marginBottom: '-2px',
+                  gap: '8px',
                 }}
               >
-                {isLocked && <i className="pi pi-lock text-[9px]" />}
-                <span>{r.nama}</span>
+                <i
+                  className={`pi ${
+                    isActive
+                      ? 'pi-check-circle text-primary font-bold'
+                      : tab.isProduct
+                      ? 'pi-shopping-bag text-500'
+                      : 'pi-building text-500'
+                  }`}
+                  style={{ fontSize: '13px' }}
+                />
+                <span className={isActive ? 'text-primary font-bold' : 'text-700'}>{tab.label}</span>
+                {hasSelected && (
+                  <Tag
+                    value={tab.selectedCount}
+                    severity="info"
+                    className="text-xs px-1.5 py-0 border-round-pill font-bold"
+                    style={{ fontSize: '10px' }}
+                  />
+                )}
               </button>
             );
           })}
+        </div>
+      </div>
+
+      {/* ── NOTIFIKASI RUANGAN TERKUNCI PERSIS SEPERTI GAMBAR 2 ── */}
+      {isRuangDisabled && (
+        <div className="flex align-items-center gap-2 p-3 mb-4 bg-orange-50 border-round-lg border-1 border-orange-200">
+          <i className="pi pi-info-circle text-orange-500 flex-shrink-0" />
+          <span className="text-sm text-orange-700">
+            Ruangan ini tidak bisa dipilih karena Anda sudah memilih layanan dari ruangan <strong>{activeTreatmentRoom?.nama_ruangan}</strong>.
+            Batalkan pilihan sebelumnya terlebih dahulu jika ingin berpindah ruangan.
+          </span>
         </div>
       )}
 
@@ -482,219 +571,339 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
           <span className="ml-2 text-xs font-semibold text-gray-500">Memuat katalog rekomendasi...</span>
         </div>
       ) : displayItems.length === 0 ? (
-        <div
-          className="flex flex-column align-items-center justify-content-center py-5 border-round-2xl text-center surface-50 border-1 border-dashed surface-border"
-        >
-          <i className="pi pi-inbox text-4xl mb-2 text-400" />
-          <span className="text-xs font-bold text-600">
-            {showOnlyPromo ? 'Tidak ada promo aktif untuk kategori ini' : `Tidak ada ${currentTab.label.toLowerCase()} ditemukan`}
+        <div className="flex flex-column align-items-center justify-content-center p-5 surface-card border-round-xl border-1 surface-border my-4 text-center">
+          <i className="pi pi-inbox text-400 text-4xl mb-2" />
+          <span className="text-700 font-bold block text-base">
+            {isProductTab ? 'Katalog Produk' : currentRoomObj?.nama || 'Ruangan Ini'}
+          </span>
+          <span className="text-500 text-sm mt-1">
+            Belum ada {isProductTab ? 'produk' : 'layanan atau paket'} yang tersedia di kategori ini.
           </span>
         </div>
       ) : (
-        <div className="grid formgrid overflow-y-auto pr-1" style={{ maxHeight: '24rem' }}>
-          {displayItems.map((item) => {
-            const selected = isItemSelected(item);
-            const selectedObj = selectedItems.find((s) => s.jenis === item.jenis && s.kode === item.kode);
-            const isPendaftaranLocked = Boolean(selectedObj?.is_locked || selectedObj?.is_pendaftaran);
-            const isService = isServiceTab;
-            const isUnavailable = isService && item.is_petugas_available === false;
-            const isRoomLocked =
-              isServiceTab &&
-              activeTreatmentRoom !== null &&
-              !selected &&
-              (item.kode_ruangan || 'UNASSIGNED') !== activeTreatmentRoom.kode_ruangan;
-            const isProduk = activeTab === 'produk' || activeTab === 'paket_produk';
+        <div
+          className="overflow-y-auto pt-2 pb-2"
+          style={{
+            maxHeight: '34rem',
+          }}
+        >
+          <div className="grid">
+            {displayItems.map((item) => {
+              const isSelected = isItemSelected(item);
+              const selectedObj = selectedItems.find((s) => s.jenis === item.jenis && s.kode === item.kode);
+              const isPendaftaranLocked = Boolean(selectedObj?.is_locked || selectedObj?.is_pendaftaran);
+              const isService = ['layanan', 'paket_layanan'].includes(item.jenis);
+              const isPaket = item.jenis === 'paket_layanan' || item.jenis === 'paket_produk';
+              const isProduk = ['produk', 'paket_produk'].includes(item.jenis);
+              const isUnavailable = isService && item.is_petugas_available === false;
+              const effectiveDisabled = isUnavailable || isRuangDisabled || disabled;
 
-            return (
-              <div key={item.kode} className="col-12 sm:col-6 md:col-4 mb-2 p-1">
-                <div
-                  onClick={() => {
-                    if (isPendaftaranLocked) {
-                      showError(toast, `Layanan/paket "${item.nama}" sudah terpilih dari pendaftaran awal dan tidak dapat diubah.`);
-                      return;
-                    }
-                    if (isUnavailable) {
-                      showError(
-                        toast,
-                        item.alasan_tidak_tersedia ||
-                          `Tidak dapat memilih layanan "${item.nama}". Ruangan ${item.nama_ruangan || 'tujuan'} tidak memiliki petugas/terapis yang bertugas hari ini.`
-                      );
-                      return;
-                    }
-                    if (!isRoomLocked) handleToggleSelect(item);
-                  }}
-                  className={`p-3 border-round-xl transition-all flex flex-column justify-content-between relative surface-card ${
-                    isUnavailable ? 'cursor-not-allowed' : 'cursor-pointer hover:shadow-2'
-                  }`}
-                  style={{
-                    border: isPendaftaranLocked
-                      ? '2px solid #d97706'
-                      : isUnavailable
-                      ? '1.5px solid #cbd5e1'
-                      : selected
-                      ? `2px solid ${item.is_promo ? '#ef4444' : currentTab.accent}`
-                      : isRoomLocked
-                      ? '1.5px solid #e2e8f0'
-                      : item.is_promo
-                      ? '1.5px solid #fca5a5'
-                      : '1.5px solid #e2e8f0',
-                    background: isPendaftaranLocked
-                      ? '#fffbeb'
-                      : isUnavailable
-                      ? '#f1f5f9'
-                      : selected
-                      ? currentTab.bgActive
-                      : isRoomLocked
-                      ? '#f8fafc'
-                      : item.is_promo
-                      ? '#fff1f2'
-                      : '#ffffff',
-                    opacity: isUnavailable ? 0.75 : isRoomLocked ? 0.55 : 1,
-                    boxShadow: selected ? `0 4px 14px -2px ${currentTab.accent}30` : '0 1px 3px rgba(0, 0, 0, 0.03)',
-                    minHeight: '135px',
-                  }}
-                >
-                  {/* Badges: Pendaftaran / Checkmark / Room Locked */}
-                  {isPendaftaranLocked ? (
-                    <span className="absolute bg-amber-600 text-white border-round-md px-2 py-0.5 text-[9px] font-extrabold flex align-items-center gap-1 shadow-1" style={{ top: '8px', right: '8px' }}>
-                      <i className="pi pi-lock text-[9px]" />
-                      PENDAFTARAN
-                    </span>
-                  ) : selected ? (
-                    <span
-                      className="absolute border-circle flex align-items-center justify-content-center text-white shadow-1"
-                      style={{
-                        top: '8px',
-                        right: '8px',
-                        width: '20px',
-                        height: '20px',
-                        background: item.is_promo ? '#ef4444' : currentTab.accent,
-                      }}
+              return (
+                <div key={`${item.jenis}_${item.kode}`} className="col-12 sm:col-6 md:col-4 lg:col-3 p-2">
+                  <div
+                    className={`h-full border-round-xl border-1 overflow-hidden transition-all transition-duration-200 flex flex-column justify-content-between cursor-pointer bg-white ${
+                      isSelected
+                        ? isPaket || isProduk
+                          ? 'border-2 border-amber-500 shadow-4 bg-amber-50/10'
+                          : 'border-2 border-blue-600 shadow-4 bg-blue-50/10'
+                        : isPendaftaranLocked
+                        ? 'border-2 border-amber-500 bg-amber-50/20 shadow-2'
+                        : effectiveDisabled
+                        ? 'surface-100 border-200 opacity-60 cursor-not-allowed'
+                        : 'surface-border hover:border-blue-400 hover:shadow-2'
+                    }`}
+                    style={{
+                      boxShadow: isSelected ? '0 4px 14px 0 rgba(37, 99, 235, 0.15)' : undefined,
+                    }}
+                    onClick={() => {
+                      if (isPendaftaranLocked) {
+                        showError(
+                          toast,
+                          `Item "${item.nama}" sudah dipilih saat pendaftaran awal dan tidak dapat diubah.`
+                        );
+                        return;
+                      }
+                      if (isUnavailable) {
+                        showError(
+                          toast,
+                          item.alasan_tidak_tersedia ||
+                            `Tidak dapat memilih layanan "${item.nama}". Ruangan ${
+                              item.nama_ruangan || 'tujuan'
+                            } tidak memiliki dokter/petugas yang bertugas hari ini.`
+                        );
+                        return;
+                      }
+                      if (isRuangDisabled) {
+                        showError(
+                          toast,
+                          `Tidak bisa memilih layanan dari ruangan berbeda! Aktif: "${activeTreatmentRoom?.nama_ruangan}". Batalkan pilihan sebelumnya terlebih dahulu.`
+                        );
+                        return;
+                      }
+                      if (!effectiveDisabled) handleToggleSelect(item);
+                    }}
+                  >
+                    {/* Top Image Banner */}
+                    <div
+                      className="w-full relative overflow-hidden flex align-items-center justify-content-center select-none"
+                      style={{ height: '145px', backgroundColor: '#f8fafc' }}
                     >
-                      <i className="pi pi-check text-xs font-black" />
-                    </span>
-                  ) : isRoomLocked ? (
-                    <span className="absolute bg-slate-100 text-slate-400 border-round px-2 py-0.5 text-[9px] font-semibold flex align-items-center gap-1" style={{ top: '8px', right: '8px' }}>
-                      <i className="pi pi-lock text-[9px]" />
-                      RUANGAN BEDA
-                    </span>
-                  ) : null}
+                      {item.foto ? (
+                        <img
+                          src={item.foto}
+                          alt={item.nama}
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover',
+                            objectPosition: 'center',
+                            display: 'block',
+                          }}
+                          onError={(e) => {
+                            (e.target as HTMLElement).style.display = 'none';
+                          }}
+                        />
+                      ) : isSelected ? (
+                        <div className="w-full h-full flex flex-column align-items-center justify-content-center bg-blue-50">
+                          <i className="pi pi-sparkles text-blue-500 text-4xl" />
+                        </div>
+                      ) : (
+                        <div className="w-full h-full flex flex-column align-items-center justify-content-center bg-slate-100 surface-100">
+                          <i className="pi pi-image text-400 text-4xl opacity-60" />
+                        </div>
+                      )}
 
-                  {/* ITEM INFO */}
-                  <div className="pr-3">
-                    <div className="flex gap-1 flex-wrap mb-1">
+                      {/* Promo Badge Top Left */}
                       {item.is_promo && (
-                        <span className="inline-flex align-items-center gap-1 text-[9px] font-extrabold px-2 py-0.5 border-round-md bg-gradient-to-r text-white shadow-1" style={{ background: 'linear-gradient(135deg, #ef4444, #f97316)' }}>
-                          <i className="pi pi-percentage text-[8px]" />
-                          PROMO {item.jenis_diskon === 'persen' ? `-${item.nilai_diskon}%` : ''}
-                        </span>
+                        <div className="absolute top-0 left-0 m-2 z-2">
+                          <span
+                            className="px-2 py-0.5 font-extrabold text-[10px] border-round shadow-2 text-white flex align-items-center gap-1"
+                            style={{ background: 'linear-gradient(135deg, #ef4444, #f97316)' }}
+                          >
+                            <i className="pi pi-percentage text-[9px]" /> PROMO
+                          </span>
+                        </div>
                       )}
 
-                      {(activeTab === 'paket_layanan' || activeTab === 'paket_produk') && (
-                        <span className="inline-block text-[9px] font-extrabold px-2 py-0.5 border-round-md" style={{ background: `${currentTab.accent}18`, color: currentTab.accent }}>
-                          {activeTab === 'paket_layanan' ? 'PAKET LAYANAN' : 'PAKET PRODUK'}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="text-sm font-extrabold text-900 line-height-2 mb-1" style={{ letterSpacing: '-0.2px' }}>
-                      {item.nama}
-                    </div>
-                    <div className="text-xs text-500 font-medium">
-                      {item.nama_promo ? `${item.nama_promo} • ` : ''}
-                      {item.nama_kategori || currentTab.label}
-                      {isProduk && item.satuan ? ` • ${item.satuan}` : ''}
-                    </div>
-                  </div>
-
-                  {/* FOOTER */}
-                  <div className="mt-2 pt-2 border-top-1 surface-border flex align-items-center justify-content-between gap-2">
-                    <div className="flex align-items-center gap-1 flex-wrap">
-                      <span className="text-xs font-black" style={{ color: item.is_promo ? '#0f766e' : currentTab.accent }}>
-                        {formatRupiah(item.harga)}
-                      </span>
-                    </div>
-
-                    {isServiceTab && (
-                      <span
-                        className="text-[10px] font-semibold px-2 py-0.5 border-round-pill flex align-items-center gap-1 flex-shrink-0"
-                        style={{
-                          background: isUnavailable ? '#e2e8f0' : selected ? currentTab.accent : `${currentTab.accent}15`,
-                          color: isUnavailable ? '#64748b' : selected ? '#ffffff' : currentTab.accent,
+                      {/* Checkbox Top Right */}
+                      <div
+                        className="absolute top-0 right-0 m-2 z-2 bg-white border-round-lg shadow-2 px-2 py-1 flex align-items-center justify-content-center"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!effectiveDisabled) handleToggleSelect(item);
                         }}
-                        title={item.nama_ruangan || 'Ruangan'}
                       >
-                        <i className="pi pi-building text-[9px]" />
-                        <span>{item.nama_ruangan || 'Ruangan'}</span>
-                      </span>
-                    )}
-
-                    {isProduk && selected && (
-                      <div className="flex align-items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          type="button"
-                          onClick={() => handleQtyChange(item, (selectedObj?.qty || 1) - 1)}
-                          className="w-1.5rem h-1.5rem border-round-md border-1 border-300 surface-50 cursor-pointer font-bold text-xs flex align-items-center justify-content-center text-700"
-                        >
-                          −
-                        </button>
-                        <span className="min-w-1.5rem text-center text-xs font-extrabold" style={{ color: currentTab.accent }}>
-                          {selectedObj?.qty || 1}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleQtyChange(item, (selectedObj?.qty || 1) + 1)}
-                          className="w-1.5rem h-1.5rem border-round-md border-none text-white cursor-pointer font-bold text-xs flex align-items-center justify-content-center shadow-1"
-                          style={{ background: currentTab.accent }}
-                        >
-                          +
-                        </button>
+                        <Checkbox
+                          checked={isSelected}
+                          disabled={effectiveDisabled}
+                          onChange={() => {
+                            if (!effectiveDisabled) handleToggleSelect(item);
+                          }}
+                        />
                       </div>
-                    )}
+                    </div>
+
+                    {/* Card Body */}
+                    <div className="p-3 flex-1 flex flex-column justify-content-between">
+                      <div>
+                        {/* Tags Row */}
+                        <div
+                          className="flex align-items-center mb-2"
+                          style={{
+                            flexWrap: 'wrap',
+                            gap: '6px',
+                            minHeight: '26px',
+                          }}
+                        >
+                          {/* Category Badge */}
+                          <span
+                            className="inline-flex align-items-center font-bold text-white shadow-1"
+                            style={{
+                              fontSize: '10px',
+                              padding: '3px 10px',
+                              borderRadius: '9999px',
+                              backgroundColor: isProduk ? '#d97706' : '#0284c7',
+                              lineHeight: 1.2,
+                              letterSpacing: '0.01em',
+                            }}
+                          >
+                            {item.nama_kategori || (isProduk ? 'Produk' : 'Layanan')}
+                          </span>
+
+                          {isPaket && (
+                            <Tag
+                              rounded
+                              value={`Paket${item.total_sesi ? ` (${item.total_sesi} Sesi)` : ''}`}
+                              severity="warning"
+                              style={{
+                                fontSize: '10px',
+                                padding: '3px 10px',
+                                fontWeight: 700,
+                                lineHeight: 1.2,
+                                borderRadius: '9999px',
+                              }}
+                            />
+                          )}
+                        </div>
+
+                        {/* Title */}
+                        <h4
+                          className="text-sm font-bold text-900 m-0 mb-1 line-height-2"
+                          style={{
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                            minHeight: '38px',
+                          }}
+                        >
+                          {item.nama}
+                        </h4>
+
+                        {/* Unavailable explanation warning if any */}
+                        {isUnavailable && (
+                          <div className="mt-1 mb-1 p-1 border-round bg-rose-50 border-1 border-rose-200 text-rose-700 text-[10px] font-semibold flex align-items-center gap-1">
+                            <i className="pi pi-exclamation-triangle text-[11px] flex-shrink-0" />
+                            <span className="line-height-1">
+                              {item.alasan_tidak_tersedia || 'Tidak ada jadwal petugas hari ini'}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Footer */}
+                      <div className="pt-2 mt-2 border-top-1 surface-border flex align-items-center justify-content-between gap-2">
+                        {isProduk ? (
+                          <div
+                            className="inline-flex align-items-center text-xs text-600 font-medium"
+                            style={{ gap: '5px' }}
+                          >
+                            <i className="pi pi-box text-xs text-500 flex-shrink-0" />
+                            <span className="white-space-nowrap">{item.satuan || 'pcs'}</span>
+                          </div>
+                        ) : (
+                          <div className="inline-flex align-items-center gap-1 text-xs text-600 font-medium min-w-0">
+                            <i className="pi pi-clock text-xs text-500 flex-shrink-0" />
+                            <span className="white-space-nowrap">
+                              {item.durasi_menit || (isPaket ? 45 : 30)} Menit
+                            </span>
+                          </div>
+                        )}
+
+                        {isProduk && isSelected ? (
+                          <div className="flex align-items-center" style={{ gap: '10px' }} onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={() => handleQtyChange(item, (selectedObj?.qty || 1) - 1)}
+                              className="w-2rem h-2rem border-round-lg border-1 border-300 surface-50 cursor-pointer font-black text-base flex align-items-center justify-content-center text-700 hover:surface-200 transition-colors shadow-1 flex-shrink-0"
+                              title="Kurangi Jumlah"
+                              style={{ minWidth: '32px', minHeight: '32px' }}
+                            >
+                              −
+                            </button>
+                            <span
+                              className="text-center font-bold text-amber-900 select-none"
+                              style={{
+                                fontSize: '15px',
+                                minWidth: '22px',
+                                display: 'inline-block',
+                              }}
+                            >
+                              {selectedObj?.qty || 1}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleQtyChange(item, (selectedObj?.qty || 1) + 1)}
+                              className="w-2rem h-2rem border-round-lg border-none text-white cursor-pointer font-black text-base flex align-items-center justify-content-center shadow-2 hover:opacity-90 transition-opacity flex-shrink-0"
+                              style={{
+                                background: '#d97706',
+                                minWidth: '32px',
+                                minHeight: '32px',
+                              }}
+                              title="Tambah Jumlah"
+                            >
+                              +
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex-shrink-0">
+                            <span
+                              className={`text-sm font-extrabold white-space-nowrap ${
+                                isPaket ? 'text-amber-700' : 'text-blue-600'
+                              }`}
+                            >
+                              {formatRupiah(item.harga)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       )}
 
       {/* ── SELECTED SUMMARY DRAWER BAR ── */}
       {cleanSelectedItems.length > 0 && (
-        <div
-          className="mt-3 p-3 border-round-2xl flex flex-column sm:flex-row align-items-start sm:align-items-center justify-content-between gap-3 shadow-2"
-          style={{
-            background: 'linear-gradient(135deg, #f0fdfa, #e6fffa)',
-            border: '1.5px solid #5eead4',
-          }}
-        >
+        <div className="mt-4 p-3 border-round-xl flex flex-column sm:flex-row align-items-start sm:align-items-center justify-content-between gap-3 surface-card border-1 surface-border shadow-1">
           <div className="flex align-items-center gap-3">
-            <div className="w-2.5rem h-2.5rem border-round-xl bg-teal-600 text-white flex align-items-center justify-content-center font-bold text-base shadow-1 flex-shrink-0">
-              ✓
+            <div
+              className="border-circle flex align-items-center justify-content-center flex-shrink-0"
+              style={{
+                width: '36px',
+                height: '36px',
+                backgroundColor: '#f0fdf4',
+                color: '#16a34a',
+                border: '1px solid #bbf7d0',
+              }}
+            >
+              <i className="pi pi-check font-bold" style={{ fontSize: '14px' }} />
             </div>
             <div>
-              <span className="text-xs font-black text-teal-950 block">
-                {cleanSelectedItems.length} ITEM TERPILIH UNTUK REKOMENDASI
+              <span className="text-xs font-bold text-700 block mb-2">
+                {cleanSelectedItems.length} Item Terpilih untuk Rekomendasi
               </span>
-              <div className="flex align-items-center gap-2 mt-1 flex-wrap">
+              <div className="flex align-items-center flex-wrap" style={{ gap: '10px' }}>
                 {cleanSelectedItems.map((item, idx) => {
                   const isLocked = item.is_locked || item.is_pendaftaran;
+                  const isProd = (item.jenis || '').includes('produk');
                   return (
-                    <span
+                    <div
                       key={idx}
-                      className={`inline-flex align-items-center gap-1 border-1 px-2 py-0.5 border-round-md text-xs font-semibold ${
-                        isLocked ? 'bg-amber-50 text-amber-900 border-amber-300' : 'bg-white text-teal-900 border-teal-200'
+                      className={`inline-flex align-items-center border-round-xl font-bold shadow-1 ${
+                        isLocked
+                          ? 'bg-amber-50 text-amber-900 border-1 border-amber-300'
+                          : isProd
+                          ? 'bg-orange-50 text-orange-900 border-1 border-orange-200'
+                          : 'surface-card text-900 border-1 surface-border'
                       }`}
+                      style={{
+                        padding: '6px 14px',
+                        gap: '8px',
+                        fontSize: '12.5px',
+                        lineHeight: 1.2,
+                      }}
                     >
-                      {isLocked && <i className="pi pi-lock text-[10px] text-amber-700 mr-1" />}
-                      {item.nama} {item.qty ? `(${item.qty}x)` : ''}
-                      {!isLocked && (
-                        <i
-                          className="pi pi-times text-[9px] text-red-500 cursor-pointer ml-1 hover:text-red-700"
-                          onClick={() => onChangeSelectedItems(cleanSelectedItems.filter((_, i) => i !== idx))}
-                        />
+                      {isLocked ? (
+                        <i className="pi pi-lock text-amber-700 text-xs flex-shrink-0" />
+                      ) : isProd ? (
+                        <i className="pi pi-box text-orange-600 text-xs flex-shrink-0" />
+                      ) : (
+                        <i className="pi pi-sparkles text-primary text-xs flex-shrink-0" />
                       )}
-                    </span>
+                      <span className="white-space-nowrap">{item.nama}</span>
+                      {item.qty && item.qty > 1 && (
+                        <span
+                          className="px-2 py-0.5 border-round font-extrabold text-white text-xs ml-1 shadow-1"
+                          style={{ backgroundColor: '#d97706' }}
+                        >
+                          {item.qty}x
+                        </span>
+                      )}
+                    </div>
                   );
                 })}
               </div>
@@ -703,8 +912,8 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
 
           <div className="flex align-items-center gap-3 w-full sm:w-auto justify-content-between sm:justify-content-end border-top-1 sm:border-top-none pt-2 sm:pt-0 surface-border">
             <div className="text-right">
-              <span className="text-[10px] text-teal-700 block font-bold uppercase">Total Estimasi</span>
-              <span className="text-base font-black text-teal-900">{formatRupiah(totalHargaSelected)}</span>
+              <span className="text-[10px] text-500 block font-semibold uppercase">Total Estimasi</span>
+              <span className="text-base font-black text-primary">{formatRupiah(totalHargaSelected)}</span>
             </div>
 
             <Button
@@ -719,6 +928,65 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
           </div>
         </div>
       )}
+
+      {/* ── OVERLAY PANEL TIM PETUGAS RUANGAN ── */}
+      <OverlayPanel ref={companionOpRef} className="shadow-4 border-round-xl">
+        {(() => {
+          if (!currentRoomObj || !currentRoomObj.has_petugas) return null;
+
+          return (
+            <div style={{ minWidth: '240px', maxWidth: '300px' }}>
+              <div className="font-bold text-xs text-900 mb-1 flex align-items-center justify-content-between">
+                <span className="flex align-items-center gap-1.5">
+                  <i className="pi pi-users text-teal-600 text-xs" />
+                  <span>Tim Petugas ({currentRoomObj.nama})</span>
+                </span>
+              </div>
+              {currentRoomObj.shift && (
+                <div className="text-[11px] text-500 mb-2 flex align-items-center gap-1">
+                  <i className="pi pi-clock text-[10px] text-400" />
+                  <span>Shift: {currentRoomObj.shift}</span>
+                </div>
+              )}
+
+              <div
+                className="text-xs p-2 border-1 border-round-lg mb-2"
+                style={{ backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' }}
+              >
+                <div className="font-semibold text-[11px]" style={{ color: '#065f46' }}>
+                  Penanggung Jawab (PJ):
+                </div>
+                <div className="font-bold text-xs" style={{ color: '#047857' }}>
+                  {currentRoomObj.petugas_pj || currentRoomObj.dokter_nama || 'Petugas Jaga'}
+                  {currentRoomObj.petugas_pj_jabatan && (
+                    <span className="font-normal text-[11px] text-600 ml-1">
+                      ({currentRoomObj.petugas_pj_jabatan})
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {currentRoomObj.companions && currentRoomObj.companions.length > 0 ? (
+                <>
+                  <div className="text-[11px] font-semibold text-700 mb-1">
+                    Petugas Pendamping ({currentRoomObj.companions.length}):
+                  </div>
+                  <ul className="m-0 pl-3 text-xs text-600" style={{ listStyleType: 'disc' }}>
+                    {currentRoomObj.companions.map((c, i) => (
+                      <li key={i} className="mb-1">
+                        <span className="font-medium text-900">{c.nama_petugas}</span>
+                        {c.jabatan_petugas && <span className="text-500 text-[11px]"> — {c.jabatan_petugas}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : (
+                <div className="text-[11px] text-500 italic">Tidak ada petugas pendamping.</div>
+              )}
+            </div>
+          );
+        })()}
+      </OverlayPanel>
     </div>
   );
 };

@@ -29,6 +29,10 @@ const handleGetRekomendasiOptions = async (req, res) => {
   const branchCode = getBranchScope(req, explicitCabang) || explicitCabang || req?.auth?.kode_cabang || "CBG-001";
 
   try {
+    const host = req.get("host");
+    const protocol = req.protocol || "http";
+    const assetsBase = `${protocol}://${host}`;
+
     // A. Fetch Layanan Biasa (status aktif, kecualikan layanan di ruang konsultasi)
     const qLayanan = DB("mst_layanan as l")
       .leftJoin("mst_kategori_layanan as k", "l.kode_kategori_layanan", "k.kode_kategori_layanan")
@@ -53,6 +57,9 @@ const handleGetRekomendasiOptions = async (req, res) => {
         "l.nama",
         "l.harga",
         "l.durasi_menit",
+        "l.wajib_konsultasi",
+        "l.tipe",
+        "l.foto",
         "l.kode_ruangan",
         "r.nama_ruangan as nama_ruangan"
       )
@@ -80,6 +87,8 @@ const handleGetRekomendasiOptions = async (req, res) => {
         "p.nama",
         "p.harga_paket as harga",
         "p.masa_berlaku_hari",
+        "p.tipe",
+        "p.foto",
         "p.kode_ruangan",
         "r.nama_ruangan as nama_ruangan"
       )
@@ -249,15 +258,67 @@ const handleGetRekomendasiOptions = async (req, res) => {
       };
     };
 
+    const getRoomStaffInfo = (roomCode, roomName) => {
+      const roomSchedules = roomSchedulesMap.get(roomCode) || [];
+      const doctorsInRoom = roomSchedules.filter((s) => {
+        const jbt = (s.jabatan_petugas || "").toLowerCase();
+        const nm = (s.nama_petugas || "").toLowerCase();
+        return jbt.includes("dokter") || jbt.includes("dr") || nm.startsWith("dr.") || nm.startsWith("dr ") || nm.includes("dr.") || nm.includes("sp.");
+      });
+      const hasPetugas = roomSchedules.length > 0;
+      const hasDokter = doctorsInRoom.length > 0;
+      const pjStaff = roomSchedules.find((s) => s.is_penanggung_jawab === 1) || doctorsInRoom[0] || roomSchedules[0];
+      const doctorPj = doctorsInRoom.find((s) => s.is_penanggung_jawab === 1) || doctorsInRoom[0];
+
+      const companions = roomSchedules
+        .filter((s) => s !== pjStaff)
+        .map((s) => ({
+          nama_petugas: s.nama_petugas,
+          jabatan_petugas: s.jabatan_petugas || "Petugas",
+          jam_mulai: s.jam_mulai ? s.jam_mulai.slice(0, 5) : null,
+          jam_selesai: s.jam_selesai ? s.jam_selesai.slice(0, 5) : null,
+        }));
+
+      const shiftStr = pjStaff?.jam_mulai && pjStaff?.jam_selesai
+        ? `${pjStaff.jam_mulai.slice(0, 5)} - ${pjStaff.jam_selesai.slice(0, 5)} WIB`
+        : null;
+
+      return {
+        hasPetugas,
+        hasDokter,
+        doctorPjName: doctorPj?.nama_petugas || null,
+        doctorNames: doctorsInRoom.map((s) => s.nama_petugas).filter(Boolean),
+        doctorCount: doctorsInRoom.length,
+        pjStaffName: pjStaff?.nama_petugas || null,
+        pjStaffJabatan: pjStaff?.jabatan_petugas || (doctorPj ? "Dokter" : "Petugas"),
+        staffNames: roomSchedules.map((s) => s.nama_petugas).filter(Boolean),
+        staffCount: roomSchedules.length,
+        shift: shiftStr,
+        companions: companions,
+      };
+    };
+
     // Format output items with promo info and staff duty availability applied
     const listLayanan = vaLayanan.map((item) => {
-      const roomSchedules = roomSchedulesMap.get(item.kode_ruangan) || [];
-      const hasPetugas = roomSchedules.length > 0;
-      const pjStaff = roomSchedules.find((s) => s.is_penanggung_jawab === 1) || roomSchedules[0];
+      const staffInfo = getRoomStaffInfo(item.kode_ruangan, item.nama_ruangan);
+      
+      let isAvailable = staffInfo.hasPetugas;
+      let alasan = null;
+
+      if (!staffInfo.hasPetugas) {
+        isAvailable = false;
+        alasan = `Tidak ada dokter atau petugas jaga di ${item.nama_ruangan || item.kode_ruangan || "ruangan ini"} hari ini (${todayDay})`;
+      }
+
+      const fotoUrl = item.foto
+        ? (item.foto.startsWith("http") ? item.foto : `${assetsBase}/uploads/layanan/${item.foto}`)
+        : null;
 
       return applyPromo({
         jenis: "layanan",
-        tipe: "layanan_biasa",
+        tipe: item.tipe || "BEAUTY TREATMENT",
+        wajib_konsultasi: item.wajib_konsultasi || "opsional",
+        foto: fotoUrl,
         kode: item.kode_layanan,
         kode_layanan: item.kode_layanan,
         nama: item.nama,
@@ -267,40 +328,53 @@ const handleGetRekomendasiOptions = async (req, res) => {
         durasi_menit: parseInt(item.durasi_menit || 30, 10),
         kode_ruangan: item.kode_ruangan || "",
         nama_ruangan: item.nama_ruangan || item.kode_ruangan || "Ruang Treatment",
-        is_petugas_available: hasPetugas,
-        alasan_tidak_tersedia: !hasPetugas
-          ? `Tidak ada petugas/terapis yang bertugas di ${item.nama_ruangan || item.kode_ruangan || "ruangan ini"} hari ini (${todayDay})`
-          : null,
-        petugas_jaga_count: roomSchedules.length,
-        petugas_pj_nama: pjStaff?.nama_petugas || null,
-        petugas_jaga_names: roomSchedules.map((s) => s.nama_petugas).filter(Boolean),
+        is_petugas_available: isAvailable,
+        alasan_tidak_tersedia: alasan,
+        has_dokter: staffInfo.hasDokter,
+        dokter_nama: staffInfo.doctorPjName,
+        petugas_jaga_count: staffInfo.staffCount,
+        petugas_pj_nama: staffInfo.pjStaffName,
+        petugas_jaga_names: staffInfo.staffNames,
       });
     });
 
     const listPaketLayanan = vaPaketLayanan.map((item) => {
-      const roomSchedules = roomSchedulesMap.get(item.kode_ruangan) || [];
-      const hasPetugas = roomSchedules.length > 0;
-      const pjStaff = roomSchedules.find((s) => s.is_penanggung_jawab === 1) || roomSchedules[0];
+      const staffInfo = getRoomStaffInfo(item.kode_ruangan, item.nama_ruangan);
+      
+      let isAvailable = staffInfo.hasPetugas;
+      let alasan = null;
+
+      if (!staffInfo.hasPetugas) {
+        isAvailable = false;
+        alasan = `Tidak ada dokter atau petugas jaga di ${item.nama_ruangan || item.kode_ruangan || "ruangan ini"} hari ini (${todayDay})`;
+      }
+
+      const fotoUrl = item.foto
+        ? (item.foto.startsWith("http") ? item.foto : `${assetsBase}/uploads/paket_layanan/${item.foto}`)
+        : null;
 
       return applyPromo({
         jenis: "paket_layanan",
-        tipe: "paket_layanan",
+        tipe: item.tipe || "BEAUTY TREATMENT",
+        wajib_konsultasi: item.tipe === "MEDICAL TREATMENT" ? "wajib" : item.tipe === "SERVICE TREATMENT" ? "tidak" : "opsional",
+        foto: fotoUrl,
         kode: item.kode_paket_layanan,
         kode_layanan: item.kode_paket_layanan,
         nama: item.nama,
         harga: parseFloat(item.harga || 0),
         kode_kategori: "PAKET_LAYANAN",
         nama_kategori: "Paket Layanan",
+        durasi_menit: 45,
         masa_berlaku_hari: item.masa_berlaku_hari,
         kode_ruangan: item.kode_ruangan || "",
         nama_ruangan: item.nama_ruangan || item.kode_ruangan || "Ruang Treatment",
-        is_petugas_available: hasPetugas,
-        alasan_tidak_tersedia: !hasPetugas
-          ? `Tidak ada petugas/terapis yang bertugas di ${item.nama_ruangan || item.kode_ruangan || "ruangan ini"} hari ini (${todayDay})`
-          : null,
-        petugas_jaga_count: roomSchedules.length,
-        petugas_pj_nama: pjStaff?.nama_petugas || null,
-        petugas_jaga_names: roomSchedules.map((s) => s.nama_petugas).filter(Boolean),
+        is_petugas_available: isAvailable,
+        alasan_tidak_tersedia: alasan,
+        has_dokter: staffInfo.hasDokter,
+        dokter_nama: staffInfo.doctorPjName,
+        petugas_jaga_count: staffInfo.staffCount,
+        petugas_pj_nama: staffInfo.pjStaffName,
+        petugas_jaga_names: staffInfo.staffNames,
       });
     });
 
@@ -335,11 +409,50 @@ const handleGetRekomendasiOptions = async (req, res) => {
       })
     );
 
+    // Fetch ALL active treatment rooms from master
+    const qAllRuangan = DB("mst_ruangan")
+      .where("status", "aktif")
+      .where(function () {
+        this.whereNull("is_konsultasi").orWhere("is_konsultasi", 0);
+      })
+      .whereRaw("(nama_ruangan IS NULL OR LOWER(nama_ruangan) NOT LIKE '%konsultasi%')");
+
+    if (branchCode) {
+      qAllRuangan.where("kode_cabang", branchCode);
+    }
+
+    const vaAllRuangan = await qAllRuangan
+      .select("kode_ruangan", "nama_ruangan")
+      .orderBy("nama_ruangan", "asc");
+
+    const listAllRuangan = vaAllRuangan.map((r) => {
+      const staffInfo = getRoomStaffInfo(r.kode_ruangan, r.nama_ruangan);
+
+      return {
+        kode: r.kode_ruangan,
+        kode_ruangan: r.kode_ruangan,
+        nama: r.nama_ruangan,
+        nama_ruangan: r.nama_ruangan,
+        has_petugas: staffInfo.hasPetugas,
+        has_dokter: staffInfo.hasDokter,
+        dokter_nama: staffInfo.doctorPjName,
+        dokter_names: staffInfo.doctorNames,
+        dokter_count: staffInfo.doctorCount,
+        petugas_count: staffInfo.staffCount,
+        petugas_pj: staffInfo.pjStaffName,
+        petugas_pj_jabatan: staffInfo.pjStaffJabatan,
+        petugas_jaga_names: staffInfo.staffNames,
+        shift: staffInfo.shift,
+        companions: staffInfo.companions,
+      };
+    });
+
     return res.status(200).json({
       status: status.SUKSES,
       message: "Data opsi rekomendasi berhasil dimuat",
       datetime: formatDateSystem(),
       data: {
+        ruangan: listAllRuangan,
         layanan: listLayanan,
         paket_layanan: listPaketLayanan,
         produk: listProduk,

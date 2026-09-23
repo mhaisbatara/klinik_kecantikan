@@ -79,6 +79,7 @@ interface SlotItem {
   kuota_terisi: number;
   sisa_kuota: number;
   is_available: boolean;
+  is_past_today?: boolean;
 }
 
 interface Props {
@@ -1456,7 +1457,9 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
             <div className="grid">
               {slots.map((slot) => {
                 const isSelected = selectedSlot?.kode_jadwal === slot.kode_jadwal;
-                const isFull = !slot.is_available;
+                const isQuotaFull = (slot.sisa_kuota ?? 0) <= 0;
+                const isShiftPast = Boolean(slot.is_past_today);
+                const isUnavailable = isQuotaFull || isShiftPast || !slot.is_available;
                 const companions = slot.petugas_pendamping || [];
                 const totalCompanions = slot.jumlah_pendamping || companions.length;
                 const hasCompanions = totalCompanions > 0;
@@ -1467,10 +1470,10 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
                   <div key={slot.kode_jadwal} className="col-12 sm:col-6 flex">
                     <div
                       onClick={() => {
-                        if (!isFull) setSelectedSlot(slot);
+                        if (!isUnavailable) setSelectedSlot(slot);
                       }}
                       className={`w-full flex flex-column justify-content-between border-round-xl p-3 border-2 transition-all transition-duration-200 ${
-                        isFull
+                        isUnavailable
                           ? 'surface-100 border-300 opacity-60 cursor-not-allowed'
                           : isSelected
                           ? 'border-primary surface-50 shadow-2 cursor-pointer'
@@ -1488,10 +1491,29 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
                           </div>
                           {isSelected ? (
                             <CheckCircle2 size={18} className="text-primary flex-shrink-0" />
+                          ) : isQuotaFull ? (
+                            <Tag
+                              value="PENUH"
+                              severity="danger"
+                              className="text-xs px-2 py-0.5 font-bold flex-shrink-0"
+                            />
+                          ) : isShiftPast ? (
+                            <Tag
+                              value="SUDAH BERAKHIR"
+                              severity="warning"
+                              className="text-xs px-2 py-0.5 font-bold flex-shrink-0"
+                              title="Jam dinas sesi ini telah berakhir untuk hari ini"
+                            />
+                          ) : !slot.is_available ? (
+                            <Tag
+                              value="TIDAK TERSEDIA"
+                              severity="danger"
+                              className="text-xs px-2 py-0.5 font-bold flex-shrink-0"
+                            />
                           ) : (
                             <Tag
-                              value={isFull ? 'PENUH' : 'TERSEDIA'}
-                              severity={isFull ? 'danger' : 'success'}
+                              value="TERSEDIA"
+                              severity="success"
                               className="text-xs px-2 py-0.5 font-bold flex-shrink-0"
                             />
                           )}
@@ -1554,10 +1576,16 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
                       <div className="border-top-1 surface-border pt-2 mt-2">
                         <div className="flex align-items-center justify-content-between text-xs text-500">
                           <span>Sisa Kuota:</span>
-                          <span className={`font-bold ${isFull ? 'text-red-500' : 'text-green-700'}`}>
+                          <span className={`font-bold ${isQuotaFull ? 'text-red-500' : isShiftPast ? 'text-amber-700' : 'text-green-700'}`}>
                             {slot.sisa_kuota} dari {slot.kuota_total}
                           </span>
                         </div>
+                        {isShiftPast && (
+                          <div className="text-[11px] text-amber-700 mt-1 flex align-items-center gap-1">
+                            <Clock size={11} className="flex-shrink-0" />
+                            <span>Jam dinas sesi ini telah berakhir hari ini</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

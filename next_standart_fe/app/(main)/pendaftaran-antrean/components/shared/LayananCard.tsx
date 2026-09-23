@@ -249,42 +249,88 @@ export const LayananCard: React.FC<LayananCardProps> = ({
               className="flex align-items-center mb-2"
               style={{
                 flexWrap: 'wrap',
-                gap: '4px',
+                gap: '6px',
                 minHeight: '26px',
               }}
             >
               {isKlaim ? (
                 <Tag
+                  rounded
                   value={`🎁 Klaim${item.sisa_sesi !== undefined ? ` (${item.sisa_sesi} Sesi)` : ''}`}
                   severity="warning"
-                  style={{ fontSize: '10px', padding: '2px 6px', fontWeight: 700, lineHeight: 1.2 }}
+                  style={{ fontSize: '10px', padding: '3px 10px', fontWeight: 700, lineHeight: 1.2, borderRadius: '9999px' }}
                 />
               ) : isPaket ? (
                 <Tag
+                  rounded
                   value={`Paket${item.total_sesi ? ` (${item.total_sesi} Sesi)` : ''}`}
                   severity="warning"
-                  style={{ fontSize: '10px', padding: '2px 6px', fontWeight: 700, lineHeight: 1.2 }}
+                  style={{ fontSize: '10px', padding: '3px 10px', fontWeight: 700, lineHeight: 1.2, borderRadius: '9999px' }}
                 />
               ) : (
-                <Tag
-                  value={item.nama_kategori || 'Layanan'}
-                  severity="info"
-                  style={{ fontSize: '10px', padding: '2px 6px', fontWeight: 600, lineHeight: 1.2 }}
-                />
+                <span
+                  className="inline-flex align-items-center font-bold text-white shadow-1"
+                  style={{
+                    fontSize: '10px',
+                    padding: '3px 10px',
+                    borderRadius: '9999px',
+                    backgroundColor: '#0284c7',
+                    lineHeight: 1.2,
+                    letterSpacing: '0.01em',
+                  }}
+                >
+                  {item.nama_kategori || 'Layanan'}
+                </span>
               )}
 
               {isFullBooked && (
-                <Tag value="Penuh" severity="danger" style={{ fontSize: '10px', padding: '2px 6px', fontWeight: 700, lineHeight: 1.2 }} />
+                <Tag rounded value="Penuh" severity="danger" style={{ fontSize: '10px', padding: '3px 10px', fontWeight: 700, lineHeight: 1.2, borderRadius: '9999px' }} />
               )}
 
               {isWajib && (
-                <Tag value="Wajib Konsul" severity="danger" style={{ fontSize: '10px', padding: '2px 6px', fontWeight: 700, lineHeight: 1.2 }} />
+                <span
+                  className="inline-flex align-items-center font-bold text-white shadow-1"
+                  style={{
+                    fontSize: '10px',
+                    padding: '3px 10px',
+                    borderRadius: '9999px',
+                    backgroundColor: '#ef4444',
+                    lineHeight: 1.2,
+                    letterSpacing: '0.01em',
+                  }}
+                >
+                  Wajib Konsul
+                </span>
               )}
               {isService && (
-                <Tag value="Tanpa Konsul" severity="success" style={{ fontSize: '10px', padding: '2px 6px', fontWeight: 700, lineHeight: 1.2 }} />
+                <span
+                  className="inline-flex align-items-center font-bold text-white shadow-1"
+                  style={{
+                    fontSize: '10px',
+                    padding: '3px 10px',
+                    borderRadius: '9999px',
+                    backgroundColor: '#10b981',
+                    lineHeight: 1.2,
+                    letterSpacing: '0.01em',
+                  }}
+                >
+                  Tanpa Konsul
+                </span>
               )}
               {isOpsional && (
-                <Tag value="Opsional Konsul" severity="info" style={{ fontSize: '10px', padding: '2px 6px', fontWeight: 700, lineHeight: 1.2 }} />
+                <span
+                  className="inline-flex align-items-center font-bold text-white shadow-1"
+                  style={{
+                    fontSize: '10px',
+                    padding: '3px 10px',
+                    borderRadius: '9999px',
+                    backgroundColor: '#0284c7',
+                    lineHeight: 1.2,
+                    letterSpacing: '0.01em',
+                  }}
+                >
+                  Opsional Konsul
+                </span>
               )}
             </div>
 

@@ -86,6 +86,7 @@ interface SlotItem {
   kuota_terisi: number;
   sisa_kuota: number;
   is_available: boolean;
+  is_past_today?: boolean;
   booked_times?: string[];
   booked_intervals?: Array<{
     kode_booking?: string;
@@ -1966,7 +1967,9 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
                 <div className="grid">
                   {slots.map((slot) => {
                     const isSelected = selectedSlot?.kode_jadwal === slot.kode_jadwal;
-                    const isFull = !slot.is_available;
+                    const isQuotaFull = (slot.sisa_kuota ?? 0) <= 0;
+                    const isShiftPast = Boolean(slot.is_past_today);
+                    const isUnavailable = isQuotaFull || isShiftPast || !slot.is_available;
                     const companions = slot.petugas_pendamping || [];
                     const totalCompanions = slot.jumlah_pendamping || companions.length;
                     const hasCompanions = totalCompanions > 0;
@@ -1977,7 +1980,7 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
                       <div key={slot.kode_jadwal} className="col-12 sm:col-6 flex">
                         <div
                           onClick={() => {
-                            if (!isFull) {
+                            if (!isUnavailable) {
                               setSelectedSlot(slot);
                               setJamBooking('');
                               setIsManualTime(false);
@@ -1988,7 +1991,7 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
                             }
                           }}
                           className={`w-full flex flex-column justify-content-between border-round-xl p-3 border-2 transition-all transition-duration-200 ${
-                            isFull
+                            isUnavailable
                               ? 'surface-100 border-300 opacity-60 cursor-not-allowed'
                               : isSelected
                               ? 'border-primary surface-50 shadow-2 cursor-pointer'
@@ -2006,8 +2009,17 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
                               </div>
                               {isSelected ? (
                                 <CheckCircle2 size={18} className="text-primary flex-shrink-0" />
-                              ) : isFull ? (
+                              ) : isQuotaFull ? (
                                 <Tag value="PENUH" severity="danger" className="text-xs px-2 py-0.5 font-bold flex-shrink-0" />
+                              ) : isShiftPast ? (
+                                <Tag
+                                  value="SUDAH BERAKHIR"
+                                  severity="warning"
+                                  className="text-xs px-2 py-0.5 font-bold flex-shrink-0"
+                                  title="Jam dinas sesi ini telah berakhir hari ini"
+                                />
+                              ) : !slot.is_available ? (
+                                <Tag value="TIDAK TERSEDIA" severity="danger" className="text-xs px-2 py-0.5 font-bold flex-shrink-0" />
                               ) : (
                                 <Tag value="TERSEDIA" severity="success" className="text-xs px-2 py-0.5 font-bold flex-shrink-0" />
                               )}
@@ -2076,7 +2088,7 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
                           <div className="mt-2 pt-2 border-top-1 surface-border">
                             <div className="flex justify-content-between text-xs mb-1">
                               <span className="text-600">Sisa Kuota:</span>
-                              <span className={`font-bold ${isFull ? 'text-red-500' : 'text-green-600'}`}>
+                              <span className={`font-bold ${isQuotaFull ? 'text-red-500' : isShiftPast ? 'text-amber-700' : 'text-green-600'}`}>
                                 {slot.sisa_kuota} dari {slot.kuota_total}
                               </span>
                             </div>
@@ -2084,8 +2096,14 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
                               value={Math.round((slot.kuota_terisi / (slot.kuota_total || 1)) * 100)}
                               showValue={false}
                               style={{ height: '6px' }}
-                              color={isFull ? '#ef4444' : '#10b981'}
+                              color={isQuotaFull ? '#ef4444' : isShiftPast ? '#d97706' : '#10b981'}
                             />
+                            {isShiftPast && (
+                              <div className="text-[11px] text-amber-700 mt-1 flex align-items-center gap-1">
+                                <Clock size={11} className="flex-shrink-0" />
+                                <span>Jam dinas sesi ini telah berakhir hari ini</span>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>

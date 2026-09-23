@@ -32,6 +32,10 @@ interface ItemOption {
   nama: string;
   nama_kategori?: string;
   satuan?: string;
+  foto?: string | null;
+  durasi_menit?: number;
+  nama_ruangan?: string;
+  wajib_konsultasi?: string;
   harga: number;
 }
 
@@ -451,7 +455,7 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
               <span className="text-xs text-500 font-medium">Tidak ada item ditemukan</span>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '12px' }}>
               {filteredItems.map((item) => {
                 const inCartItem = cart.find((c) => c.jenis === item.jenis && c.kode === item.kode);
                 const inCart = Boolean(inCartItem);
@@ -466,11 +470,11 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
                 });
                 const hargaSetelahDiskon = Math.max(0, item.harga - diskonCatalog);
 
-                  // Item layanan dikunci saat transaksi sudah dipilih; produk tetap bebas
-                  const isLayananLocked = item.jenis === 'layanan' && Boolean(editingKodeTrx);
-                  const isItemDisabled = isReadOnly || isLayananLocked;
+                // Item layanan dikunci saat transaksi sudah dipilih; produk tetap bebas
+                const isLayananLocked = item.jenis === 'layanan' && Boolean(editingKodeTrx);
+                const isItemDisabled = isReadOnly || isLayananLocked;
 
-                  return (
+                return (
                   <div
                     key={item.kode}
                     onClick={() => !isItemDisabled && addToCart(item)}
