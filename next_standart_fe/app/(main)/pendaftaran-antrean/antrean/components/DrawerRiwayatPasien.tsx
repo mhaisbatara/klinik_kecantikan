@@ -212,14 +212,32 @@ export const DrawerRiwayatPasien: React.FC<DrawerRiwayatPasienProps> = ({
 
     // Custom Header Drawer — clean & compact
     const customHeader = (
-        <div className="flex align-items-center gap-2 w-full">
-            <i className="pi pi-book text-teal-700 text-xl" />
+        <div className="flex align-items-center w-full pr-4" style={{ gap: '12px' }}>
+            <div
+                className="flex align-items-center justify-content-center flex-shrink-0"
+                style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '10px',
+                    background: '#ccfbf1',
+                    color: '#0f766e',
+                }}
+            >
+                <IconMedicalRecord size={18} />
+            </div>
             <div>
-                <div className="text-lg font-bold text-900 line-height-1">{namaPasien}</div>
-                <div className="flex align-items-center gap-2 mt-1 text-xs text-500">
-                    <span className="font-mono font-bold">RM: {noRm || '-'}</span>
+                <div className="text-base font-bold text-900 line-height-1 flex align-items-center" style={{ gap: '8px' }}>
+                    <span>{namaPasien}</span>
+                </div>
+                <div className="flex align-items-center mt-1.5 text-xs text-500" style={{ gap: '8px' }}>
+                    <span
+                        className="font-mono font-bold text-teal-800 bg-teal-50 border-1 border-teal-200 inline-flex align-items-center justify-content-center"
+                        style={{ borderRadius: '6px', fontSize: '11px', height: '22px', padding: '0 8px', lineHeight: 1 }}
+                    >
+                        RM: {noRm || '-'}
+                    </span>
                     <span>•</span>
-                    <span>{totalRecords} Riwayat Kunjungan</span>
+                    <span className="font-semibold text-600">{totalRecords} Riwayat Kunjungan Selesai</span>
                 </div>
             </div>
         </div>
@@ -242,9 +260,10 @@ export const DrawerRiwayatPasien: React.FC<DrawerRiwayatPasienProps> = ({
                     style={{
                         color: '#94a3b8',
                         fontStyle: 'italic',
-                        fontSize: '11px',
+                        fontWeight: 400,
+                        fontSize: '12px',
                         display: 'block',
-                        lineHeight: 1.5,
+                        lineHeight: 1.6,
                     }}
                 >
                     {val && val.trim() !== '' && val.trim() !== '-' ? val : fallbackText}
@@ -255,10 +274,10 @@ export const DrawerRiwayatPasien: React.FC<DrawerRiwayatPasienProps> = ({
             <span
                 style={{
                     color: '#0f172a',
-                    fontWeight: 500,
+                    fontWeight: 600,
                     fontSize: '12px',
                     display: 'block',
-                    lineHeight: 1.5,
+                    lineHeight: 1.6,
                 }}
             >
                 {val}
@@ -301,44 +320,64 @@ export const DrawerRiwayatPasien: React.FC<DrawerRiwayatPasienProps> = ({
             headerRM.riwayat_alergi.toLowerCase() !== 'tidak ada';
 
         return (
-            <div className="flex flex-column gap-3 animate-fadein">
+            <div
+                className="flex flex-column gap-3 animate-fadein"
+                style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" }}
+            >
                 {/* ── TOP BAR: Back + Status Visit ── */}
-                <div className="flex align-items-center justify-content-between pb-2 border-bottom-1 surface-border">
-                    <button
+                <div className="flex align-items-center justify-content-between pb-3 border-bottom-1 surface-border flex-wrap gap-2">
+                    <Button
                         type="button"
+                        icon="pi pi-arrow-left"
+                        label="Kembali ke Tabel Riwayat"
+                        size="small"
+                        outlined
+                        severity="secondary"
+                        className="text-xs font-bold py-1.5 px-3 border-round-lg text-slate-700 surface-border hover:surface-100"
                         onClick={() => setSelectedVisit(null)}
-                        className="p-button p-button-text p-button-secondary p-button-sm text-xs font-semibold px-2 py-1.5 flex align-items-center gap-1.5 hover:surface-100 border-round cursor-pointer"
-                        style={{ border: 'none', background: 'transparent' }}
-                    >
-                        <ArrowLeft size={16} className="text-500" />
-                        <span>Kembali ke Tabel Riwayat</span>
-                    </button>
-                    <div className="flex align-items-center gap-2">
+                    />
+                    <div className="flex align-items-center gap-2 flex-wrap">
                         <Button
                             label="Cetak RME"
-                            icon={<IconMedicalRecord size={15} className="mr-1" />}
-                            severity="success"
+                            icon={<IconMedicalRecord size={15} style={{ marginRight: '8px' }} />}
                             size="small"
-                            className="font-bold border-round-lg text-xs px-2.5 py-1.5 shadow-1"
+                            className="text-xs font-bold py-1.5 px-3 border-round-lg bg-teal-600 text-white border-none hover:bg-teal-700 shadow-1 transition-all"
                             onClick={() => {
                                 setVisitToPrint(selectedVisit);
                                 setPrintModalVisible(true);
                             }}
                         />
-                        <span className="text-xs font-mono font-semibold text-500 bg-surface-100 border-round px-2 py-1 border-1 surface-border">
+                        <span
+                            className="text-[11px] font-bold text-slate-700 bg-slate-100 border-round-md border-1 surface-border inline-flex align-items-center justify-content-center"
+                            style={{ height: '24px', padding: '0 10px', borderRadius: '6px', lineHeight: 1, letterSpacing: '0.025em' }}
+                        >
                             {selectedVisit.kode_kunjungan}
                         </span>
                         {isSelesai ? (
                             <span
-                                className="text-[11px] font-bold px-2.5 py-1 border-round-pill uppercase"
-                                style={{ backgroundColor: '#f0fdfa', color: '#0f766e', border: '1px solid #99f6e4' }}
+                                className="text-[11px] font-bold text-teal-700 bg-teal-50 border-1 border-teal-200 inline-flex align-items-center justify-content-center flex-shrink-0 uppercase"
+                                style={{
+                                    height: '24px',
+                                    padding: '0 10px',
+                                    borderRadius: '6px',
+                                    whiteSpace: 'nowrap',
+                                    lineHeight: 1,
+                                    letterSpacing: '0.025em',
+                                }}
                             >
                                 Selesai
                             </span>
                         ) : (
                             <span
-                                className="text-[11px] font-bold px-2.5 py-1 border-round-pill uppercase"
-                                style={{ backgroundColor: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}
+                                className="text-[11px] font-bold text-blue-700 bg-blue-50 border-1 border-blue-200 inline-flex align-items-center justify-content-center flex-shrink-0 uppercase"
+                                style={{
+                                    height: '24px',
+                                    padding: '0 10px',
+                                    borderRadius: '6px',
+                                    whiteSpace: 'nowrap',
+                                    lineHeight: 1,
+                                    letterSpacing: '0.025em',
+                                }}
                             >
                                 Sedang Berlangsung
                             </span>
@@ -347,13 +386,13 @@ export const DrawerRiwayatPasien: React.FC<DrawerRiwayatPasienProps> = ({
                 </div>
 
                 {/* ── VISIT INFO CARD ── */}
-                <div className="surface-card border-round-xl border-1 surface-border p-3 shadow-none">
-                    <div className="grid formgrid align-items-center">
-                        <div className="col-12 md:col-8">
-                            <div className="flex align-items-center gap-3">
+                <div className="p-3 surface-50 border-round-xl border-1 surface-border shadow-none">
+                    <div className="grid formgrid -m-1.5 align-items-center">
+                        <div className="col-12 md:col-8 p-1.5">
+                            <div className="bg-white border-round-lg border-1 surface-border p-3 h-full flex align-items-center" style={{ gap: '14px' }}>
                                 <div
-                                    className="text-white border-round-xl px-3 py-2 text-center flex-shrink-0 flex flex-column justify-content-center"
-                                    style={{ backgroundColor: '#0f766e', minWidth: '64px' }}
+                                    className="text-white border-round-lg text-center flex-shrink-0 flex flex-column justify-content-center"
+                                    style={{ backgroundColor: '#0f766e', minWidth: '64px', padding: '8px 12px', borderRadius: '8px' }}
                                 >
                                     <span className="font-bold text-[9px] uppercase tracking-wider block" style={{ opacity: 0.9 }}>
                                         VISIT
@@ -362,50 +401,53 @@ export const DrawerRiwayatPasien: React.FC<DrawerRiwayatPasienProps> = ({
                                         #{visitNumber}
                                     </span>
                                 </div>
-                                <div>
-                                    <h3 className="text-base font-bold text-900 m-0 mb-1">
+                                <div className="min-w-0">
+                                    <h3 className="text-sm md:text-base font-bold text-900 m-0 mb-1.5 truncate">
                                         {formatDateIndo(selectedVisit.tanggal_kunjungan)}
                                     </h3>
-                                    <div className="flex align-items-center gap-3 flex-wrap text-xs text-500">
+                                    <div className="flex align-items-center flex-wrap text-xs text-slate-500" style={{ gap: '12px' }}>
                                         <span className="flex align-items-center font-medium">
-                                            <Clock size={14} className="text-400 mr-1.5" />
+                                            <Clock size={14} className="text-teal-600 flex-shrink-0" style={{ marginRight: '6px' }} />
                                             {selectedVisit.jam_datang || '-'} WIB
                                         </span>
                                         <span>•</span>
                                         <span className="flex align-items-center font-medium">
-                                            <ClipboardList size={14} className="text-400 mr-1.5" />
+                                            <ClipboardList size={14} className="text-teal-600 flex-shrink-0" style={{ marginRight: '6px' }} />
                                             {layananList.length} Sesi Layanan
                                         </span>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        <div className="col-12 md:col-4 mt-2 md:mt-0">
+                        <div className="col-12 md:col-4 p-1.5">
                             {headerRM.dokter_nama ? (
-                                <div className="surface-50 border-round-lg border-1 surface-border p-2.5 flex align-items-center gap-2.5">
+                                <div className="bg-white border-round-lg border-1 surface-border p-3 h-full flex align-items-center" style={{ gap: '12px' }}>
                                     <div
-                                        className="border-round-circle flex align-items-center justify-content-center flex-shrink-0"
-                                        style={{ width: '36px', height: '36px', backgroundColor: '#f0fdfa', color: '#0f766e' }}
+                                        className="flex align-items-center justify-content-center flex-shrink-0 font-bold"
+                                        style={{ width: '34px', height: '34px', borderRadius: '50%', backgroundColor: '#ccfbf1', color: '#0f766e' }}
                                     >
                                         <User size={16} />
                                     </div>
-                                    <div className="overflow-hidden">
-                                        <span className="block text-500 font-bold uppercase tracking-wider" style={{ fontSize: '10px' }}>
+                                    <div className="overflow-hidden min-w-0">
+                                        <span
+                                            className="block text-slate-500 font-bold uppercase text-[10px] mb-1.5"
+                                            style={{ letterSpacing: '0.06em', lineHeight: 1.2 }}
+                                        >
                                             Dokter Penanggung Jawab
                                         </span>
-                                        <span className="font-semibold text-900 text-xs block text-truncate">
+                                        <span className="font-semibold text-slate-900 text-xs block truncate" style={{ lineHeight: 1.3 }}>
                                             dr. {headerRM.dokter_nama.replace(/^dr\.\s*/i, '')}
                                         </span>
                                         {headerRM.no_sip && (
-                                            <span className="font-mono text-400 block" style={{ fontSize: '11px' }}>
+                                            <span className="text-slate-500 block text-[10.5px] mt-0.5 truncate" style={{ lineHeight: 1.2, fontWeight: 500 }}>
                                                 SIP: {headerRM.no_sip}
                                             </span>
                                         )}
                                     </div>
                                 </div>
                             ) : (
-                                <div className="surface-50 border-round-lg border-1 surface-border p-2.5 flex align-items-center gap-2 text-400 text-xs italic">
-                                    <User size={16} className="text-400" />
+                                <div className="bg-white border-round-lg border-1 surface-border p-3 h-full flex align-items-center text-slate-400 text-xs italic" style={{ gap: '8px' }}>
+                                    <User size={16} className="text-slate-400 flex-shrink-0" />
                                     <span>Dokter belum ditentukan</span>
                                 </div>
                             )}
@@ -416,24 +458,25 @@ export const DrawerRiwayatPasien: React.FC<DrawerRiwayatPasienProps> = ({
                 {/* ── ALLERGY ALERT (Aksen Medis: Soft Rose) ── */}
                 {hasAllergy && (
                     <div
-                        className="p-3 border-round-lg border-1 flex align-items-center gap-3"
+                        className="p-3 border-round-xl border-1 flex align-items-center"
                         style={{
                             backgroundColor: '#fff1f2',
                             borderColor: '#fecdd3',
                             borderLeft: '4px solid #e11d48',
+                            gap: '12px',
                         }}
                     >
                         <AlertTriangle size={18} style={{ color: '#e11d48' }} className="flex-shrink-0" />
                         <div className="flex flex-column">
                             <span
-                                className="text-xs font-bold uppercase tracking-wider"
-                                style={{ color: '#be123c' }}
+                                className="text-xs font-bold uppercase tracking-wider mb-0.5"
+                                style={{ color: '#be123c', letterSpacing: '0.05em' }}
                             >
                                 Peringatan Alergi Pasien
                             </span>
                             <span
                                 className="text-xs font-semibold"
-                                style={{ color: '#881337' }}
+                                style={{ color: '#881337', lineHeight: 1.4 }}
                             >
                                 {headerRM.riwayat_alergi}
                             </span>
@@ -442,294 +485,400 @@ export const DrawerRiwayatPasien: React.FC<DrawerRiwayatPasienProps> = ({
                 )}
 
                 {/* ── SECTION 1: ANAMNESIS & RIWAYAT PASIEN ── */}
-                <div className="surface-card border-round-xl border-1 surface-border overflow-hidden">
-                    <div className="px-3 py-2.5 surface-100 border-bottom-1 surface-border flex align-items-center gap-2">
-                        <FileText size={16} className="text-teal-700" />
-                        <span className="text-xs font-bold text-700 uppercase tracking-wider">
-                            Anamnesis & Riwayat Pasien
+                <div className="p-3 surface-50 border-round-xl border-1 surface-border flex flex-column gap-3">
+                    <div className="flex align-items-center justify-content-between pb-2 border-bottom-1 surface-border">
+                        <div className="flex align-items-center" style={{ gap: '8px' }}>
+                            <FileText size={14} className="text-teal-600 flex-shrink-0" />
+                            <span
+                                className="text-xs font-bold text-teal-800 uppercase"
+                                style={{ letterSpacing: '0.05em', lineHeight: 1.2 }}
+                            >
+                                ANAMNESIS &amp; RIWAYAT PASIEN
+                            </span>
+                        </div>
+                        <span
+                            className="text-[11px] font-bold text-teal-700 bg-teal-50 border-1 border-teal-200 inline-flex align-items-center justify-content-center flex-shrink-0"
+                            style={{
+                                height: '24px',
+                                padding: '0 10px',
+                                borderRadius: '6px',
+                                whiteSpace: 'nowrap',
+                                lineHeight: 1,
+                                letterSpacing: '0.025em',
+                            }}
+                        >
+                            Riwayat Medis
                         </span>
                     </div>
-                    <div className="p-3">
-                        <div className="grid formgrid text-xs">
-                            <div className="col-12 md:col-4 mb-2 md:mb-0">
-                                <div className="surface-50 border-round-lg border-1 surface-border p-3 h-full">
-                                    <span className="text-500 font-bold uppercase block mb-1.5" style={{ fontSize: '10px' }}>
+
+                    <div className="grid formgrid text-xs -m-1.5">
+                        <div className="col-12 md:col-4 p-1.5">
+                            <div className="bg-white border-round-lg border-1 surface-border p-3 h-full flex flex-column justify-content-between">
+                                <div>
+                                    <span
+                                        className="text-slate-500 font-bold uppercase block mb-1.5 text-[10px]"
+                                        style={{ letterSpacing: '0.06em', lineHeight: 1.2 }}
+                                    >
                                         Keluhan Utama
                                     </span>
-                                    {renderFieldContent(headerRM.keluhan, 'Tidak ada keluhan khusus')}
-                                </div>
-                            </div>
-                            <div className="col-12 md:col-4 mb-2 md:mb-0">
-                                <div className="surface-50 border-round-lg border-1 surface-border p-3 h-full">
-                                    <span className="text-500 font-bold uppercase block mb-1.5" style={{ fontSize: '10px' }}>
-                                        Durasi Keluhan
-                                    </span>
-                                    {renderFieldContent(headerRM.durasi_keluhan, 'Tidak disebutkan')}
-                                </div>
-                            </div>
-                            <div className="col-12 md:col-4">
-                                <div className="surface-50 border-round-lg border-1 surface-border p-3 h-full">
-                                    <span className="text-500 font-bold uppercase block mb-1.5" style={{ fontSize: '10px' }}>
-                                        Treatment Sebelumnya
-                                    </span>
-                                    {renderFieldContent(headerRM.riwayat_treatment, 'Belum pernah treatment sebelumnya')}
+                                    <div className="text-xs font-semibold text-slate-800" style={{ lineHeight: 1.6 }}>
+                                        {renderFieldContent(headerRM.keluhan, 'Tidak ada keluhan khusus')}
+                                    </div>
                                 </div>
                             </div>
                         </div>
-
-                        {/* Foto Before Awal */}
-                        {beforeFotoUrl && (
-                            <div className="mt-3 pt-3 border-top-1 surface-border flex align-items-center gap-3">
-                                <div
-                                    className="relative border-round-lg overflow-hidden border-1 surface-border cursor-pointer shadow-1 flex-shrink-0"
-                                    style={{ width: '64px', height: '64px' }}
-                                    onClick={() => openPhotoZoom(beforeFotoUrl, `Foto Kondisi Awal — ${formatDateIndo(selectedVisit.tanggal_kunjungan)}`)}
-                                >
-                                    <img
-                                        src={getFullImageUrl(beforeFotoUrl)}
-                                        alt="Foto Awal"
-                                        className="w-full h-full object-cover"
-                                        onError={(e) => {
-                                            const target = e.target as HTMLImageElement;
-                                            if (!target.src.includes('/api/assets')) {
-                                                target.src = `/api/assets${beforeFotoUrl}`;
-                                            }
-                                        }}
-                                    />
-                                    <div className="absolute inset-0 bg-black-alpha-30 opacity-0 hover:opacity-100 flex align-items-center justify-content-center transition-all">
-                                        <ZoomIn size={16} className="text-white" />
+                        <div className="col-12 md:col-4 p-1.5">
+                            <div className="bg-white border-round-lg border-1 surface-border p-3 h-full flex flex-column justify-content-between">
+                                <div>
+                                    <span
+                                        className="text-slate-500 font-bold uppercase block mb-1.5 text-[10px]"
+                                        style={{ letterSpacing: '0.06em', lineHeight: 1.2 }}
+                                    >
+                                        Durasi Keluhan
+                                    </span>
+                                    <div className="text-xs font-semibold text-slate-800" style={{ lineHeight: 1.6 }}>
+                                        {renderFieldContent(headerRM.durasi_keluhan, 'Tidak disebutkan')}
                                     </div>
                                 </div>
-                                <div className="text-xs">
-                                    <span className="font-semibold text-900 block mb-0.5">Foto Kondisi Awal Pasien</span>
-                                    <span className="text-400 text-[11px]">Klik untuk melihat foto ukuran penuh</span>
+                            </div>
+                        </div>
+                        <div className="col-12 md:col-4 p-1.5">
+                            <div className="bg-white border-round-lg border-1 surface-border p-3 h-full flex flex-column justify-content-between">
+                                <div>
+                                    <span
+                                        className="text-slate-500 font-bold uppercase block mb-1.5 text-[10px]"
+                                        style={{ letterSpacing: '0.06em', lineHeight: 1.2 }}
+                                    >
+                                        Treatment Sebelumnya
+                                    </span>
+                                    <div className="text-xs font-semibold text-slate-800" style={{ lineHeight: 1.6 }}>
+                                        {renderFieldContent(headerRM.riwayat_treatment, 'Belum pernah treatment sebelumnya')}
+                                    </div>
                                 </div>
                             </div>
-                        )}
+                        </div>
                     </div>
+
+                    {/* Foto Before Awal */}
+                    {beforeFotoUrl && (
+                        <div className="bg-white border-round-lg border-1 surface-border p-3 flex align-items-center" style={{ gap: '14px' }}>
+                            <div
+                                className="relative border-round-md overflow-hidden border-1 surface-border cursor-pointer shadow-1 flex-shrink-0"
+                                style={{ width: '56px', height: '56px' }}
+                                onClick={() => openPhotoZoom(beforeFotoUrl, `Foto Kondisi Awal — ${formatDateIndo(selectedVisit.tanggal_kunjungan)}`)}
+                            >
+                                <img
+                                    src={getFullImageUrl(beforeFotoUrl)}
+                                    alt="Foto Awal"
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                        const target = e.target as HTMLImageElement;
+                                        if (!target.src.includes('/api/assets')) {
+                                            target.src = `/api/assets${beforeFotoUrl}`;
+                                        }
+                                    }}
+                                />
+                                <div className="absolute inset-0 bg-black-alpha-30 opacity-0 hover:opacity-100 flex align-items-center justify-content-center transition-all">
+                                    <ZoomIn size={16} className="text-white" />
+                                </div>
+                            </div>
+                            <div className="text-xs">
+                                <span className="font-bold text-900 block mb-1">Foto Kondisi Awal Pasien</span>
+                                <span className="text-500 text-[11px]">Klik untuk melihat foto ukuran penuh</span>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* ── SECTION 2: EVALUASI KULIT (5 Card Konsisten) ── */}
-                <div className="surface-card border-round-xl border-1 surface-border overflow-hidden">
-                    <div className="px-3 py-2.5 surface-100 border-bottom-1 surface-border flex align-items-center gap-2">
-                        <Activity size={16} className="text-teal-700" />
-                        <span className="text-xs font-bold text-700 uppercase tracking-wider">
-                            Hasil Evaluasi Kulit
+                <div className="p-3 surface-50 border-round-xl border-1 surface-border flex flex-column gap-3">
+                    <div className="flex align-items-center justify-content-between pb-2 border-bottom-1 surface-border">
+                        <div className="flex align-items-center" style={{ gap: '8px' }}>
+                            <Activity size={14} className="text-teal-600 flex-shrink-0" />
+                            <span
+                                className="text-xs font-bold text-teal-800 uppercase"
+                                style={{ letterSpacing: '0.05em', lineHeight: 1.2 }}
+                            >
+                                HASIL EVALUASI KULIT
+                            </span>
+                        </div>
+                        <span
+                            className="text-[11px] font-bold text-teal-700 bg-teal-50 border-1 border-teal-200 inline-flex align-items-center justify-content-center flex-shrink-0"
+                            style={{
+                                height: '24px',
+                                padding: '0 10px',
+                                borderRadius: '6px',
+                                whiteSpace: 'nowrap',
+                                lineHeight: 1,
+                                letterSpacing: '0.025em',
+                            }}
+                        >
+                            5 Parameter
                         </span>
                     </div>
-                    <div className="p-3">
-                        <div className="grid formgrid text-xs">
-                            {(() => {
-                                const items = [
-                                    {
-                                        label: 'Jenis Kulit',
-                                        value: headerRM.pemeriksaan_skin_type || 'Normal',
-                                        isFinding:
-                                            Boolean(headerRM.pemeriksaan_skin_type) &&
-                                            headerRM.pemeriksaan_skin_type !== '-' &&
-                                            headerRM.pemeriksaan_skin_type.toLowerCase() !== 'normal',
-                                    },
-                                    {
-                                        label: 'Acne',
-                                        value:
-                                            headerRM.pemeriksaan_acne && headerRM.pemeriksaan_acne !== '-'
-                                                ? headerRM.pemeriksaan_acne
-                                                : 'Tidak Ada',
-                                        isFinding:
-                                            Boolean(headerRM.pemeriksaan_acne) &&
-                                            headerRM.pemeriksaan_acne !== '-' &&
-                                            headerRM.pemeriksaan_acne.toLowerCase() !== 'tidak ada',
-                                    },
-                                    {
-                                        label: 'Inflamasi',
-                                        value:
-                                            headerRM.pemeriksaan_inflammation && headerRM.pemeriksaan_inflammation !== '-'
-                                                ? headerRM.pemeriksaan_inflammation
-                                                : 'Tidak Ada',
-                                        isFinding:
-                                            Boolean(headerRM.pemeriksaan_inflammation) &&
-                                            headerRM.pemeriksaan_inflammation !== '-' &&
-                                            headerRM.pemeriksaan_inflammation.toLowerCase() !== 'tidak ada',
-                                    },
-                                    {
-                                        label: 'Pigmentasi',
-                                        value:
-                                            headerRM.pemeriksaan_pigmentation && headerRM.pemeriksaan_pigmentation !== '-'
-                                                ? headerRM.pemeriksaan_pigmentation
-                                                : 'Tidak Ada',
-                                        isFinding:
-                                            Boolean(headerRM.pemeriksaan_pigmentation) &&
-                                            headerRM.pemeriksaan_pigmentation !== '-' &&
-                                            headerRM.pemeriksaan_pigmentation.toLowerCase() !== 'tidak ada',
-                                    },
-                                    {
-                                        label: 'Sensitivitas',
-                                        value: headerRM.pemeriksaan_sensitivity || 'Rendah',
-                                        isFinding:
-                                            headerRM.pemeriksaan_sensitivity === 'Tinggi' ||
-                                            headerRM.pemeriksaan_sensitivity === 'Sedang',
-                                    },
-                                ];
 
-                                return items.map((item, idx) => {
-                                    let badgeStyle: React.CSSProperties = {
-                                        backgroundColor: '#f8fafc',
-                                        color: '#94a3b8',
-                                        border: '1px solid #e2e8f0',
-                                        fontWeight: 500,
-                                    };
+                    <div className="grid formgrid text-xs -m-1.5">
+                        {(() => {
+                            const items = [
+                                {
+                                    label: 'Jenis Kulit',
+                                    value: headerRM.pemeriksaan_skin_type || 'Normal',
+                                    isFinding:
+                                        Boolean(headerRM.pemeriksaan_skin_type) &&
+                                        headerRM.pemeriksaan_skin_type !== '-' &&
+                                        headerRM.pemeriksaan_skin_type.toLowerCase() !== 'normal',
+                                },
+                                {
+                                    label: 'Acne',
+                                    value:
+                                        headerRM.pemeriksaan_acne && headerRM.pemeriksaan_acne !== '-'
+                                            ? headerRM.pemeriksaan_acne
+                                            : 'Tidak Ada',
+                                    isFinding:
+                                        Boolean(headerRM.pemeriksaan_acne) &&
+                                        headerRM.pemeriksaan_acne !== '-' &&
+                                        headerRM.pemeriksaan_acne.toLowerCase() !== 'tidak ada',
+                                },
+                                {
+                                    label: 'Inflamasi',
+                                    value:
+                                        headerRM.pemeriksaan_inflammation && headerRM.pemeriksaan_inflammation !== '-'
+                                            ? headerRM.pemeriksaan_inflammation
+                                            : 'Tidak Ada',
+                                    isFinding:
+                                        Boolean(headerRM.pemeriksaan_inflammation) &&
+                                        headerRM.pemeriksaan_inflammation !== '-' &&
+                                        headerRM.pemeriksaan_inflammation.toLowerCase() !== 'tidak ada',
+                                },
+                                {
+                                    label: 'Pigmentasi',
+                                    value:
+                                        headerRM.pemeriksaan_pigmentation && headerRM.pemeriksaan_pigmentation !== '-'
+                                            ? headerRM.pemeriksaan_pigmentation
+                                            : 'Tidak Ada',
+                                    isFinding:
+                                        Boolean(headerRM.pemeriksaan_pigmentation) &&
+                                        headerRM.pemeriksaan_pigmentation !== '-' &&
+                                        headerRM.pemeriksaan_pigmentation.toLowerCase() !== 'tidak ada',
+                                },
+                                {
+                                    label: 'Sensitivitas',
+                                    value: headerRM.pemeriksaan_sensitivity || 'Rendah',
+                                    isFinding:
+                                        headerRM.pemeriksaan_sensitivity === 'Tinggi' ||
+                                        headerRM.pemeriksaan_sensitivity === 'Sedang',
+                                },
+                            ];
 
-                                    if (item.isFinding) {
-                                        if (item.label === 'Jenis Kulit') {
-                                            badgeStyle = {
-                                                backgroundColor: '#f1f5f9',
-                                                color: '#334155',
-                                                border: '1px solid #cbd5e1',
-                                                fontWeight: 600,
-                                            };
-                                        } else {
-                                            badgeStyle = {
-                                                backgroundColor: '#f0fdfa',
-                                                color: '#0f766e',
-                                                border: '1px solid #99f6e4',
-                                                fontWeight: 600,
-                                            };
-                                        }
+                            return items.map((item, idx) => {
+                                let badgeStyle: React.CSSProperties = {
+                                    backgroundColor: '#f8fafc',
+                                    color: '#64748b',
+                                    border: '1px solid #e2e8f0',
+                                    fontWeight: 700,
+                                };
+
+                                if (item.isFinding) {
+                                    if (item.label === 'Jenis Kulit') {
+                                        badgeStyle = {
+                                            backgroundColor: '#f1f5f9',
+                                            color: '#334155',
+                                            border: '1px solid #cbd5e1',
+                                            fontWeight: 700,
+                                        };
+                                    } else {
+                                        badgeStyle = {
+                                            backgroundColor: '#f0fdfa',
+                                            color: '#0f766e',
+                                            border: '1px solid #99f6e4',
+                                            fontWeight: 700,
+                                        };
                                     }
+                                }
 
-                                    return (
-                                        <div key={idx} className="col-6 sm:col-4 md:col mb-2 md:mb-0">
-                                            <div className="surface-50 border-round-lg border-1 surface-border p-3 text-center flex flex-column justify-content-between h-full">
-                                                <span
-                                                    className="text-500 font-bold uppercase block mb-2"
-                                                    style={{ fontSize: '10px' }}
-                                                >
-                                                    {item.label}
-                                                </span>
-                                                <span
-                                                    className="block text-center text-xs border-round py-1.5 px-2"
-                                                    style={badgeStyle}
-                                                >
-                                                    {item.value}
-                                                </span>
-                                            </div>
+                                return (
+                                    <div key={idx} className="col-6 sm:col-4 md:col p-1.5">
+                                        <div className="bg-white border-round-lg border-1 surface-border p-3 text-center flex flex-column justify-content-between h-full">
+                                            <span
+                                                className="text-slate-500 font-bold uppercase block mb-2 text-[10px]"
+                                                style={{ letterSpacing: '0.06em', lineHeight: 1.2 }}
+                                            >
+                                                {item.label}
+                                            </span>
+                                            <span
+                                                className="inline-flex align-items-center justify-content-center text-[11px] font-bold"
+                                                style={{
+                                                    ...badgeStyle,
+                                                    height: '24px',
+                                                    padding: '0 10px',
+                                                    borderRadius: '6px',
+                                                    lineHeight: 1,
+                                                    letterSpacing: '0.025em',
+                                                    whiteSpace: 'nowrap',
+                                                }}
+                                            >
+                                                {item.value}
+                                            </span>
                                         </div>
-                                    );
-                                });
-                            })()}
-                        </div>
+                                    </div>
+                                );
+                            });
+                        })()}
                     </div>
                 </div>
 
                 {/* ── SECTION 3: SOAP KLINIS (1 Grid Setara 4 Kolom: S, O, A, P) ── */}
-                <div className="surface-card border-round-xl border-1 surface-border overflow-hidden">
-                    <div className="px-3 py-2.5 surface-100 border-bottom-1 surface-border flex align-items-center gap-2">
-                        <Stethoscope size={16} className="text-teal-700" />
-                        <span className="text-xs font-bold text-700 uppercase tracking-wider">
-                            SOAP Klinis & Diagnosis
+                <div className="p-3 surface-50 border-round-xl border-1 surface-border flex flex-column gap-3">
+                    <div className="flex align-items-center justify-content-between pb-2 border-bottom-1 surface-border">
+                        <div className="flex align-items-center" style={{ gap: '8px' }}>
+                            <Stethoscope size={14} className="text-teal-600 flex-shrink-0" />
+                            <span
+                                className="text-xs font-bold text-teal-800 uppercase"
+                                style={{ letterSpacing: '0.05em', lineHeight: 1.2 }}
+                            >
+                                SOAP KLINIS &amp; DIAGNOSIS
+                            </span>
+                        </div>
+                        <span
+                            className="text-[11px] font-bold text-teal-700 bg-teal-50 border-1 border-teal-200 inline-flex align-items-center justify-content-center flex-shrink-0"
+                            style={{
+                                height: '24px',
+                                padding: '0 10px',
+                                borderRadius: '6px',
+                                whiteSpace: 'nowrap',
+                                lineHeight: 1,
+                                letterSpacing: '0.025em',
+                            }}
+                        >
+                            Rekam Medis
                         </span>
                     </div>
-                    <div className="p-3">
-                        <div className="grid formgrid text-xs">
-                            {/* S — Subjective */}
-                            <div className="col-12 sm:col-6 lg:col-3 mb-2 lg:mb-0">
-                                <div
-                                    className="surface-50 border-round-lg border-1 surface-border p-3 h-full flex flex-column border-left-3"
-                                    style={{ borderLeftColor: '#0f766e' }}
-                                >
-                                    <div className="flex align-items-center gap-1.5 pb-2 mb-2 border-bottom-1 surface-border">
-                                        <FileText size={15} className="text-500" />
-                                        <span className="text-xs font-bold text-700 uppercase">S — Subjective</span>
-                                    </div>
-                                    <div className="flex-grow-1">
-                                        {renderFieldContent(headerRM.subjective || headerRM.keluhan, '(Tidak dicatat)')}
-                                    </div>
+
+                    <div className="grid formgrid text-xs -m-1.5">
+                        {/* S — Subjective */}
+                        <div className="col-12 sm:col-6 lg:col-3 p-1.5">
+                            <div
+                                className="bg-white border-round-lg border-1 surface-border p-3 h-full flex flex-column border-left-3"
+                                style={{ borderLeftColor: '#0f766e' }}
+                            >
+                                <div className="flex align-items-center pb-2 mb-2 border-bottom-1 surface-border" style={{ gap: '8px' }}>
+                                    <FileText size={14} className="text-teal-600 flex-shrink-0" />
+                                    <span
+                                        className="text-xs font-bold text-teal-900 uppercase"
+                                        style={{ letterSpacing: '0.04em', lineHeight: 1.2 }}
+                                    >
+                                        S — Subjective
+                                    </span>
+                                </div>
+                                <div className="flex-grow-1 text-slate-800 text-xs font-semibold" style={{ lineHeight: 1.6 }}>
+                                    {renderFieldContent(headerRM.subjective || headerRM.keluhan, '(Tidak dicatat)')}
                                 </div>
                             </div>
+                        </div>
 
-                            {/* O — Objective */}
-                            <div className="col-12 sm:col-6 lg:col-3 mb-2 lg:mb-0">
-                                <div
-                                    className="surface-50 border-round-lg border-1 surface-border p-3 h-full flex flex-column border-left-3"
-                                    style={{ borderLeftColor: '#0f766e' }}
-                                >
-                                    <div className="flex align-items-center gap-1.5 pb-2 mb-2 border-bottom-1 surface-border">
-                                        <Activity size={15} className="text-500" />
-                                        <span className="text-xs font-bold text-700 uppercase">O — Objective</span>
-                                    </div>
-                                    <div className="flex-grow-1">
-                                        {renderFieldContent(headerRM.objective, '(Tidak dicatat)')}
-                                    </div>
+                        {/* O — Objective */}
+                        <div className="col-12 sm:col-6 lg:col-3 p-1.5">
+                            <div
+                                className="bg-white border-round-lg border-1 surface-border p-3 h-full flex flex-column border-left-3"
+                                style={{ borderLeftColor: '#0f766e' }}
+                            >
+                                <div className="flex align-items-center pb-2 mb-2 border-bottom-1 surface-border" style={{ gap: '8px' }}>
+                                    <Activity size={14} className="text-teal-600 flex-shrink-0" />
+                                    <span
+                                        className="text-xs font-bold text-teal-900 uppercase"
+                                        style={{ letterSpacing: '0.04em', lineHeight: 1.2 }}
+                                    >
+                                        O — Objective
+                                    </span>
+                                </div>
+                                <div className="flex-grow-1 text-slate-800 text-xs font-semibold" style={{ lineHeight: 1.6 }}>
+                                    {renderFieldContent(headerRM.objective, '(Tidak dicatat)')}
                                 </div>
                             </div>
+                        </div>
 
-                            {/* A — Assessment & Diagnosis */}
-                            <div className="col-12 sm:col-6 lg:col-3 mb-2 lg:mb-0">
-                                <div
-                                    className="surface-50 border-round-lg border-1 surface-border p-3 h-full flex flex-column border-left-3"
-                                    style={{ borderLeftColor: '#0f766e' }}
-                                >
-                                    <div className="flex align-items-center gap-1.5 pb-2 mb-2 border-bottom-1 surface-border">
-                                        <Stethoscope size={15} className="text-500" />
-                                        <span className="text-xs font-bold text-700 uppercase">A — Assessment</span>
-                                    </div>
-                                    <div className="flex-grow-1">
-                                        {(() => {
-                                            const dx =
-                                                headerRM.diagnosis &&
-                                                headerRM.diagnosis !== '-' &&
-                                                headerRM.diagnosis.trim() !== ''
-                                                    ? headerRM.diagnosis
-                                                    : null;
-                                            const assess =
-                                                headerRM.assessment &&
-                                                headerRM.assessment !== '-' &&
-                                                headerRM.assessment.trim() !== ''
-                                                    ? headerRM.assessment
-                                                    : null;
+                        {/* A — Assessment & Diagnosis */}
+                        <div className="col-12 sm:col-6 lg:col-3 p-1.5">
+                            <div
+                                className="bg-white border-round-lg border-1 surface-border p-3 h-full flex flex-column border-left-3"
+                                style={{ borderLeftColor: '#0f766e' }}
+                            >
+                                <div className="flex align-items-center pb-2 mb-2 border-bottom-1 surface-border" style={{ gap: '8px' }}>
+                                    <Stethoscope size={14} className="text-teal-600 flex-shrink-0" />
+                                    <span
+                                        className="text-xs font-bold text-teal-900 uppercase"
+                                        style={{ letterSpacing: '0.04em', lineHeight: 1.2 }}
+                                    >
+                                        A — Assessment
+                                    </span>
+                                </div>
+                                <div className="flex-grow-1 text-slate-800 text-xs font-semibold" style={{ lineHeight: 1.6 }}>
+                                    {(() => {
+                                        const dx =
+                                            headerRM.diagnosis &&
+                                            headerRM.diagnosis !== '-' &&
+                                            headerRM.diagnosis.trim() !== ''
+                                                ? headerRM.diagnosis
+                                                : null;
+                                        const assess =
+                                            headerRM.assessment &&
+                                            headerRM.assessment !== '-' &&
+                                            headerRM.assessment.trim() !== ''
+                                                ? headerRM.assessment
+                                                : null;
 
-                                            if (!dx && !assess) {
-                                                return renderFieldContent(null, '(Tidak dicatat)');
-                                            }
+                                        if (!dx && !assess) {
+                                            return renderFieldContent(null, '(Tidak dicatat)');
+                                        }
 
-                                            return (
-                                                <div className="flex flex-column gap-1.5">
-                                                    {dx && (
-                                                        <div>
-                                                            <span className="text-[10px] font-bold text-500 uppercase block mb-0.5">
-                                                                Dx Medis:
-                                                            </span>
-                                                            {renderFieldContent(dx)}
-                                                        </div>
-                                                    )}
-                                                    {assess && (
-                                                        <div>
-                                                            <span className="text-[10px] font-bold text-500 uppercase block mb-0.5">
-                                                                Keterangan:
-                                                            </span>
-                                                            {renderFieldContent(assess)}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            );
-                                        })()}
-                                    </div>
+                                        return (
+                                            <div className="flex flex-column" style={{ gap: '8px' }}>
+                                                {dx && (
+                                                    <div>
+                                                        <span
+                                                            className="text-[10px] font-bold text-slate-500 uppercase block mb-1"
+                                                            style={{ letterSpacing: '0.06em', lineHeight: 1.2 }}
+                                                        >
+                                                            Dx Medis:
+                                                        </span>
+                                                        {renderFieldContent(dx)}
+                                                    </div>
+                                                )}
+                                                {assess && (
+                                                    <div>
+                                                        <span
+                                                            className="text-[10px] font-bold text-slate-500 uppercase block mb-1"
+                                                            style={{ letterSpacing: '0.06em', lineHeight: 1.2 }}
+                                                        >
+                                                            Keterangan:
+                                                        </span>
+                                                        {renderFieldContent(assess)}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             </div>
+                        </div>
 
-                            {/* P — Plan */}
-                            <div className="col-12 sm:col-6 lg:col-3">
-                                <div
-                                    className="surface-50 border-round-lg border-1 surface-border p-3 h-full flex flex-column border-left-3"
-                                    style={{ borderLeftColor: '#0f766e' }}
-                                >
-                                    <div className="flex align-items-center gap-1.5 pb-2 mb-2 border-bottom-1 surface-border">
-                                        <ClipboardList size={15} className="text-500" />
-                                        <span className="text-xs font-bold text-700 uppercase">P — Plan</span>
-                                    </div>
-                                    <div className="flex-grow-1">
-                                        {renderFieldContent(headerRM.plan, 'Tidak ada rencana khusus')}
-                                    </div>
+                        {/* P — Plan */}
+                        <div className="col-12 sm:col-6 lg:col-3 p-1.5">
+                            <div
+                                className="bg-white border-round-lg border-1 surface-border p-3 h-full flex flex-column border-left-3"
+                                style={{ borderLeftColor: '#0f766e' }}
+                            >
+                                <div className="flex align-items-center pb-2 mb-2 border-bottom-1 surface-border" style={{ gap: '8px' }}>
+                                    <ClipboardList size={14} className="text-teal-600 flex-shrink-0" />
+                                    <span
+                                        className="text-xs font-bold text-teal-900 uppercase"
+                                        style={{ letterSpacing: '0.04em', lineHeight: 1.2 }}
+                                    >
+                                        P — Plan
+                                    </span>
+                                </div>
+                                <div className="flex-grow-1 text-slate-800 text-xs font-semibold" style={{ lineHeight: 1.6 }}>
+                                    {renderFieldContent(headerRM.plan, 'Tidak ada rencana khusus')}
                                 </div>
                             </div>
                         </div>
@@ -737,26 +886,37 @@ export const DrawerRiwayatPasien: React.FC<DrawerRiwayatPasienProps> = ({
                 </div>
 
                 {/* ── SECTION 4: SESI TINDAKAN & HASIL TREATMENT ── */}
-                <div className="surface-card border-round-xl border-1 surface-border overflow-hidden">
-                    <div className="px-3 py-2.5 surface-100 border-bottom-1 surface-border flex align-items-center justify-content-between">
-                        <div className="flex align-items-center gap-2">
-                            <Sparkles size={16} className="text-teal-700" />
-                            <span className="text-xs font-bold text-700 uppercase tracking-wider">
-                                Sesi Tindakan &amp; Hasil Treatment
+                <div className="p-3 surface-50 border-round-xl border-1 surface-border flex flex-column gap-3">
+                    <div className="flex align-items-center justify-content-between pb-2 border-bottom-1 surface-border">
+                        <div className="flex align-items-center" style={{ gap: '8px' }}>
+                            <Sparkles size={14} className="text-teal-600 flex-shrink-0" />
+                            <span
+                                className="text-xs font-bold text-teal-800 uppercase"
+                                style={{ letterSpacing: '0.05em', lineHeight: 1.2 }}
+                            >
+                                SESI TINDAKAN &amp; HASIL TREATMENT
                             </span>
                         </div>
                         <span
-                            className="text-xs font-bold px-2.5 py-0.5 border-round-pill"
-                            style={{ backgroundColor: '#ecfdf5', color: '#0f766e', border: '1px solid #99f6e4' }}
+                            className="text-[11px] font-bold text-teal-700 bg-teal-50 border-1 border-teal-200 inline-flex align-items-center justify-content-center flex-shrink-0"
+                            style={{
+                                height: '24px',
+                                padding: '0 10px',
+                                borderRadius: '6px',
+                                whiteSpace: 'nowrap',
+                                lineHeight: 1,
+                                letterSpacing: '0.025em',
+                            }}
                         >
                             {layananList.length} Sesi
                         </span>
                     </div>
-                    <div className="p-3">
+
+                    <div>
                         {layananList.length === 0 ? (
-                            <div className="p-3 text-center text-xs text-400 italic surface-50 border-round-lg border-1 surface-border">
-                                <FileText size={15} className="block mx-auto mb-1.5 text-400" />
-                                Tidak ada catatan tindakan pada kunjungan ini.
+                            <div className="p-4 text-center text-xs text-slate-500 italic bg-white border-round-lg border-1 surface-border flex flex-column align-items-center justify-content-center" style={{ gap: '8px' }}>
+                                <FileText size={18} className="text-slate-400" />
+                                <span>Tidak ada catatan tindakan pada kunjungan ini.</span>
                             </div>
                         ) : (
                             <div className="flex flex-column gap-3">
@@ -824,37 +984,50 @@ export const DrawerRiwayatPasien: React.FC<DrawerRiwayatPasienProps> = ({
                                         >
                                             {/* Header Sesi */}
                                             <div className="surface-100 px-3 py-2.5 border-bottom-1 surface-border flex align-items-center justify-content-between flex-wrap gap-2">
-                                                <div className="flex align-items-center gap-2 min-w-0">
+                                                <div className="flex align-items-center min-w-0" style={{ gap: '10px' }}>
                                                     <span
-                                                        className="text-[10px] font-bold px-2.5 py-0.5 border-round-pill uppercase flex-shrink-0"
-                                                        style={
-                                                            isKonsul
-                                                                ? { backgroundColor: '#e0f2fe', color: '#0284c7', border: '1px solid #bae6fd' }
-                                                                : { backgroundColor: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0' }
-                                                        }
+                                                        className="text-[11px] font-bold inline-flex align-items-center justify-content-center flex-shrink-0 uppercase"
+                                                        style={{
+                                                            height: '24px',
+                                                            padding: '0 10px',
+                                                            borderRadius: '6px',
+                                                            lineHeight: 1,
+                                                            letterSpacing: '0.025em',
+                                                            backgroundColor: isKonsul ? '#f0f9ff' : '#f0fdf4',
+                                                            color: isKonsul ? '#0284c7' : '#16a34a',
+                                                            border: `1px solid ${isKonsul ? '#bae6fd' : '#bbf7d0'}`
+                                                        }}
                                                     >
                                                         {isKonsul ? 'KONSULTASI' : 'TINDAKAN'}
                                                     </span>
-                                                    <span className="font-bold text-900 text-xs md:text-sm truncate min-w-0">
+                                                    <span className="font-bold text-900 text-xs md:text-sm truncate min-w-0" style={{ lineHeight: 1.3 }}>
                                                         {layanan.nama_layanan || 'Pelayanan Klinis'}
                                                     </span>
                                                 </div>
-                                                <div className="flex align-items-center gap-2 flex-shrink-0">
+                                                <div className="flex align-items-center flex-shrink-0" style={{ gap: '8px' }}>
                                                     {layanan.status && (
                                                         <span
-                                                            className="text-[10px] font-bold px-2.5 py-0.5 border-round-pill uppercase"
-                                                            style={
-                                                                layanan.status.toLowerCase() === 'selesai'
-                                                                    ? { backgroundColor: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0' }
-                                                                    : { backgroundColor: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe' }
-                                                            }
+                                                            className="text-[11px] font-bold inline-flex align-items-center justify-content-center flex-shrink-0 uppercase"
+                                                            style={{
+                                                                height: '24px',
+                                                                padding: '0 10px',
+                                                                borderRadius: '6px',
+                                                                lineHeight: 1,
+                                                                letterSpacing: '0.025em',
+                                                                backgroundColor: layanan.status.toLowerCase() === 'selesai' ? '#f0fdf4' : '#eff6ff',
+                                                                color: layanan.status.toLowerCase() === 'selesai' ? '#16a34a' : '#2563eb',
+                                                                border: `1px solid ${layanan.status.toLowerCase() === 'selesai' ? '#bbf7d0' : '#bfdbfe'}`
+                                                            }}
                                                         >
                                                             {layanan.status}
                                                         </span>
                                                     )}
                                                     {layanan.nama_ruangan && (
-                                                        <span className="text-xs text-600 font-medium flex align-items-center gap-1 bg-white px-2 py-0.5 border-round-md border-1 surface-border">
-                                                            <Building2 size={13} className="text-teal-700" />
+                                                        <span
+                                                            className="text-[11px] text-slate-700 font-semibold inline-flex align-items-center bg-white border-1 surface-border flex-shrink-0"
+                                                            style={{ height: '24px', padding: '0 10px', borderRadius: '6px', lineHeight: 1, gap: '6px' }}
+                                                        >
+                                                            <Building2 size={13} className="text-teal-600 flex-shrink-0" />
                                                             <span className="truncate max-w-10rem">{layanan.nama_ruangan}</span>
                                                         </span>
                                                     )}
@@ -867,47 +1040,70 @@ export const DrawerRiwayatPasien: React.FC<DrawerRiwayatPasienProps> = ({
                                                 {allPetugas.length > 0 && (
                                                     <div className="surface-50 border-round-lg border-1 surface-border p-3">
                                                         <div className="flex align-items-center justify-content-between pb-2 mb-2 border-bottom-1 surface-border">
-                                                            <div className="flex align-items-center gap-1.5">
-                                                                <User size={15} className="text-teal-700" />
-                                                                <span className="text-xs font-bold text-700 uppercase tracking-wider">
+                                                            <div className="flex align-items-center" style={{ gap: '8px' }}>
+                                                                <User size={14} className="text-teal-600 flex-shrink-0" />
+                                                                <span
+                                                                    className="text-xs font-bold text-teal-800 uppercase"
+                                                                    style={{ letterSpacing: '0.05em', lineHeight: 1.2 }}
+                                                                >
                                                                     Dokter &amp; Petugas Pelaksana Ruangan
                                                                 </span>
                                                             </div>
-                                                            <span className="text-[10px] font-bold px-2 py-0.5 border-round-pill bg-white border-1 surface-border text-500">
+                                                            <span
+                                                                className="text-[11px] font-bold border-round-md bg-white border-1 surface-border text-slate-600 inline-flex align-items-center justify-content-center"
+                                                                style={{ borderRadius: '6px', height: '24px', padding: '0 10px', lineHeight: 1, letterSpacing: '0.025em' }}
+                                                            >
                                                                 {allPetugas.length} Petugas
                                                             </span>
                                                         </div>
                                                         <div className="grid formgrid -m-1">
                                                             {allPetugas.map((p: any, pIdx: number) => (
                                                                 <div key={pIdx} className={`col-12 ${allPetugas.length > 1 ? 'sm:col-6' : ''} p-1`}>
-                                                                    <div className="bg-white p-2.5 border-round-md border-1 surface-border flex align-items-center justify-content-between gap-2 h-full">
-                                                                        <div className="flex align-items-center gap-2.5 min-w-0">
+                                                                    <div className="bg-white p-3 border-round-md border-1 surface-border flex align-items-center justify-content-between gap-2 h-full">
+                                                                        <div className="flex align-items-center min-w-0" style={{ gap: '12px' }}>
                                                                             <div
-                                                                                className="border-round-circle flex align-items-center justify-content-center flex-shrink-0 font-bold text-xs"
-                                                                                style={
-                                                                                    p.role === 'DOKTER'
-                                                                                        ? { width: '32px', height: '32px', backgroundColor: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0' }
-                                                                                        : { width: '32px', height: '32px', backgroundColor: '#f0fdfa', color: '#0f766e', border: '1px solid #99f6e4' }
-                                                                                }
+                                                                                className="flex align-items-center justify-content-center flex-shrink-0 font-bold text-xs"
+                                                                                style={{
+                                                                                    width: '30px',
+                                                                                    height: '30px',
+                                                                                    minWidth: '30px',
+                                                                                    minHeight: '30px',
+                                                                                    borderRadius: '50%',
+                                                                                    backgroundColor: p.role === 'DOKTER' ? '#ccfbf1' : '#f0fdf4',
+                                                                                    color: '#0f766e',
+                                                                                    border: '1px solid #99f6e4'
+                                                                                }}
                                                                             >
                                                                                 {p.role === 'DOKTER' ? 'Dr' : 'Pt'}
                                                                             </div>
                                                                             <div className="min-w-0">
-                                                                                <span className="font-bold text-900 text-xs block truncate" title={p.nama}>
+                                                                                <span
+                                                                                    className="font-semibold text-slate-900 text-xs block truncate"
+                                                                                    style={{ lineHeight: 1.3 }}
+                                                                                    title={p.nama}
+                                                                                >
                                                                                     {p.nama}
                                                                                 </span>
-                                                                                <span className="text-[11px] text-500 block truncate">
+                                                                                <span
+                                                                                    className="text-slate-500 block text-[10.5px] mt-0.5 truncate"
+                                                                                    style={{ lineHeight: 1.2, fontWeight: 500 }}
+                                                                                >
                                                                                     SIP: {p.no_sip}
                                                                                 </span>
                                                                             </div>
                                                                         </div>
                                                                         <span
-                                                                            className="text-[10px] font-bold px-2.5 py-0.5 border-round-pill uppercase flex-shrink-0"
-                                                                            style={
-                                                                                p.role === 'DOKTER'
-                                                                                    ? { backgroundColor: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0' }
-                                                                                    : { backgroundColor: '#f0fdfa', color: '#0f766e', border: '1px solid #99f6e4' }
-                                                                            }
+                                                                            className="text-[11px] font-bold inline-flex align-items-center justify-content-center flex-shrink-0 uppercase"
+                                                                            style={{
+                                                                                height: '24px',
+                                                                                padding: '0 10px',
+                                                                                borderRadius: '6px',
+                                                                                lineHeight: 1,
+                                                                                letterSpacing: '0.025em',
+                                                                                backgroundColor: p.role === 'DOKTER' ? '#ecfdf5' : '#f0fdfa',
+                                                                                color: '#0f766e',
+                                                                                border: '1px solid #99f6e4'
+                                                                            }}
                                                                         >
                                                                             {p.role}
                                                                         </span>
@@ -934,15 +1130,18 @@ export const DrawerRiwayatPasien: React.FC<DrawerRiwayatPasienProps> = ({
                                                                     className="surface-50 border-round-lg border-1 surface-border p-3 h-full flex flex-column border-left-3"
                                                                     style={{ borderLeftColor: '#0f766e' }}
                                                                 >
-                                                                    <div className="flex align-items-center gap-1.5 pb-2 mb-2 border-bottom-1 surface-border">
-                                                                        <FileText size={15} className="text-teal-700" />
-                                                                        <span className="text-xs font-bold text-700 uppercase">
+                                                                    <div className="flex align-items-center pb-2 mb-2 border-bottom-1 surface-border" style={{ gap: '8px' }}>
+                                                                        <FileText size={14} className="text-teal-600 flex-shrink-0" />
+                                                                        <span
+                                                                            className="text-xs font-bold text-teal-900 uppercase"
+                                                                            style={{ letterSpacing: '0.04em', lineHeight: 1.2 }}
+                                                                        >
                                                                             Catatan Petugas Ruangan
                                                                         </span>
                                                                     </div>
                                                                     <div
-                                                                        className="flex-grow-1 text-xs text-800 line-height-2"
-                                                                        style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
+                                                                        className="flex-grow-1 text-xs font-semibold text-slate-800"
+                                                                        style={{ wordBreak: 'break-word', overflowWrap: 'anywhere', lineHeight: 1.6 }}
                                                                     >
                                                                         {renderFieldContent(layanan.catatan_petugas)}
                                                                     </div>
@@ -963,15 +1162,18 @@ export const DrawerRiwayatPasien: React.FC<DrawerRiwayatPasienProps> = ({
                                                                     className="surface-50 border-round-lg border-1 surface-border p-3 h-full flex flex-column border-left-3"
                                                                     style={{ borderLeftColor: '#0f766e' }}
                                                                 >
-                                                                    <div className="flex align-items-center gap-1.5 pb-2 mb-2 border-bottom-1 surface-border">
-                                                                        <Activity size={15} className="text-teal-700" />
-                                                                        <span className="text-xs font-bold text-700 uppercase">
+                                                                    <div className="flex align-items-center pb-2 mb-2 border-bottom-1 surface-border" style={{ gap: '8px' }}>
+                                                                        <Activity size={14} className="text-teal-600 flex-shrink-0" />
+                                                                        <span
+                                                                            className="text-xs font-bold text-teal-900 uppercase"
+                                                                            style={{ letterSpacing: '0.04em', lineHeight: 1.2 }}
+                                                                        >
                                                                             Catatan Prosedur / Tindakan
                                                                         </span>
                                                                     </div>
                                                                     <div
-                                                                        className="flex-grow-1 text-xs text-800 line-height-2"
-                                                                        style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
+                                                                        className="flex-grow-1 text-xs font-semibold text-slate-800"
+                                                                        style={{ wordBreak: 'break-word', overflowWrap: 'anywhere', lineHeight: 1.6 }}
                                                                     >
                                                                         {renderFieldContent(layanan.catatan_tindakan)}
                                                                     </div>
@@ -992,15 +1194,18 @@ export const DrawerRiwayatPasien: React.FC<DrawerRiwayatPasienProps> = ({
                                                                     className="surface-50 border-round-lg border-1 surface-border p-3 h-full flex flex-column border-left-3"
                                                                     style={{ borderLeftColor: '#0f766e' }}
                                                                 >
-                                                                    <div className="flex align-items-center gap-1.5 pb-2 mb-2 border-bottom-1 surface-border">
-                                                                        <Sparkles size={15} className="text-teal-700" />
-                                                                        <span className="text-xs font-bold text-700 uppercase">
+                                                                    <div className="flex align-items-center pb-2 mb-2 border-bottom-1 surface-border" style={{ gap: '8px' }}>
+                                                                        <Sparkles size={14} className="text-teal-600 flex-shrink-0" />
+                                                                        <span
+                                                                            className="text-xs font-bold text-teal-900 uppercase"
+                                                                            style={{ letterSpacing: '0.04em', lineHeight: 1.2 }}
+                                                                        >
                                                                             Hasil Treatment &amp; Evaluasi
                                                                         </span>
                                                                     </div>
                                                                     <div
-                                                                        className="flex-grow-1 text-xs text-800 line-height-2"
-                                                                        style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
+                                                                        className="flex-grow-1 text-xs font-semibold text-slate-800"
+                                                                        style={{ wordBreak: 'break-word', overflowWrap: 'anywhere', lineHeight: 1.6 }}
                                                                     >
                                                                         {renderFieldContent(layanan.catatan_hasil_treatment)}
                                                                     </div>
@@ -1013,22 +1218,28 @@ export const DrawerRiwayatPasien: React.FC<DrawerRiwayatPasienProps> = ({
                                                 {/* KOTAK 3: Data & Parameter Klinis Ruangan */}
                                                 {validFormData.length > 0 && (
                                                     <div className="surface-50 border-round-lg border-1 surface-border p-3">
-                                                        <div className="flex align-items-center gap-1.5 pb-2 mb-2 border-bottom-1 surface-border">
-                                                            <ClipboardList size={15} className="text-teal-700" />
-                                                            <span className="text-xs font-bold text-700 uppercase tracking-wider">
+                                                        <div className="flex align-items-center pb-2 mb-2 border-bottom-1 surface-border" style={{ gap: '8px' }}>
+                                                            <ClipboardList size={14} className="text-teal-600 flex-shrink-0" />
+                                                            <span
+                                                                className="text-xs font-bold text-teal-800 uppercase"
+                                                                style={{ letterSpacing: '0.05em', lineHeight: 1.2 }}
+                                                            >
                                                                 Data &amp; Parameter Klinis Ruangan
                                                             </span>
                                                         </div>
                                                         <div className="grid formgrid -m-1">
                                                             {validFormData.map((f: any, fIdx: number) => (
                                                                 <div key={fIdx} className="col-12 sm:col-6 md:col-4 p-1">
-                                                                    <div className="bg-white p-2.5 border-round-md border-1 surface-border h-full flex flex-column justify-content-between">
-                                                                        <span className="text-500 font-bold uppercase block mb-1 text-[10px] truncate">
+                                                                    <div className="bg-white p-3 border-round-md border-1 surface-border h-full flex flex-column justify-content-between">
+                                                                        <span
+                                                                            className="text-slate-500 font-bold uppercase block mb-1.5 text-[10px] truncate"
+                                                                            style={{ letterSpacing: '0.06em', lineHeight: 1.2 }}
+                                                                        >
                                                                             {f.label}
                                                                         </span>
                                                                         <span
-                                                                            className="font-semibold text-900 text-xs block break-words"
-                                                                            style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
+                                                                            className="font-semibold text-slate-900 text-xs block break-words"
+                                                                            style={{ wordBreak: 'break-word', overflowWrap: 'anywhere', lineHeight: 1.6 }}
                                                                         >
                                                                             {renderFieldContent(f.value)}
                                                                         </span>
@@ -1043,17 +1254,20 @@ export const DrawerRiwayatPasien: React.FC<DrawerRiwayatPasienProps> = ({
                                                 {fotos && fotos.length > 0 && (
                                                     <div className="surface-50 border-round-lg border-1 surface-border p-3">
                                                         <div className="flex align-items-center justify-content-between pb-2 mb-2 border-bottom-1 surface-border">
-                                                            <div className="flex align-items-center gap-1.5">
-                                                                <ImageIcon size={15} className="text-teal-700" />
-                                                                <span className="text-xs font-bold text-700 uppercase tracking-wider">
+                                                            <div className="flex align-items-center" style={{ gap: '8px' }}>
+                                                                <ImageIcon size={14} className="text-teal-600 flex-shrink-0" />
+                                                                <span
+                                                                    className="text-xs font-bold text-teal-800 uppercase"
+                                                                    style={{ letterSpacing: '0.05em', lineHeight: 1.2 }}
+                                                                >
                                                                     Dokumentasi Foto Sesi (Sebelum &amp; Sesudah)
                                                                 </span>
                                                             </div>
-                                                            <span className="text-[10px] text-500 italic">
+                                                            <span className="text-[10.5px] text-slate-500 italic">
                                                                 Klik untuk perbesar
                                                             </span>
                                                         </div>
-                                                        <div className="flex gap-2.5 flex-wrap align-items-center">
+                                                        <div className="flex flex-wrap align-items-center" style={{ gap: '12px' }}>
                                                             {fotos.map((foto: any, fIdx: number) => {
                                                                 const isBefore =
                                                                     foto.tipe === 'before' || foto.tipe === 'foto_before';
@@ -1069,7 +1283,8 @@ export const DrawerRiwayatPasien: React.FC<DrawerRiwayatPasienProps> = ({
                                                                 return (
                                                                     <div
                                                                         key={foto.id || fIdx}
-                                                                        className="bg-white p-2 border-round-lg border-1 surface-border flex flex-column align-items-center gap-1.5 cursor-pointer hover:shadow-1 transition-all"
+                                                                        className="bg-white p-2.5 border-round-lg border-1 surface-border flex flex-column align-items-center cursor-pointer hover:shadow-1 transition-all"
+                                                                        style={{ gap: '8px' }}
                                                                         onClick={() =>
                                                                             openPhotoZoom(
                                                                                 foto.url_foto,
@@ -1100,20 +1315,17 @@ export const DrawerRiwayatPasien: React.FC<DrawerRiwayatPasienProps> = ({
                                                                             </div>
                                                                         </div>
                                                                         <span
-                                                                            className="text-[9px] font-bold px-2 py-0.5 border-round-pill uppercase"
-                                                                            style={
-                                                                                isBefore
-                                                                                    ? {
-                                                                                          backgroundColor: '#f1f5f9',
-                                                                                          color: '#475569',
-                                                                                          border: '1px solid #cbd5e1',
-                                                                                      }
-                                                                                    : {
-                                                                                          backgroundColor: '#ecfdf5',
-                                                                                          color: '#059669',
-                                                                                          border: '1px solid #a7f3d0',
-                                                                                      }
-                                                                            }
+                                                                            className="text-[10px] font-bold inline-flex align-items-center justify-content-center uppercase"
+                                                                            style={{
+                                                                                height: '22px',
+                                                                                padding: '0 8px',
+                                                                                borderRadius: '4px',
+                                                                                lineHeight: 1,
+                                                                                letterSpacing: '0.025em',
+                                                                                backgroundColor: isBefore ? '#f1f5f9' : '#ecfdf5',
+                                                                                color: isBefore ? '#475569' : '#059669',
+                                                                                border: `1px solid ${isBefore ? '#cbd5e1' : '#a7f3d0'}`
+                                                                            }}
                                                                         >
                                                                             {badgeLabel}
                                                                         </span>
@@ -1126,7 +1338,7 @@ export const DrawerRiwayatPasien: React.FC<DrawerRiwayatPasienProps> = ({
 
                                                 {/* Fallback jika tidak ada konten khusus */}
                                                 {!hasAnyContent && (
-                                                    <div className="surface-50 border-round-lg border-1 surface-border p-3 text-xs text-400 italic flex align-items-center gap-2">
+                                                    <div className="surface-50 border-round-lg border-1 surface-border p-3 text-xs text-slate-400 italic flex align-items-center" style={{ gap: '10px' }}>
                                                         <CheckCircle2 size={15} className="text-teal-600 flex-shrink-0" />
                                                         <span>
                                                             Sesi pelayanan telah selesai sesuai prosedur standar klinis tanpa catatan khusus.
@@ -1149,211 +1361,186 @@ export const DrawerRiwayatPasien: React.FC<DrawerRiwayatPasienProps> = ({
     // RENDER TABLE VIEW (DEFAULT LIST)
     // ==========================================
     const renderTableView = () => {
-        // DataTable header matching master-data format exactly
+        // DataTable header matching standard laporan toolbar design
         const tableHeader = (
-            <div className="flex flex-column gap-3">
-                <div className="flex flex-wrap align-items-center justify-content-between gap-2">
-                    <span className="text-xl font-bold">Riwayat Kunjungan Pasien</span>
-                    <div className="flex align-items-center gap-2 ml-auto w-full md:w-auto">
-                        <IconField iconPosition="left" className="w-full md:w-20rem">
-                            <InputIcon className="pi pi-search" />
-                            <InputText
-                                value={globalFilter}
-                                onChange={(e) => setGlobalFilter(e.target.value)}
-                                placeholder="Cari Data..."
-                                className="w-full text-sm"
-                            />
-                        </IconField>
-                        <Button
-                            type="button"
-                            icon="pi pi-filter-slash"
-                            outlined
-                            severity="danger"
-                            tooltip="Reset Filter"
-                            tooltipOptions={{ position: 'bottom' }}
-                            onClick={() => setGlobalFilter('')}
-                        />
-                    </div>
+            <div className="flex flex-wrap align-items-center justify-content-between gap-3">
+                <div className="flex align-items-center gap-2">
+                    <Clock size={18} className="text-teal-600 flex-shrink-0" />
+                    <span className="text-base font-bold text-800">
+                        Daftar Riwayat Kunjungan Pasien
+                    </span>
                 </div>
-                <div className="flex flex-wrap align-items-center gap-3 px-1 py-2 border-round-md surface-100 text-xs font-medium text-color-secondary">
-                    <span className="flex align-items-center gap-1">
-                        <i className="pi pi-info-circle" />
-                        <span className="font-semibold">KETERANGAN STATUS:</span>
-                    </span>
-                    <span className="flex align-items-center gap-1">
-                        <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', backgroundColor: '#22c55e', boxShadow: '0 1px 3px #22c55e55' }} />
-                        Selesai
-                    </span>
+                <div className="flex align-items-center gap-2 ml-auto w-full md:w-auto">
+                    <IconField iconPosition="left" className="w-full md:w-20rem">
+                        <InputIcon className="pi pi-search" />
+                        <InputText
+                            value={globalFilter}
+                            onChange={(e) => setGlobalFilter(e.target.value)}
+                            placeholder="Cari kunjungan, dokter, layanan..."
+                            className="w-full text-sm"
+                        />
+                    </IconField>
+                    <Button
+                        type="button"
+                        icon="pi pi-filter-slash"
+                        outlined
+                        severity="danger"
+                        size="small"
+                        className="border-round-lg"
+                        tooltip="Reset Filter"
+                        tooltipOptions={{ position: 'bottom' }}
+                        onClick={() => setGlobalFilter('')}
+                    />
                 </div>
             </div>
         );
 
         return (
-            <DataTable
-                value={filteredRiwayatList}
-                loading={loading}
-                emptyMessage="Tidak ada data riwayat kunjungan pasien ditemukan."
-                className="p-datatable-sm"
-                rowHover
-                stripedRows
-                paginator
-                rows={10}
-                rowsPerPageOptions={[5, 10, 20]}
-                paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
-                currentPageReportTemplate="Menampilkan {first} - {last} dari {totalRecords} data"
-                header={tableHeader}
-                responsiveLayout="scroll"
-            >
-                {/* No */}
-                <Column
-                    header="No"
-                    align="center"
-                    alignHeader="center"
-                    headerStyle={{ width: '50px', textAlign: 'center', fontWeight: 'bold' }}
-                    style={{ width: '50px', textAlign: 'center' }}
-                    body={(_, options) => (
-                        <span className="font-semibold text-color-secondary">
-                            {options.rowIndex + 1}
-                        </span>
-                    )}
-                />
+            <div className="flex flex-column gap-3">
+                {/* Legend Box Keterangan Status Sesuai Desain Laporan */}
+                <div className="flex flex-wrap align-items-center gap-4 p-3 surface-50 border-round-xl border-1 surface-border">
+                    <span className="flex align-items-center text-xs font-bold text-500 uppercase tracking-wider mr-2">
+                        <i className="pi pi-info-circle mr-2" /> KETERANGAN STATUS:
+                    </span>
+                    <div className="flex align-items-center gap-2">
+                        <span
+                            className="block border-round-sm"
+                            style={{ width: '12px', height: '12px', backgroundColor: '#22c55e' }}
+                        />
+                        <span className="text-xs font-semibold text-700">Selesai</span>
+                    </div>
+                    <div className="flex align-items-center gap-2">
+                        <span
+                            className="block border-round-sm"
+                            style={{ width: '12px', height: '12px', backgroundColor: '#f59e0b' }}
+                        />
+                        <span className="text-xs font-semibold text-700">Sedang Berlangsung</span>
+                    </div>
+                </div>
 
-                {/* Status Indicator (Hanya Warna Sesuai Master Data) */}
-                <Column
-                    header=""
-                    headerStyle={{ width: '3rem' }}
-                    align="center"
-                    body={(rowData) => {
-                        const isSelesai = rowData.status_kunjungan === 'selesai';
-                        return (
-                            <span
-                                style={{
-                                    display: 'inline-block',
-                                    width: '14px',
-                                    height: '14px',
-                                    borderRadius: '3px',
-                                    backgroundColor: isSelesai ? '#22c55e' : '#f59e0b',
-                                    boxShadow: isSelesai ? '0 1px 3px #22c55e55' : '0 1px 3px #f59e0b55',
-                                    verticalAlign: 'middle',
-                                }}
-                                title={isSelesai ? 'Status: Selesai' : 'Status: Dalam Proses'}
-                            />
-                        );
-                    }}
-                />
+                {/* Card Container Tabel Sesuai Desain Laporan */}
+                <div className="card p-3 border-round-xl border-1 surface-border surface-card shadow-1">
+                    <DataTable
+                        value={filteredRiwayatList}
+                        loading={loading}
+                        emptyMessage="Tidak ada data riwayat kunjungan pasien ditemukan."
+                        className="p-datatable-sm"
+                        rowHover
+                        paginator
+                        rows={10}
+                        rowsPerPageOptions={[5, 10, 20]}
+                        paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
+                        currentPageReportTemplate="Menampilkan {first} - {last} dari {totalRecords} data"
+                        header={tableHeader}
+                        responsiveLayout="scroll"
+                    >
+                        {/* 1. Status Indicator (Kolom Pertama Sesuai Standar Laporan) */}
+                        <Column
+                            header=""
+                            headerStyle={{ width: '3.5rem' }}
+                            align="center"
+                            body={(rowData) => {
+                                const isSelesai = rowData.status_kunjungan === 'selesai';
+                                const color = isSelesai ? '#22c55e' : '#f59e0b';
+                                return (
+                                    <span
+                                        style={{
+                                            display: 'inline-block',
+                                            width: '14px',
+                                            height: '14px',
+                                            borderRadius: '3px',
+                                            backgroundColor: color,
+                                            boxShadow: `0 1px 3px ${color}55`,
+                                            verticalAlign: 'middle',
+                                        }}
+                                        title={isSelesai ? 'Status: Selesai' : 'Status: Sedang Berlangsung'}
+                                    />
+                                );
+                            }}
+                        />
 
-                {/* Tanggal Kunjungan */}
-                <Column
-                    header="Tanggal Kunjungan"
-                    sortable
-                    sortField="tanggal_kunjungan"
-                    headerStyle={{ fontWeight: 'bold' }}
-                    style={{ minWidth: '160px' }}
-                    body={(rowData) => (
-                        <div>
-                            <div className="font-bold text-900">
-                                {formatShortDate(rowData.tanggal_kunjungan)}
-                            </div>
-                            <div className="text-xs text-500 mt-1">
-                                {rowData.jam_datang || '-'} WIB
-                            </div>
-                        </div>
-                    )}
-                />
+                        {/* Tanggal Kunjungan */}
+                        <Column
+                            header="Tanggal Kunjungan"
+                            sortable
+                            sortField="tanggal_kunjungan"
+                            headerStyle={{ fontWeight: 'bold' }}
+                            style={{ minWidth: '160px' }}
+                            body={(rowData) => (
+                                <div>
+                                    <div className="font-bold text-900">
+                                        {formatShortDate(rowData.tanggal_kunjungan)}
+                                    </div>
+                                    {rowData.jam_datang && (
+                                        <div className="text-xs text-500 mt-1">
+                                            {rowData.jam_datang} WIB
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        />
 
-                {/* Kode Kunjungan */}
-                <Column
-                    header="Kode"
-                    headerStyle={{ fontWeight: 'bold' }}
-                    style={{ width: '130px' }}
-                    body={(rowData) => (
-                        <span className="font-mono font-semibold text-color-secondary text-xs">
-                            {rowData.kode_kunjungan || '-'}
-                        </span>
-                    )}
-                />
+                        {/* Kode Kunjungan */}
+                        <Column
+                            header="Kode"
+                            sortable
+                            sortField="kode_kunjungan"
+                            headerStyle={{ fontWeight: 'bold' }}
+                            style={{ width: '130px' }}
+                            body={(rowData) => (
+                                <span className="font-mono font-semibold text-color-secondary text-xs">
+                                    {rowData.kode_kunjungan || ''}
+                                </span>
+                            )}
+                        />
 
-                {/* Dokter & Petugas Pelaksana */}
-                <Column
-                    header="Dokter / Petugas"
-                    sortable
-                    sortField="header_rekam_medis.dokter_nama"
-                    headerStyle={{ fontWeight: 'bold' }}
-                    style={{ minWidth: '180px' }}
-                    body={(rowData) => {
-                        let dokter = rowData.header_rekam_medis?.dokter_nama;
-                        const layList = rowData.layanan || [];
+                        {/* Dokter / Petugas Pelaksana (Terapis ada di dalam riwayat) */}
+                        <Column
+                            header="Dokter / Petugas"
+                            sortable
+                            sortField="header_rekam_medis.dokter_nama"
+                            headerStyle={{ fontWeight: 'bold' }}
+                            style={{ minWidth: '180px' }}
+                            body={(rowData) => {
+                                let dokter = rowData.header_rekam_medis?.dokter_nama;
+                                const layList = rowData.layanan || [];
 
-                        if (!dokter && layList.length > 0) {
-                            for (const lay of layList) {
-                                if (lay.petugas?.nama) {
-                                    dokter = lay.petugas.nama;
-                                    break;
-                                }
-                                if (Array.isArray(lay.daftar_petugas)) {
-                                    const pj = lay.daftar_petugas.find((p: any) => p.is_dokter_pj || p.role === 'DOKTER');
-                                    if (pj?.nama) {
-                                        dokter = pj.nama;
-                                        break;
+                                if (!dokter && layList.length > 0) {
+                                    for (const lay of layList) {
+                                        if (lay.petugas?.nama) {
+                                            dokter = lay.petugas.nama;
+                                            break;
+                                        }
+                                        if (Array.isArray(lay.daftar_petugas)) {
+                                            const pj = lay.daftar_petugas.find((p: any) => p.is_dokter_pj || p.role === 'DOKTER');
+                                            if (pj?.nama) {
+                                                dokter = pj.nama;
+                                                break;
+                                            }
+                                        }
+                                        if (lay.rekam_medis?.dokter_penanggung_jawab?.nama) {
+                                            dokter = lay.rekam_medis.dokter_penanggung_jawab.nama;
+                                            break;
+                                        }
                                     }
                                 }
-                                if (lay.rekam_medis?.dokter_penanggung_jawab?.nama) {
-                                    dokter = lay.rekam_medis.dokter_penanggung_jawab.nama;
-                                    break;
+
+                                if (!dokter) {
+                                    return null;
                                 }
-                            }
-                        }
 
-                        // Kumpulkan nama terapis pendamping jika ada
-                        const terapisNames: string[] = [];
-                        if (Array.isArray(rowData.header_rekam_medis?.terapis_list)) {
-                            rowData.header_rekam_medis.terapis_list.forEach((t: any) => {
-                                const tName = t?.nama || t?.nama_petugas;
-                                if (tName && !terapisNames.includes(tName)) terapisNames.push(tName);
-                            });
-                        }
-                        layList.forEach((lay: any) => {
-                            if (Array.isArray(lay.terapis_pendamping)) {
-                                lay.terapis_pendamping.forEach((t: any) => {
-                                    const tName = t?.nama || t?.nama_petugas;
-                                    if (tName && !terapisNames.includes(tName)) terapisNames.push(tName);
-                                });
-                            }
-                            if (Array.isArray(lay.daftar_petugas)) {
-                                lay.daftar_petugas.forEach((p: any) => {
-                                    if (!p.is_dokter_pj && p.role !== 'DOKTER' && p.nama && !terapisNames.includes(p.nama)) {
-                                        terapisNames.push(p.nama);
-                                    }
-                                });
-                            }
-                        });
+                                const cleanDokter =
+                                    dokter.toLowerCase().startsWith('dr') || dokter.includes(',')
+                                        ? dokter
+                                        : `dr. ${dokter}`;
 
-                        if (!dokter && terapisNames.length === 0) {
-                            return <span className="text-500">-</span>;
-                        }
-
-                        const cleanDokter = dokter
-                            ? (dokter.toLowerCase().startsWith('dr') || dokter.includes(',') ? dokter : `dr. ${dokter}`)
-                            : null;
-
-                        return (
-                            <div className="flex flex-column gap-1">
-                                {cleanDokter && (
+                                return (
                                     <span className="font-semibold text-900 text-sm">
                                         {cleanDokter}
                                     </span>
-                                )}
-                                {terapisNames.length > 0 && (
-                                    <div className="flex flex-wrap items-center gap-1">
-                                        <span className="text-[10px] text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200 font-medium">
-                                            Terapis: {terapisNames.join(', ')}
-                                        </span>
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    }}
-                />
+                                );
+                            }}
+                        />
 
                 {/* Layanan */}
                 <Column
@@ -1362,7 +1549,7 @@ export const DrawerRiwayatPasien: React.FC<DrawerRiwayatPasienProps> = ({
                     style={{ minWidth: '180px' }}
                     body={(rowData) => {
                         const layList = rowData.layanan || [];
-                        if (layList.length === 0) return <span className="text-500">-</span>;
+                        if (layList.length === 0) return null;
 
                         // Ambil nama layanan unik agar layanan yang sama pada sesi Konsultasi & Tindakan tidak tampil dobel
                         const uniqueLayananNames = Array.from(
@@ -1391,24 +1578,6 @@ export const DrawerRiwayatPasien: React.FC<DrawerRiwayatPasienProps> = ({
                     }}
                 />
 
-                {/* Diagnosis */}
-                <Column
-                    header="Diagnosis"
-                    headerStyle={{ fontWeight: 'bold' }}
-                    style={{ minWidth: '150px' }}
-                    body={(rowData) => {
-                        const diag = rowData.header_rekam_medis?.diagnosis;
-                        return diag && diag !== '-' ? (
-                            <span className="font-semibold text-900 text-truncate block" title={diag} style={{ maxWidth: '180px' }}>
-                                {diag}
-                            </span>
-                        ) : (
-                            <span className="text-500">-</span>
-                        );
-                    }}
-                />
-
-
                 {/* Aksi */}
                 <Column
                     header="Aksi"
@@ -1422,7 +1591,8 @@ export const DrawerRiwayatPasien: React.FC<DrawerRiwayatPasienProps> = ({
                                 icon="pi pi-eye"
                                 outlined
                                 severity="info"
-                                className="p-button-sm border-round-md"
+                                size="small"
+                                className="p-button-sm border-round-lg"
                                 tooltip="Lihat Detail RME"
                                 tooltipOptions={{ position: 'top' }}
                                 onClick={(e) => {
@@ -1431,10 +1601,11 @@ export const DrawerRiwayatPasien: React.FC<DrawerRiwayatPasienProps> = ({
                                 }}
                             />
                             <Button
-                                icon={<IconMedicalRecord size={16} />}
+                                icon={<IconMedicalRecord size={15} />}
                                 outlined
                                 severity="success"
-                                className="p-button-sm border-round-md"
+                                size="small"
+                                className="p-button-sm border-round-lg"
                                 tooltip="Cetak Laporan RME"
                                 tooltipOptions={{ position: 'top' }}
                                 onClick={(e) => {
@@ -1447,8 +1618,10 @@ export const DrawerRiwayatPasien: React.FC<DrawerRiwayatPasienProps> = ({
                     )}
                 />
             </DataTable>
-        );
-    };
+        </div>
+    </div>
+);
+};
 
     return (
         <>

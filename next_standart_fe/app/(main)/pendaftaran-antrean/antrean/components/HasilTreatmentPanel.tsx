@@ -95,8 +95,9 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
     const [loadingProduk, setLoadingProduk] = useState<boolean>(false);
     const [selectedProdukList, setSelectedProdukList] = useState<SelectedProduk[]>([]);
 
-    // State Popup Modal Produk
+    // State Popup Modal Produk & Draft Seleksi
     const [showProdukModal, setShowProdukModal] = useState<boolean>(false);
+    const [draftProdukList, setDraftProdukList] = useState<SelectedProduk[]>([]);
     const [modalSearch, setModalSearch] = useState<string>('');
     const [modalCategory, setModalCategory] = useState<string>('ALL');
 
@@ -139,6 +140,7 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
         };
 
         setSelectedProdukList((prev) => [...prev, customItem]);
+        setDraftProdukList((prev) => [...prev, customItem]);
         setShowCustomFeeModal(false);
         setCustomFeeNama('');
         setCustomFeeHarga(null);
@@ -334,18 +336,31 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
     // Guard untuk mencegah double-trigger / duplicate click event
     const lastAddRef = useRef<{ kode: string; time: number }>({ kode: '', time: 0 });
 
-    // Tambahkan produk ke daftar terpilih
-    const handleAddProduk = (prod: ProdukItem) => {
+    // Buka Pop-up Modal Produk: inisialisasi draft dari daftar yang sudah terpilih
+    const handleOpenProdukModal = () => {
         if (isSubmitted) return;
+        setDraftProdukList([...selectedProdukList]);
+        setModalSearch('');
+        setModalCategory('ALL');
+        setShowProdukModal(true);
+    };
 
-        // Cegah eksekusi ganda jika terpanggil lebih dari 1x dalam interval sangat cepat (< 250ms)
+    // Konfirmasi dari Pop-up Modal Produk: terapkan draft ke tampilan utama
+    const handleConfirmProdukModal = () => {
+        setSelectedProdukList([...draftProdukList]);
+        setShowProdukModal(false);
+        showSuccess(toast, 'Daftar produk tambahan berhasil diterapkan!');
+    };
+
+    // Tambahkan produk ke daftar draft di modal
+    const handleDraftAddProduk = (prod: ProdukItem) => {
         const now = Date.now();
         if (lastAddRef.current.kode === prod.kode_produk && now - lastAddRef.current.time < 250) {
             return;
         }
         lastAddRef.current = { kode: prod.kode_produk, time: now };
 
-        setSelectedProdukList((prev) => {
+        setDraftProdukList((prev) => {
             const existingIndex = prev.findIndex((p) => p.kode_produk === prod.kode_produk);
             if (existingIndex > -1) {
                 return prev.map((p, idx) =>
@@ -360,14 +375,11 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                 qty: 1
             }];
         });
-
-        showSuccess(toast, `Produk "${prod.nama}" ditambahkan!`);
     };
 
-    // Update Qty produk
-    const handleUpdateQty = (kode_produk: string, delta: number) => {
-        if (isSubmitted) return;
-        setSelectedProdukList((prev) =>
+    // Update Qty produk di draft modal
+    const handleDraftUpdateQty = (kode_produk: string, delta: number) => {
+        setDraftProdukList((prev) =>
             prev
                 .map((p) => {
                     if (p.kode_produk === kode_produk) {
@@ -380,13 +392,12 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
         );
     };
 
-    // Remove produk
-    const handleRemoveProduk = (kode_produk: string) => {
-        if (isSubmitted) return;
-        setSelectedProdukList((prev) => prev.filter((p) => p.kode_produk !== kode_produk));
+    // Remove produk di draft modal
+    const handleDraftRemoveProduk = (kode_produk: string) => {
+        setDraftProdukList((prev) => prev.filter((p) => p.kode_produk !== kode_produk));
     };
 
-    // Calculate Total
+    // Calculate Total di Tampilan Utama
     const grandTotal = selectedProdukList.reduce((acc, curr) => acc + curr.qty * curr.harga_jual, 0);
     const totalHargaLayanan = layananPasienList.reduce((acc, curr) => acc + parseFloat(curr.harga || 0), 0);
 
@@ -511,22 +522,38 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
         return Array.from(setCats);
     }, [produkOptions]);
 
-    // Filter produk options di modal: jangan munculkan yang sudah dipilih agar tidak duplikat
+    // Filter produk options di modal: produk yang sudah dipilih TETAP ditampilkan di list (Point 3)
     const modalFilteredProduk = React.useMemo(() => {
-        const selectedCodes = new Set(selectedProdukList.map((p) => p.kode_produk));
         return produkOptions.filter((p) => {
-            if (selectedCodes.has(p.kode_produk)) return false;
             if (modalCategory !== 'ALL' && p.nama_kategori !== modalCategory) return false;
             if (modalSearch.trim()) {
-                const q = modalSearch.toLowerCase();
-                const matchName = p.nama.toLowerCase().includes(q);
-                const matchCode = p.kode_produk.toLowerCase().includes(q);
+                const q = modalSearch.toLowerCase().trim();
+                const matchName = (p.nama || '').toLowerCase().includes(q);
+                const matchCode = (p.kode_produk || '').toLowerCase().includes(q);
                 const matchCat = (p.nama_kategori || '').toLowerCase().includes(q);
                 if (!matchName && !matchCode && !matchCat) return false;
             }
             return true;
         });
-    }, [produkOptions, selectedProdukList, modalCategory, modalSearch]);
+    }, [produkOptions, modalCategory, modalSearch]);
+
+    // Map produk terpilih di draft untuk indikator visual di katalog modal
+    const draftSelectedMap = React.useMemo(() => {
+        const map = new Map<string, number>();
+        draftProdukList.forEach((item) => {
+            map.set(item.kode_produk, item.qty);
+        });
+        return map;
+    }, [draftProdukList]);
+
+    // Subtotal dan total item dalam draft modal
+    const draftGrandTotal = React.useMemo(() => {
+        return draftProdukList.reduce((acc, curr) => acc + curr.qty * curr.harga_jual, 0);
+    }, [draftProdukList]);
+
+    const draftTotalQty = React.useMemo(() => {
+        return draftProdukList.reduce((acc, curr) => acc + curr.qty, 0);
+    }, [draftProdukList]);
 
     return (
         <div className="card shadow-2 border-round-xl p-4 surface-card border-top-3 border-teal-500 mb-4">
@@ -590,9 +617,10 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                         {/* 1. Foto Before Box */}
                         <div className="surface-card p-3 border-round-lg border-1 surface-border">
                             <div className="flex align-items-center justify-content-between mb-2">
-                                <span className="text-xs font-bold text-700 flex align-items-center gap-1.5">
-                                    <span>📷</span> FOTO BEFORE (SEBELUM TINDAKAN)
-                                </span>
+                                <div className="flex align-items-center gap-2">
+                                    <span className="text-sm line-height-1 flex align-items-center justify-content-center" style={{ transform: 'translateY(-1.5px)' }}>📷</span>
+                                    <span className="text-xs font-bold text-700">FOTO BEFORE (SEBELUM TINDAKAN)</span>
+                                </div>
                                 {fotoBeforeUrl && (
                                     <Tag value="Tersedia" severity="success" className="text-[10px] px-2 py-0" />
                                 )}
@@ -667,9 +695,10 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                         {/* 2. Foto After Box */}
                         <div className="surface-card p-3 border-round-lg border-1 surface-border">
                             <div className="flex align-items-center justify-content-between mb-2">
-                                <span className="text-xs font-bold text-700 flex align-items-center gap-1.5">
-                                    <span>✨</span> FOTO AFTER (SESUDAH TINDAKAN)
-                                </span>
+                                <div className="flex align-items-center gap-2">
+                                    <span className="text-sm line-height-1 flex align-items-center justify-content-center" style={{ transform: 'translateY(-1px)' }}>✨</span>
+                                    <span className="text-xs font-bold text-700">FOTO AFTER (SESUDAH TINDAKAN)</span>
+                                </div>
                                 {fotoAfterUrl && (
                                     <Tag value="Tersedia" severity="success" className="text-[10px] px-2 py-0" />
                                 )}
@@ -765,13 +794,21 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                         {/* 1. LAYANAN / TINDAKAN YANG DIPILIH PASIEN DARI PENDAFTARAN / SETELAH KONSULTASI */}
                         <div>
                             <div className="flex align-items-center justify-content-between mb-2">
-                                <span className="text-xs font-bold text-teal-900 uppercase tracking-wider flex align-items-center gap-1.5">
-                                    <TagIcon size={14} className="text-teal-600" />
-                                    Layanan yang Dipilih Pasien ({layananPasienList.length > 0 ? layananPasienList.length : 1})
-                                </span>
+                                <div className="flex align-items-center" style={{ gap: '6px' }}>
+                                    <TagIcon size={14} className="text-teal-600 flex-shrink-0" />
+                                    <span className="text-xs font-bold text-teal-900 uppercase tracking-wider" style={{ lineHeight: 1 }}>
+                                        Layanan yang Dipilih Pasien ({layananPasienList.length > 0 ? layananPasienList.length : 1})
+                                    </span>
+                                </div>
                                 <span
-                                    className="text-[11px] font-bold text-teal-700 bg-teal-50 px-2.5 py-0.5 border-1 border-teal-200"
-                                    style={{ borderRadius: '9999px' }}
+                                    className="text-[11px] font-bold text-teal-700 bg-teal-50 border-1 border-teal-200 inline-flex align-items-center justify-content-center flex-shrink-0"
+                                    style={{
+                                        height: '22px',
+                                        padding: '0 8px',
+                                        borderRadius: '6px',
+                                        whiteSpace: 'nowrap',
+                                        lineHeight: 1
+                                    }}
                                 >
                                     Tindakan
                                 </span>
@@ -794,12 +831,14 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                         transition: 'all 0.2s ease'
                                     }}
                                 >
-                                    <div className="flex align-items-center gap-2.5 min-w-0">
+                                    <div className="flex align-items-center min-w-0" style={{ gap: '10px' }}>
                                         <div
                                             className="flex align-items-center justify-content-center flex-shrink-0"
                                             style={{
                                                 width: '28px',
                                                 height: '28px',
+                                                minWidth: '28px',
+                                                minHeight: '28px',
                                                 borderRadius: '50%',
                                                 background: '#ccfbf1',
                                                 color: '#0f766e'
@@ -807,18 +846,24 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                         >
                                             <CheckCircle2 size={15} />
                                         </div>
-                                        <div className="min-w-0">
-                                            <span className="font-bold text-xs text-900 block overflow-hidden text-ellipsis white-space-nowrap">
+                                        <div className="min-w-0 flex flex-column justify-content-center" style={{ gap: '2px' }}>
+                                            <span
+                                                className="font-bold text-xs text-900 block overflow-hidden text-ellipsis white-space-nowrap"
+                                                style={{ lineHeight: '1.3' }}
+                                            >
                                                 {activePatient?.nama_layanan || 'Layanan Pasien'}
                                             </span>
-                                            <span className="text-[11px] text-teal-600 font-medium block">
+                                            <span
+                                                className="text-[11px] text-teal-600 font-medium block"
+                                                style={{ lineHeight: '1.2' }}
+                                            >
                                                 {activePatient?.nama_ruangan || namaRuangan || 'Ruangan Tindakan'}
                                             </span>
                                         </div>
                                     </div>
-                                    <div className="text-left sm:text-right pl-5 sm:pl-0">
-                                        <span className="font-bold text-xs text-500 block">Harga di Kasir</span>
-                                        <span className="text-[10px] text-400 font-normal">Tarif Layanan</span>
+                                    <div className="text-left sm:text-right pl-5 sm:pl-0 flex flex-column justify-content-center" style={{ gap: '2px' }}>
+                                        <span className="font-bold text-xs text-500 block" style={{ lineHeight: '1.3' }}>Harga di Kasir</span>
+                                        <span className="text-[10px] text-400 font-normal block" style={{ lineHeight: '1.2' }}>Tarif Layanan</span>
                                     </div>
                                 </div>
                             ) : (
@@ -836,12 +881,14 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                     transition: 'all 0.2s ease'
                                                 }}
                                             >
-                                                <div className="flex align-items-center gap-2.5 min-w-0">
+                                                <div className="flex align-items-center min-w-0" style={{ gap: '10px' }}>
                                                     <div
                                                         className="flex align-items-center justify-content-center flex-shrink-0"
                                                         style={{
                                                             width: '28px',
                                                             height: '28px',
+                                                            minWidth: '28px',
+                                                            minHeight: '28px',
                                                             borderRadius: '50%',
                                                             background: '#ccfbf1',
                                                             color: '#0f766e'
@@ -849,30 +896,41 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                     >
                                                         <CheckCircle2 size={15} />
                                                     </div>
-                                                    <div className="min-w-0">
-                                                        <div className="flex align-items-center gap-2 flex-wrap">
-                                                            <span className="font-bold text-xs text-900 block overflow-hidden text-ellipsis white-space-nowrap">
+                                                    <div className="min-w-0 flex flex-column justify-content-center" style={{ gap: '2px' }}>
+                                                        <div className="flex align-items-center flex-wrap" style={{ gap: '6px' }}>
+                                                            <span
+                                                                className="font-bold text-xs text-900 block overflow-hidden text-ellipsis white-space-nowrap"
+                                                                style={{ lineHeight: '1.3' }}
+                                                            >
                                                                 {lay.nama_layanan || lay.nama}
                                                             </span>
                                                             {lay.is_promo && (
                                                                 <span
-                                                                    className="text-[10px] font-extrabold px-2 py-0.5 border-round-pill bg-red-50 text-red-600 border-1 border-red-200"
+                                                                    className="text-[10px] font-extrabold bg-red-50 text-red-600 border-1 border-red-200"
+                                                                    style={{
+                                                                        borderRadius: '4px',
+                                                                        padding: '1px 5px',
+                                                                        lineHeight: 1
+                                                                    }}
                                                                 >
                                                                     PROMO {lay.jenis_diskon === 'persen' ? `-${lay.nilai_diskon}%` : ''}
                                                                 </span>
                                                             )}
                                                         </div>
-                                                        <span className="text-[11px] text-teal-600 font-medium block">
+                                                        <span
+                                                            className="text-[11px] text-teal-600 font-medium block"
+                                                            style={{ lineHeight: '1.2' }}
+                                                        >
                                                             {lay.nama_kategori || lay.nama_ruangan || namaRuangan || 'Ruangan Tindakan'}
                                                         </span>
                                                     </div>
                                                 </div>
 
-                                                <div className="text-left sm:text-right pl-5 sm:pl-0">
-                                                    <span className="font-black text-xs text-teal-800 block">
+                                                <div className="text-left sm:text-right pl-5 sm:pl-0 flex flex-column justify-content-center" style={{ gap: '2px' }}>
+                                                    <span className="font-black text-xs text-teal-800 block" style={{ lineHeight: '1.3' }}>
                                                         {isKlaim ? 'Klaim Paket (Rp 0)' : formatRupiah(hrg)}
                                                     </span>
-                                                    <span className="text-[10px] text-500 font-normal">
+                                                    <span className="text-[10px] text-500 font-normal block" style={{ lineHeight: '1.2' }}>
                                                         Tarif Layanan
                                                     </span>
                                                 </div>
@@ -885,20 +943,21 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
 
                         {/* 2. PRODUK TAMBAHAN UNTUK KASIR */}
                         <div className="border-top-1 surface-border pt-3 flex-1 flex flex-column">
-                            <div className="flex align-items-center justify-content-between mb-2">
-                                <label className="block text-xs font-extrabold text-teal-800 uppercase tracking-wider flex align-items-center gap-2 m-0">
-                                    <ShoppingBag size={14} className="text-teal-600" />
-                                    PRODUK TAMBAHAN UNTUK KASIR ({selectedProdukList.length})
+                            <div className="flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+                                <label className="block text-xs font-extrabold text-teal-800 uppercase tracking-wider flex align-items-center m-0" style={{ gap: '6px' }}>
+                                    <ShoppingBag size={14} className="text-teal-600 flex-shrink-0" />
+                                    <span>PRODUK TAMBAHAN UNTUK KASIR ({selectedProdukList.length})</span>
                                 </label>
+                                {/* Tombol Tambah/Ubah Produk dan Biaya Custom rapi satu baris tanpa tombol Kosongkan */}
                                 <div className="flex align-items-center gap-2">
                                     <Button
                                         type="button"
-                                        label="Tambah Produk"
-                                        icon="pi pi-plus"
+                                        label={selectedProdukList.length > 0 ? "Ubah / Tambah Produk" : "Tambah Produk"}
+                                        icon={selectedProdukList.length > 0 ? "pi pi-pencil" : "pi pi-plus"}
                                         size="small"
                                         className="text-xs font-bold py-1.5 px-3 border-round-lg bg-teal-600 text-white border-none hover:bg-teal-700 shadow-1 transition-all"
                                         disabled={isSubmitted}
-                                        onClick={() => setShowProdukModal(true)}
+                                        onClick={handleOpenProdukModal}
                                     />
                                     <Button
                                         type="button"
@@ -909,24 +968,10 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                         disabled={isSubmitted}
                                         onClick={() => setShowCustomFeeModal(true)}
                                     />
-                                    {selectedProdukList.length > 0 && !isSubmitted && (
-                                        <button
-                                            type="button"
-                                            onClick={() => setSelectedProdukList([])}
-                                            className="inline-flex align-items-center gap-1 text-[11px] font-semibold text-red-600 hover:text-red-700 border-none bg-transparent cursor-pointer px-2 py-1 border-round"
-                                            style={{ transition: 'all 0.15s ease' }}
-                                            onMouseEnter={(e) => (e.currentTarget.style.background = '#fef2f2')}
-                                            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                                            title="Kosongkan daftar produk terpilih"
-                                        >
-                                            <Trash2 size={12} className="text-red-600" />
-                                            <span>Kosongkan</span>
-                                        </button>
-                                    )}
                                 </div>
                             </div>
 
-                            {/* Daftar Produk Terpilih atau Empty State */}
+                            {/* Daftar Produk Terpilih atau Empty State (Read-only / Terkunci di tampilan utama) */}
                             {selectedProdukList.length === 0 ? (
                                 <div
                                     className="text-center py-4 px-3 surface-card border-1 border-dashed surface-border border-round-xl flex-1 flex flex-column align-items-center justify-content-center gap-2"
@@ -953,7 +998,7 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                         outlined
                                         className="text-xs font-bold mt-1 text-teal-700 border-teal-400 hover:bg-teal-50"
                                         disabled={isSubmitted}
-                                        onClick={() => setShowProdukModal(true)}
+                                        onClick={handleOpenProdukModal}
                                     />
                                 </div>
                             ) : (
@@ -969,67 +1014,45 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                 className="surface-card p-3 border-round-xl border-1 surface-border shadow-1 hover:shadow-2 transition-all flex align-items-center justify-content-between gap-3"
                                             >
                                                 {/* Item Info (Nama, Kode & Harga Satuan) */}
-                                                <div className="flex-1 min-w-0 flex flex-column gap-1 justify-content-center">
-                                                    <div className="flex align-items-center gap-1.5 flex-wrap">
-                                                        <span className="font-bold text-xs text-slate-900 line-height-2" title={item.nama}>
+                                                <div className="flex-1 min-w-0 flex flex-column justify-content-center" style={{ gap: '2px' }}>
+                                                    <div className="flex align-items-center flex-wrap" style={{ gap: '6px' }}>
+                                                        <span className="font-bold text-xs text-slate-900" style={{ lineHeight: '1.3' }} title={item.nama}>
                                                             {item.nama}
                                                         </span>
-                                                        <span className="text-[10px] text-slate-400 font-mono">
+                                                        <span className="text-[10px] text-slate-400 font-mono" style={{ lineHeight: 1 }}>
                                                             {item.kode_produk}
                                                         </span>
                                                         {item.is_rekomendasi_dokter && (
-                                                            <span className="text-[10px] font-bold px-1.5 py-0.2 border-round bg-amber-50 text-amber-700 border-1 border-amber-200">
+                                                            <span
+                                                                className="text-[10px] font-bold bg-amber-50 text-amber-700 border-1 border-amber-200"
+                                                                style={{ borderRadius: '4px', padding: '1px 5px', lineHeight: 1 }}
+                                                            >
                                                                 Resep Dokter
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <div className="text-xs text-slate-500 font-medium">
+                                                    <div className="text-xs text-slate-500 font-medium" style={{ lineHeight: '1.2' }}>
                                                         {formatRupiah(item.harga_jual)} / {item.satuan || 'pcs'}
                                                     </div>
                                                 </div>
 
-                                                {/* Controls (Qty Stepper, Subtotal & Hapus) */}
-                                                <div className="flex align-items-center gap-2.5 flex-shrink-0">
-                                                    {!isSubmitted ? (
-                                                        <div className="flex align-items-center gap-1 bg-slate-100 p-1 border-round-lg border-1 surface-border">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleUpdateQty(item.kode_produk, -1)}
-                                                                className="border-none bg-white hover:bg-slate-200 border-round-md font-bold cursor-pointer text-slate-700 shadow-1 flex align-items-center justify-content-center"
-                                                                style={{ width: '24px', height: '24px', fontSize: '12px' }}
-                                                                title="Kurangi kuantitas"
-                                                            >−</button>
-                                                            <span className="font-extrabold text-xs px-1 text-slate-900 min-w-[20px] text-center">
-                                                                {item.qty}
-                                                            </span>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleUpdateQty(item.kode_produk, 1)}
-                                                                className="border-none bg-teal-600 hover:bg-teal-700 text-white border-round-md font-bold cursor-pointer shadow-1 flex align-items-center justify-content-center"
-                                                                style={{ width: '24px', height: '24px', fontSize: '12px' }}
-                                                                title="Tambah kuantitas"
-                                                            >+</button>
-                                                        </div>
-                                                    ) : (
-                                                        <span className="font-extrabold text-xs text-slate-700">x{item.qty}</span>
-                                                    )}
-
-                                                    {/* Subtotal */}
-                                                    <div className="text-right flex-shrink-0" style={{ minWidth: '85px' }}>
-                                                        <div className="font-bold text-xs text-teal-700">{formatRupiah(subtotal)}</div>
+                                                {/* Status Terkunci di Tampilan Utama: Read-only Qty & Subtotal (tidak bisa diubah langsung di sini) */}
+                                                <div className="flex align-items-center gap-3 flex-shrink-0">
+                                                    <span
+                                                        className="text-[11px] font-bold text-teal-700 bg-teal-50 border-1 border-teal-200 inline-flex align-items-center justify-content-center flex-shrink-0"
+                                                        style={{
+                                                            height: '22px',
+                                                            padding: '0 8px',
+                                                            borderRadius: '6px',
+                                                            whiteSpace: 'nowrap',
+                                                            lineHeight: 1
+                                                        }}
+                                                    >
+                                                        {item.qty} {item.satuan || 'pcs'}
+                                                    </span>
+                                                    <div className="text-right flex-shrink-0 flex flex-column justify-content-center" style={{ minWidth: '85px' }}>
+                                                        <div className="font-bold text-xs text-teal-700" style={{ lineHeight: '1.3' }}>{formatRupiah(subtotal)}</div>
                                                     </div>
-
-                                                    {/* Hapus button */}
-                                                    {!isSubmitted && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleRemoveProduk(item.kode_produk)}
-                                                            className="border-none bg-transparent cursor-pointer text-slate-400 hover:text-red-600 p-1 flex-shrink-0 transition-colors"
-                                                            title="Hapus Produk"
-                                                        >
-                                                            <i className="pi pi-trash text-xs" />
-                                                        </button>
-                                                    )}
                                                 </div>
                                             </div>
                                         );
@@ -1503,26 +1526,26 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                 </div>
             </Dialog>
 
-            {/* POPUP MODAL DAFTAR PRODUK TAMBAHAN */}
+            {/* POPUP MODAL DAFTAR PRODUK TAMBAHAN (PERSIS SEPERTI DI MENU KASIR) */}
             <Dialog
                 visible={showProdukModal}
                 onHide={() => setShowProdukModal(false)}
                 closable={false}
                 header={
                     <div className="flex align-items-center justify-content-between w-full">
-                        <div className="flex align-items-center gap-2.5">
+                        <div className="flex align-items-center" style={{ gap: '10px' }}>
                             <div
                                 className="flex align-items-center justify-content-center flex-shrink-0 border-round-lg text-teal-700 bg-teal-50 border-1 border-teal-200"
-                                style={{ width: '36px', height: '36px' }}
+                                style={{ width: '40px', height: '40px', minWidth: '40px' }}
                             >
-                                <ShoppingBag size={18} />
+                                <ShoppingBag size={20} />
                             </div>
-                            <div>
+                            <div className="flex flex-column gap-1">
                                 <span className="text-base font-bold text-slate-900 block" style={{ lineHeight: 1.2 }}>
                                     Pilih Produk Tambahan Kasir
                                 </span>
                                 <span className="text-xs text-slate-500 font-normal">
-                                    Pilih produk untuk ditambahkan ke rincian tagihan kasir
+                                    Cari produk, atur kuantitas dan subtotal rincian tagihan kasir
                                 </span>
                             </div>
                         </div>
@@ -1538,155 +1561,281 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                         </button>
                     </div>
                 }
-                style={{ width: '720px', maxWidth: '95vw' }}
-                contentStyle={{ maxHeight: '72vh', overflowY: 'auto' }}
+                style={{ width: '960px', maxWidth: '96vw' }}
+                contentStyle={{ maxHeight: '78vh', overflowY: 'auto', padding: '1rem' }}
                 modal
                 className="p-fluid"
                 footer={
-                    <div className="flex align-items-center justify-content-between pt-2 border-top-1 surface-border w-full">
-                        <span className="text-xs text-500 font-medium">
-                            {modalFilteredProduk.length} produk tersedia
-                        </span>
-                        <Button
-                            label="Tutup / Selesai"
-                            icon="pi pi-check"
-                            size="small"
-                            className="bg-teal-600 border-none font-bold text-xs px-3 py-2 text-white"
-                            onClick={() => setShowProdukModal(false)}
-                        />
+                    <div className="flex align-items-center justify-content-between pt-2 border-top-1 surface-border w-full flex-wrap gap-2">
+                        <div className="flex align-items-baseline gap-2 text-left">
+                            <span className="text-xs text-slate-500 font-medium">Subtotal Produk ({draftTotalQty} item):</span>
+                            <span className="text-lg font-black text-teal-700">{formatRupiah(draftGrandTotal)}</span>
+                        </div>
+                        <div className="flex align-items-center gap-2">
+                            <Button
+                                type="button"
+                                label="Batal"
+                                icon="pi pi-times"
+                                text
+                                size="small"
+                                severity="secondary"
+                                className="text-xs font-semibold px-3"
+                                onClick={() => setShowProdukModal(false)}
+                            />
+                            <Button
+                                type="button"
+                                label="Konfirmasi & Terapkan"
+                                icon="pi pi-check"
+                                size="small"
+                                className="bg-teal-600 hover:bg-teal-700 border-none font-bold text-xs px-4 py-2 text-white shadow-1"
+                                onClick={handleConfirmProdukModal}
+                            />
+                        </div>
                     </div>
                 }
             >
-                <div className="flex flex-column gap-3 pt-2">
-                    {/* Search & Refresh */}
-                    <div className="flex gap-2">
-                        <IconField iconPosition="left" className="w-full">
-                            <InputIcon className="pi pi-search text-xs text-400" />
-                            <InputText
-                                value={modalSearch}
-                                onChange={(e) => setModalSearch(e.target.value)}
-                                placeholder="Cari nama atau kode produk..."
-                                className="p-inputtext-sm w-full border-round-lg text-xs"
-                                autoFocus
-                            />
-                        </IconField>
-                        {modalSearch && (
+                <div className="grid pt-1">
+                    {/* KOLOM KIRI: KATALOG PRODUK (PERSIS MENU KASIR) */}
+                    <div className="col-12 lg:col-7 flex flex-column gap-2 border-bottom-1 lg:border-bottom-none lg:border-right-1 surface-border pb-3 lg:pb-0 lg:pr-3">
+                        {/* Search & Actions */}
+                        <div className="flex gap-2">
+                            <IconField iconPosition="left" className="w-full">
+                                <InputIcon className="pi pi-search text-xs text-400" />
+                                <InputText
+                                    value={modalSearch}
+                                    onChange={(e) => setModalSearch(e.target.value)}
+                                    placeholder="Cari nama atau kode produk..."
+                                    className="p-inputtext-sm w-full border-round-lg text-xs"
+                                    autoFocus
+                                />
+                            </IconField>
+                            {modalSearch && (
+                                <Button
+                                    icon="pi pi-times"
+                                    outlined
+                                    size="small"
+                                    severity="secondary"
+                                    onClick={() => setModalSearch('')}
+                                    title="Hapus pencarian"
+                                />
+                            )}
                             <Button
-                                icon="pi pi-times"
+                                icon="pi pi-refresh"
                                 outlined
                                 size="small"
                                 severity="secondary"
-                                onClick={() => setModalSearch('')}
-                                title="Hapus pencarian"
+                                onClick={() => fetchProdukOptions()}
+                                loading={loadingProduk}
+                                title="Segarkan data produk"
                             />
-                        )}
-                        <Button
-                            icon="pi pi-refresh"
-                            outlined
-                            size="small"
-                            severity="secondary"
-                            onClick={() => fetchProdukOptions()}
-                            loading={loadingProduk}
-                            title="Segarkan data produk"
-                        />
-                    </div>
-
-                    {/* Filter Kategori Chips (bila tersedia) */}
-                    {availableCategories.length > 0 && (
-                        <div className="flex align-items-center gap-1.5 flex-wrap overflow-x-auto pb-1 custom-thin-scrollbar">
-                            <span className="text-[11px] font-bold text-slate-500 mr-1 uppercase">Kategori:</span>
-                            <button
-                                type="button"
-                                onClick={() => setModalCategory('ALL')}
-                                className={`px-3 py-1 text-xs font-bold border-round-pill border-none cursor-pointer transition-all ${
-                                    modalCategory === 'ALL'
-                                        ? 'bg-teal-600 text-white shadow-1'
-                                        : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200'
-                                }`}
-                            >
-                                Semua
-                            </button>
-                            {availableCategories.map((cat) => {
-                                const isAct = modalCategory === cat;
-                                return (
-                                    <button
-                                        key={cat}
-                                        type="button"
-                                        onClick={() => setModalCategory(cat)}
-                                        className={`px-3 py-1 text-xs font-bold border-round-pill border-none cursor-pointer transition-all ${
-                                            isAct
-                                                ? 'bg-teal-600 text-white shadow-1'
-                                                : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200'
-                                        }`}
-                                    >
-                                        {cat}
-                                    </button>
-                                );
-                            })}
                         </div>
-                    )}
 
-                    {/* Daftar Produk Grid (Persis seperti kotak-kotak di Menu Kasir) */}
-                    <div
-                        className="surface-ground border-1 surface-border border-round-xl p-2.5 overflow-y-auto shadow-inner custom-thin-scrollbar"
-                        style={{ maxHeight: '420px', minHeight: '180px' }}
-                    >
-                        {loadingProduk ? (
-                            <div className="text-center py-5">
-                                <ProgressSpinner style={{ width: '28px', height: '28px' }} />
-                                <p className="text-xs text-slate-500 m-0 mt-2">Memuat daftar produk...</p>
+                        {/* Filter Kategori Chips */}
+                        {availableCategories.length > 0 && (
+                            <div className="flex align-items-center gap-1.5 flex-wrap overflow-x-auto pb-1 custom-thin-scrollbar">
+                                <span className="text-[11px] font-bold text-slate-500 mr-1 uppercase">Kategori:</span>
+                                <button
+                                    type="button"
+                                    onClick={() => setModalCategory('ALL')}
+                                    className={`px-3 py-1 text-xs font-bold border-round-pill border-none cursor-pointer transition-all ${
+                                        modalCategory === 'ALL'
+                                            ? 'bg-teal-600 text-white shadow-1'
+                                            : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+                                    }`}
+                                >
+                                    Semua
+                                </button>
+                                {availableCategories.map((cat) => {
+                                    const isAct = modalCategory === cat;
+                                    return (
+                                        <button
+                                            key={cat}
+                                            type="button"
+                                            onClick={() => setModalCategory(cat)}
+                                            className={`px-3 py-1 text-xs font-bold border-round-pill border-none cursor-pointer transition-all ${
+                                                isAct
+                                                    ? 'bg-teal-600 text-white shadow-1'
+                                                    : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+                                            }`}
+                                        >
+                                            {cat}
+                                        </button>
+                                    );
+                                })}
                             </div>
-                        ) : modalFilteredProduk.length === 0 ? (
-                            <div className="text-center py-5 text-xs text-slate-500 flex flex-column align-items-center justify-content-center gap-2">
-                                <ShoppingBag size={28} className="text-300" />
-                                <span>
-                                    {modalSearch || modalCategory !== 'ALL'
-                                        ? 'Tidak ada produk yang cocok dengan pencarian / filter.'
-                                        : 'Semua produk yang tersedia telah dipilih.'}
-                                </span>
-                            </div>
-                        ) : (
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(175px, 1fr))', gap: '12px' }}>
-                                {modalFilteredProduk.map((prod) => (
-                                    <div
-                                        key={prod.kode_produk}
-                                        onClick={() => handleAddProduk(prod)}
-                                        className="surface-card p-3 border-round-xl border-1 surface-border shadow-1 hover:shadow-2 hover:border-teal-500 cursor-pointer transition-all user-select-none relative flex flex-column justify-content-between"
-                                        style={{ minHeight: '115px' }}
-                                    >
-                                        <div className="mb-2">
-                                            <div className="flex align-items-start justify-content-between gap-1 mb-1">
-                                                <div className="font-bold text-xs text-slate-900 line-height-2 flex-1" title={prod.nama}>
-                                                    {prod.nama}
+                        )}
+
+                        {/* Grid Katalog Produk: Gaya Kasir POS */}
+                        <div
+                            className="surface-ground border-1 surface-border border-round-xl p-2.5 overflow-y-auto shadow-inner custom-thin-scrollbar"
+                            style={{ height: '390px' }}
+                        >
+                            {loadingProduk ? (
+                                <div className="flex flex-column align-items-center justify-content-center h-full py-5">
+                                    <ProgressSpinner style={{ width: '28px', height: '28px' }} />
+                                    <p className="text-xs text-slate-500 m-0 mt-2">Memuat daftar produk...</p>
+                                </div>
+                            ) : modalFilteredProduk.length === 0 ? (
+                                <div className="flex flex-column align-items-center justify-content-center h-full text-center py-5">
+                                    <ShoppingBag size={28} className="text-300 mb-2" />
+                                    <span className="text-xs text-slate-500 font-medium">Tidak ada produk yang cocok dengan pencarian / filter.</span>
+                                </div>
+                            ) : (
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: '12px' }}>
+                                    {modalFilteredProduk.map((prod) => {
+                                        const selectedQty = draftSelectedMap.get(prod.kode_produk) || 0;
+                                        const isSelected = selectedQty > 0;
+                                        return (
+                                            <div
+                                                key={prod.kode_produk}
+                                                onClick={() => handleDraftAddProduk(prod)}
+                                                className={`surface-card p-3 border-round-xl border-1 transition-all user-select-none relative flex flex-column justify-content-between shadow-1 cursor-pointer hover:shadow-2 ${
+                                                    isSelected ? 'border-2 border-teal-500 bg-teal-50/50' : 'surface-border'
+                                                }`}
+                                            >
+                                                <div className="mb-2">
+                                                    <div className="flex align-items-start justify-content-between gap-1 mb-1">
+                                                        <div className="font-bold text-xs text-slate-900 line-height-2 flex-1" title={prod.nama}>
+                                                            {prod.nama}
+                                                        </div>
+                                                        {isSelected && (
+                                                            <span className="bg-teal-600 text-white font-bold px-2 py-1 border-round-md flex align-items-center gap-1 flex-shrink-0 shadow-1">
+                                                                <i className="pi pi-check" style={{ fontSize: '7px' }} />
+                                                                <span style={{ fontSize: '8px', lineHeight: 1 }}>Terpilih</span>
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="text-[10px] text-slate-400 font-mono mb-1">
+                                                        {prod.kode_produk}
+                                                    </div>
+                                                    <div className="text-[11px] text-slate-500 font-medium">
+                                                        {prod.nama_kategori || 'Produk'}
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex align-items-center justify-content-between pt-2 border-top-1 surface-border">
+                                                    <span className="font-black text-sm text-teal-700">{formatRupiah(prod.harga_jual)}</span>
+                                                    {isSelected && (
+                                                        <span className="text-[10px] font-bold text-teal-800 bg-teal-100 px-2 py-0.5 border-round-md">
+                                                            x{selectedQty}
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </div>
-                                            <div className="text-[10px] text-slate-400 font-mono mb-1">
-                                                {prod.kode_produk}
-                                            </div>
-                                            <div className="text-[11px] text-slate-500 font-medium">
-                                                {prod.nama_kategori || 'Produk'}
-                                            </div>
-                                        </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    </div>
 
-                                        <div className="flex align-items-center justify-content-between pt-2 border-top-1 surface-border">
-                                            <span className="font-black text-sm text-teal-700">{formatRupiah(prod.harga_jual)}</span>
-                                            <button
-                                                type="button"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleAddProduk(prod);
-                                                }}
-                                                className="border-none bg-teal-600 hover:bg-teal-700 text-white border-round-md font-bold cursor-pointer shadow-1 flex align-items-center justify-content-center transition-all"
-                                                style={{ width: '26px', height: '26px' }}
-                                                title="Tambah produk"
-                                            >
-                                                <Plus size={13} />
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
+                    {/* KOLOM KANAN: PRODUK TERPILIH (PERSIS RINCIAN KASIR POS) */}
+                    <div className="col-12 lg:col-5 flex flex-column gap-2 lg:pl-3">
+                        <div className="flex align-items-center pb-2 border-bottom-1 surface-border">
+                            <div className="flex align-items-center m-0" style={{ gap: '6px' }}>
+                                <ShoppingBag size={16} className="text-teal-600 flex-shrink-0" />
+                                <span className="text-xs font-extrabold text-teal-800 uppercase tracking-wider">
+                                    PRODUK TERPILIH ({draftProdukList.length})
+                                </span>
                             </div>
-                        )}
+                        </div>
+
+                        {/* List Item Terpilih di Modal */}
+                        <div
+                            className="flex flex-column gap-2 overflow-y-auto p-2 surface-ground border-round-xl border-1 surface-border custom-thin-scrollbar"
+                            style={{ height: '280px' }}
+                        >
+                            {draftProdukList.length === 0 ? (
+                                <div className="flex flex-column align-items-center justify-content-center h-full text-center py-5">
+                                    <ShoppingBag size={28} className="text-300 mb-2" />
+                                    <span className="text-xs text-slate-500 font-medium">Belum ada produk dipilih</span>
+                                    <span className="text-[11px] text-slate-400 mt-1">Klik salah satu produk pada katalog di sebelah kiri untuk menambahkan.</span>
+                                </div>
+                            ) : (
+                                draftProdukList.map((item) => {
+                                    const itemSubtotal = item.qty * item.harga_jual;
+                                    return (
+                                        <div
+                                            key={item.kode_produk}
+                                            className="surface-card p-3 border-round-xl border-1 surface-border shadow-1 hover:shadow-2 transition-all flex align-items-center justify-content-between gap-3"
+                                        >
+                                            {/* Item Info (Nama & Harga Satuan) */}
+                                            <div className="flex-1 min-w-0 flex flex-column gap-1 justify-content-center">
+                                                <div className="flex align-items-center gap-1.5 flex-wrap">
+                                                    <span className="font-bold text-xs text-slate-900 line-height-2 truncate" title={item.nama}>
+                                                        {item.nama}
+                                                    </span>
+                                                    {item.is_rekomendasi_dokter && (
+                                                        <span className="text-[9px] font-bold px-1.5 py-0.2 border-round bg-amber-50 text-amber-700 border-1 border-amber-200">
+                                                            Resep
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="text-xs text-slate-500 font-medium">
+                                                    {formatRupiah(item.harga_jual)} / {item.satuan || 'pcs'}
+                                                </div>
+                                            </div>
+
+                                            {/* Controls (Qty Stepper, Subtotal & Hapus) - SEJAJAR 1 BARIS HORIZONTAL */}
+                                            <div className="flex align-items-center gap-2.5 flex-shrink-0">
+                                                <div className="flex align-items-center gap-1 bg-slate-100 p-1 border-round-lg border-1 surface-border">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleDraftUpdateQty(item.kode_produk, -1)}
+                                                        className="border-none bg-white hover:bg-slate-200 border-round-md font-bold cursor-pointer text-slate-700 shadow-1 flex align-items-center justify-content-center"
+                                                        style={{ width: '24px', height: '24px', fontSize: '12px' }}
+                                                        title="Kurangi kuantitas"
+                                                    >−</button>
+                                                    <span className="font-extrabold text-xs px-1 text-slate-900 min-w-[20px] text-center">
+                                                        {item.qty}
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleDraftUpdateQty(item.kode_produk, 1)}
+                                                        className="border-none bg-teal-600 hover:bg-teal-700 text-white border-round-md font-bold cursor-pointer shadow-1 flex align-items-center justify-content-center"
+                                                        style={{ width: '24px', height: '24px', fontSize: '12px' }}
+                                                        title="Tambah kuantitas"
+                                                    >+</button>
+                                                </div>
+
+                                                {/* Subtotal */}
+                                                <div className="text-right flex-shrink-0" style={{ minWidth: '85px' }}>
+                                                    <div className="font-bold text-xs text-teal-700">{formatRupiah(itemSubtotal)}</div>
+                                                </div>
+
+                                                {/* Hapus button */}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleDraftRemoveProduk(item.kode_produk)}
+                                                    className="border-none bg-transparent cursor-pointer text-slate-400 hover:text-red-600 p-1 flex-shrink-0 transition-colors"
+                                                    title="Hapus Item"
+                                                >
+                                                    <i className="pi pi-trash text-xs" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+
+                        {/* Subtotal Card Pop-up */}
+                        <div
+                            className="p-3 border-round-xl border-1"
+                            style={{
+                                background: '#f0fdfa',
+                                borderColor: '#99f6e4',
+                            }}
+                        >
+                            <div className="flex align-items-center justify-content-between text-xs mb-1.5">
+                                <span className="text-slate-600 font-medium">Total Item:</span>
+                                <span className="font-bold text-slate-800">{draftTotalQty} item ({draftProdukList.length} jenis)</span>
+                            </div>
+                            <div className="flex align-items-center justify-content-between text-xs pt-1.5" style={{ borderTop: '1px dashed #99f6e4' }}>
+                                <span className="text-teal-900 font-black uppercase tracking-tight">Subtotal Produk:</span>
+                                <span className="font-black text-sm text-teal-700">{formatRupiah(draftGrandTotal)}</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </Dialog>
