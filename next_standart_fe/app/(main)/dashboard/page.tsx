@@ -16,6 +16,7 @@ import {
   BeauticianView,
   KasirView,
   WarehouseView,
+  AdminView,
 } from './components/RoleViews';
 
 const DashboardPage: React.FC = () => {
@@ -58,13 +59,18 @@ const DashboardPage: React.FC = () => {
   // ─── VIEW KHUSUS DOKTER ───
   if (userRole === 'dokter') {
     return (
-      <div className="clinic-dashboard w-full" style={{ backgroundColor: '#F8FAFC', padding: '24px' }}>
+      <div className="clinic-dashboard w-full" style={{ backgroundColor: '#FFFFFF', padding: '24px' }}>
         <Toast ref={toast} />
-        <div className="flex flex-column sm:flex-row justify-content-between align-items-start sm:align-items-center gap-3 mb-4">
+        <div
+          className="flex flex-column sm:flex-row justify-content-between align-items-start sm:align-items-center gap-3"
+          style={{ marginBottom: '24px' }}
+        >
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-900 m-0 tracking-tight">Portal Medis Dokter</h1>
-            <p className="text-xs md:text-sm m-0 mt-1 text-500">
-              Selamat datang, <strong style={{ color: '#0f766e' }}>{userName}</strong> — jadwal konsultasi & tindakan pasien hari ini.
+            <h1 className="text-2xl md:text-3xl font-bold text-900 m-0 tracking-tight">
+              Portal Medis Dokter {session?.user?.nama_cabang ? `— ${session.user.nama_cabang}` : ''}
+            </h1>
+            <p className="text-xs md:text-sm m-0 mt-1" style={{ color: '#6F7A74' }}>
+              Selamat datang, <strong style={{ color: '#202A26' }}>{userName}</strong> (Dokter Spesialis) — jadwal konsultasi &amp; rekam medis pasien hari ini.
             </p>
           </div>
           <div className="flex align-items-center gap-2">
@@ -100,13 +106,18 @@ const DashboardPage: React.FC = () => {
   // ─── VIEW KHUSUS BEAUTICIAN / TERAPIS ───
   if (userRole === 'beautician') {
     return (
-      <div className="clinic-dashboard w-full" style={{ backgroundColor: '#F8FAFC', padding: '24px' }}>
+      <div className="clinic-dashboard w-full" style={{ backgroundColor: '#FFFFFF', padding: '24px' }}>
         <Toast ref={toast} />
-        <div className="flex flex-column sm:flex-row justify-content-between align-items-start sm:align-items-center gap-3 mb-4">
+        <div
+          className="flex flex-column sm:flex-row justify-content-between align-items-start sm:align-items-center gap-3"
+          style={{ marginBottom: '24px' }}
+        >
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-900 m-0 tracking-tight">Portal Tindakan & Terapi</h1>
-            <p className="text-xs md:text-sm m-0 mt-1 text-500">
-              Selamat datang, <strong style={{ color: '#9333ea' }}>{userName}</strong> — antrean ruangan perawatan & treatment estetika.
+            <h1 className="text-2xl md:text-3xl font-bold text-900 m-0 tracking-tight">
+              Portal Tindakan &amp; Terapi {session?.user?.nama_cabang ? `— ${session.user.nama_cabang}` : ''}
+            </h1>
+            <p className="text-xs md:text-sm m-0 mt-1" style={{ color: '#6F7A74' }}>
+              Selamat datang, <strong style={{ color: '#202A26' }}>{userName}</strong> (Terapis &amp; Beautician) — antrean ruangan perawatan &amp; treatment estetika.
             </p>
           </div>
           <div className="flex align-items-center gap-2">
@@ -135,13 +146,18 @@ const DashboardPage: React.FC = () => {
   // ─── VIEW KHUSUS KASIR ───
   if (userRole === 'kasir') {
     return (
-      <div className="clinic-dashboard w-full" style={{ backgroundColor: '#F8FAFC', padding: '24px' }}>
+      <div className="clinic-dashboard w-full" style={{ backgroundColor: '#FFFFFF', padding: '24px' }}>
         <Toast ref={toast} />
-        <div className="flex flex-column sm:flex-row justify-content-between align-items-start sm:align-items-center gap-3 mb-4">
+        <div
+          className="flex flex-column sm:flex-row justify-content-between align-items-start sm:align-items-center gap-3"
+          style={{ marginBottom: '24px' }}
+        >
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-900 m-0 tracking-tight">Terminal Kasir Klinik</h1>
-            <p className="text-xs md:text-sm m-0 mt-1 text-500">
-              Selamat datang, <strong style={{ color: '#16a34a' }}>{userName}</strong> — transaksi pembayaran, kasir, dan pendaftaran kunjungan.
+            <h1 className="text-2xl md:text-3xl font-bold text-900 m-0 tracking-tight">
+              Terminal Kasir Klinik {session?.user?.nama_cabang ? `— ${session.user.nama_cabang}` : ''}
+            </h1>
+            <p className="text-xs md:text-sm m-0 mt-1" style={{ color: '#6F7A74' }}>
+              Selamat datang, <strong style={{ color: '#202A26' }}>{userName}</strong> (Petugas Kasir) — transaksi pembayaran, kasir, dan ringkasan keuangan.
             </p>
           </div>
           <div className="flex align-items-center gap-2">
@@ -151,13 +167,6 @@ const DashboardPage: React.FC = () => {
               onClick={() => router.push('/kasir')}
             >
               <i className="pi pi-calculator mr-2" /> Buka Kasir
-            </button>
-            <button
-              type="button"
-              className="btn-ghost-clinic"
-              onClick={() => router.push('/pendaftaran-antrean/pendaftaran-pasien')}
-            >
-              <i className="pi pi-user-plus mr-2" /> Pendaftaran Pasien
             </button>
             <button
               type="button"
@@ -177,13 +186,18 @@ const DashboardPage: React.FC = () => {
   // ─── VIEW KHUSUS WAREHOUSE / LOGISTIK ───
   if (userRole === 'warehouse') {
     return (
-      <div className="clinic-dashboard w-full" style={{ backgroundColor: '#F8FAFC', padding: '24px' }}>
+      <div className="clinic-dashboard w-full" style={{ backgroundColor: '#FFFFFF', padding: '24px' }}>
         <Toast ref={toast} />
-        <div className="flex flex-column sm:flex-row justify-content-between align-items-start sm:align-items-center gap-3 mb-4">
+        <div
+          className="flex flex-column sm:flex-row justify-content-between align-items-start sm:align-items-center gap-3"
+          style={{ marginBottom: '24px' }}
+        >
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-900 m-0 tracking-tight">Manajemen Logistik & Farmasi</h1>
-            <p className="text-xs md:text-sm m-0 mt-1 text-500">
-              Selamat datang, <strong style={{ color: '#ea580c' }}>{userName}</strong> — monitoring stok produk, inventori, dan pengadaan logistik.
+            <h1 className="text-2xl md:text-3xl font-bold text-900 m-0 tracking-tight">
+              Manajemen Logistik &amp; Farmasi {session?.user?.nama_cabang ? `— ${session.user.nama_cabang}` : ''}
+            </h1>
+            <p className="text-xs md:text-sm m-0 mt-1" style={{ color: '#6F7A74' }}>
+              Selamat datang, <strong style={{ color: '#202A26' }}>{userName}</strong> (Petugas Logistik &amp; Farmasi) — monitoring stok produk, inventori, dan pengadaan logistik.
             </p>
           </div>
           <div className="flex align-items-center gap-2">
@@ -212,6 +226,53 @@ const DashboardPage: React.FC = () => {
           </div>
         </div>
         <WarehouseView data={dashboardData} onRefresh={fetchDashboardData} loading={loading} />
+      </div>
+    );
+  }
+
+  // ─── VIEW KHUSUS ADMIN (PENDAFTARAN & ANTREAN) ───
+  if (userRole === 'admin') {
+    return (
+      <div className="clinic-dashboard w-full" style={{ backgroundColor: '#FFFFFF', padding: '24px' }}>
+        <Toast ref={toast} />
+        <div
+          className="flex flex-column sm:flex-row justify-content-between align-items-start sm:align-items-center gap-3"
+          style={{ marginBottom: '24px' }}
+        >
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-900 m-0 tracking-tight">
+              Portal Pendaftaran &amp; Front Office {session?.user?.nama_cabang ? `— ${session.user.nama_cabang}` : ''}
+            </h1>
+            <p className="text-xs md:text-sm m-0 mt-1" style={{ color: '#6F7A74' }}>
+              Selamat datang, <strong style={{ color: '#202A26' }}>{userName}</strong> (Petugas Administrasi) — kelola antrean pendaftaran, pasien baru, dan pendaftaran kunjungan.
+            </p>
+          </div>
+          <div className="flex align-items-center gap-2">
+            <button
+              type="button"
+              className="btn-primary-clinic"
+              onClick={() => router.push('/pendaftaran-antrean/pendaftaran-pasien')}
+            >
+              <i className="pi pi-calendar mr-2" /> Pendaftaran Kunjungan
+            </button>
+            <button
+              type="button"
+              className="btn-ghost-clinic"
+              onClick={() => router.push('/antrian-awal')}
+            >
+              <i className="pi pi-ticket mr-2" /> Antrean Pendaftaran
+            </button>
+            <button
+              type="button"
+              className="btn-icon-clinic"
+              title="Segarkan data"
+              onClick={fetchDashboardData}
+            >
+              <i className={`pi pi-refresh text-xs ${loading ? 'pi-spin' : ''}`} />
+            </button>
+          </div>
+        </div>
+        <AdminView data={dashboardData} onRefresh={fetchDashboardData} loading={loading} />
       </div>
     );
   }
@@ -260,34 +321,9 @@ const DashboardPage: React.FC = () => {
           </p>
         </div>
 
-        {/* 3 Tombol Aksi */}
+        {/* Tombol Aksi */}
         <div className="flex align-items-center gap-2">
-          {userRole !== 'superadmin' ? (
-            <>
-              <button
-                type="button"
-                className="btn-primary-clinic"
-                onClick={() => router.push('/setup/users')}
-              >
-                <i className="pi pi-users mr-2" />
-                Kelola Staf & Hak Akses
-              </button>
-              <button
-                type="button"
-                className="btn-ghost-clinic"
-                onClick={() => router.push('/pendaftaran-antrean/antrean')}
-              >
-                Pendaftaran & Antrean
-              </button>
-              <button
-                type="button"
-                className="btn-ghost-clinic"
-                onClick={() => router.push('/riwayat/rekam-medis')}
-              >
-                Laporan & Analitik
-              </button>
-            </>
-          ) : (
+          {userRole === 'superadmin' && (
             <>
               <button
                 type="button"

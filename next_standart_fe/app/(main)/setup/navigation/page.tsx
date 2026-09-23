@@ -157,6 +157,24 @@ const DEFAULT_ROLES: RoleItem[] = [
         active_paths: ['*'],
         is_custom: false,
     },
+    {
+        kode_role: 'ROLE-007',
+        role_key: 'admin',
+        nama_role: 'Admin',
+        badge_severity: 'info',
+        color: '#0891b2',
+        deskripsi: 'Pelayanan pendaftaran pasien, registrasi pasien baru, check-in kunjungan, dan display antrean pendaftaran.',
+        status: 'aktif',
+        user_count: 0,
+        active_paths: [
+            '/dashboard',
+            '/antrian-awal',
+            '/pendaftaran-antrean/registrasi-pasien',
+            '/pendaftaran-antrean/pendaftaran-pasien',
+            '/master-data-user/data-pasien',
+        ],
+        is_custom: false,
+    },
 ];
 
 export default function ManajemenMenuRolePage() {

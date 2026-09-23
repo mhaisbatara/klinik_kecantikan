@@ -42,13 +42,29 @@ const Page = () => {
     const [saving, setSaving] = useState<boolean>(false);
     const [submitted, setSubmitted] = useState<boolean>(false);
 
+    const JABATAN_MAP: Record<string, { label: string; severity: 'info' | 'danger' | 'warning' | 'success' | 'secondary' }> = {
+        owner: { label: 'OWNER / MANAGER', severity: 'info' },
+        manager: { label: 'OWNER / MANAGER', severity: 'info' },
+        dokter: { label: 'DOKTER', severity: 'danger' },
+        beautician: { label: 'BEAUTICIAN / TERAPIS', severity: 'warning' },
+        terapis: { label: 'BEAUTICIAN / TERAPIS', severity: 'warning' },
+        perawat: { label: 'BEAUTICIAN / TERAPIS', severity: 'warning' },
+        kasir: { label: 'KASIR', severity: 'success' },
+        warehouse: { label: 'WAREHOUSE / LOGISTIK', severity: 'secondary' },
+        logistik: { label: 'WAREHOUSE / LOGISTIK', severity: 'secondary' },
+        apoteker: { label: 'WAREHOUSE / LOGISTIK', severity: 'secondary' },
+        superadmin: { label: 'SUPERADMIN / IT', severity: 'info' },
+        admin: { label: 'ADMIN', severity: 'info' },
+    };
+
     const jabatanOptions = [
-        { label: 'Dokter', value: 'dokter' },
-        { label: 'Perawat', value: 'perawat' },
+        { label: 'Owner / Manager', value: 'owner' },
         { label: 'Admin', value: 'admin' },
+        { label: 'Dokter', value: 'dokter' },
+        { label: 'Beautician / Terapis', value: 'beautician' },
         { label: 'Kasir', value: 'kasir' },
-        { label: 'Apoteker', value: 'apoteker' },
-        { label: 'Terapis', value: 'terapis' },
+        { label: 'Warehouse / Logistik', value: 'warehouse' },
+        { label: 'Superadmin / IT', value: 'superadmin' },
     ];
 
     const loadData = async () => {
@@ -78,7 +94,12 @@ const Page = () => {
     const handleOpenEdit = (rowData: any) => {
         setIsEdit(true);
         setSubmitted(false);
-        setFormData({ ...rowData });
+        let jab = (rowData.jabatan || '').toLowerCase();
+        if (jab === 'terapis' || jab === 'perawat') jab = 'beautician';
+        else if (jab === 'manager') jab = 'owner';
+        else if (jab === 'logistik' || jab === 'apoteker') jab = 'warehouse';
+        else if (jab === 'it') jab = 'superadmin';
+        setFormData({ ...rowData, jabatan: jab || 'dokter' });
         setDialogVisible(true);
     };
 
@@ -262,7 +283,25 @@ const Page = () => {
                     <Column field="kode_karyawan" header="Kode" sortable headerStyle={{ fontWeight: 'bold', width: '7rem' }}></Column>
                     <Column field="no_sip" header="No SIP" sortable headerStyle={{ fontWeight: 'bold' }}></Column>
                     <Column field="nama" header="Nama Karyawan" sortable headerStyle={{ fontWeight: 'bold' }}></Column>
-                    <Column field="jabatan" header="Jabatan" body={(r) => <Tag value={r.jabatan?.toUpperCase()} severity="info" />}></Column>
+                    <Column
+                        field="jabatan"
+                        header="Jabatan"
+                        sortable
+                        headerStyle={{ fontWeight: 'bold' }}
+                        body={(r) => {
+                            const item = JABATAN_MAP[(r.jabatan || '').toLowerCase()] || {
+                                label: (r.jabatan || '-').toUpperCase(),
+                                severity: 'info' as const,
+                            };
+                            return (
+                                <Tag
+                                    value={item.label}
+                                    severity={item.severity}
+                                    className="text-xs font-semibold px-2 py-1"
+                                />
+                            );
+                        }}
+                    ></Column>
                     <Column field="no_hp" header="No HP" body={(r) => r.no_hp || '-'}></Column>
                     <Column field="email" header="Email" body={(r) => r.email || '-'}></Column>
                     <Column

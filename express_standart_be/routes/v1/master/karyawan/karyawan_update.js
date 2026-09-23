@@ -12,7 +12,7 @@ router.post("/", async (req, res) => {
   const branchCode = getBranchScope(req, oPayload.kode_cabang);
   try {
     const cValidation = await validatePayload(
-      { no_sip: Joi.string().max(20).required().label("No SIP"), nama: Joi.string().max(100).required().label("Nama Karyawan"), jabatan: Joi.string().valid("dokter", "perawat", "admin", "kasir", "apoteker", "terapis").required().label("Jabatan"), no_hp: Joi.string().max(20).allow("", null).label("No HP"), email: Joi.string().email().max(100).allow("", null).label("Email"), kode_user: Joi.string().allow("", null).label("Kode User"), status: Joi.string().valid("aktif", "nonaktif").required().label("Status") },
+      { no_sip: Joi.string().max(20).required().label("No SIP"), nama: Joi.string().max(100).required().label("Nama Karyawan"), jabatan: Joi.string().valid("owner", "manager", "dokter", "beautician", "terapis", "kasir", "warehouse", "logistik", "superadmin", "perawat", "admin", "apoteker").required().label("Jabatan"), no_hp: Joi.string().max(20).allow("", null).label("No HP"), email: Joi.string().email().max(100).allow("", null).label("Email"), kode_user: Joi.string().allow("", null).label("Kode User"), status: Joi.string().valid("aktif", "nonaktif").required().label("Status") },
       { "any.required": "{#label} wajib diisi" }, oPayload, { allowUnknown: true }
     );
     if (cValidation) return res.status(422).json({ status: status.BAD_REQUEST, message: cValidation, datetime: formatDateSystem() });
