@@ -213,6 +213,8 @@ router.post("/", async (req, res) => {
         "p.nama as nama_promo",
         "p.jenis_diskon",
         "p.nilai_diskon",
+        "p.tanggal_mulai",
+        "p.tanggal_selesai",
         "dp.jenis_item",
         "dp.kode_item"
       )
@@ -238,6 +240,8 @@ router.post("/", async (req, res) => {
       nama_promo: dp.nama_promo,
       jenis_diskon: dp.jenis_diskon,
       nilai_diskon: parseFloat(dp.nilai_diskon || 0),
+      tanggal_mulai: dp.tanggal_mulai,
+      tanggal_selesai: dp.tanggal_selesai,
       jenis_item: dp.jenis_item,
       kode_item: dp.kode_item,
       nama_item: namaMap[dp.kode_item] || dp.kode_item,

@@ -211,6 +211,8 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
     if (!isNaN(num)) nextDetailSeq = num + 1;
   }
 
+  const hasDiscountCols = await trx.schema.hasColumn("trx_detail_transaksi", "kode_promo");
+
   // Masukkan completedItems dari antrean layanan
   for (const item of completedItems) {
     if (item.kode_layanan) {
@@ -241,7 +243,7 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
             nextDetailSeq++;
             const hargaSatuan = parseFloat(item.harga || 0);
 
-            await trx("trx_detail_transaksi").insert({
+            const insertPayload = {
               kode_cabang: resolvedCabang,
               kode_detail_transaksi: cKodeDetail,
               kode_transaksi: createdTransaksiKode,
@@ -256,7 +258,15 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
               created_at: formatDateSystem(),
               updated_by: username,
               updated_at: formatDateSystem(),
-            });
+            };
+            if (hasDiscountCols && item.kode_promo) {
+              insertPayload.kode_promo = item.kode_promo;
+              insertPayload.nama_promo = item.nama_promo || null;
+              insertPayload.jenis_diskon = item.jenis_diskon || null;
+              insertPayload.nilai_diskon = item.nilai_diskon != null ? parseFloat(item.nilai_diskon) : null;
+            }
+
+            await trx("trx_detail_transaksi").insert(insertPayload);
           }
         }
       } else {
@@ -269,7 +279,7 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
           const isKlaim = (item.jenis_layanan || "").toLowerCase() === "klaim_paket";
           const hargaSatuan = isKlaim ? 0 : parseFloat(item.harga || 0);
 
-          await trx("trx_detail_transaksi").insert({
+          const insertPayload = {
             kode_cabang: resolvedCabang,
             kode_detail_transaksi: cKodeDetail,
             kode_transaksi: createdTransaksiKode,
@@ -284,7 +294,15 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
             created_at: formatDateSystem(),
             updated_by: username,
             updated_at: formatDateSystem(),
-          });
+          };
+          if (hasDiscountCols && item.kode_promo) {
+            insertPayload.kode_promo = item.kode_promo;
+            insertPayload.nama_promo = item.nama_promo || null;
+            insertPayload.jenis_diskon = item.jenis_diskon || null;
+            insertPayload.nilai_diskon = item.nilai_diskon != null ? parseFloat(item.nilai_diskon) : null;
+          }
+
+          await trx("trx_detail_transaksi").insert(insertPayload);
         }
       }
     }

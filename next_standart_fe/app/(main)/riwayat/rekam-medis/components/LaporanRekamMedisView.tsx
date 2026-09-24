@@ -525,18 +525,6 @@ export const LaporanRekamMedisView: React.FC = () => {
             body={(r) => `${r.layanan?.length || 0} Sesi`}
             style={{ minWidth: '9rem' }}
           />
-          <Column
-            field="status_kunjungan"
-            header="Status"
-            align="center"
-            body={(r) => (
-              <Tag
-                value={String(r.status_kunjungan || '').toUpperCase()}
-                severity={getStatusAntrianSeverity(r.status_kunjungan)}
-              />
-            )}
-            style={{ minWidth: '8rem' }}
-          />
         </DataTable>
       </div>
     </>

@@ -1,13 +1,17 @@
 'use client';
 
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Dialog } from 'primereact/dialog';
 import { Button } from 'primereact/button';
 import type { BayarResult, CartItem } from '../page';
 import { getStoredPrinterSettings } from './KasirPrinterModal';
+import { useConfig } from '@/layout/context/configcontext';
 
 const formatRupiah = (val: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val || 0);
+
+const formatAngka = (val: number) =>
+  new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(val || 0);
 
 const METODE_LABEL: Record<string, string> = {
   tunai: '💵 Tunai',
@@ -26,9 +30,27 @@ interface KasirStrukModalProps {
 export const KasirStrukModal: React.FC<KasirStrukModalProps> = ({ visible, result, onHide }) => {
   const printRef = useRef<HTMLDivElement>(null);
   const printerSettings = getStoredPrinterSettings();
+  const { config } = useConfig();
+  const [logoError, setLogoError] = useState(false);
+
+  // Profil klinik diambil secara dinamis dari database sistem (config)
+  const clinicName = config?.msNamaPerusahaan?.trim() || 'Klinik Kecantikan';
+  const clinicAddress = config?.msAlamatPerusahaan?.trim() || '';
+  const clinicPhone = config?.msTeleponPerusahaan?.trim() || '';
+  const logoUrl = config?.msLogoPerusahaan?.trim() || '';
+
+  // Footer message: bersihkan dari emoji dan gunakan dari profil klinik sistem jika ada
+  const rawFooter = config?.msCatatanKasir?.trim() || printerSettings.footerMessage || 'Terima kasih atas kunjungan Anda';
+  const footerMsg = rawFooter.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim();
 
   const paperWidthPx =
     printerSettings.paperSize === '58mm' ? '280px' : printerSettings.paperSize === '80mm' ? '340px' : '100%';
+
+  useEffect(() => {
+    if (visible) {
+      setLogoError(false);
+    }
+  }, [visible, logoUrl]);
 
   React.useEffect(() => {
     if (visible && result && printerSettings.autoPrint) {
@@ -62,10 +84,11 @@ export const KasirStrukModal: React.FC<KasirStrukModalProps> = ({ visible, resul
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body {
               font-family: 'Courier New', Courier, monospace;
-              font-size: 12px;
-              color: #1e293b;
+              font-size: 13px;
+              line-height: 1.4;
+              color: #000000 !important;
               background: #ffffff !important;
-              padding: 12px;
+              padding: 8px;
             }
             .receipt-print-wrapper {
               max-width: ${paperWidthPx};
@@ -75,28 +98,102 @@ export const KasirStrukModal: React.FC<KasirStrukModalProps> = ({ visible, resul
             .receipt-print-wrapper > div {
               box-shadow: none !important;
               border: none !important;
-              padding: 0 !important;
+              padding: 0 4px !important;
+              max-width: 100% !important;
+            }
+            .receipt-clinic-name {
+              font-size: 18px !important;
+              font-weight: 700 !important;
+              line-height: 1.3 !important;
+            }
+            .receipt-clinic-meta {
+              font-size: 12px !important;
+              font-weight: 400 !important;
+              line-height: 1.3 !important;
+            }
+            .receipt-title {
+              font-size: 13px !important;
+              font-weight: 700 !important;
+              line-height: 1.4 !important;
+            }
+            .receipt-grid-header {
+              display: grid !important;
+              grid-template-columns: minmax(0, 1fr) 28px 64px 74px !important;
+              column-gap: 4px !important;
+              font-size: 11px !important;
+              line-height: 1.4 !important;
+              font-weight: 600 !important;
+              text-transform: uppercase !important;
+              border-bottom: 1px dashed #000000 !important;
+              border-top: none !important;
+              border-left: none !important;
+              border-right: none !important;
+              outline: none !important;
+              font-family: 'Courier New', Courier, monospace !important;
+            }
+            .receipt-grid-row {
+              display: grid !important;
+              grid-template-columns: minmax(0, 1fr) 28px 64px 74px !important;
+              column-gap: 4px !important;
+              font-size: 13px !important;
+              line-height: 1.4 !important;
+              font-family: 'Courier New', Courier, monospace !important;
+            }
+            .receipt-body-text {
+              font-size: 13px !important;
+              line-height: 1.4 !important;
+              font-family: 'Courier New', Courier, monospace !important;
+            }
+            .receipt-total-large {
+              font-size: 16px !important;
+              font-weight: 700 !important;
+              line-height: 1.4 !important;
+            }
+            .receipt-tabular {
+              font-variant-numeric: tabular-nums !important;
+            }
+            .receipt-lunas-badge {
+              font-size: 12px !important;
+              font-weight: 700 !important;
+              border: 1px solid #000000 !important;
+              color: #000000 !important;
+              background: transparent !important;
+            }
+            .receipt-footer {
+              font-size: 13px !important;
+              line-height: 1.4 !important;
+            }
+            table {
+              width: 100% !important;
+              border-collapse: collapse !important;
+              table-layout: fixed !important;
+              font-family: 'Courier New', Courier, monospace !important;
+            }
+            th, td {
+              font-variant-numeric: tabular-nums !important;
             }
             .flex { display: flex !important; }
             .flex-column { flex-direction: column !important; }
             .justify-content-between { justify-content: space-between !important; }
+            .justify-content-center { justify-content: center !important; }
             .align-items-center { align-items: center !important; }
+            .align-items-start { align-items: flex-start !important; }
+            .flex-1 { flex: 1 !important; }
+            .flex-shrink-0 { flex-shrink: 0 !important; }
+            .font-normal { font-weight: 400 !important; }
+            .font-medium { font-weight: 500 !important; }
+            .font-semibold { font-weight: 600 !important; }
             .font-bold { font-weight: 700 !important; }
             .font-black { font-weight: 900 !important; }
-            .font-semibold { font-weight: 600 !important; }
             .text-center { text-align: center !important; }
-            .text-rose-600 { color: #e11d48 !important; }
-            .text-teal-700 { color: #0f766e !important; }
-            .text-slate-500 { color: #64748b !important; }
-            .text-slate-600 { color: #475569 !important; }
-            .text-slate-800 { color: #1e293b !important; }
-            .text-slate-900 { color: #0f172a !important; }
-            .border-top-1 { border-top: 1px solid #cbd5e1 !important; }
-            .border-dashed { border-top: 1px dashed #94a3b8 !important; }
-            .my-2 { margin-top: 8px !important; margin-bottom: 8px !important; }
-            .mb-1 { margin-bottom: 4px !important; }
-            .mb-2 { margin-bottom: 8px !important; }
-            .mb-3 { margin-bottom: 12px !important; }
+            .text-right { text-align: right !important; }
+            .border-top-1 { border-top: 1px solid #000000 !important; }
+            .border-bottom-1 { border-bottom: 1px solid #000000 !important; }
+            .border-dashed { border-style: dashed !important; }
+            @media print {
+              * { color: #000000 !important; }
+              .receipt-discount-text, .receipt-total-text, .receipt-item-discount { color: #000000 !important; }
+            }
           </style>
         </head>
         <body>
@@ -117,10 +214,25 @@ export const KasirStrukModal: React.FC<KasirStrukModalProps> = ({ visible, resul
   if (!result) return null;
 
   const now = new Date();
-  const tanggalStr = now.toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
-  const jamStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const tanggalStr = now.toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+  const jamStr = now.toLocaleTimeString('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).replace(':', '.');
+  const waktuStr = `${tanggalStr}, ${jamStr}`;
 
-  const totalOriginal = result.total_bayar + (result.total_diskon || 0);
+  const totalSubtotal = result.total_harga !== undefined && result.total_harga > 0
+    ? result.total_harga
+    : (result.items || []).reduce((sum, item) => sum + (item.subtotal || 0), 0);
+
+  const totalDiskon = result.total_diskon !== undefined
+    ? result.total_diskon
+    : (result.items || []).reduce((sum, item) => sum + (item.diskon || 0), 0);
 
   return (
     <Dialog
@@ -172,128 +284,293 @@ export const KasirStrukModal: React.FC<KasirStrukModalProps> = ({ visible, resul
       <div className="p-4 surface-ground max-h-[55vh] overflow-y-auto">
         <div
           ref={printRef}
-          style={{ maxWidth: paperWidthPx, margin: '0 auto' }}
-          className="bg-white p-4 border-round-xl border-1 surface-border shadow-2 text-slate-800 text-xs font-mono"
+          style={{
+            maxWidth: '380px',
+            margin: '0 auto',
+            padding: '18px 14px',
+            boxSizing: 'border-box',
+          }}
+          className="bg-white border-round-xl border-1 surface-border shadow-2 text-slate-800 font-mono"
         >
           {/* Receipt Brand Header */}
           <div className="text-center mb-3">
-            <div className="text-base font-black text-slate-900 tracking-tight">🌸 Klinik Kecantikan</div>
-            {printerSettings.headerAddress && (
-              <div className="text-[10px] text-slate-500 font-semibold mt-0.5">{printerSettings.headerAddress}</div>
+            {logoUrl && !logoError && (
+              <div className="flex justify-content-center mb-2">
+                <img
+                  src={logoUrl}
+                  alt={clinicName}
+                  style={{
+                    maxHeight: '44px',
+                    maxWidth: '140px',
+                    objectFit: 'contain',
+                    display: 'block',
+                  }}
+                  onError={() => setLogoError(true)}
+                />
+              </div>
             )}
-            <div className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider mt-1">Struk Transaksi</div>
+            <div className="receipt-clinic-name font-bold text-slate-900 tracking-tight" style={{ fontSize: '18px', lineHeight: '1.3' }}>
+              {clinicName}
+            </div>
+            {clinicAddress && (
+              <div className="receipt-clinic-meta text-slate-500 font-normal leading-tight mt-1" style={{ fontSize: '12px', lineHeight: '1.3' }}>
+                {clinicAddress}
+              </div>
+            )}
+            {clinicPhone && (
+              <div className="receipt-clinic-meta text-slate-500 font-normal leading-tight mt-0.5" style={{ fontSize: '12px', lineHeight: '1.3' }}>
+                Telp: {clinicPhone}
+              </div>
+            )}
+            <div className="receipt-title text-slate-600 font-bold uppercase tracking-wider mt-2.5" style={{ fontSize: '13px', lineHeight: '1.4' }}>
+              STRUK TRANSAKSI
+            </div>
           </div>
 
-          <div className="border-top-1 border-dashed surface-border my-2" />
+          <div className="border-top-1 border-dashed surface-border my-2.5" />
 
           {/* Meta Info */}
-          <div className="flex justify-content-between mb-1">
-            <span className="text-slate-500">No. Transaksi</span>
-            <span className="font-bold text-slate-900">{result.kode_transaksi}</span>
-          </div>
-          <div className="flex justify-content-between mb-1">
-            <span className="text-slate-500">Pasien</span>
-            <span className="font-bold text-slate-900">{result.nama_pasien || '-'}</span>
-          </div>
-          <div className="flex justify-content-between mb-1">
-            <span className="text-slate-500">No. RM</span>
-            <span className="font-bold text-slate-900">{result.no_rm || '-'}</span>
-          </div>
-          <div className="flex justify-content-between mb-1">
-            <span className="text-slate-500">Tanggal</span>
-            <span className="font-semibold text-slate-800">{tanggalStr}</span>
-          </div>
-          <div className="flex justify-content-between mb-1">
-            <span className="text-slate-500">Jam</span>
-            <span className="font-semibold text-slate-800">{jamStr}</span>
-          </div>
-
-          <div className="border-top-1 border-dashed surface-border my-2" />
-
-          {/* Cart Item Details */}
-          <div className="flex flex-column gap-2.5 my-2">
-            {(result.items || []).map((item: CartItem, i: number) => (
-              <div key={i} className="flex flex-column gap-0.5">
-                <div className="font-bold text-slate-900 flex justify-content-between">
-                  <span>{item.nama}</span>
-                  {item.is_promo && <span className="text-rose-600 text-[10px]">🔥 PROMO</span>}
-                </div>
-                <div className="flex justify-content-between text-slate-600 text-[11px]">
-                  <span>{item.qty} × {formatRupiah(item.harga_satuan)}</span>
-                  <span className="font-bold text-slate-900">{formatRupiah(item.subtotal)}</span>
-                </div>
+          <div className="receipt-body-text flex flex-column gap-1.5 my-2" style={{ fontSize: '13px', lineHeight: '1.4' }}>
+            <div className="flex justify-content-between">
+              <span className="text-slate-500 font-normal">No. Transaksi</span>
+              <span className="font-bold text-slate-900">{result.kode_transaksi}</span>
+            </div>
+            <div className="flex justify-content-between">
+              <span className="text-slate-500 font-normal">Pasien</span>
+              <span className="font-semibold text-slate-800">{result.nama_pasien || '-'}</span>
+            </div>
+            {result.no_rm && (
+              <div className="flex justify-content-between">
+                <span className="text-slate-500 font-normal">No. RM</span>
+                <span className="font-semibold text-slate-800">{result.no_rm}</span>
               </div>
-            ))}
+            )}
+            <div className="flex justify-content-between">
+              <span className="text-slate-500 font-normal">Waktu</span>
+              <span className="font-semibold text-slate-800">{waktuStr}</span>
+            </div>
           </div>
 
-          <div className="border-top-1 border-dashed surface-border my-2" />
+          <div className="border-top-1 border-dashed surface-border my-2.5" />
+
+          {/* Header Kolom (Gaya Minimarket: ITEM | QTY | HARGA | JUMLAH) */}
+          <div
+            className="receipt-grid-header text-slate-500 font-semibold tracking-wider uppercase pb-1 mb-1.5"
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'minmax(0, 1fr) 28px 64px 74px',
+              columnGap: '4px',
+              fontSize: '11px',
+              lineHeight: '1.4',
+              alignItems: 'center',
+              borderBottom: '1px dashed #cbd5e1',
+            }}
+          >
+            <div style={{ textAlign: 'left', minWidth: 0 }}>Item</div>
+            <div style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>Qty</div>
+            <div style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>Harga</div>
+            <div style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>Jumlah</div>
+          </div>
+
+          {/* Cart Item Details (Gaya Minimarket: Item, Qty, Harga, Jumlah) */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', margin: '3px 0' }}>
+            {(result.items || []).map((item: CartItem, i: number) => {
+              const itemDisc = parseFloat(String(item.diskon || 0));
+              const hasDiscount = itemDisc > 0;
+
+              return (
+                <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  {/* Baris Utama Item */}
+                  <div
+                    className="receipt-grid-row text-slate-900"
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'minmax(0, 1fr) 28px 64px 74px',
+                      columnGap: '4px',
+                      fontSize: '13px',
+                      lineHeight: '1.4',
+                      alignItems: 'flex-start',
+                    }}
+                  >
+                    <div
+                      className="font-medium"
+                      style={{
+                        textAlign: 'left',
+                        minWidth: 0,
+                        wordBreak: 'normal',
+                        overflowWrap: 'break-word',
+                      }}
+                    >
+                      {item.nama}
+                    </div>
+                    <div
+                      className="text-slate-700 font-normal"
+                      style={{
+                        textAlign: 'right',
+                        fontVariantNumeric: 'tabular-nums',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {item.qty}
+                    </div>
+                    <div
+                      className="text-slate-700 font-normal"
+                      style={{
+                        textAlign: 'right',
+                        fontVariantNumeric: 'tabular-nums',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {formatAngka(item.harga_satuan)}
+                    </div>
+                    <div
+                      className="font-medium"
+                      style={{
+                        textAlign: 'right',
+                        fontVariantNumeric: 'tabular-nums',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {formatAngka(item.subtotal)}
+                    </div>
+                  </div>
+
+                  {/* Baris Diskon Per Item di bawah nama item */}
+                  {hasDiscount && (
+                    <div
+                      className="receipt-grid-row text-slate-500 font-normal"
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'minmax(0, 1fr) 28px 64px 74px',
+                        columnGap: '4px',
+                        fontSize: '13px',
+                        lineHeight: '1.4',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <div
+                        style={{
+                          gridColumn: '1 / 4',
+                          textAlign: 'left',
+                          minWidth: 0,
+                        }}
+                      >
+                        Diskon
+                      </div>
+                      <div
+                        style={{
+                          gridColumn: '4 / 5',
+                          textAlign: 'right',
+                          fontVariantNumeric: 'tabular-nums',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        -{formatAngka(itemDisc)}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="border-top-1 border-dashed surface-border my-2.5" />
 
           {/* Financial Totals */}
-          <div className="flex justify-content-between mb-1">
-            <span className="text-slate-600">Subtotal</span>
-            <span className="font-bold text-slate-800">{formatRupiah(totalOriginal)}</span>
+          <div className="receipt-body-text flex flex-column gap-1.5 my-2" style={{ fontSize: '13px', lineHeight: '1.4' }}>
+            <div className="flex justify-content-between font-normal">
+              <span className="text-slate-600">Subtotal</span>
+              <span className="text-slate-800 receipt-tabular" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                {formatRupiah(totalSubtotal)}
+              </span>
+            </div>
+
+            {totalDiskon > 0 && (
+              <div className="flex justify-content-between font-normal text-emerald-700 receipt-discount-text">
+                <span>Voucher Diskon</span>
+                <span className="receipt-tabular" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                  -{formatRupiah(totalDiskon)}
+                </span>
+              </div>
+            )}
+
+            {result.dp_nominal != null && result.dp_nominal > 0 ? (
+              <>
+                <div className="flex justify-content-between text-slate-600 font-normal">
+                  <span>Total Biaya</span>
+                  <span className="text-slate-800 receipt-tabular" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                    {formatRupiah(result.total_bayar)}
+                  </span>
+                </div>
+                <div className="flex justify-content-between text-teal-700 font-normal">
+                  <span>Uang Muka (DP {result.metode_pembayaran_dp ? result.metode_pembayaran_dp.toUpperCase() : 'Terbayar'})</span>
+                  <span className="receipt-tabular" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                    -{formatRupiah(result.dp_nominal)}
+                  </span>
+                </div>
+                <div className="border-top-1 border-dashed surface-border my-1" />
+                <div className="receipt-total-large flex justify-content-between font-bold text-slate-900 pt-0.5" style={{ fontSize: '16px', lineHeight: '1.4' }}>
+                  <span>Sisa Pelunasan</span>
+                  <span className="text-teal-700 receipt-total-text receipt-tabular" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                    {formatRupiah(result.sisa_bayar !== undefined ? result.sisa_bayar : Math.max(0, result.total_bayar - result.dp_nominal))}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <div className="receipt-total-large flex justify-content-between font-bold text-slate-900 pt-1 border-top-1 border-slate-200 mt-0.5" style={{ fontSize: '16px', lineHeight: '1.4' }}>
+                <span>TOTAL BAYAR</span>
+                <span className="text-teal-700 receipt-total-text receipt-tabular" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                  {formatRupiah(result.total_bayar)}
+                </span>
+              </div>
+            )}
           </div>
 
-          {result.total_diskon != null && result.total_diskon > 0 && (
-            <div className="flex justify-content-between mb-1 text-rose-600">
-              <span>Diskon {result.nama_promo ? `(${result.nama_promo})` : ''}</span>
-              <span className="font-bold">- {formatRupiah(result.total_diskon)}</span>
-            </div>
-          )}
-
-          {result.dp_nominal != null && result.dp_nominal > 0 ? (
-            <>
-              <div className="flex justify-content-between mb-1 text-slate-700">
-                <span>Total Biaya</span>
-                <span className="font-semibold text-slate-900">{formatRupiah(result.total_bayar)}</span>
-              </div>
-              <div className="flex justify-content-between mb-1 text-teal-700 font-semibold">
-                <span>Uang Muka (DP {result.metode_pembayaran_dp ? result.metode_pembayaran_dp.toUpperCase() : 'Terbayar'})</span>
-                <span>- {formatRupiah(result.dp_nominal)}</span>
-              </div>
-              <div className="border-top-1 border-dashed surface-border my-1" />
-              <div className="flex justify-content-between pt-1 font-bold text-sm text-slate-900 mb-2">
-                <span>Sisa Pelunasan</span>
-                <span className="text-teal-700">{formatRupiah(result.sisa_bayar !== undefined ? result.sisa_bayar : Math.max(0, result.total_bayar - result.dp_nominal))}</span>
-              </div>
-            </>
-          ) : (
-            <div className="flex justify-content-between pt-1 border-top-1 border-slate-200 mt-1 mb-2 font-bold text-sm text-slate-900">
-              <span>Total Bayar</span>
-              <span className="text-teal-700">{formatRupiah(result.total_bayar)}</span>
-            </div>
-          )}
-
-          <div className="border-top-1 border-dashed surface-border my-2" />
+          <div className="border-top-1 border-dashed surface-border my-2.5" />
 
           {/* Payment Method details */}
-          <div className="flex justify-content-between mb-1">
-            <span className="text-slate-600">Metode</span>
-            <span className="font-bold text-slate-900">{METODE_LABEL[result.metode_bayar] || result.metode_bayar}</span>
+          <div className="receipt-body-text flex flex-column gap-1.5 my-2" style={{ fontSize: '13px', lineHeight: '1.4' }}>
+            <div className="flex justify-content-between">
+              <span className="text-slate-600 font-normal">Metode</span>
+              <span className="font-semibold text-slate-800">{METODE_LABEL[result.metode_bayar] || result.metode_bayar}</span>
+            </div>
+            {result.metode_bayar === 'tunai' && (
+              <>
+                <div className="flex justify-content-between">
+                  <span className="text-slate-600 font-normal">Dibayar</span>
+                  <span className="font-semibold text-slate-800 receipt-tabular" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                    {formatRupiah(result.nominal_bayar)}
+                  </span>
+                </div>
+                <div className="flex justify-content-between">
+                  <span className="text-slate-600 font-normal">Kembalian</span>
+                  <span className="font-semibold text-slate-800 receipt-tabular" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                    {formatRupiah(result.kembalian)}
+                  </span>
+                </div>
+              </>
+            )}
           </div>
 
-          {result.metode_bayar === 'tunai' && (
-            <>
-              <div className="flex justify-content-between mb-1">
-                <span className="text-slate-600">Dibayar</span>
-                <span className="font-bold text-slate-900">{formatRupiah(result.nominal_bayar)}</span>
-              </div>
-              <div className="flex justify-content-between mb-1">
-                <span className="text-slate-600">Kembalian</span>
-                <span className="font-bold text-slate-900">{formatRupiah(result.kembalian)}</span>
-              </div>
-            </>
-          )}
-
           {/* Lunas Status Badge */}
-          <div className="my-3 text-center py-1.5 px-3 border-round border-2 border-emerald-500 text-emerald-700 font-black text-sm tracking-wider uppercase bg-emerald-50">
-            ✓ LUNAS
+          <div className="my-2.5 text-center">
+            <span
+              className="receipt-lunas-badge inline-block py-1 px-3 border-1 border-emerald-300 text-emerald-800 font-bold tracking-wider uppercase bg-emerald-50 border-round-md"
+              style={{ fontSize: '12px', lineHeight: '1.4' }}
+            >
+              ✓ LUNAS
+            </span>
           </div>
 
           {/* Footer message */}
-          <div className="text-center text-[11px] text-slate-500 line-height-2 mt-2 whitespace-pre-line">
-            {printerSettings.footerMessage || 'Terima kasih atas kunjungan Anda!\nSemoga lekas sembuh & cantik selalu 🌸'}
-          </div>
+          {footerMsg && (
+            <div
+              className="receipt-footer text-center text-slate-400 mt-2 whitespace-pre-line"
+              style={{ fontSize: '13px', lineHeight: '1.4' }}
+            >
+              {footerMsg}
+            </div>
+          )}
         </div>
       </div>
 

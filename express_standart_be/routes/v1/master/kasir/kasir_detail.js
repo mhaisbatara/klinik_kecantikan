@@ -83,6 +83,24 @@ router.post("/", async (req, res) => {
       }
     }
 
+    // Cek kolom diskon snapshot secara aman agar query tidak pernah crash
+    const hasDiscountCols = await DB.schema.hasColumn("trx_detail_transaksi", "kode_promo");
+    const promoSelectCols = hasDiscountCols ? [
+      DB.raw("COALESCE(dt.kode_promo, MAX(dal.kode_promo)) as kode_promo"),
+      DB.raw("COALESCE(dt.nama_promo, MAX(dal.nama_promo)) as nama_promo"),
+      DB.raw("COALESCE(dt.jenis_diskon, MAX(dal.jenis_diskon)) as jenis_diskon"),
+      DB.raw("COALESCE(dt.nilai_diskon, MAX(dal.nilai_diskon)) as nilai_diskon"),
+      DB.raw("COALESCE(dt.diskon, 0) as diskon"),
+      DB.raw("COALESCE(dt.subtotal_setelah_diskon, dt.subtotal) as subtotal_setelah_diskon"),
+    ] : [
+      DB.raw("MAX(dal.kode_promo) as kode_promo"),
+      DB.raw("MAX(dal.nama_promo) as nama_promo"),
+      DB.raw("MAX(dal.jenis_diskon) as jenis_diskon"),
+      DB.raw("MAX(dal.nilai_diskon) as nilai_diskon"),
+      DB.raw("0 as diskon"),
+      DB.raw("dt.subtotal as subtotal_setelah_diskon"),
+    ];
+
     // Ambil detail item dengan flag is_from_pendaftaran
     const details = await DB("trx_detail_transaksi as dt")
       .leftJoin("trx_transaksi as t", "t.kode_transaksi", "dt.kode_transaksi")
@@ -93,7 +111,10 @@ router.post("/", async (req, res) => {
         "trx_detail_antrian_layanan as dal",
         function () {
           this.on("dal.kode_kunjungan", "t.kode_kunjungan")
-            .andOn("dal.kode_layanan", "dt.kode_layanan");
+            .andOn(function () {
+              this.on("dal.kode_layanan", "dt.kode_layanan")
+                .orOn("dal.kode_layanan", "dt.kode_produk");
+            });
         }
       )
       .where("dt.kode_transaksi", kode_transaksi)
@@ -110,10 +131,7 @@ router.post("/", async (req, res) => {
         "dt.harga_satuan",
         "dt.subtotal",
         DB.raw("COALESCE(dt.is_from_pendaftaran, 0) as is_from_pendaftaran"),
-        DB.raw("MAX(dal.kode_promo) as kode_promo"),
-        DB.raw("MAX(dal.nama_promo) as nama_promo"),
-        DB.raw("MAX(dal.jenis_diskon) as jenis_diskon"),
-        DB.raw("MAX(dal.nilai_diskon) as nilai_diskon")
+        ...promoSelectCols
       )
       .orderBy("dt.is_from_pendaftaran", "desc")
       .orderBy("dt.id", "asc");
@@ -124,6 +142,11 @@ router.post("/", async (req, res) => {
       kode: d.kode_layanan || d.kode_produk,
       nama: d.nama_layanan_single || d.nama_paket_layanan || d.nama_produk || "-",
       satuan: d.satuan || (d.kode_layanan ? "tindakan" : "pcs"),
+      harga_satuan: parseFloat(d.harga_satuan || 0),
+      subtotal: parseFloat(d.subtotal || 0),
+      diskon: parseFloat(d.diskon || 0),
+      subtotal_setelah_diskon: parseFloat(d.subtotal_setelah_diskon !== null ? d.subtotal_setelah_diskon : d.subtotal),
+      nilai_diskon: d.nilai_diskon != null ? parseFloat(d.nilai_diskon) : null,
       is_from_pendaftaran: Boolean(d.is_from_pendaftaran),
     }));
 
