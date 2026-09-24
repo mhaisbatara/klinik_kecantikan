@@ -20,6 +20,7 @@ interface MenuState {
     filteredMenu: AppMenuItem[];
     load: boolean;
     menu: AppMenuItem[];
+    allowedPaths: Set<string>;
 }
 
 interface RuanganItem {
@@ -115,7 +116,8 @@ const AppMenu = () => {
         searchVal: "",
         filteredMenu: [],
         load: true,
-        menu: []
+        menu: [],
+        allowedPaths: new Set(),
     });
 
     useEffect(() => {
@@ -194,6 +196,16 @@ const AppMenu = () => {
             }
 
             const rawMenu: AppMenuItem[] = JSON.parse(JSON.stringify(vaData.data));
+            const userAllowedPaths = new Set<string>();
+            const scanAllowedPaths = (items: any[]) => {
+                if (!Array.isArray(items)) return;
+                for (const it of items) {
+                    if (it.to) userAllowedPaths.add(it.to);
+                    if (it.items) scanAllowedPaths(it.items);
+                }
+            };
+            scanAllowedPaths(rawMenu);
+
             const transformItem = (item: AppMenuItem): AppMenuItem => {
                 const newItem: AppMenuItem = { ...item };
                 if (
@@ -217,7 +229,7 @@ const AppMenu = () => {
                         .filter((sub) => {
                             const lbl = (sub.label || '').trim().toLowerCase();
                             const to = (sub.to || '').trim().toLowerCase();
-                            return lbl !== 'antrean' && to !== '/pendaftaran-antrean/antrean';
+                            return !(lbl === 'antrean' && to === '/pendaftaran-antrean/antrean');
                         })
                         .map(transformItem);
 
@@ -365,7 +377,7 @@ const AppMenu = () => {
                 .filter((item) => {
                     const lbl = (item.label || '').trim().toLowerCase();
                     const to = (item.to || '').trim().toLowerCase();
-                    return lbl !== 'antrean' && to !== '/pendaftaran-antrean/antrean';
+                    return !(lbl === 'antrean' && to === '/pendaftaran-antrean/antrean');
                 })
                 .map(transformItem);
 
@@ -445,7 +457,8 @@ const AppMenu = () => {
             setState(prev => ({
                 ...prev,
                 filteredMenu: menu2,
-                menu: transformedMenu
+                menu: transformedMenu,
+                allowedPaths: userAllowedPaths
             }));
         } catch (error) {
             console.error("Error loading menu:", error);
@@ -488,7 +501,8 @@ const AppMenu = () => {
             setState(prev => ({
                 ...prev,
                 filteredMenu: fallbackMenu,
-                menu: fallbackMenu
+                menu: fallbackMenu,
+                allowedPaths: new Set()
             }));
         } finally {
             setState(prev => ({ ...prev, load: false }));
@@ -646,11 +660,11 @@ const AppMenu = () => {
                         // 7. Pengaturan (HANYA untuk Superadmin dan Owner/Manager)
                         const pengaturanItems = (isSuperAdminRole || isOwnerOrManager) ? state.filteredMenu.filter(isPengaturanItem) : [];
 
-                        // Item tambahan lainnya di luar kategori utama dan bukan kasir/laporan/layanan
+                        // Item tambahan lainnya di luar kategori utama dan bukan kasir/laporan/layanan operasional
                         const extraItems = state.filteredMenu.filter((item) => {
                             if (isHomeItem(item) || isMasterDataItem(item) || isPendaftaranItem(item) || isPengaturanItem(item)) return false;
                             const lbl = (item.label || '').toLowerCase();
-                            return !lbl.includes('kasir') && !lbl.includes('laporan') && !lbl.includes('riwayat') && !lbl.includes('layanan');
+                            return !lbl.includes('kasir') && !lbl.includes('laporan') && !lbl.includes('riwayat') && lbl !== 'layanan' && lbl !== 'layanan & tindakan';
                         });
 
                         const renderItem = (item: AppMenuItem, i: number) =>
@@ -666,12 +680,50 @@ const AppMenu = () => {
                                 <li className="menu-separator" key={`separator-${i}`}></li>
                             );
 
-                        // Hak Akses Operasional Berdasarkan Role
-                        const canAccessTindakan = isOwnerOrManager || ['dokter', 'beautician'].includes(currentRole);
-                        const canAccessKonsul = isOwnerOrManager || currentRole === 'dokter';
-                        const canAccessLayanan = canAccessTindakan || canAccessKonsul;
-                        const canAccessKasir = isOwnerOrManager || currentRole === 'kasir';
+                        // Hak Akses Operasional Berdasarkan Role & Permission Navigasi yang Diberikan
+                        const hasAllowedPath = (target: string) => {
+                            if (state.allowedPaths.has(target)) return true;
+                            for (const p of state.allowedPaths) {
+                                if (target.includes('?') && p.startsWith(target)) return true;
+                                if (!target.includes('?') && (p === target || p.startsWith(target + '?'))) return true;
+                            }
+                            return false;
+                        };
+
+                        const canAccessTindakan =
+                            !isSuperAdminRole &&
+                            (isOwnerOrManager ||
+                                hasAllowedPath('/pendaftaran-antrean/antrean?type=layanan') ||
+                                (state.allowedPaths.size === 0 && ['dokter', 'beautician'].includes(currentRole)));
+
+                        const canAccessKonsul =
+                            !isSuperAdminRole &&
+                            (isOwnerOrManager ||
+                                hasAllowedPath('/pendaftaran-antrean/antrean?type=konsul') ||
+                                (state.allowedPaths.size === 0 && currentRole === 'dokter'));
+
+                        const canAccessAntreanRuangan =
+                            !isSuperAdminRole &&
+                            (isOwnerOrManager ||
+                                state.allowedPaths.has('/pendaftaran-antrean/antrean') ||
+                                (state.allowedPaths.size === 0 && ['beautician', 'dokter'].includes(currentRole)));
+
+                        const canAccessLayanan = canAccessTindakan || canAccessKonsul || canAccessAntreanRuangan;
+
+                        const canAccessKasir =
+                            !isSuperAdminRole &&
+                            (isOwnerOrManager ||
+                                currentRole === 'kasir' ||
+                                hasAllowedPath('/kasir'));
+
                         const canAccessLaporan = !isSuperAdminRole;
+
+                        const searchLower = state.searchVal.trim().toLowerCase();
+                        const matchesTindakan = canAccessTindakan && (!searchLower || 'tindakan'.includes(searchLower) || 'layanan'.includes(searchLower));
+                        const matchesKonsul = canAccessKonsul && (!searchLower || 'konsultasi'.includes(searchLower) || 'medis'.includes(searchLower));
+                        const matchesAntreanRuangan = canAccessAntreanRuangan && (!searchLower || 'antrean ruangan'.includes(searchLower) || 'antrean'.includes(searchLower) || 'ruangan'.includes(searchLower) || 'monitoring'.includes(searchLower));
+                        const showLayananSection = canAccessLayanan && (matchesTindakan || matchesKonsul || matchesAntreanRuangan);
+                        const matchesKasir = canAccessKasir && (!searchLower || 'kasir'.includes(searchLower) || 'pembayaran'.includes(searchLower));
 
                         let idx = 0;
                         return (
@@ -688,16 +740,18 @@ const AppMenu = () => {
                                 {/* Item Tambahan Lainnya (jika ada) */}
                                 {extraItems.map((item) => renderItem(item, idx++))}
 
-                                {/* 4. LAYANAN (Tindakan, Konsultasi) */}
-                                {canAccessLayanan && (
+                                {/* 4. LAYANAN (Tindakan, Konsultasi, Antrean Ruangan) */}
+                                {showLayananSection && (
                                     <li className="layout-root-menuitem" key="layanan-ruangan-section">
                                         <div className="layout-menuitem-root-text">LAYANAN</div>
                                         <ul>
                                             {(() => {
                                                 const typeParam = searchParams.get('type') || '';
+                                                const isAntreanRuanganActive =
+                                                    pathname === '/pendaftaran-antrean/antrean' && !typeParam;
                                                 const isLayananActive =
                                                     pathname === '/pendaftaran-antrean/antrean' &&
-                                                    (typeParam === 'layanan' || !typeParam);
+                                                    typeParam === 'layanan';
                                                 const isKonsulActive =
                                                     pathname === '/pendaftaran-antrean/antrean' &&
                                                     typeParam === 'konsul';
@@ -705,7 +759,7 @@ const AppMenu = () => {
                                                 return (
                                                     <>
                                                         {/* Sidebar Tindakan */}
-                                                        {canAccessTindakan && (
+                                                        {matchesTindakan && (
                                                             <li className={isLayananActive ? 'active-menuitem' : ''}>
                                                                 <Link
                                                                     href="/pendaftaran-antrean/antrean?type=layanan"
@@ -730,7 +784,7 @@ const AppMenu = () => {
                                                         )}
 
                                                         {/* Sidebar Konsultasi */}
-                                                        {canAccessKonsul && (
+                                                        {matchesKonsul && (
                                                             <li className={isKonsulActive ? 'active-menuitem' : ''}>
                                                                 <Link
                                                                     href="/pendaftaran-antrean/antrean?type=konsul"
@@ -753,6 +807,31 @@ const AppMenu = () => {
                                                                 </Link>
                                                             </li>
                                                         )}
+
+                                                        {/* Sidebar Antrean Ruangan (Monitoring Antrean Seluruh Ruangan) */}
+                                                        {matchesAntreanRuangan && (
+                                                            <li className={isAntreanRuanganActive ? 'active-menuitem' : ''}>
+                                                                <Link
+                                                                    href="/pendaftaran-antrean/antrean"
+                                                                    className={`p-ripple flex align-items-center gap-2${isAntreanRuanganActive ? ' active-route' : ''}`}
+                                                                    style={{ padding: '0.75rem 1.25rem', borderRadius: '6px', transition: 'background 0.2s' }}
+                                                                >
+                                                                    <i
+                                                                        className="layout-menuitem-icon pi pi-calendar-times"
+                                                                        style={{ color: isAntreanRuanganActive ? 'var(--primary-color)' : undefined }}
+                                                                    />
+                                                                    <span
+                                                                        className="layout-menuitem-text"
+                                                                        style={{
+                                                                            fontWeight: isAntreanRuanganActive ? 700 : undefined,
+                                                                            color: isAntreanRuanganActive ? 'var(--primary-color)' : undefined,
+                                                                        }}
+                                                                    >
+                                                                        Antrean Ruangan
+                                                                    </span>
+                                                                </Link>
+                                                            </li>
+                                                        )}
                                                     </>
                                                 );
                                             })()}
@@ -761,7 +840,7 @@ const AppMenu = () => {
                                 )}
 
                                 {/* 5. KASIR */}
-                                {canAccessKasir && (
+                                {matchesKasir && (
                                     <li className="layout-root-menuitem" key="kasir-section">
                                         <div className="layout-menuitem-root-text">KASIR</div>
                                         <ul>
@@ -778,8 +857,8 @@ const AppMenu = () => {
                                                     <span
                                                         className="layout-menuitem-text"
                                                         style={{
-                                                             fontWeight: pathname === '/kasir' ? 700 : undefined,
-                                                             color: pathname === '/kasir' ? 'var(--primary-color)' : undefined,
+                                                            fontWeight: pathname === '/kasir' ? 700 : undefined,
+                                                            color: pathname === '/kasir' ? 'var(--primary-color)' : undefined,
                                                         }}
                                                     >
                                                         Kasir

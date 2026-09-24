@@ -95,6 +95,8 @@ const Page = () => {
         harga_jual: 0,
         stok_minimum: 5,
         qty_beli: 1,
+        no_batch: '',
+        tanggal_kadaluarsa: '',
         tanggal: new Date().toISOString().slice(0, 10),
     });
     const [savingBeliBaru, setSavingBeliBaru] = useState<boolean>(false);
@@ -109,6 +111,8 @@ const Page = () => {
         kode_produk: '',
         qty_masuk: 1,
         harga_beli: 0,
+        no_batch: '',
+        tanggal_kadaluarsa: '',
         update_harga_beli_master: true,
         tanggal: new Date().toISOString().slice(0, 10),
     });
@@ -230,6 +234,8 @@ const Page = () => {
             harga_jual: 0,
             stok_minimum: 5,
             qty_beli: 1,
+            no_batch: '',
+            tanggal_kadaluarsa: '',
             tanggal: new Date().toISOString().slice(0, 10),
         });
         setDialogBeliBaruVisible(true);
@@ -286,6 +292,8 @@ const Page = () => {
                 kode_produk: targetRow.kode_produk,
                 qty_masuk: 1,
                 harga_beli: Number(targetRow.harga_beli) || 0,
+                no_batch: targetRow.no_batch || '',
+                tanggal_kadaluarsa: targetRow.tanggal_kadaluarsa ? String(targetRow.tanggal_kadaluarsa).slice(0, 10) : '',
                 update_harga_beli_master: true,
                 tanggal: new Date().toISOString().slice(0, 10),
             });
@@ -297,6 +305,8 @@ const Page = () => {
                 kode_produk: first?.kode_produk || '',
                 qty_masuk: 1,
                 harga_beli: Number(first?.harga_beli) || 0,
+                no_batch: first?.no_batch || '',
+                tanggal_kadaluarsa: first?.tanggal_kadaluarsa ? String(first.tanggal_kadaluarsa).slice(0, 10) : '',
                 update_harga_beli_master: true,
                 tanggal: new Date().toISOString().slice(0, 10),
             });
@@ -312,6 +322,8 @@ const Page = () => {
             kode_produk: kodeProduk,
             kode_supplier: found?.kode_supplier || prev.kode_supplier || supplierList[0]?.value || '',
             harga_beli: Number(found?.harga_beli) || 0,
+            no_batch: found?.no_batch || '',
+            tanggal_kadaluarsa: found?.tanggal_kadaluarsa ? String(found.tanggal_kadaluarsa).slice(0, 10) : '',
         }));
     };
 
@@ -1216,6 +1228,28 @@ const Page = () => {
                         </div>
                     </div>
 
+                    {/* No. Batch & Tanggal Kadaluarsa */}
+                    <div className="grid">
+                        <div className="col-12 md:col-6">
+                            <label className="block text-sm font-semibold mb-1">No. Batch</label>
+                            <InputText
+                                value={formBeliBaru.no_batch}
+                                onChange={(e) => setFormBeliBaru({ ...formBeliBaru, no_batch: e.target.value })}
+                                placeholder="misal: BTH-2026-001"
+                                className="w-full text-sm"
+                            />
+                        </div>
+                        <div className="col-12 md:col-6">
+                            <label className="block text-sm font-semibold mb-1">Tanggal Kadaluarsa</label>
+                            <InputText
+                                type="date"
+                                value={formBeliBaru.tanggal_kadaluarsa}
+                                onChange={(e) => setFormBeliBaru({ ...formBeliBaru, tanggal_kadaluarsa: e.target.value })}
+                                className="w-full text-sm"
+                            />
+                        </div>
+                    </div>
+
                     {/* Banner Total Transaksi PO */}
                     <div className="border-1 border-green-300 bg-green-50 border-round-lg p-3 flex justify-content-between align-items-center">
                         <div>
@@ -1340,6 +1374,28 @@ const Page = () => {
                         <label htmlFor="chkUpdateHarga" className="text-xs text-700 cursor-pointer">
                             Perbarui harga beli master produk dengan harga restock ini
                         </label>
+                    </div>
+
+                    {/* No. Batch & Tanggal Kadaluarsa Restock */}
+                    <div className="grid">
+                        <div className="col-12 md:col-6">
+                            <label className="block text-sm font-semibold mb-1">No. Batch (Opsional)</label>
+                            <InputText
+                                value={formRestock.no_batch}
+                                onChange={(e) => setFormRestock({ ...formRestock, no_batch: e.target.value })}
+                                placeholder="misal: BTH-2026-002"
+                                className="w-full text-sm"
+                            />
+                        </div>
+                        <div className="col-12 md:col-6">
+                            <label className="block text-sm font-semibold mb-1">Tanggal Kadaluarsa (Opsional)</label>
+                            <InputText
+                                type="date"
+                                value={formRestock.tanggal_kadaluarsa}
+                                onChange={(e) => setFormRestock({ ...formRestock, tanggal_kadaluarsa: e.target.value })}
+                                className="w-full text-sm"
+                            />
+                        </div>
                     </div>
 
                     {/* Tanggal Restock */}

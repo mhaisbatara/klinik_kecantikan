@@ -48,10 +48,13 @@ router.post("/", async (req, res) => {
     }
 
     await DB.transaction(async (trx) => {
-      const last = await trx("mst_paket_produk").orderBy("id", "desc").first();
-      let n = 1;
-      if (last?.kode_paket_produk) { n = (parseInt(last.kode_paket_produk.replace("PKTPRD-", "")) || 0) + 1; }
-      kode = `PKTPRD-${String(n).padStart(3, "0")}`;
+      const allPktPrd = await trx("mst_paket_produk").where("kode_paket_produk", "like", "PKTPRD-%").select("kode_paket_produk");
+      let maxNum = 0;
+      for (const p of allPktPrd) {
+        const num = parseInt(p.kode_paket_produk.replace("PKTPRD-", ""), 10);
+        if (!isNaN(num) && num > maxNum) maxNum = num;
+      }
+      kode = `PKTPRD-${String(maxNum + 1).padStart(3, "0")}`;
 
       const branchCode = oPayload.kode_cabang || req?.auth?.kode_cabang || "CBG-001";
       const oData = {

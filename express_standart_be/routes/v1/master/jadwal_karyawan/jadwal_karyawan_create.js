@@ -35,14 +35,15 @@ router.post("/", async (req, res) => {
 
     let kode = "";
     await DB.transaction(async (trx) => {
+      const kodeRuangan = oPayload.kode_ruangan || null;
       const targetJamMulai = (oPayload.jam_mulai || "").slice(0, 5);
       const targetJamSelesai = (oPayload.jam_selesai || "").slice(0, 5);
 
-      if (isPJ && oPayload.kode_ruangan && oPayload.hari) {
+      if (isPJ && kodeRuangan && oPayload.hari) {
         // Unset PJ HANYA berlaku untuk baris lain dalam SESI YANG SAMA (jam_mulai & jam_selesai sama persis)
         await trx("mst_jadwal_karyawan")
           .where({
-            kode_ruangan: oPayload.kode_ruangan,
+            kode_ruangan: kodeRuangan,
             hari: oPayload.hari
           })
           .whereRaw("LEFT(jam_mulai, 5) = ?", [targetJamMulai])
@@ -53,11 +54,11 @@ router.post("/", async (req, res) => {
             updated_by: username,
             updated_at: formatDateSystem()
           });
-      } else if (!isPJ && oPayload.kode_ruangan && oPayload.hari) {
+      } else if (!isPJ && kodeRuangan && oPayload.hari) {
         // Cari PJ pada SESI YANG SAMA untuk mewarisi kuota
         const pjRow = await trx("mst_jadwal_karyawan")
           .where({
-            kode_ruangan: oPayload.kode_ruangan,
+            kode_ruangan: kodeRuangan,
             hari: oPayload.hari,
             is_penanggung_jawab: 1
           })
@@ -70,15 +71,21 @@ router.post("/", async (req, res) => {
       }
 
       // Cek apakah jadwal yang sama persis (ruangan, hari, no_sip, jam_mulai, jam_selesai) sudah ada
-      const existing = await trx("mst_jadwal_karyawan")
+      let existingQuery = trx("mst_jadwal_karyawan")
         .where({
-          kode_ruangan: oPayload.kode_ruangan,
           hari: oPayload.hari,
           no_sip: oPayload.no_sip
         })
         .whereRaw("LEFT(jam_mulai, 5) = ?", [targetJamMulai])
-        .whereRaw("LEFT(jam_selesai, 5) = ?", [targetJamSelesai])
-        .first();
+        .whereRaw("LEFT(jam_selesai, 5) = ?", [targetJamSelesai]);
+
+      if (kodeRuangan) {
+        existingQuery = existingQuery.where("kode_ruangan", kodeRuangan);
+      } else {
+        existingQuery = existingQuery.whereNull("kode_ruangan");
+      }
+
+      const existing = await existingQuery.first();
 
       if (existing) {
         const err = new Error("Karyawan ini sudah memiliki jadwal pada ruangan, hari, dan jam yang sama.");
@@ -86,12 +93,13 @@ router.post("/", async (req, res) => {
         throw err;
       }
 
-      const last = await trx("mst_jadwal_karyawan").orderBy("id", "desc").first();
-      let n = 1;
-      if (last?.kode_jadwal) {
-        n = (parseInt(last.kode_jadwal.replace("JDW-", "")) || 0) + 1;
+      const allJadwal = await trx("mst_jadwal_karyawan").where("kode_jadwal", "like", "JDW-%").select("kode_jadwal");
+      let maxNum = 0;
+      for (const j of allJadwal) {
+        const num = parseInt(j.kode_jadwal.replace("JDW-", ""), 10);
+        if (!isNaN(num) && num > maxNum) maxNum = num;
       }
-      kode = `JDW-${String(n).padStart(3, "0")}`;
+      kode = `JDW-${String(maxNum + 1).padStart(3, "0")}`;
 
       const branchCode = oPayload.kode_cabang || req?.auth?.kode_cabang || "CBG-001";
 

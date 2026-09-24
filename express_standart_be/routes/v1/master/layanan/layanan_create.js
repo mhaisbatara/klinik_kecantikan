@@ -78,13 +78,13 @@ router.post("/", upload.any(), async (req, res) => {
 
     let kodeLayanan = "";
     await DB.transaction(async (trx) => {
-      const lastRecord = await trx("mst_layanan").orderBy("id", "desc").first();
-      let nextSeq = 1;
-      if (lastRecord?.kode_layanan) {
-        const num = parseInt(lastRecord.kode_layanan.replace("LAY-", "")) || 0;
-        nextSeq = num + 1;
+      const allLay = await trx("mst_layanan").where("kode_layanan", "like", "LAY-%").select("kode_layanan");
+      let maxNum = 0;
+      for (const l of allLay) {
+        const num = parseInt(l.kode_layanan.replace("LAY-", ""), 10);
+        if (!isNaN(num) && num > maxNum) maxNum = num;
       }
-      kodeLayanan = `LAY-${String(nextSeq).padStart(3, "0")}`;
+      kodeLayanan = `LAY-${String(maxNum + 1).padStart(3, "0")}`;
 
       // Simpan foto jika ada
       if (oFoto) {

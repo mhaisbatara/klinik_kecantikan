@@ -17,9 +17,13 @@ router.post("/", async (req, res) => {
     if (cValidation) return res.status(422).json({ status: status.BAD_REQUEST, message: cValidation, datetime: formatDateSystem() });
     let kode = "";
     await DB.transaction(async (trx) => {
-      const last = await trx("mst_alat").orderBy("id", "desc").first();
-      let n = 1;
-      if (last?.kode_alat) { n = (parseInt(last.kode_alat.replace("ALT-", "")) || 0) + 1; }
+      const allAlat = await trx("mst_alat").where("kode_alat", "like", "ALT-%").select("kode_alat");
+      let maxNum = 0;
+      for (const a of allAlat) {
+        const num = parseInt(a.kode_alat.replace("ALT-", ""), 10);
+        if (!isNaN(num) && num > maxNum) maxNum = num;
+      }
+      kode = `ALT-${String(maxNum + 1).padStart(3, "0")}`;
       const branchCode = oPayload.kode_cabang || req?.auth?.kode_cabang || "CBG-001";
       const oData = { kode_cabang: branchCode, kode_alat: kode, kode_ruangan: oPayload.kode_ruangan || null, nama: oPayload.nama, merk: oPayload.merk || null, tanggal_beli: oPayload.tanggal_beli || null, kondisi: oPayload.kondisi, status: oPayload.status, tz: oPayload.tz || "UTC", created_by: username, created_at: formatDateSystem(), updated_by: username, updated_at: formatDateSystem() };
       await trx("mst_alat").insert(oData);
