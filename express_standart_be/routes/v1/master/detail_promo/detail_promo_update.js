@@ -53,11 +53,13 @@ router.post("/", async (req, res) => {
           .where("kode_promo", kodePromo)
           .del();
 
-        const last = await trx("mst_detail_promo").orderBy("id", "desc").first();
-        let n = 1;
-        if (last?.kode_detail_promo) {
-          n = (parseInt(last.kode_detail_promo.replace("DPRM-", "")) || 0) + 1;
+        const allDpr = await trx("mst_detail_promo").where("kode_detail_promo", "like", "DPRM-%").select("kode_detail_promo");
+        let maxNum = 0;
+        for (const d of allDpr) {
+          const num = parseInt(d.kode_detail_promo.replace("DPRM-", ""), 10);
+          if (!isNaN(num) && num > maxNum) maxNum = num;
         }
+        let n = maxNum + 1;
 
         for (const item of itemsToProcess) {
           const kode = `DPRM-${String(n).padStart(4, "0")}`;

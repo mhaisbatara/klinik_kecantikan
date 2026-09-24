@@ -26,12 +26,13 @@ router.post("/", async (req, res) => {
 
     let kode = "";
     await DB.transaction(async (trx) => {
-      const last = await trx("mst_ruangan").orderBy("id", "desc").first();
-      let n = 1;
-      if (last?.kode_ruangan) {
-        n = (parseInt(last.kode_ruangan.replace("RNG-", "")) || 0) + 1;
+      const allRng = await trx("mst_ruangan").where("kode_ruangan", "like", "RNG-%").select("kode_ruangan");
+      let maxNum = 0;
+      for (const r of allRng) {
+        const num = parseInt(r.kode_ruangan.replace("RNG-", ""), 10);
+        if (!isNaN(num) && num > maxNum) maxNum = num;
       }
-      kode = `RNG-${String(n).padStart(3, "0")}`;
+      kode = `RNG-${String(maxNum + 1).padStart(3, "0")}`;
 
       const branchCode = oPayload.kode_cabang || req?.auth?.kode_cabang || "CBG-001";
       const oData = {

@@ -93,16 +93,22 @@ const AntreanLayananPage = () => {
 
             {/* Title Card Header */}
             <div className="card p-0 mb-3 border-round-xl surface-border shadow-1 overflow-hidden">
-                <div className={`px-4 py-3 border-bottom-1 surface-border ${isKonsul ? 'bg-teal-50' : 'bg-blue-50'} flex flex-column sm:flex-row align-items-start sm:align-items-center justify-content-between gap-3`}>
+                <div className={`px-4 py-3 border-bottom-1 surface-border ${isKonsul ? 'bg-teal-50' : !typeParam ? 'bg-indigo-50' : 'bg-blue-50'} flex flex-column sm:flex-row align-items-start sm:align-items-center justify-content-between gap-3`}>
                     <div>
-                        <h2 className={`text-xl sm:text-2xl font-bold flex align-items-center gap-2 mb-1 ${isKonsul ? 'text-teal-900' : 'text-blue-900'}`}>
-                            <i className={`pi ${isKonsul ? 'pi-comments text-teal-600' : 'pi-sparkles text-blue-600'} text-2xl`} />
-                            {isKonsul ? 'Panel Antrean Konsultasi Pasien' : 'Panel Antrean Layanan & Tindakan Pasien'}
+                        <h2 className={`text-xl sm:text-2xl font-bold flex align-items-center gap-2 mb-1 ${isKonsul ? 'text-teal-900' : !typeParam ? 'text-indigo-900' : 'text-blue-900'}`}>
+                            <i className={`pi ${isKonsul ? 'pi-comments text-teal-600' : !typeParam ? 'pi-calendar-times text-indigo-600' : 'pi-sparkles text-blue-600'} text-2xl`} />
+                            {isKonsul
+                                ? 'Panel Antrean Konsultasi Pasien'
+                                : typeParam === 'layanan'
+                                ? 'Panel Antrean Layanan & Tindakan Pasien'
+                                : 'Panel Monitoring Antrean Ruangan'}
                         </h2>
                         <p className="text-color-secondary m-0 text-xs sm:text-sm">
                             {isKonsul
                                 ? 'Kelola dan panggil nomor antrean konsultasi dokter pasien berdasar lokasi ruangan konsultasi secara real-time.'
-                                : 'Kelola dan panggil nomor antrean tindakan pasien berdasar lokasi ruangan tindakan secara real-time.'}
+                                : typeParam === 'layanan'
+                                ? 'Kelola dan panggil nomor antrean tindakan pasien berdasar lokasi ruangan tindakan secara real-time.'
+                                : 'Monitoring dan kelola antrean seluruh ruangan klinik secara real-time.'}
                         </p>
                     </div>
 

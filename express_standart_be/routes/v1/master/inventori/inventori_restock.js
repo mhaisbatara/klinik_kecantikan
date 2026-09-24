@@ -20,6 +20,8 @@ router.post("/", async (req, res) => {
         kode_produk: Joi.string().required().label("Produk"),
         qty_masuk: Joi.number().integer().min(1).required().label("Jumlah Restock (Qty)"),
         harga_beli: Joi.number().min(0).required().label("Harga Beli Satuan"),
+        no_batch: Joi.string().max(50).allow(null, "").optional().label("No. Batch"),
+        tanggal_kadaluarsa: Joi.string().allow(null, "").optional().label("Tanggal Kadaluarsa"),
         update_harga_beli_master: Joi.boolean().optional().default(true).label("Perbarui Harga Master"),
         tanggal: Joi.string().optional().label("Tanggal Restock"),
       },
@@ -71,6 +73,12 @@ router.post("/", async (req, res) => {
       };
       if (oPayload.update_harga_beli_master !== false) {
         updateData.harga_beli = hargaBeli;
+      }
+      if (oPayload.no_batch) {
+        updateData.no_batch = oPayload.no_batch;
+      }
+      if (oPayload.tanggal_kadaluarsa) {
+        updateData.tanggal_kadaluarsa = String(oPayload.tanggal_kadaluarsa).slice(0, 10);
       }
       await trx("mst_produk").where("kode_produk", oPayload.kode_produk).update(updateData);
 

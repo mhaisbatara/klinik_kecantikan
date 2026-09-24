@@ -30,12 +30,13 @@ router.post("/", async (req, res) => {
 
     let kode = "";
     await DB.transaction(async (trx) => {
-      const last = await trx("mst_promo").where("kode_promo", "like", "PRM-%").orderBy("id", "desc").first();
-      let n = 1;
-      if (last?.kode_promo) {
-        n = (parseInt(last.kode_promo.replace("PRM-", "")) || 0) + 1;
+      const allPromo = await trx("mst_promo").where("kode_promo", "like", "PRM-%").select("kode_promo");
+      let maxNum = 0;
+      for (const p of allPromo) {
+        const num = parseInt(p.kode_promo.replace("PRM-", ""), 10);
+        if (!isNaN(num) && num > maxNum) maxNum = num;
       }
-      kode = `PRM-${String(n).padStart(3, "0")}`;
+      kode = `PRM-${String(maxNum + 1).padStart(3, "0")}`;
       const branchCode = oPayload.kode_cabang || req?.auth?.kode_cabang || "CBG-001";
       const oData = {
         kode_cabang: branchCode,

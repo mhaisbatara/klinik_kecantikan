@@ -17,10 +17,13 @@ router.post("/", async (req, res) => {
     if (cValidation) return res.status(422).json({ status: status.BAD_REQUEST, message: cValidation, datetime: formatDateSystem() });
     let kode = "";
     await DB.transaction(async (trx) => {
-      const last = await trx("mst_supplier").orderBy("id", "desc").first();
-      let n = 1;
-      if (last?.kode_supplier) { n = (parseInt(last.kode_supplier.replace("SUP-", "")) || 0) + 1; }
-      kode = `SUP-${String(n).padStart(3, "0")}`;
+      const allSup = await trx("mst_supplier").where("kode_supplier", "like", "SUP-%").select("kode_supplier");
+      let maxNum = 0;
+      for (const s of allSup) {
+        const num = parseInt(s.kode_supplier.replace("SUP-", ""), 10);
+        if (!isNaN(num) && num > maxNum) maxNum = num;
+      }
+      kode = `SUP-${String(maxNum + 1).padStart(3, "0")}`;
       const branchCode = oPayload.kode_cabang || req?.auth?.kode_cabang || "CBG-001";
       const oData = { kode_cabang: branchCode, kode_supplier: kode, nama: oPayload.nama, alamat: oPayload.alamat || null, no_hp: oPayload.no_hp || null, email: oPayload.email || null, status: oPayload.status, tz: oPayload.tz || "UTC", created_by: username, created_at: formatDateSystem(), updated_by: username, updated_at: formatDateSystem() };
       await trx("mst_supplier").insert(oData);

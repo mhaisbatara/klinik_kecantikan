@@ -2553,6 +2553,25 @@ export const AdminView: React.FC<{ data: any; onRefresh: () => void; loading: bo
                 </div>
                 <i className="pi pi-arrow-right text-400" />
               </div>
+
+              <div
+                className="p-3 border-round-lg border-1 surface-border flex align-items-center justify-content-between cursor-pointer hover:surface-100 transition-colors transition-duration-150"
+                onClick={() => router.push('/pendaftaran-antrean/antrean')}
+              >
+                <div className="flex align-items-center gap-3">
+                  <div
+                    className="flex align-items-center justify-content-center border-round-md"
+                    style={{ width: '40px', height: '40px', backgroundColor: '#EEF2FF', color: '#4F46E5' }}
+                  >
+                    <i className="pi pi-calendar-times text-xl" />
+                  </div>
+                  <div>
+                    <span className="font-bold text-900 text-sm block">Monitoring Antrean Ruangan</span>
+                    <span className="text-xs text-500">Monitoring antrean seluruh ruangan klinik</span>
+                  </div>
+                </div>
+                <i className="pi pi-arrow-right text-400" />
+              </div>
             </div>
           </div>
 

@@ -53,13 +53,13 @@ router.post("/", async (req, res) => {
 
     await DB.transaction(async (trx) => {
       // Generate kode_kategori_layanan
-      const lastRecord = await trx("mst_kategori_layanan").orderBy("id", "desc").first();
-      let nextSeq = 1;
-      if (lastRecord?.kode_kategori_layanan) {
-        const num = parseInt(lastRecord.kode_kategori_layanan.replace("KATLAY-", "")) || 0;
-        nextSeq = num + 1;
+      const allKat = await trx("mst_kategori_layanan").where("kode_kategori_layanan", "like", "KATLAY-%").select("kode_kategori_layanan");
+      let maxNum = 0;
+      for (const k of allKat) {
+        const num = parseInt(k.kode_kategori_layanan.replace("KATLAY-", ""), 10);
+        if (!isNaN(num) && num > maxNum) maxNum = num;
       }
-      kodeKategori = `KATLAY-${String(nextSeq).padStart(3, "0")}`;
+      kodeKategori = `KATLAY-${String(maxNum + 1).padStart(3, "0")}`;
 
       const oData = {
         kode_cabang: branchCode,
