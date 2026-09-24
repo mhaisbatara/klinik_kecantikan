@@ -15,7 +15,7 @@ import { InputIcon } from 'primereact/inputicon';
 import { OverlayPanel } from 'primereact/overlaypanel';
 import { Dialog } from 'primereact/dialog';
 import postData from '@/lib/axios/postData';
-import { showError, showSuccess } from '@/lib/tools/generalTools';
+import { showError, showSuccess, showWarning, showInfo } from '@/lib/tools/generalTools';
 import { DialogJadwalMingguanRuangan, RoomTabOption } from '../../booking/components/DialogJadwalMingguanRuangan';
 import { DialogSemuaBookingRuangan } from './DialogSemuaBookingRuangan';
 import {
@@ -80,6 +80,8 @@ interface SlotItem {
   sisa_kuota: number;
   is_available: boolean;
   is_past_today?: boolean;
+  is_not_started_today?: boolean;
+  is_ongoing_now?: boolean;
 }
 
 interface Props {
@@ -112,6 +114,8 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
 
   // 3. Slot Jadwal State
   const [slots, setSlots] = useState<SlotItem[]>([]);
+  const [consultSlots, setConsultSlots] = useState<SlotItem[]>([]);
+  const [selectedConsultSlot, setSelectedConsultSlot] = useState<SlotItem | null>(null);
   const [dokterKonsulList, setDokterKonsulList] = useState<any[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<SlotItem | null>(null);
@@ -470,6 +474,7 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
       newMap[key] = item;
       setSelectedMap(newMap);
       setActiveRuangan(item.kode_ruangan || null);
+      setGlobalConsultChoice(true);
     }
   };
 
@@ -508,29 +513,84 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
   const consultDoctorStatus = useMemo(() => {
     if (!hasOpsionalKonsul && !hasWajibKonsul) return null;
     if (!dokterKonsulList || dokterKonsulList.length === 0) {
-      return { hasDoctorToday: false, isDoctorAvailableNow: false, latestEndStr: '' };
+      return {
+        hasDoctorToday: false,
+        isDoctorAvailableNow: false,
+        latestEndStr: '',
+        earliestStartStr: '',
+        doctorNames: '',
+        fullScheduleStr: '',
+        detailedSchedules: '',
+      };
     }
     const now = new Date();
     const nowMin = now.getHours() * 60 + now.getMinutes();
 
     let latestEndMin = 0;
+    let earliestStartMin = 24 * 60;
     let hasAvailableNow = false;
+    const docNames: string[] = [];
+    const scheduleParts: string[] = [];
 
     for (const doc of dokterKonsulList) {
-      const [h, m] = (doc.jam_selesai || '').slice(0, 5).split(':').map(Number);
-      const endM = (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m);
+      const [sh, sm] = (doc.jam_mulai || '').slice(0, 5).split(':').map(Number);
+      const [eh, em] = (doc.jam_selesai || '').slice(0, 5).split(':').map(Number);
+      const startM = (isNaN(sh) ? 8 : sh) * 60 + (isNaN(sm) ? 0 : sm);
+      const endM = (isNaN(eh) ? 16 : eh) * 60 + (isNaN(em) ? 0 : em);
+
+      if (startM < earliestStartMin) earliestStartMin = startM;
       if (endM > latestEndMin) latestEndMin = endM;
-      if (endM > nowMin) hasAvailableNow = true;
+      if (nowMin >= startM && nowMin < endM) {
+        hasAvailableNow = true;
+      }
+
+      const docName = doc.nama_dokter || doc.nama_karyawan || doc.nama_petugas || 'Dokter Konsultasi';
+      if (!docNames.includes(docName)) docNames.push(docName);
+
+      const sStr = `${String(Math.floor(startM / 60)).padStart(2, '0')}:${String(startM % 60).padStart(2, '0')}`;
+      const eStr = `${String(Math.floor(endM / 60)).padStart(2, '0')}:${String(endM % 60).padStart(2, '0')}`;
+      scheduleParts.push(`${docName} (${sStr}-${eStr} WIB)`);
     }
 
     const latestEndStr = `${String(Math.floor(latestEndMin / 60)).padStart(2, '0')}:${String(latestEndMin % 60).padStart(2, '0')}`;
+    const earliestStartStr = `${String(Math.floor(earliestStartMin / 60)).padStart(2, '0')}:${String(earliestStartMin % 60).padStart(2, '0')}`;
 
     return {
       hasDoctorToday: true,
       isDoctorAvailableNow: hasAvailableNow,
       latestEndStr,
+      earliestStartStr,
+      doctorNames: docNames.join(', '),
+      fullScheduleStr: `${earliestStartStr} - ${latestEndStr} WIB`,
+      detailedSchedules: scheduleParts.join('; '),
     };
   }, [hasOpsionalKonsul, hasWajibKonsul, dokterKonsulList]);
+
+  // Otomatis alihkan alur jika dokter konsultasi tidak aktif saat opsi "Konsultasi Dokter Dulu" dipilih
+  const prevConsultAlertKeyRef = useRef<string>('');
+  useEffect(() => {
+    if (
+      hasOpsionalKonsul &&
+      !hasWajibKonsul &&
+      globalConsultChoice &&
+      consultDoctorStatus &&
+      !loadingSlots &&
+      dokterKonsulList.length > 0 &&
+      !consultDoctorStatus.isDoctorAvailableNow
+    ) {
+      setGlobalConsultChoice(false);
+      const alertKey = `${consultDoctorStatus.hasDoctorToday}_${consultDoctorStatus.latestEndStr}`;
+      if (prevConsultAlertKeyRef.current !== alertKey) {
+        prevConsultAlertKeyRef.current = alertKey;
+        showWarning(
+          toast,
+          consultDoctorStatus.hasDoctorToday
+            ? `Alur kunjungan otomatis dialihkan ke "Langsung Tindakan" karena jam dinas dokter di ${consultRoomInfo?.nama_ruangan || 'Ruang Konsultasi'} telah selesai (pukul ${consultDoctorStatus.latestEndStr} WIB).`
+            : `Alur kunjungan otomatis dialihkan ke "Langsung Tindakan" karena tidak ada jadwal dokter jaga di ${consultRoomInfo?.nama_ruangan || 'Ruang Konsultasi'} hari ini.`
+        );
+      }
+    }
+  }, [hasOpsionalKonsul, hasWajibKonsul, globalConsultChoice, consultDoctorStatus, loadingSlots, dokterKonsulList.length, consultRoomInfo?.nama_ruangan, toast]);
 
   // Status apakah konsultasi dokter tidak tersedia saat alur konsultasi aktif
   const isConsultDoctorUnavailable = Boolean(
@@ -547,6 +607,32 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
       setSelectedSlot(null);
     }
   }, [isConsultDoctorUnavailable, selectedSlot]);
+
+  // Hitung estimasi jeda waktu tunggu antara jam sekarang (konsultasi awal) vs jam mulai sesi tindakan
+  const sessionWaitGapInfo = useMemo(() => {
+    if (!effectiveButuhKonsul || !selectedSlot) return null;
+    const now = new Date();
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+
+    const [sh, sm] = (selectedSlot.jam_mulai || '').slice(0, 5).split(':').map(Number);
+    const slotStartMin = (isNaN(sh) ? 0 : sh) * 60 + (isNaN(sm) ? 0 : sm);
+
+    // Jika sesi tindakan baru dimulai lebih dari 30 menit dari sekarang
+    const diffMinutes = slotStartMin - nowMin;
+    if (diffMinutes > 30) {
+      const hours = Math.floor(diffMinutes / 60);
+      const mins = diffMinutes % 60;
+      const waitStr = hours > 0 ? (mins > 0 ? `${hours} jam ${mins} menit` : `${hours} jam`) : `${mins} menit`;
+      return {
+        hasGap: true,
+        diffMinutes,
+        waitStr,
+        slotStartStr: selectedSlot.jam_mulai,
+        nowStr: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
+      };
+    }
+    return null;
+  }, [effectiveButuhKonsul, selectedSlot]);
 
   // Dialog Jadwal Mingguan Ruangan
   const handleOpenJadwalDialog = () => {
@@ -689,6 +775,7 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
     if (!activeRuangan) return;
     setLoadingSlots(true);
     setSelectedSlot(null);
+    setSelectedConsultSlot(null);
     try {
       const tglYmd = formatDateToYMD(tanggalKunjungan);
       const res = await postData('/transaksi/booking/slots', {
@@ -703,21 +790,48 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
         const rawSlots: SlotItem[] = d?.slots || [];
         const grouped = groupSlotsBySession(rawSlots);
         setSlots(grouped);
+
+        const rawConsultSlots: SlotItem[] = d?.consult_slots || [];
+        const groupedConsult = groupSlotsBySession(rawConsultSlots);
+        setConsultSlots(groupedConsult);
+
         setDokterKonsulList(d?.dokter_konsul || []);
         if (d?.ruang_konsultasi) {
           setConsultRoomInfo(d.ruang_konsultasi);
         }
-        // Jika hanya ada 1 slot, otomatis pilih
-        if (grouped.length === 1 && grouped[0].is_available) {
-          setSelectedSlot(grouped[0]);
+
+        const docs = d?.dokter_konsul || [];
+        const isDocAvailNow = docs.some((doc: any) => doc.is_ongoing_now || (!doc.is_past_today && !doc.is_not_started_today));
+        if (isDocAvailNow) {
+          setGlobalConsultChoice(true);
+        }
+
+        // Auto-select consult slot yang sedang aktif / bertugas saat ini
+        if (groupedConsult.length > 0) {
+          const avail = groupedConsult.find((s) => s.is_available && !s.is_past_today && !s.is_not_started_today);
+          setSelectedConsultSlot(avail || null);
+        } else {
+          setSelectedConsultSlot(null);
+        }
+
+        // Auto-select slot tindakan yang sedang aktif / bertugas saat ini
+        if (grouped.length > 0) {
+          const avail = grouped.find((s) => s.is_available && !s.is_past_today && !s.is_not_started_today);
+          setSelectedSlot(avail || null);
+        } else {
+          setSelectedSlot(null);
         }
       } else {
         setSlots([]);
+        setConsultSlots([]);
         setDokterKonsulList([]);
+        setSelectedConsultSlot(null);
       }
     } catch (err) {
       setSlots([]);
+      setConsultSlots([]);
       setDokterKonsulList([]);
+      setSelectedConsultSlot(null);
     } finally {
       setLoadingSlots(false);
     }
@@ -734,8 +848,43 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
       return;
     }
     if (!selectedSlot) {
-      showError(toast, 'Harap pilih slot jadwal sesi petugas di Langkah 3');
+      showError(toast, 'Harap pilih slot jadwal sesi petugas yang sedang aktif di Langkah 3');
       return;
+    }
+    if (selectedSlot.is_not_started_today) {
+      showError(
+        toast,
+        `Sesi petugas di ${activeRoomName || 'Ruang Tindakan'} (${selectedSlot.nama_petugas}) baru dimulai pukul ${selectedSlot.jam_mulai} WIB. Pendaftaran walk-in langsung hanya dapat dilakukan saat sesi telah aktif.`
+      );
+      return;
+    }
+    if (selectedSlot.is_past_today) {
+      showError(
+        toast,
+        `Sesi petugas di ${activeRoomName || 'Ruang Tindakan'} (${selectedSlot.nama_petugas}) telah berakhir pukul ${selectedSlot.jam_selesai} WIB.`
+      );
+      return;
+    }
+
+    if (effectiveButuhKonsul) {
+      if (!selectedConsultSlot) {
+        showError(toast, 'Harap pilih sesi dokter di Ruang Konsultasi yang sedang aktif');
+        return;
+      }
+      if (selectedConsultSlot.is_not_started_today) {
+        showError(
+          toast,
+          `Dokter di ${consultRoomInfo?.nama_ruangan || 'Ruang Konsultasi'} (${selectedConsultSlot.nama_petugas}) baru bertugas pukul ${selectedConsultSlot.jam_mulai} WIB.`
+        );
+        return;
+      }
+      if (selectedConsultSlot.is_past_today) {
+        showError(
+          toast,
+          `Jam dinas dokter di ${consultRoomInfo?.nama_ruangan || 'Ruang Konsultasi'} telah selesai untuk hari ini.`
+        );
+        return;
+      }
     }
 
     if (effectiveButuhKonsul && consultDoctorStatus && !consultDoctorStatus.isDoctorAvailableNow && !loadingSlots) {
@@ -1265,46 +1414,81 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
             <div className="grid">
               {/* Opsi 1: Konsultasi Dokter Dulu */}
               <div className="col-12 sm:col-6">
-                <div
-                  className="p-3 border-round-xl border-2 cursor-pointer transition-all transition-duration-200 flex align-items-center gap-3 h-full"
-                  style={{
-                    borderColor: globalConsultChoice ? '#6366f1' : '#e2e8f0',
-                    background: globalConsultChoice
-                      ? 'linear-gradient(135deg, #eef2ff, #e0e7ff)'
-                      : 'var(--surface-card)',
-                    userSelect: 'none',
-                  }}
-                  onClick={() => setGlobalConsultChoice(true)}
-                >
-                  <div
-                    className="flex align-items-center justify-content-center border-round-lg text-white flex-shrink-0"
-                    style={{
-                      width: '36px',
-                      height: '36px',
-                      background: globalConsultChoice
-                        ? 'linear-gradient(135deg, #6366f1, #4f46e5)'
-                        : '#cbd5e1',
-                    }}
-                  >
-                    <i className="pi pi-user-edit text-base" />
-                  </div>
-                  <div className="flex-1 min-w-0">
+                {(() => {
+                  const isConsultDisabled = Boolean(consultDoctorStatus && !consultDoctorStatus.isDoctorAvailableNow);
+                  return (
                     <div
-                      className="font-bold text-xs"
+                      className={`p-3 border-round-xl border-2 transition-all transition-duration-200 flex align-items-center gap-3 h-full ${
+                        isConsultDisabled
+                          ? 'opacity-60 cursor-not-allowed surface-100 border-300'
+                          : 'cursor-pointer'
+                      }`}
                       style={{
-                        color: globalConsultChoice ? '#4338ca' : '#475569',
+                        borderColor: isConsultDisabled ? '#cbd5e1' : globalConsultChoice ? '#6366f1' : '#e2e8f0',
+                        background: isConsultDisabled
+                          ? '#f8fafc'
+                          : globalConsultChoice
+                          ? 'linear-gradient(135deg, #eef2ff, #e0e7ff)'
+                          : 'var(--surface-card)',
+                        userSelect: 'none',
+                      }}
+                      onClick={() => {
+                        if (isConsultDisabled) {
+                          showWarning(
+                            toast,
+                            consultDoctorStatus?.hasDoctorToday
+                              ? `Opsi "Konsultasi Dokter Dulu" tidak dapat dipilih karena jam dinas dokter di ${consultRoomInfo?.nama_ruangan || 'Ruang Konsultasi'} telah selesai (pukul ${consultDoctorStatus?.latestEndStr} WIB).`
+                              : `Opsi "Konsultasi Dokter Dulu" tidak dapat dipilih karena tidak ada jadwal dokter jaga di ${consultRoomInfo?.nama_ruangan || 'Ruang Konsultasi'} hari ini.`
+                          );
+                          return;
+                        }
+                        setGlobalConsultChoice(true);
                       }}
                     >
-                      Konsultasi Dokter Dulu
+                      <div
+                        className="flex align-items-center justify-content-center border-round-lg text-white flex-shrink-0"
+                        style={{
+                          width: '36px',
+                          height: '36px',
+                          background: isConsultDisabled
+                            ? '#94a3b8'
+                            : globalConsultChoice
+                            ? 'linear-gradient(135deg, #6366f1, #4f46e5)'
+                            : '#cbd5e1',
+                        }}
+                      >
+                        <i className="pi pi-user-edit text-base" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex align-items-center gap-2">
+                          <div
+                            className="font-bold text-xs"
+                            style={{
+                              color: isConsultDisabled ? '#64748b' : globalConsultChoice ? '#4338ca' : '#475569',
+                            }}
+                          >
+                            Konsultasi Dokter Dulu
+                          </div>
+                          {isConsultDisabled && (
+                            <Tag value="Tidak Tersedia" severity="danger" className="text-[10px] font-bold px-1.5 py-0" />
+                          )}
+                        </div>
+                        <div className="text-[11px] text-500 mt-0.5">
+                          {isConsultDisabled ? (
+                            <span className="text-red-600 font-medium">
+                              Tidak tersedia — dokter konsultasi sedang tidak bertugas ({consultDoctorStatus?.hasDoctorToday ? `jam dinas telah berakhir pukul ${consultDoctorStatus?.latestEndStr} WIB` : 'tidak ada jadwal hari ini'}).
+                            </span>
+                          ) : (
+                            <span>Pasien antre di Ruang Konsultasi Dokter saat check-in sebelum menuju ruang treatment.</span>
+                          )}
+                        </div>
+                      </div>
+                      {globalConsultChoice && !isConsultDisabled && (
+                        <i className="pi pi-check-circle text-indigo-600 text-lg flex-shrink-0" />
+                      )}
                     </div>
-                    <div className="text-[11px] text-500 mt-0.5">
-                      Pasien antre di Ruang Konsultasi Dokter saat check-in sebelum menuju ruang treatment.
-                    </div>
-                  </div>
-                  {globalConsultChoice && (
-                    <i className="pi pi-check-circle text-indigo-600 text-lg flex-shrink-0" />
-                  )}
-                </div>
+                  );
+                })()}
               </div>
 
               {/* Opsi 2: Langsung Tindakan */}
@@ -1397,7 +1581,7 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
               <div className="font-bold mb-0.5 text-amber-900">
                 Tidak Ada Jadwal Dokter Aktif di {consultRoomInfo?.nama_ruangan || 'Ruang Konsultasi'}:
               </div>
-              {consultDoctorStatus.hasDoctorToday ? (
+              {consultDoctorStatus?.hasDoctorToday ? (
                 <>
                   Jam dinas dokter di {consultRoomInfo?.nama_ruangan || 'Ruang Konsultasi'} telah selesai untuk hari ini (pukul <strong>{consultDoctorStatus.latestEndStr} WIB</strong>).
                   {hasWajibKonsul ? (
@@ -1453,13 +1637,170 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
               <span>Pilih salah satu sesi jadwal petugas di bawah ini. Setiap sesi diwakili oleh Petugas Penanggung Jawab (PJ).</span>
             </div>
 
-            {/* GRID SLOT PETUGAS PERSIS SEPERTI GAMBAR */}
+            {/* GRID SLOT PETUGAS (RUANG KONSULTASI + RUANG TINDAKAN) */}
             <div className="grid">
+              {/* KARTU RUANG KONSULTASI (JIKA ALUR KONSULTASI AKTIF) */}
+              {effectiveButuhKonsul &&
+                consultSlots.map((cSlot) => {
+                  const isSelected = selectedConsultSlot?.kode_jadwal === cSlot.kode_jadwal;
+                  const isQuotaFull = (cSlot.sisa_kuota ?? 0) <= 0;
+                  const isShiftPast = Boolean(cSlot.is_past_today);
+                  const isNotStarted = Boolean(cSlot.is_not_started_today);
+                  const isUnavailable = isQuotaFull || isShiftPast || isNotStarted || !cSlot.is_available;
+                  const companions = cSlot.petugas_pendamping || [];
+                  const totalCompanions = cSlot.jumlah_pendamping || companions.length;
+                  const hasCompanions = totalCompanions > 0;
+                  const companionSummary = getCompanionSummary(companions, totalCompanions);
+                  const fullCompanionNames = companions.map((c) => c.nama_petugas).join(', ');
+
+                  return (
+                    <div key={`consult_${cSlot.kode_jadwal}`} className="col-12 sm:col-6 flex">
+                      <div
+                        onClick={() => {
+                          if (!isUnavailable) setSelectedConsultSlot(cSlot);
+                        }}
+                        className={`w-full flex flex-column justify-content-between border-round-xl p-3 border-2 transition-all transition-duration-200 ${
+                          isUnavailable
+                            ? 'surface-100 border-300 opacity-60 cursor-not-allowed'
+                            : isSelected
+                            ? 'border-primary surface-50 shadow-2 cursor-pointer'
+                            : 'surface-card border-200 hover:border-primary-300 hover:shadow-1 cursor-pointer'
+                        }`}
+                      >
+                        <div>
+                          {/* Jam Sesi & Status Badge */}
+                          <div className="flex align-items-center justify-content-between mb-2">
+                            <div className="flex align-items-center" style={{ gap: '6px' }}>
+                              <Clock size={15} className={`${isSelected ? 'text-primary' : 'text-500'} flex-shrink-0`} />
+                              <span className="font-bold text-sm text-900">
+                                {cSlot.jam_mulai} - {cSlot.jam_selesai} WIB
+                              </span>
+                            </div>
+                            {isSelected ? (
+                              <CheckCircle2 size={18} className="text-primary flex-shrink-0" />
+                            ) : isQuotaFull ? (
+                              <Tag
+                                value="PENUH"
+                                severity="danger"
+                                className="text-xs px-2 py-0.5 font-bold flex-shrink-0"
+                              />
+                            ) : isShiftPast ? (
+                              <Tag
+                                value="SUDAH BERAKHIR"
+                                severity="warning"
+                                className="text-xs px-2 py-0.5 font-bold flex-shrink-0"
+                                title="Jam dinas dokter telah berakhir untuk hari ini"
+                              />
+                            ) : isNotStarted ? (
+                              <Tag
+                                value="BELUM MULAI"
+                                severity="warning"
+                                className="text-xs px-2 py-0.5 font-bold flex-shrink-0"
+                                title={`Sesi praktek dokter baru dimulai pukul ${cSlot.jam_mulai} WIB`}
+                              />
+                            ) : !cSlot.is_available ? (
+                              <Tag
+                                value="TIDAK TERSEDIA"
+                                severity="danger"
+                                className="text-xs px-2 py-0.5 font-bold flex-shrink-0"
+                              />
+                            ) : (
+                              <Tag
+                                value="TERSEDIA"
+                                severity="success"
+                                className="text-xs px-2 py-0.5 font-bold flex-shrink-0"
+                              />
+                            )}
+                          </div>
+
+                          {/* Petugas PJ */}
+                          <div className="flex align-items-center justify-content-between gap-2 mb-2">
+                            <div className="flex align-items-center min-w-0 flex-1" style={{ gap: '6px' }}>
+                              <User size={14} className="text-primary flex-shrink-0" />
+                              <span className="font-bold text-sm text-900 text-overflow-ellipsis overflow-hidden white-space-nowrap">
+                                {cSlot.nama_petugas}
+                              </span>
+                            </div>
+                            <Tag
+                              value="PJ"
+                              severity="warning"
+                              className="text-[10px] font-bold px-1.5 py-0.5 flex-shrink-0"
+                            />
+                          </div>
+
+                          {/* Petugas Pendamping */}
+                          {hasCompanions && (
+                            <div className="flex align-items-center mb-2" style={{ minHeight: '26px' }}>
+                              <div
+                                className="inline-flex align-items-center gap-1.5 text-[11px] min-w-0 cursor-pointer overflow-hidden text-emerald-800 hover:text-emerald-900 transition-colors"
+                                title={`Daftar Pendamping: ${fullCompanionNames}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveCompanionData({
+                                    pj: cSlot.nama_petugas,
+                                    jam: `${cSlot.jam_mulai} - ${cSlot.jam_selesai} WIB`,
+                                    ruangan: cSlot.nama_ruangan || consultRoomInfo?.nama_ruangan || 'Ruang Konsultasi',
+                                    companions,
+                                  });
+                                  companionOpRef.current?.toggle(e);
+                                }}
+                              >
+                                <span className="font-semibold text-emerald-800 flex-shrink-0">
+                                  +{totalCompanions} pendamping
+                                </span>
+                                <span
+                                  className="text-emerald-700 text-overflow-ellipsis overflow-hidden white-space-nowrap min-w-0"
+                                  title={fullCompanionNames}
+                                >
+                                  ({companionSummary})
+                                </span>
+                                <ChevronDown size={12} className="text-emerald-600 flex-shrink-0 ml-0.5 opacity-80" />
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Ruangan */}
+                          <div className="flex align-items-center text-xs text-500 mb-2" style={{ gap: '6px' }}>
+                            <MapPin size={13} className="text-400 flex-shrink-0" />
+                            <span className="text-overflow-ellipsis overflow-hidden white-space-nowrap">
+                              {cSlot.nama_ruangan || consultRoomInfo?.nama_ruangan || 'Ruang Konsultasi'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Sisa Kuota */}
+                        <div className="border-top-1 surface-border pt-2 mt-2">
+                          <div className="flex align-items-center justify-content-between text-xs text-500">
+                            <span>Sisa Kuota:</span>
+                            <span className={`font-bold ${isQuotaFull ? 'text-red-500' : isShiftPast || isNotStarted ? 'text-amber-700' : 'text-green-700'}`}>
+                              {cSlot.sisa_kuota} dari {cSlot.kuota_total}
+                            </span>
+                          </div>
+                          {isShiftPast && (
+                            <div className="text-[11px] text-amber-700 mt-1 flex align-items-center gap-1">
+                              <Clock size={11} className="flex-shrink-0" />
+                              <span>Jam dinas dokter telah berakhir hari ini</span>
+                            </div>
+                          )}
+                          {isNotStarted && (
+                            <div className="text-[11px] text-amber-700 mt-1 flex align-items-center gap-1">
+                              <Clock size={11} className="flex-shrink-0" />
+                              <span>Sesi baru dimulai pukul {cSlot.jam_mulai} WIB</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+
+              {/* KARTU RUANG TINDAKAN */}
               {slots.map((slot) => {
                 const isSelected = selectedSlot?.kode_jadwal === slot.kode_jadwal;
                 const isQuotaFull = (slot.sisa_kuota ?? 0) <= 0;
                 const isShiftPast = Boolean(slot.is_past_today);
-                const isUnavailable = isQuotaFull || isShiftPast || !slot.is_available;
+                const isNotStarted = Boolean(slot.is_not_started_today);
+                const isUnavailable = isQuotaFull || isShiftPast || isNotStarted || !slot.is_available;
                 const companions = slot.petugas_pendamping || [];
                 const totalCompanions = slot.jumlah_pendamping || companions.length;
                 const hasCompanions = totalCompanions > 0;
@@ -1467,7 +1808,7 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
                 const fullCompanionNames = companions.map((c) => c.nama_petugas).join(', ');
 
                 return (
-                  <div key={slot.kode_jadwal} className="col-12 sm:col-6 flex">
+                  <div key={`tindakan_${slot.kode_jadwal}`} className="col-12 sm:col-6 flex">
                     <div
                       onClick={() => {
                         if (!isUnavailable) setSelectedSlot(slot);
@@ -1503,6 +1844,13 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
                               severity="warning"
                               className="text-xs px-2 py-0.5 font-bold flex-shrink-0"
                               title="Jam dinas sesi ini telah berakhir untuk hari ini"
+                            />
+                          ) : isNotStarted ? (
+                            <Tag
+                              value="BELUM MULAI"
+                              severity="warning"
+                              className="text-xs px-2 py-0.5 font-bold flex-shrink-0"
+                              title={`Sesi praktek baru dimulai pukul ${slot.jam_mulai} WIB`}
                             />
                           ) : !slot.is_available ? (
                             <Tag
@@ -1576,7 +1924,7 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
                       <div className="border-top-1 surface-border pt-2 mt-2">
                         <div className="flex align-items-center justify-content-between text-xs text-500">
                           <span>Sisa Kuota:</span>
-                          <span className={`font-bold ${isQuotaFull ? 'text-red-500' : isShiftPast ? 'text-amber-700' : 'text-green-700'}`}>
+                          <span className={`font-bold ${isQuotaFull ? 'text-red-500' : isShiftPast || isNotStarted ? 'text-amber-700' : 'text-green-700'}`}>
                             {slot.sisa_kuota} dari {slot.kuota_total}
                           </span>
                         </div>
@@ -1584,6 +1932,12 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
                           <div className="text-[11px] text-amber-700 mt-1 flex align-items-center gap-1">
                             <Clock size={11} className="flex-shrink-0" />
                             <span>Jam dinas sesi ini telah berakhir hari ini</span>
+                          </div>
+                        )}
+                        {isNotStarted && (
+                          <div className="text-[11px] text-amber-700 mt-1 flex align-items-center gap-1">
+                            <Clock size={11} className="flex-shrink-0" />
+                            <span>Sesi baru dimulai pukul {slot.jam_mulai} WIB</span>
                           </div>
                         )}
                       </div>
@@ -1632,23 +1986,45 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
             </div>
           </div>
 
-          <Button
-            label="Daftarkan Kunjungan & Ambil Antrean"
-            icon="pi pi-ticket"
-            severity="success"
-            className="border-round-lg font-bold px-4 py-2.5 shadow-2"
-            disabled={!selectedPasien || selectedList.length === 0 || !selectedSlot || submitting || isConsultDoctorUnavailable}
-            loading={submitting}
-            onClick={() => handleSubmitPendaftaran(false)}
-            tooltip={
-              isConsultDoctorUnavailable
-                ? consultDoctorStatus?.hasDoctorToday
-                  ? `Tidak dapat mendaftar: Jam dinas dokter di ${consultRoomInfo?.nama_ruangan || 'Ruang Konsultasi'} telah selesai (pukul ${consultDoctorStatus?.latestEndStr} WIB). Alihkan ke Langsung Tindakan atau Booking.`
-                  : `Tidak dapat mendaftar: Tidak ada jadwal dokter jaga di ${consultRoomInfo?.nama_ruangan || 'Ruang Konsultasi'} hari ini. Alihkan ke Langsung Tindakan atau Booking.`
-                : undefined
-            }
-            tooltipOptions={{ position: 'top' }}
-          />
+          {(() => {
+            const isSelectedSlotUnavailable = !selectedSlot || Boolean(selectedSlot.is_not_started_today) || Boolean(selectedSlot.is_past_today) || (selectedSlot.sisa_kuota ?? 0) <= 0 || !selectedSlot.is_available;
+            const isSelectedConsultSlotUnavailable = effectiveButuhKonsul && (!selectedConsultSlot || Boolean(selectedConsultSlot.is_not_started_today) || Boolean(selectedConsultSlot.is_past_today) || (selectedConsultSlot.sisa_kuota ?? 0) <= 0 || !selectedConsultSlot.is_available);
+            const isSubmitDisabled = !selectedPasien || selectedList.length === 0 || isSelectedSlotUnavailable || isSelectedConsultSlotUnavailable || submitting || isConsultDoctorUnavailable;
+
+            return (
+              <Button
+                label="Daftarkan Kunjungan & Ambil Antrean"
+                icon="pi pi-ticket"
+                severity="success"
+                className="border-round-lg font-bold px-4 py-2.5 shadow-2"
+                disabled={isSubmitDisabled}
+                loading={submitting}
+                onClick={() => handleSubmitPendaftaran(false)}
+                tooltip={
+                  isConsultDoctorUnavailable
+                    ? consultDoctorStatus?.hasDoctorToday
+                      ? `Tidak dapat mendaftar: Jam dinas dokter di ${consultRoomInfo?.nama_ruangan || 'Ruang Konsultasi'} telah selesai (pukul ${consultDoctorStatus?.latestEndStr} WIB). Alihkan ke Langsung Tindakan atau Booking.`
+                      : `Tidak dapat mendaftar: Tidak ada jadwal dokter jaga di ${consultRoomInfo?.nama_ruangan || 'Ruang Konsultasi'} hari ini. Alihkan ke Langsung Tindakan atau Booking.`
+                    : isSelectedSlotUnavailable
+                    ? !selectedSlot
+                      ? `Harap pilih slot jadwal petugas di Langkah 3 yang sedang aktif.`
+                      : selectedSlot?.is_not_started_today
+                      ? `Tidak dapat mendaftar: Sesi di ${activeRoomName} (${selectedSlot.nama_petugas}) baru dimulai pukul ${selectedSlot.jam_mulai} WIB.`
+                      : selectedSlot?.is_past_today
+                      ? `Tidak dapat mendaftar: Sesi di ${activeRoomName} (${selectedSlot.nama_petugas}) telah berakhir pukul ${selectedSlot.jam_selesai} WIB.`
+                      : `Tidak dapat mendaftar: Slot jadwal di ${activeRoomName} tidak tersedia.`
+                    : isSelectedConsultSlotUnavailable
+                    ? !selectedConsultSlot
+                      ? `Harap pilih sesi dokter di Ruang Konsultasi yang sedang aktif.`
+                      : selectedConsultSlot?.is_not_started_today
+                      ? `Tidak dapat mendaftar: Sesi di ${consultRoomInfo?.nama_ruangan || 'Ruang Konsultasi'} baru dimulai pukul ${selectedConsultSlot.jam_mulai} WIB.`
+                      : `Tidak dapat mendaftar: Sesi dokter di ${consultRoomInfo?.nama_ruangan || 'Ruang Konsultasi'} telah selesai hari ini.`
+                    : undefined
+                }
+                tooltipOptions={{ position: 'top' }}
+              />
+            );
+          })()}
         </div>
       </div>
 

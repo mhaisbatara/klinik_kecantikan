@@ -708,13 +708,13 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
         // Validation: Check if consultation recommendation has unavailable destination rooms
         if (isKonsultasi && lanjutKeTindakan) {
             const unavailableService = rekomendasiItems.find(
-                (item) => ['layanan', 'paket_layanan'].includes(item.jenis) && item.is_petugas_available === false
+                (item) => ['layanan', 'paket_layanan'].includes(item.jenis) && (item.is_petugas_available === false || Boolean(item.is_not_started_today) || Boolean(item.is_past_today))
             );
             if (unavailableService) {
                 showError(
                     toast,
                     unavailableService.alasan_tidak_tersedia ||
-                        `Tidak dapat melanjutkan tindakan ke ruangan "${unavailableService.nama_ruangan || 'tujuan'}" karena tidak ada petugas/terapis yang bertugas hari ini.`
+                        `Tidak dapat melanjutkan tindakan ke ruangan "${unavailableService.nama_ruangan || 'tujuan'}" karena jadwal shift petugas belum dimulai atau telah berakhir.`
                 );
                 return;
             }
@@ -837,19 +837,11 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                 {/* ═══════════════════════════════════════════════════════════ */}
                 {/* HEADER: TITLE, ROOM & JADWAL KARYAWAN NOTE                  */}
                 {/* ═══════════════════════════════════════════════════════════ */}
-                <div className="flex flex-column sm:flex-row sm:align-items-center justify-content-between gap-2 mb-3 pb-2.5 border-bottom-1 surface-border">
-                    <div className="flex align-items-center gap-2">
-                        <i className="pi pi-id-card text-teal-600 text-sm" />
-                        <span className="text-xs font-bold text-700 uppercase tracking-wider">
-                            DOKTER & PETUGAS RUANGAN
-                        </span>
-                    </div>
-                    <div className="flex align-items-center gap-2 flex-wrap">
-                        <Tag severity="secondary" value={namaRuangan || 'Ruangan'} icon="pi pi-building" className="text-xs font-medium" />
-                        <span className="text-[11px] text-500 font-normal hidden sm:inline">
-                            Sesuai Jadwal Karyawan
-                        </span>
-                    </div>
+                <div className="flex align-items-center gap-2 mb-3 pb-2.5 border-bottom-1 surface-border">
+                    <i className="pi pi-id-card text-teal-600 text-sm" />
+                    <span className="text-xs font-bold text-700 uppercase tracking-wider">
+                        DOKTER & PETUGAS RUANGAN
+                    </span>
                 </div>
 
                 {/* ═══════════════════════════════════════════════════════════ */}
@@ -951,37 +943,36 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
             {/* SATU CARD TERPADU: STATUS PASIEN + FORM PENANGANAN (MENYATU)        */}
             {/* ═══════════════════════════════════════════════════════════════════ */}
             <div className="card shadow-2 border-round-xl p-0 mb-3 surface-card overflow-hidden border-1 surface-border">
-                {/* SECTION 1: NO. ANTREAN & INFO PASIEN (SOLID TEAL-700 GRADIENT - SAMA DENGAN TAB FORM PENANGANAN) */}
+                {/* SECTION 1: NO. ANTREAN, INFO PASIEN & TOMBOL AKSI (SATU BARIS RAMPING & RAPI) */}
                 <div
-                    className="p-3.5 sm:p-4 text-white"
+                    className="p-3 sm:px-4 bg-white"
                     style={{
-                        background: 'linear-gradient(135deg, #0e8174 0%, #084a42 100%)',
-                        borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
+                        borderBottom: '1px solid #e5e7eb'
                     }}
                 >
-                    {/* 1. TOP ROW: NO. ANTREAN WHITE CARD + PATIENT INFO + STATUS BADGE */}
-                    <div className="flex flex-column sm:flex-row align-items-start justify-content-between gap-3 mb-3">
+                    <div className="flex flex-column lg:flex-row lg:align-items-end justify-content-between gap-3">
                         {/* Sisi Kiri: Kotak No. Antrean + Detail Pasien */}
-                        <div className="flex align-items-center" style={{ gap: '16px' }}>
-                            {/* Nomor Antrean: KOTAK PUTIH SOLID TIKET-CARD */}
+                        <div className="flex align-items-center" style={{ gap: '14px' }}>
+                            {/* Nomor Antrean: KOTAK MINT RAMPING */}
                             <div
-                                className="bg-white flex flex-column align-items-center justify-content-center flex-shrink-0"
+                                className="flex flex-column align-items-center justify-content-center flex-shrink-0"
                                 style={{
-                                    width: '100px',
-                                    minWidth: '100px',
-                                    height: '84px',
+                                    width: '82px',
+                                    minWidth: '82px',
+                                    height: '68px',
                                     borderRadius: '14px',
-                                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-                                    padding: '8px'
+                                    backgroundColor: '#f0fdf9',
+                                    border: '1.5px solid #a7f3d0',
+                                    padding: '4px'
                                 }}
                             >
                                 <span
                                     className="font-bold uppercase tracking-wider text-center"
                                     style={{
-                                        fontSize: '11px',
-                                        color: '#0e8174',
+                                        fontSize: '10px',
+                                        color: '#0d9488',
                                         letterSpacing: '0.4px',
-                                        lineHeight: '1.2'
+                                        lineHeight: '1.1'
                                     }}
                                 >
                                     NO. ANTREAN
@@ -989,9 +980,9 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                                 <span
                                     className="font-black text-gray-900 tracking-tight text-center"
                                     style={{
-                                        fontSize: '36px',
+                                        fontSize: '30px',
                                         lineHeight: '1',
-                                        marginTop: '2px'
+                                        marginTop: '1px'
                                     }}
                                 >
                                     {activePatient.nomor_antrian}
@@ -999,11 +990,11 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                             </div>
 
                             {/* Info Pasien (Nama + RM di baris 1, Chip Layanan di baris 2) */}
-                            <div className="flex flex-column justify-content-center" style={{ gap: '10px' }}>
+                            <div className="flex flex-column justify-content-center" style={{ gap: '6px' }}>
                                 {/* Baris 1: Nama Pasien & No. RM (Sejajar Sempurna) */}
-                                <div className="flex align-items-center flex-wrap" style={{ gap: '12px' }}>
+                                <div className="flex align-items-center flex-wrap" style={{ gap: '10px' }}>
                                     <h2
-                                        className="text-2xl sm:text-3xl font-black text-white m-0 tracking-tight"
+                                        className="text-xl sm:text-2xl font-extrabold text-900 m-0 tracking-tight"
                                         style={{ lineHeight: '1.2' }}
                                     >
                                         {activePatient.nama_pasien || 'Pasien'}
@@ -1011,8 +1002,8 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                                     <span
                                         className="font-bold tracking-wide"
                                         style={{
-                                            color: '#a7f3d0',
-                                            fontSize: '14px',
+                                            color: '#64748b',
+                                            fontSize: '13.5px',
                                             lineHeight: '1.2',
                                             display: 'inline-flex',
                                             alignItems: 'center'
@@ -1022,131 +1013,106 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                                     </span>
                                 </div>
 
-                                {/* Baris 2: Chip Layanan */}
+                                {/* Baris 2: Chip Layanan (Dibuat Lebih Besar & Jelas) */}
                                 <div className="flex align-items-center flex-wrap" style={{ gap: '8px' }}>
                                     <span
                                         className="inline-flex align-items-center px-3 py-1 font-medium"
                                         style={{
-                                            background: 'rgba(255, 255, 255, 0.14)',
-                                            border: '1px solid rgba(255, 255, 255, 0.25)',
+                                            background: '#f0fdfa',
+                                            border: '1px solid #99f6e4',
                                             borderRadius: '8px',
-                                            color: '#ffffff',
+                                            color: '#0d9488',
                                             fontSize: '13px',
-                                            gap: '8px',
+                                            gap: '7px',
                                             lineHeight: '1.4'
                                         }}
                                     >
-                                        <Stethoscope size={15} style={{ color: '#ffffff' }} className="flex-shrink-0" />
+                                        <Stethoscope size={15} style={{ color: '#0d9488' }} className="flex-shrink-0" />
                                         <span className="capitalize">{activePatient.nama_layanan || 'Konsultasi'}</span>
                                     </span>
                                     {resepProdukDokter.length > 0 && (
                                         <span
                                             className="inline-flex align-items-center px-3 py-1 font-medium"
                                             style={{
-                                                background: 'rgba(245, 158, 11, 0.18)',
-                                                border: '1px solid rgba(251, 191, 36, 0.4)',
+                                                background: '#fffbeb',
+                                                border: '1px solid #fde68a',
                                                 borderRadius: '8px',
-                                                color: '#fef3c7',
+                                                color: '#b45309',
                                                 fontSize: '13px',
-                                                gap: '8px',
+                                                gap: '7px',
                                                 lineHeight: '1.4'
                                             }}
                                         >
-                                            <ShoppingBag size={14} style={{ color: '#fbbf24' }} className="flex-shrink-0" />
-                                            <span>Resep Dokter: <strong className="text-white">{resepProdukDokter.length} Produk</strong></span>
+                                            <ShoppingBag size={14} style={{ color: '#d97706' }} className="flex-shrink-0" />
+                                            <span>Resep Dokter: <strong>{resepProdukDokter.length} Produk</strong></span>
                                         </span>
                                     )}
                                 </div>
                             </div>
                         </div>
 
-                        {/* Sisi Kanan: Status Badge Sedang ditangani */}
-                        <div className="flex-shrink-0 align-self-start pt-1">
-                            <span
-                                className="inline-flex align-items-center font-semibold"
+                        {/* Sisi Kanan: Action Buttons (Diletakkan di bagian bawah sejajar) */}
+                        <div className="flex align-items-center justify-content-start lg:justify-content-end flex-wrap gap-2 align-self-end pb-0.5">
+                            {/* Tombol Batalkan */}
+                            <Button
+                                type="button"
+                                size="small"
+                                className="text-xs font-semibold transition-all flex align-items-center border-1"
                                 style={{
-                                    background: 'rgba(255, 255, 255, 0.22)',
-                                    border: '1px solid rgba(255, 255, 255, 0.35)',
-                                    color: '#ffffff',
-                                    borderRadius: '9999px',
-                                    padding: '7px 20px',
-                                    fontSize: '13px',
-                                    letterSpacing: '0.3px',
-                                    boxShadow: '0 2px 6px rgba(0, 0, 0, 0.08)'
+                                    background: '#ffffff',
+                                    borderColor: '#fca5a5',
+                                    color: '#dc2626',
+                                    borderRadius: '6px',
+                                    padding: '6px 14px',
+                                    gap: '6px'
+                                }}
+                                onClick={() => handleAksi(activePatient, 'batal')}
+                            >
+                                <Ban size={14} style={{ color: '#dc2626' }} />
+                                <span>Batalkan</span>
+                            </Button>
+
+                            {/* Tombol Riwayat pasien */}
+                            <Button
+                                type="button"
+                                size="small"
+                                className="text-xs font-semibold transition-all flex align-items-center border-1"
+                                style={{
+                                    background: '#ffffff',
+                                    borderColor: '#e2e8f0',
+                                    color: '#334155',
+                                    borderRadius: '6px',
+                                    padding: '6px 14px',
+                                    gap: '6px'
+                                }}
+                                onClick={() => setDrawerRiwayatVisible(true)}
+                            >
+                                <History size={14} style={{ color: '#475569' }} />
+                                <span>Riwayat pasien</span>
+                            </Button>
+
+                            {/* Tombol Panggil ulang */}
+                            <Button
+                                type="button"
+                                size="small"
+                                className="text-xs font-semibold transition-all flex align-items-center border-1"
+                                style={{
+                                    background: '#ffffff',
+                                    borderColor: '#e2e8f0',
+                                    color: '#334155',
+                                    borderRadius: '6px',
+                                    padding: '6px 14px',
+                                    gap: '6px'
+                                }}
+                                onClick={() => {
+                                    playChime();
+                                    speakNomorLayanan(activePatient.nomor_antrian, activePatient.nama_pasien, namaRuangan);
                                 }}
                             >
-                                Sedang ditangani
-                            </span>
+                                <Volume2 size={14} style={{ color: '#475569' }} />
+                                <span>Panggil ulang</span>
+                            </Button>
                         </div>
-                    </div>
-
-                    {/* 2. BOTTOM ROW: ACTION BUTTONS (BATALKAN, RIWAYAT PASIEN, PANGGIL ULANG - SEJAJAR DI KANAN DENGAN JARAK JELAS) */}
-                    <div
-                        className="flex align-items-center justify-content-end flex-wrap pt-3 mt-3"
-                        style={{
-                            borderTop: '1px solid rgba(255, 255, 255, 0.14)',
-                            gap: '12px'
-                        }}
-                    >
-                        {/* Tombol Batalkan */}
-                        <Button
-                            type="button"
-                            size="small"
-                            className="text-xs font-semibold transition-all flex align-items-center border-1"
-                            style={{
-                                background: 'rgba(239, 68, 68, 0.14)',
-                                borderColor: 'rgba(248, 113, 113, 0.4)',
-                                color: '#fca5a5',
-                                borderRadius: '8px',
-                                padding: '8px 16px',
-                                gap: '8px'
-                            }}
-                            onClick={() => handleAksi(activePatient, 'batal')}
-                        >
-                            <Ban size={15} style={{ color: '#fca5a5' }} />
-                            <span>Batalkan</span>
-                        </Button>
-
-                        {/* Tombol Riwayat pasien */}
-                        <Button
-                            type="button"
-                            size="small"
-                            className="text-xs font-semibold transition-all flex align-items-center border-1"
-                            style={{
-                                background: 'rgba(255, 255, 255, 0.1)',
-                                borderColor: 'rgba(255, 255, 255, 0.25)',
-                                color: '#ffffff',
-                                borderRadius: '8px',
-                                padding: '8px 16px',
-                                gap: '8px'
-                            }}
-                            onClick={() => setDrawerRiwayatVisible(true)}
-                        >
-                            <History size={15} style={{ color: '#ffffff' }} />
-                            <span>Riwayat pasien</span>
-                        </Button>
-
-                        {/* Tombol Panggil ulang */}
-                        <Button
-                            type="button"
-                            size="small"
-                            className="text-xs font-semibold transition-all flex align-items-center border-1"
-                            style={{
-                                background: 'rgba(255, 255, 255, 0.1)',
-                                borderColor: 'rgba(255, 255, 255, 0.25)',
-                                color: '#ffffff',
-                                borderRadius: '8px',
-                                padding: '8px 16px',
-                                gap: '8px'
-                            }}
-                            onClick={() => {
-                                playChime();
-                                speakNomorLayanan(activePatient.nomor_antrian, activePatient.nama_pasien, namaRuangan);
-                            }}
-                        >
-                            <Volume2 size={15} style={{ color: '#ffffff' }} />
-                            <span>Panggil ulang</span>
-                        </Button>
                     </div>
                 </div>
 

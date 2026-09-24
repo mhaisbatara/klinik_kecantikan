@@ -8,7 +8,7 @@ import { Tag } from 'primereact/tag';
 import { Checkbox } from 'primereact/checkbox';
 import { OverlayPanel } from 'primereact/overlaypanel';
 import postData from '@/lib/axios/postData';
-import { showError } from '@/lib/tools/generalTools';
+import { showError, showWarning } from '@/lib/tools/generalTools';
 
 export interface RekomendasiItem {
   jenis: 'layanan' | 'paket_layanan' | 'produk' | 'paket_produk';
@@ -37,6 +37,11 @@ export interface RekomendasiItem {
   is_locked?: boolean;
   is_pendaftaran?: boolean;
   is_petugas_available?: boolean;
+  is_not_started_today?: boolean;
+  is_past_today?: boolean;
+  status_jadwal?: string;
+  shift?: string | null;
+  earliest_start?: string | null;
   alasan_tidak_tersedia?: string | null;
   has_dokter?: boolean;
   dokter_nama?: string | null;
@@ -98,6 +103,11 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
       kode: string;
       nama: string;
       has_petugas?: boolean;
+      has_petugas_hari_ini?: boolean;
+      is_not_started_today?: boolean;
+      is_past_today?: boolean;
+      status_jadwal?: string;
+      alasan?: string | null;
       has_dokter?: boolean;
       dokter_nama?: string | null;
       dokter_names?: string[];
@@ -107,6 +117,7 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
       petugas_pj_jabatan?: string | null;
       petugas_jaga_names?: string[];
       shift?: string | null;
+      earliest_start?: string | null;
       companions?: Array<{
         nama_petugas: string;
         jabatan_petugas?: string | null;
@@ -210,6 +221,11 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
         kode: string;
         nama: string;
         has_petugas: boolean;
+        has_petugas_hari_ini?: boolean;
+        is_not_started_today?: boolean;
+        is_past_today?: boolean;
+        status_jadwal?: string;
+        alasan?: string | null;
         has_dokter: boolean;
         dokter_nama: string | null;
         dokter_count: number;
@@ -218,6 +234,7 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
         petugas_pj_jabatan?: string | null;
         petugas_jaga_names: string[];
         shift?: string | null;
+        earliest_start?: string | null;
         companions?: Array<{
           nama_petugas: string;
           jabatan_petugas?: string | null;
@@ -241,6 +258,11 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
           kode: k,
           nama: n,
           has_petugas: Boolean(r.has_petugas),
+          has_petugas_hari_ini: Boolean(r.has_petugas_hari_ini ?? r.has_petugas),
+          is_not_started_today: Boolean(r.is_not_started_today),
+          is_past_today: Boolean(r.is_past_today),
+          status_jadwal: r.status_jadwal || (r.has_petugas ? 'aktif' : 'tidak_ada_jadwal'),
+          alasan: r.alasan || null,
           has_dokter: Boolean(r.has_dokter),
           dokter_nama: r.dokter_nama || null,
           dokter_count: r.dokter_count || 0,
@@ -249,6 +271,7 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
           petugas_pj_jabatan: r.petugas_pj_jabatan || null,
           petugas_jaga_names: r.petugas_jaga_names || [],
           shift: r.shift || null,
+          earliest_start: r.earliest_start || null,
           companions: r.companions || [],
         });
       }
@@ -267,6 +290,11 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
           kode: k,
           nama: n,
           has_petugas: item.is_petugas_available !== false,
+          has_petugas_hari_ini: item.is_petugas_available !== false || Boolean(item.is_not_started_today) || Boolean(item.is_past_today),
+          is_not_started_today: Boolean(item.is_not_started_today),
+          is_past_today: Boolean(item.is_past_today),
+          status_jadwal: item.status_jadwal || (item.is_petugas_available !== false ? 'aktif' : 'tidak_ada_jadwal'),
+          alasan: item.alasan_tidak_tersedia || null,
           has_dokter: Boolean(item.has_dokter),
           dokter_nama: item.dokter_nama || null,
           dokter_count: item.has_dokter ? 1 : 0,
@@ -274,7 +302,8 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
           petugas_pj: item.petugas_pj_nama || null,
           petugas_pj_jabatan: null,
           petugas_jaga_names: item.petugas_jaga_names || [],
-          shift: null,
+          shift: item.shift || null,
+          earliest_start: item.earliest_start || null,
           companions: [],
         });
       }
@@ -305,6 +334,9 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
       icon: string;
       isProduct?: boolean;
       selectedCount: number;
+      isNotStarted?: boolean;
+      isPast?: boolean;
+      hasPetugas?: boolean;
     }> = [];
 
     roomList.forEach((r) => {
@@ -318,6 +350,9 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
         icon: countInRoom > 0 ? 'pi-check-circle' : 'pi-building',
         isProduct: false,
         selectedCount: countInRoom,
+        isNotStarted: Boolean(r.is_not_started_today),
+        isPast: Boolean(r.is_past_today),
+        hasPetugas: Boolean(r.has_petugas),
       });
     });
 
@@ -328,6 +363,9 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
       icon: 'pi-shopping-bag',
       isProduct: true,
       selectedCount: productCount,
+      isNotStarted: false,
+      isPast: false,
+      hasPetugas: true,
     });
 
     return tabs;
@@ -375,11 +413,26 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
     }
 
     if (isService) {
-      if (item.is_petugas_available === false) {
-        showError(
+      if (item.is_not_started_today) {
+        showWarning(
           toast,
-          item.alasan_tidak_tersedia ||
-            `Tidak dapat memilih layanan "${item.nama}". Ruangan ${item.nama_ruangan || 'tujuan'} tidak memiliki dokter/petugas yang bertugas hari ini.`
+          `Shift di ${item.nama_ruangan || 'ruangan ini'} baru dimulai pukul ${item.earliest_start || (item.shift ? item.shift.split('-')[0].trim() : '13:00')} WIB.`
+        );
+        return;
+      }
+
+      if (item.is_past_today) {
+        showWarning(
+          toast,
+          `Shift di ${item.nama_ruangan || 'ruangan ini'} telah selesai untuk hari ini.`
+        );
+        return;
+      }
+
+      if (item.is_petugas_available === false) {
+        showWarning(
+          toast,
+          `Ruangan ${item.nama_ruangan || 'tujuan'} tidak memiliki dokter/petugas yang bertugas saat ini.`
         );
         return;
       }
@@ -445,7 +498,63 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
         <div className="flex align-items-center gap-2 flex-shrink-0">
           {/* Active Room Doctor / Staff Duty Popover Button */}
           {!isProductTab && currentRoomObj && (() => {
-            if (!currentRoomObj.has_petugas) {
+            const isNotStarted = Boolean(currentRoomObj.is_not_started_today);
+            const isPast = Boolean(currentRoomObj.is_past_today);
+            const hasOngoing = Boolean(currentRoomObj.has_petugas);
+            const hasCompanions = Boolean(currentRoomObj.companions && currentRoomObj.companions.length > 0);
+
+            if (isNotStarted) {
+              return (
+                <button
+                  type="button"
+                  onClick={(e) => companionOpRef.current?.toggle(e)}
+                  className="inline-flex align-items-center border-round-pill cursor-pointer transition-all border-1 hover:shadow-1"
+                  style={{
+                    background: '#fffbeb',
+                    color: '#92400e',
+                    borderColor: '#fcd34d',
+                    padding: '3px 10px',
+                    gap: '6px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                  }}
+                  title={`Shift di ${currentRoomObj.nama} belum dimulai (jadwal: ${currentRoomObj.shift || '13:00 WIB'}). Klik untuk melihat detail.`}
+                >
+                  <i className="pi pi-clock text-xs text-amber-600 flex-shrink-0" />
+                  <span className="white-space-nowrap">
+                    {currentRoomObj.nama} ({currentRoomObj.dokter_nama || currentRoomObj.petugas_pj || `${currentRoomObj.petugas_count} Petugas`})
+                  </span>
+                  {hasCompanions && (
+                    <span
+                      className="text-xs font-bold px-1.5 py-0 border-round-pill bg-amber-100 text-amber-800 flex-shrink-0"
+                      style={{ fontSize: '10px' }}
+                    >
+                      +{currentRoomObj.companions?.length} Pendamping
+                    </span>
+                  )}
+                  <i className="pi pi-chevron-down text-xs text-amber-700 flex-shrink-0 ml-0.5 opacity-80" />
+                </button>
+              );
+            }
+
+            if (isPast) {
+              return (
+                <span
+                  className="inline-flex align-items-center border-round-pill bg-rose-50 text-rose-700 border-1 border-rose-200 font-bold"
+                  style={{
+                    padding: '4px 10px',
+                    gap: '6px',
+                    fontSize: '11px',
+                  }}
+                  title={`Shift pelayanan di ${currentRoomObj.nama} telah berakhir`}
+                >
+                  <i className="pi pi-times-circle text-rose-500 text-xs flex-shrink-0" />
+                  <span>{currentRoomObj.nama}: Shift Selesai</span>
+                </span>
+              );
+            }
+
+            if (!hasOngoing) {
               return (
                 <span
                   className="inline-flex align-items-center border-round-pill bg-rose-50 text-rose-700 border-1 border-rose-200 font-bold"
@@ -461,8 +570,6 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                 </span>
               );
             }
-
-            const hasCompanions = Boolean(currentRoomObj.companions && currentRoomObj.companions.length > 0);
 
             return (
               <button
@@ -514,6 +621,27 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
           {allTabs.map((tab) => {
             const isActive = activeTabKey === tab.key;
             const hasSelected = tab.selectedCount > 0;
+
+            let iconName = 'pi-building';
+            let iconClass = 'text-500';
+
+            if (tab.isProduct) {
+              iconName = 'pi-shopping-bag';
+              iconClass = isActive ? 'text-primary font-bold' : 'text-500';
+            } else if (tab.isNotStarted) {
+              iconName = 'pi-clock';
+              iconClass = isActive ? 'text-amber-600 font-bold' : 'text-amber-500';
+            } else if (tab.isPast) {
+              iconName = 'pi-times-circle';
+              iconClass = isActive ? 'text-rose-600 font-bold' : 'text-rose-400';
+            } else if (tab.hasPetugas) {
+              iconName = isActive ? 'pi-check-circle' : 'pi-building';
+              iconClass = isActive ? 'text-primary font-bold' : 'text-emerald-600';
+            } else {
+              iconName = 'pi-building';
+              iconClass = isActive ? 'text-primary font-bold' : 'text-400';
+            }
+
             return (
               <button
                 key={tab.key}
@@ -528,17 +656,8 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                   gap: '8px',
                 }}
               >
-                <i
-                  className={`pi ${
-                    isActive
-                      ? 'pi-check-circle text-primary font-bold'
-                      : tab.isProduct
-                      ? 'pi-shopping-bag text-500'
-                      : 'pi-building text-500'
-                  }`}
-                  style={{ fontSize: '13px' }}
-                />
-                <span className={isActive ? 'text-primary font-bold' : 'text-700'}>{tab.label}</span>
+                <i className={`pi ${iconName} ${iconClass}`} style={{ fontSize: '13px' }} />
+                <span>{tab.label}</span>
                 {hasSelected && (
                   <Tag
                     value={tab.selectedCount}
@@ -553,14 +672,71 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
         </div>
       </div>
 
-      {/* ── NOTIFIKASI RUANGAN TERKUNCI PERSIS SEPERTI GAMBAR 2 ── */}
-      {isRuangDisabled && (
-        <div className="flex align-items-center gap-2 p-3 mb-4 bg-orange-50 border-round-lg border-1 border-orange-200">
-          <i className="pi pi-info-circle text-orange-500 flex-shrink-0" />
-          <span className="text-sm text-orange-700">
-            Ruangan ini tidak bisa dipilih karena Anda sudah memilih layanan dari ruangan <strong>{activeTreatmentRoom?.nama_ruangan}</strong>.
-            Batalkan pilihan sebelumnya terlebih dahulu jika ingin berpindah ruangan.
-          </span>
+      {/* ── NOTIFIKASI SHIFT BELUM MULAI / SELESAI / RUANGAN TERKUNCI ── */}
+      {!isProductTab && currentRoomObj && currentRoomObj.is_not_started_today && (
+        <div className="mb-3">
+          <div
+            className="inline-flex align-items-center border-round-lg border-1"
+            style={{
+              backgroundColor: '#fffbeb',
+              borderColor: '#fde68a',
+              padding: '6px 14px',
+              gap: '8px',
+              fontSize: '12px',
+              color: '#92400e',
+            }}
+          >
+            <i className="pi pi-clock text-amber-600 text-xs flex-shrink-0" />
+            <span>
+              Shift di <strong className="font-bold text-amber-950">{currentRoomObj.nama}</strong> baru dimulai pukul{' '}
+              <strong className="font-bold text-amber-950">{currentRoomObj.earliest_start || (currentRoomObj.shift ? currentRoomObj.shift.split('-')[0].trim() : '13:00')} WIB</strong> (Shift:{' '}
+              {currentRoomObj.shift || '13:00 - 20:00 WIB'}).
+            </span>
+          </div>
+        </div>
+      )}
+
+      {!isProductTab && currentRoomObj && currentRoomObj.is_past_today && (
+        <div className="mb-3">
+          <div
+            className="inline-flex align-items-center border-round-lg border-1"
+            style={{
+              backgroundColor: '#fff1f2',
+              borderColor: '#fecdd3',
+              padding: '6px 14px',
+              gap: '8px',
+              fontSize: '12px',
+              color: '#9f1239',
+            }}
+          >
+            <i className="pi pi-times-circle text-rose-500 text-xs flex-shrink-0" />
+            <span>
+              Shift di <strong className="font-bold text-rose-950">{currentRoomObj.nama}</strong> telah berakhir untuk hari ini (Shift:{' '}
+              {currentRoomObj.shift}).
+            </span>
+          </div>
+        </div>
+      )}
+
+      {isRuangDisabled && !currentRoomObj?.is_not_started_today && !currentRoomObj?.is_past_today && currentRoomObj?.has_petugas && (
+        <div className="mb-3">
+          <div
+            className="inline-flex align-items-center border-round-lg border-1"
+            style={{
+              backgroundColor: '#fff7ed',
+              borderColor: '#fed7aa',
+              padding: '6px 14px',
+              gap: '8px',
+              fontSize: '12px',
+              color: '#9a3412',
+            }}
+          >
+            <i className="pi pi-info-circle text-orange-500 text-xs flex-shrink-0" />
+            <span>
+              Anda sudah memilih layanan dari ruangan <strong className="font-bold text-orange-950">{activeTreatmentRoom?.nama_ruangan}</strong>.
+              Batalkan pilihan sebelumnya untuk berpindah ruangan.
+            </span>
+          </div>
         </div>
       )}
 
@@ -595,22 +771,22 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
               const isService = ['layanan', 'paket_layanan'].includes(item.jenis);
               const isPaket = item.jenis === 'paket_layanan' || item.jenis === 'paket_produk';
               const isProduk = ['produk', 'paket_produk'].includes(item.jenis);
-              const isUnavailable = isService && item.is_petugas_available === false;
+              const isUnavailable = isService && (item.is_petugas_available === false || Boolean(item.is_not_started_today) || Boolean(item.is_past_today));
               const effectiveDisabled = isUnavailable || isRuangDisabled || disabled;
 
               return (
-                <div key={`${item.jenis}_${item.kode}`} className="col-12 sm:col-6 md:col-4 lg:col-3 p-2">
+                <div key={`${item.jenis}_${item.kode}`} className="col-12 sm:col-6 md:col-4 lg:col-3 xl:col-3 p-2">
                   <div
-                    className={`h-full border-round-xl border-1 overflow-hidden transition-all transition-duration-200 flex flex-column justify-content-between cursor-pointer bg-white ${
+                    className={`h-full border-round-xl border-1 overflow-hidden transition-all transition-duration-200 flex flex-column justify-content-between bg-white ${
                       isSelected
                         ? isPaket || isProduk
-                          ? 'border-2 border-amber-500 shadow-4 bg-amber-50/10'
-                          : 'border-2 border-blue-600 shadow-4 bg-blue-50/10'
+                          ? 'border-2 border-amber-500 shadow-4 bg-amber-50/10 cursor-pointer'
+                          : 'border-2 border-blue-600 shadow-4 bg-blue-50/10 cursor-pointer'
                         : isPendaftaranLocked
-                        ? 'border-2 border-amber-500 bg-amber-50/20 shadow-2'
+                        ? 'border-2 border-amber-500 bg-amber-50/20 shadow-2 cursor-pointer'
                         : effectiveDisabled
                         ? 'surface-100 border-200 opacity-60 cursor-not-allowed'
-                        : 'surface-border hover:border-blue-400 hover:shadow-2'
+                        : 'surface-border hover:border-blue-400 hover:shadow-2 cursor-pointer'
                     }`}
                     style={{
                       boxShadow: isSelected ? '0 4px 14px 0 rgba(37, 99, 235, 0.15)' : undefined,
@@ -623,13 +799,24 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                         );
                         return;
                       }
-                      if (isUnavailable) {
-                        showError(
+                      if (item.is_not_started_today) {
+                        showWarning(
                           toast,
-                          item.alasan_tidak_tersedia ||
-                            `Tidak dapat memilih layanan "${item.nama}". Ruangan ${
-                              item.nama_ruangan || 'tujuan'
-                            } tidak memiliki dokter/petugas yang bertugas hari ini.`
+                          `Shift di ${item.nama_ruangan || 'ruangan ini'} baru dimulai pukul ${item.earliest_start || (item.shift ? item.shift.split('-')[0].trim() : '13:00')} WIB.`
+                        );
+                        return;
+                      }
+                      if (item.is_past_today) {
+                        showWarning(
+                          toast,
+                          `Shift di ${item.nama_ruangan || 'ruangan ini'} telah selesai untuk hari ini.`
+                        );
+                        return;
+                      }
+                      if (isUnavailable) {
+                        showWarning(
+                          toast,
+                          `Ruangan ${item.nama_ruangan || 'tujuan'} tidak memiliki dokter/petugas yang bertugas saat ini.`
                         );
                         return;
                       }
@@ -677,10 +864,24 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                       {item.is_promo && (
                         <div className="absolute top-0 left-0 m-2 z-2">
                           <span
-                            className="px-2 py-0.5 font-extrabold text-[10px] border-round shadow-2 text-white flex align-items-center gap-1"
-                            style={{ background: 'linear-gradient(135deg, #ef4444, #f97316)' }}
+                            className="inline-flex align-items-center font-bold text-white shadow-2"
+                            style={{
+                              background: 'linear-gradient(135deg, #ef4444, #f97316)',
+                              fontSize: '10px',
+                              padding: '3px 8px',
+                              borderRadius: '9999px',
+                              lineHeight: '1.2',
+                              letterSpacing: '0.02em',
+                              gap: '4px',
+                              boxShadow: '0 2px 6px rgba(239, 68, 68, 0.4)',
+                            }}
                           >
-                            <i className="pi pi-percentage text-[9px]" /> PROMO
+                            <i className="pi pi-percentage" style={{ fontSize: '9px' }} />
+                            <span>
+                              {item.jenis_diskon === 'persen'
+                                ? `PROMO ${parseFloat(String(item.nilai_diskon || 0))}%`
+                                : `PROMO ${formatRupiah(item.nilai_diskon || 0)}`}
+                            </span>
                           </span>
                         </div>
                       )}
@@ -744,6 +945,36 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                               }}
                             />
                           )}
+
+                          {isService && item.is_past_today && (
+                            <Tag
+                              rounded
+                              value="Shift Selesai"
+                              severity="danger"
+                              style={{
+                                fontSize: '10px',
+                                padding: '3px 8px',
+                                fontWeight: 700,
+                                lineHeight: 1.2,
+                                borderRadius: '9999px',
+                              }}
+                            />
+                          )}
+
+                          {isService && !item.is_not_started_today && !item.is_past_today && item.is_petugas_available === false && (
+                            <Tag
+                              rounded
+                              value="Tidak Ada Petugas"
+                              severity="danger"
+                              style={{
+                                fontSize: '10px',
+                                padding: '3px 8px',
+                                fontWeight: 700,
+                                lineHeight: 1.2,
+                                borderRadius: '9999px',
+                              }}
+                            />
+                          )}
                         </div>
 
                         {/* Title */}
@@ -759,16 +990,6 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                         >
                           {item.nama}
                         </h4>
-
-                        {/* Unavailable explanation warning if any */}
-                        {isUnavailable && (
-                          <div className="mt-1 mb-1 p-1 border-round bg-rose-50 border-1 border-rose-200 text-rose-700 text-[10px] font-semibold flex align-items-center gap-1">
-                            <i className="pi pi-exclamation-triangle text-[11px] flex-shrink-0" />
-                            <span className="line-height-1">
-                              {item.alasan_tidak_tersedia || 'Tidak ada jadwal petugas hari ini'}
-                            </span>
-                          </div>
-                        )}
                       </div>
 
                       {/* Footer */}
@@ -932,10 +1153,10 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
       {/* ── OVERLAY PANEL TIM PETUGAS RUANGAN ── */}
       <OverlayPanel ref={companionOpRef} className="shadow-4 border-round-xl">
         {(() => {
-          if (!currentRoomObj || !currentRoomObj.has_petugas) return null;
+          if (!currentRoomObj) return null;
 
           return (
-            <div style={{ minWidth: '240px', maxWidth: '300px' }}>
+            <div style={{ minWidth: '250px', maxWidth: '320px' }}>
               <div className="font-bold text-xs text-900 mb-1 flex align-items-center justify-content-between">
                 <span className="flex align-items-center gap-1.5">
                   <i className="pi pi-users text-teal-600 text-xs" />
@@ -949,14 +1170,34 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                 </div>
               )}
 
+              {currentRoomObj.is_not_started_today && (
+                <div className="p-2 mb-2 bg-amber-50 border-1 border-amber-200 border-round-lg text-amber-800 text-[11px] font-medium flex align-items-start gap-1.5">
+                  <i className="pi pi-clock text-amber-600 text-xs mt-0.5 flex-shrink-0" />
+                  <span>
+                    Sesi di {currentRoomObj.nama} baru dimulai pukul{' '}
+                    <strong>{currentRoomObj.earliest_start || (currentRoomObj.shift ? currentRoomObj.shift.split('-')[0].trim() : '13:00')} WIB</strong>.
+                    Layanan belum dapat dirujuk saat ini.
+                  </span>
+                </div>
+              )}
+
               <div
                 className="text-xs p-2 border-1 border-round-lg mb-2"
-                style={{ backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' }}
+                style={{
+                  backgroundColor: currentRoomObj.is_not_started_today ? '#fffbeb' : '#ecfdf5',
+                  borderColor: currentRoomObj.is_not_started_today ? '#fde68a' : '#a7f3d0',
+                }}
               >
-                <div className="font-semibold text-[11px]" style={{ color: '#065f46' }}>
+                <div
+                  className="font-semibold text-[11px]"
+                  style={{ color: currentRoomObj.is_not_started_today ? '#92400e' : '#065f46' }}
+                >
                   Penanggung Jawab (PJ):
                 </div>
-                <div className="font-bold text-xs" style={{ color: '#047857' }}>
+                <div
+                  className="font-bold text-xs"
+                  style={{ color: currentRoomObj.is_not_started_today ? '#b45309' : '#047857' }}
+                >
                   {currentRoomObj.petugas_pj || currentRoomObj.dokter_nama || 'Petugas Jaga'}
                   {currentRoomObj.petugas_pj_jabatan && (
                     <span className="font-normal text-[11px] text-600 ml-1">

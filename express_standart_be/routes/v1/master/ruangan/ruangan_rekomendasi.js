@@ -132,12 +132,22 @@ const handleGetRekomendasiOptions = async (req, res) => {
       )
       .orderBy("pp.nama", "asc");
 
-    // Tentukan hari ini (WIB / sistem)
+    // Tentukan hari & waktu saat ini (WIB / sistem)
+    const tz = oPayload.tz || "Asia/Jakarta";
     const HARI_MAP = ["minggu", "senin", "selasa", "rabu", "kamis", "jumat", "sabtu"];
     const todayYmd = new Date().toISOString().slice(0, 10);
     const todayStr = formatDateSystem(new Date(), "yyyy-MM-dd");
     const [year, month, day] = todayStr.split("-").map(Number);
     const todayDay = HARI_MAP[new Date(year, month - 1, day).getDay()];
+
+    const nowTimeStr = new Date().toLocaleTimeString("en-GB", {
+      timeZone: tz,
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+    const [nowH, nowM] = nowTimeStr.split(":").map(Number);
+    const nowMinutes = (isNaN(nowH) ? 0 : nowH) * 60 + (isNaN(nowM) ? 0 : nowM);
 
     // Fetch active schedules for today
     const qSchedules = DB("mst_jadwal_karyawan as j")
@@ -168,9 +178,32 @@ const handleGetRekomendasiOptions = async (req, res) => {
       .orderBy("j.is_penanggung_jawab", "desc")
       .orderBy("j.jam_mulai", "asc");
 
-    // Group schedules by kode_ruangan
+    // Group schedules by kode_ruangan & tag shift timeliness
     const roomSchedulesMap = new Map();
     activeSchedulesToday.forEach((sch) => {
+      let isOngoing = false;
+      let isNotStarted = false;
+      let isPast = false;
+
+      if (sch.jam_mulai && sch.jam_selesai) {
+        const [sh, sm] = sch.jam_mulai.slice(0, 5).split(":").map(Number);
+        const [eh, em] = sch.jam_selesai.slice(0, 5).split(":").map(Number);
+        const sMin = (isNaN(sh) ? 0 : sh) * 60 + (isNaN(sm) ? 0 : sm);
+        const eMin = (isNaN(eh) ? 0 : eh) * 60 + (isNaN(em) ? 0 : em);
+
+        if (eMin <= nowMinutes) {
+          isPast = true;
+        } else if (nowMinutes < sMin) {
+          isNotStarted = true;
+        } else {
+          isOngoing = true;
+        }
+      }
+
+      sch.is_ongoing_now = isOngoing;
+      sch.is_not_started_today = isNotStarted;
+      sch.is_past_today = isPast;
+
       if (!roomSchedulesMap.has(sch.kode_ruangan)) {
         roomSchedulesMap.set(sch.kode_ruangan, []);
       }
@@ -260,15 +293,37 @@ const handleGetRekomendasiOptions = async (req, res) => {
 
     const getRoomStaffInfo = (roomCode, roomName) => {
       const roomSchedules = roomSchedulesMap.get(roomCode) || [];
+      const hasPetugasHariIni = roomSchedules.length > 0;
+
+      const ongoingSchedules = roomSchedules.filter((s) => s.is_ongoing_now);
+      const unstartedSchedules = roomSchedules.filter((s) => s.is_not_started_today);
+      const pastSchedules = roomSchedules.filter((s) => s.is_past_today);
+
+      const hasOngoingPetugas = ongoingSchedules.length > 0;
+      const isNotStartedToday = !hasOngoingPetugas && unstartedSchedules.length > 0;
+      const isPastToday = !hasOngoingPetugas && !isNotStartedToday && pastSchedules.length > 0;
+
       const doctorsInRoom = roomSchedules.filter((s) => {
         const jbt = (s.jabatan_petugas || "").toLowerCase();
         const nm = (s.nama_petugas || "").toLowerCase();
         return jbt.includes("dokter") || jbt.includes("dr") || nm.startsWith("dr.") || nm.startsWith("dr ") || nm.includes("dr.") || nm.includes("sp.");
       });
-      const hasPetugas = roomSchedules.length > 0;
+
+      const ongoingDoctors = doctorsInRoom.filter((s) => s.is_ongoing_now);
       const hasDokter = doctorsInRoom.length > 0;
-      const pjStaff = roomSchedules.find((s) => s.is_penanggung_jawab === 1) || doctorsInRoom[0] || roomSchedules[0];
-      const doctorPj = doctorsInRoom.find((s) => s.is_penanggung_jawab === 1) || doctorsInRoom[0];
+      const hasOngoingDokter = ongoingDoctors.length > 0;
+
+      const pjStaff = ongoingSchedules.find((s) => s.is_penanggung_jawab === 1) ||
+                      ongoingDoctors[0] ||
+                      ongoingSchedules[0] ||
+                      roomSchedules.find((s) => s.is_penanggung_jawab === 1) ||
+                      doctorsInRoom[0] ||
+                      roomSchedules[0];
+
+      const doctorPj = ongoingDoctors.find((s) => s.is_penanggung_jawab === 1) ||
+                       ongoingDoctors[0] ||
+                       doctorsInRoom.find((s) => s.is_penanggung_jawab === 1) ||
+                       doctorsInRoom[0];
 
       const companions = roomSchedules
         .filter((s) => s !== pjStaff)
@@ -277,15 +332,43 @@ const handleGetRekomendasiOptions = async (req, res) => {
           jabatan_petugas: s.jabatan_petugas || "Petugas",
           jam_mulai: s.jam_mulai ? s.jam_mulai.slice(0, 5) : null,
           jam_selesai: s.jam_selesai ? s.jam_selesai.slice(0, 5) : null,
+          is_ongoing_now: s.is_ongoing_now,
+          is_not_started_today: s.is_not_started_today,
+          is_past_today: s.is_past_today,
         }));
 
       const shiftStr = pjStaff?.jam_mulai && pjStaff?.jam_selesai
         ? `${pjStaff.jam_mulai.slice(0, 5)} - ${pjStaff.jam_selesai.slice(0, 5)} WIB`
         : null;
 
+      const earliestStart = unstartedSchedules.length > 0
+        ? unstartedSchedules.map((s) => (s.jam_mulai ? s.jam_mulai.slice(0, 5) : "08:00")).sort()[0]
+        : null;
+
+      let statusJadwal = "tidak_ada_jadwal";
+      let alasan = `Tidak ada dokter atau petugas jaga di ${roomName || roomCode || "ruangan ini"} hari ini (${todayDay})`;
+
+      if (hasOngoingPetugas) {
+        statusJadwal = "aktif";
+        alasan = null;
+      } else if (isNotStartedToday) {
+        statusJadwal = "belum_mulai";
+        alasan = `Shift petugas di ${roomName || "ruangan ini"} baru dimulai pukul ${earliestStart || (pjStaff?.jam_mulai ? pjStaff.jam_mulai.slice(0, 5) : "13:00")} WIB (Shift: ${shiftStr || "Jadwal Belum Mulai"}). Rujukan antrean belum dapat diterbitkan saat ini.`;
+      } else if (isPastToday) {
+        statusJadwal = "selesai";
+        alasan = `Shift petugas di ${roomName || "ruangan ini"} telah berakhir untuk hari ini (Shift: ${shiftStr}).`;
+      }
+
       return {
-        hasPetugas,
+        hasPetugas: hasOngoingPetugas, // Available ONLY if ongoing right now
+        hasPetugasHariIni,
+        hasOngoingPetugas,
+        isNotStartedToday,
+        isPastToday,
+        statusJadwal,
+        alasan,
         hasDokter,
+        hasOngoingDokter,
         doctorPjName: doctorPj?.nama_petugas || null,
         doctorNames: doctorsInRoom.map((s) => s.nama_petugas).filter(Boolean),
         doctorCount: doctorsInRoom.length,
@@ -294,6 +377,7 @@ const handleGetRekomendasiOptions = async (req, res) => {
         staffNames: roomSchedules.map((s) => s.nama_petugas).filter(Boolean),
         staffCount: roomSchedules.length,
         shift: shiftStr,
+        earliestStart,
         companions: companions,
       };
     };
@@ -301,14 +385,6 @@ const handleGetRekomendasiOptions = async (req, res) => {
     // Format output items with promo info and staff duty availability applied
     const listLayanan = vaLayanan.map((item) => {
       const staffInfo = getRoomStaffInfo(item.kode_ruangan, item.nama_ruangan);
-      
-      let isAvailable = staffInfo.hasPetugas;
-      let alasan = null;
-
-      if (!staffInfo.hasPetugas) {
-        isAvailable = false;
-        alasan = `Tidak ada dokter atau petugas jaga di ${item.nama_ruangan || item.kode_ruangan || "ruangan ini"} hari ini (${todayDay})`;
-      }
 
       const fotoUrl = item.foto
         ? (item.foto.startsWith("http") ? item.foto : `${assetsBase}/uploads/layanan/${item.foto}`)
@@ -328,8 +404,13 @@ const handleGetRekomendasiOptions = async (req, res) => {
         durasi_menit: parseInt(item.durasi_menit || 30, 10),
         kode_ruangan: item.kode_ruangan || "",
         nama_ruangan: item.nama_ruangan || item.kode_ruangan || "Ruang Treatment",
-        is_petugas_available: isAvailable,
-        alasan_tidak_tersedia: alasan,
+        is_petugas_available: staffInfo.hasPetugas,
+        is_not_started_today: staffInfo.isNotStartedToday,
+        is_past_today: staffInfo.isPastToday,
+        status_jadwal: staffInfo.statusJadwal,
+        alasan_tidak_tersedia: staffInfo.alasan,
+        shift: staffInfo.shift,
+        earliest_start: staffInfo.earliestStart,
         has_dokter: staffInfo.hasDokter,
         dokter_nama: staffInfo.doctorPjName,
         petugas_jaga_count: staffInfo.staffCount,
@@ -340,14 +421,6 @@ const handleGetRekomendasiOptions = async (req, res) => {
 
     const listPaketLayanan = vaPaketLayanan.map((item) => {
       const staffInfo = getRoomStaffInfo(item.kode_ruangan, item.nama_ruangan);
-      
-      let isAvailable = staffInfo.hasPetugas;
-      let alasan = null;
-
-      if (!staffInfo.hasPetugas) {
-        isAvailable = false;
-        alasan = `Tidak ada dokter atau petugas jaga di ${item.nama_ruangan || item.kode_ruangan || "ruangan ini"} hari ini (${todayDay})`;
-      }
 
       const fotoUrl = item.foto
         ? (item.foto.startsWith("http") ? item.foto : `${assetsBase}/uploads/paket_layanan/${item.foto}`)
@@ -368,8 +441,13 @@ const handleGetRekomendasiOptions = async (req, res) => {
         masa_berlaku_hari: item.masa_berlaku_hari,
         kode_ruangan: item.kode_ruangan || "",
         nama_ruangan: item.nama_ruangan || item.kode_ruangan || "Ruang Treatment",
-        is_petugas_available: isAvailable,
-        alasan_tidak_tersedia: alasan,
+        is_petugas_available: staffInfo.hasPetugas,
+        is_not_started_today: staffInfo.isNotStartedToday,
+        is_past_today: staffInfo.isPastToday,
+        status_jadwal: staffInfo.statusJadwal,
+        alasan_tidak_tersedia: staffInfo.alasan,
+        shift: staffInfo.shift,
+        earliest_start: staffInfo.earliestStart,
         has_dokter: staffInfo.hasDokter,
         dokter_nama: staffInfo.doctorPjName,
         petugas_jaga_count: staffInfo.staffCount,
@@ -434,6 +512,11 @@ const handleGetRekomendasiOptions = async (req, res) => {
         nama: r.nama_ruangan,
         nama_ruangan: r.nama_ruangan,
         has_petugas: staffInfo.hasPetugas,
+        has_petugas_hari_ini: staffInfo.hasPetugasHariIni,
+        is_not_started_today: staffInfo.isNotStartedToday,
+        is_past_today: staffInfo.isPastToday,
+        status_jadwal: staffInfo.statusJadwal,
+        alasan: staffInfo.alasan,
         has_dokter: staffInfo.hasDokter,
         dokter_nama: staffInfo.doctorPjName,
         dokter_names: staffInfo.doctorNames,
@@ -443,6 +526,7 @@ const handleGetRekomendasiOptions = async (req, res) => {
         petugas_pj_jabatan: staffInfo.pjStaffJabatan,
         petugas_jaga_names: staffInfo.staffNames,
         shift: staffInfo.shift,
+        earliest_start: staffInfo.earliestStart,
         companions: staffInfo.companions,
       };
     });

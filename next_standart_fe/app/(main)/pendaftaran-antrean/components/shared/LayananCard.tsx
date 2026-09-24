@@ -161,7 +161,7 @@ export const LayananCard: React.FC<LayananCardProps> = ({
     : `${item.jenis}_${item.kode_layanan}`;
 
   return (
-    <div key={key} className={gridClassName || "col-12 sm:col-6 md:col-4 lg:col-3 p-2"}>
+    <div key={key} className={gridClassName || "col-12 sm:col-6 md:col-4 lg:col-3 xl:col-3 p-2"}>
       <div
         className={`h-full border-round-xl border-1 overflow-hidden transition-all transition-duration-200 flex flex-column justify-content-between cursor-pointer bg-white ${
           isSelected
@@ -212,12 +212,36 @@ export const LayananCard: React.FC<LayananCardProps> = ({
             </div>
           )}
 
-
+          {/* Floating Promo Badge */}
+          {item.is_promo && !isClaimedElsewhere && (
+            <div className="absolute top-0 left-0 m-2 z-2">
+              <span
+                className="inline-flex align-items-center font-bold text-white shadow-2"
+                style={{
+                  background: 'linear-gradient(135deg, #ef4444, #f97316)',
+                  fontSize: '10px',
+                  padding: '3px 8px',
+                  borderRadius: '9999px',
+                  lineHeight: '1.2',
+                  letterSpacing: '0.02em',
+                  gap: '4px',
+                  boxShadow: '0 2px 6px rgba(239, 68, 68, 0.4)',
+                }}
+              >
+                <i className="pi pi-percentage" style={{ fontSize: '9px' }} />
+                <span>
+                  {item.jenis_diskon === 'persen'
+                    ? `PROMO ${parseFloat(String(item.nilai_diskon || 0))}%`
+                    : `PROMO ${formatRupiah(item.nilai_diskon || 0)}`}
+                </span>
+              </span>
+            </div>
+          )}
 
           {/* Floating Already Claimed Badge */}
           {!isSelected && isClaimedElsewhere && (
             <div className="absolute top-0 left-0 m-2 z-2">
-              <span className="px-2 py-0.5 bg-emerald-700 text-white font-bold text-[10px] border-round shadow-2 flex align-items-center gap-1">
+              <span className="px-2.5 py-1 bg-emerald-700 text-white font-bold text-[10px] border-round shadow-2 flex align-items-center gap-1">
                 <i className="pi pi-gift text-[10px]" /> Sudah Diklaim
               </span>
             </div>

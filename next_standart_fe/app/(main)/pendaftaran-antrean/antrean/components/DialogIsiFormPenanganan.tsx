@@ -233,13 +233,13 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
 
         if (isKonsultasi && lanjutKeTindakan) {
             const unavailableService = rekomendasiItems.find(
-                (item) => ['layanan', 'paket_layanan'].includes(item.jenis) && item.is_petugas_available === false
+                (item) => ['layanan', 'paket_layanan'].includes(item.jenis) && (item.is_petugas_available === false || Boolean(item.is_not_started_today) || Boolean(item.is_past_today))
             );
             if (unavailableService) {
                 showError(
                     toast,
                     unavailableService.alasan_tidak_tersedia ||
-                        `Tidak dapat melanjutkan tindakan ke ruangan "${unavailableService.nama_ruangan || 'tujuan'}" karena tidak ada petugas/terapis yang bertugas hari ini.`
+                        `Tidak dapat melanjutkan tindakan ke ruangan "${unavailableService.nama_ruangan || 'tujuan'}" karena jadwal shift petugas belum dimulai atau telah berakhir.`
                 );
                 return;
             }

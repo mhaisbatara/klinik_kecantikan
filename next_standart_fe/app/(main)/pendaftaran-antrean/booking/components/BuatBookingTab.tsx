@@ -1614,7 +1614,7 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
                                     isDisabled={isRuangDisabled}
                                     onToggle={handleToggleItem}
                                     formatPrice={formatCurrency}
-                                    gridClassName="col-12 sm:col-6 md:col-4 lg:col-4 xl:col-4 p-2"
+                                    gridClassName="col-12 sm:col-6 md:col-4 lg:col-3 xl:col-3 p-2"
                                   />
                                 );
                               });
@@ -1671,7 +1671,7 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
                                   isClaimedElsewhere={isClaimedElsewhere}
                                   onToggle={handleToggleItem}
                                   formatPrice={formatCurrency}
-                                  gridClassName="col-12 sm:col-6 md:col-4 lg:col-4 xl:col-4 p-2"
+                                  gridClassName="col-12 sm:col-6 md:col-4 lg:col-3 xl:col-3 p-2"
                                 />
                               );
                             })}
