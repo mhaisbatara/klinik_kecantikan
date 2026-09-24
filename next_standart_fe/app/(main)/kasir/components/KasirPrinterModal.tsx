@@ -29,8 +29,8 @@ export const DEFAULT_PRINTER_SETTINGS: PrinterSettings = {
   connectionType: 'usb',
   paperSize: '58mm',
   autoPrint: false,
-  headerAddress: 'Jl. Utama Klinik Kecantikan No. 88, Telp: (021) 555-0199',
-  footerMessage: 'Terima kasih atas kunjungan Anda!\nSemoga lekas sembuh & cantik selalu 🌸',
+  headerAddress: '',
+  footerMessage: 'Terima kasih atas kunjungan Anda',
   showLogo: true,
 };
 
@@ -122,7 +122,7 @@ export const KasirPrinterModal: React.FC<KasirPrinterModalProps> = ({ visible, o
         </head>
         <body>
           <div class="receipt">
-            <div class="text-center font-bold" style="font-size: 14px;">🌸 Klinik Kecantikan</div>
+            <div class="text-center font-bold" style="font-size: 14px;">Klinik Kecantikan</div>
             <div class="text-center" style="font-size: 10px; color: #64748b; margin-top: 2px;">${settings.headerAddress}</div>
             <div class="text-center font-bold" style="margin-top: 6px;">[ UJI COBA CETAK STRUK (${settings.paperSize}) ]</div>
             
