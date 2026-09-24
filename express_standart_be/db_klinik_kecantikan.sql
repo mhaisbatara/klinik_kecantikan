@@ -2397,7 +2397,14 @@ CREATE TABLE `trx_detail_transaksi` (
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_by` varchar(100) DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `is_from_pendaftaran` tinyint(1) NOT NULL DEFAULT '0'
+  `is_from_pendaftaran` tinyint(1) NOT NULL DEFAULT '0',
+  `kode_cabang` varchar(20) DEFAULT 'CBG-001',
+  `kode_promo` varchar(50) DEFAULT NULL,
+  `nama_promo` varchar(150) DEFAULT NULL,
+  `jenis_diskon` varchar(20) DEFAULT NULL,
+  `nilai_diskon` decimal(12,2) DEFAULT NULL,
+  `diskon` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `subtotal_setelah_diskon` decimal(12,2) NOT NULL DEFAULT '0.00'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --

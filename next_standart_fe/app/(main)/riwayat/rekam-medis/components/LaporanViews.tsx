@@ -574,22 +574,6 @@ export const LaporanPenjualanView: React.FC = () => {
             body={(r) => <span className="font-bold text-green-600">{formatRupiah(r.total_bayar)}</span>}
             style={{ minWidth: '10rem' }}
           />
-          <Column
-            field="status"
-            header="Status"
-            align="center"
-            body={(r) => {
-              const isSuccess = r.status === 'lunas' || r.status === 'selesai';
-              const isDraft = r.status === 'draft' || r.status === 'pending';
-              return (
-                <Tag
-                  value={String(r.status || '').toUpperCase()}
-                  severity={isSuccess ? 'success' : isDraft ? 'warning' : 'danger'}
-                />
-              );
-            }}
-            style={{ minWidth: '8rem' }}
-          />
         </DataTable>
       </div>
     </>
@@ -879,18 +863,6 @@ export const LaporanTreatmentView: React.FC = () => {
               </div>
             )}
             style={{ minWidth: '12rem' }}
-          />
-          <Column
-            field="status"
-            header="Status"
-            align="center"
-            body={(r) => (
-              <Tag
-                value={String(r.status || '').toUpperCase()}
-                severity={r.status === 'selesai' ? 'success' : 'warning'}
-              />
-            )}
-            style={{ minWidth: '8rem' }}
           />
         </DataTable>
       </div>
@@ -1515,18 +1487,6 @@ export const LaporanPaketView: React.FC = () => {
             }
             style={{ minWidth: '8rem' }}
           />
-          <Column
-            field="status"
-            header="Status"
-            align="center"
-            body={(r) => (
-              <Tag
-                value={r.status === 'aktif' ? 'AKTIF' : 'NONAKTIF'}
-                severity={r.status === 'aktif' ? 'success' : 'danger'}
-              />
-            )}
-            style={{ minWidth: '8rem' }}
-          />
         </DataTable>
       </div>
 
@@ -2020,18 +1980,6 @@ export const LaporanKunjunganView: React.FC = () => {
             header="Sesi Ruangan"
             align="center"
             body={(r) => `${r.total_antrian_layanan || 0} Sesi`}
-            style={{ minWidth: '8rem' }}
-          />
-          <Column
-            field="status_kunjungan"
-            header="Status"
-            align="center"
-            body={(r) => (
-              <Tag
-                value={String(r.status_kunjungan || '').toUpperCase()}
-                severity={r.status_kunjungan === 'selesai' ? 'success' : 'warning'}
-              />
-            )}
             style={{ minWidth: '8rem' }}
           />
         </DataTable>
@@ -2710,17 +2658,6 @@ export const LaporanInventoryView: React.FC = () => {
             body={(r) => <span className="font-bold text-blue-700">{formatRupiah(r.total_nilai_aset_beli)}</span>}
             style={{ minWidth: '10rem' }}
           />
-          <Column
-            header="Status Stok"
-            align="center"
-            body={(r) => (
-              <Tag
-                value={r.stok_tersedia <= 0 ? 'HABIS' : r.stok_tersedia <= r.stok_minimum ? 'MENIPIS' : 'AMAN'}
-                severity={r.stok_tersedia <= 0 ? 'danger' : r.stok_tersedia <= r.stok_minimum ? 'warning' : 'success'}
-              />
-            )}
-            style={{ minWidth: '8rem' }}
-          />
         </DataTable>
       </div>
     </>
@@ -2949,18 +2886,6 @@ export const LaporanVoucherView: React.FC = () => {
             header="Item Promo"
             align="center"
             body={(r) => `${r.total_item_terkait} Item`}
-            style={{ minWidth: '8rem' }}
-          />
-          <Column
-            field="status"
-            header="Status"
-            align="center"
-            body={(r) => (
-              <Tag
-                value={String(r.status || '').toUpperCase()}
-                severity={r.status === 'aktif' ? 'success' : 'secondary'}
-              />
-            )}
             style={{ minWidth: '8rem' }}
           />
         </DataTable>
@@ -3400,6 +3325,14 @@ export const LaporanAppointmentView: React.FC = () => {
           loadingRefresh={loading}
         />
 
+        <LaporanLegendBox
+          items={[
+            { label: 'Selesai / Dikonfirmasi', color: '#22c55e' },
+            { label: 'Menunggu Jadwal', color: '#eab308' },
+            { label: 'Batal / Tidak Hadir', color: '#ef4444' },
+          ]}
+        />
+
         <DataTable
           value={data}
           loading={loading}
@@ -3455,7 +3388,19 @@ export const LaporanAppointmentView: React.FC = () => {
             />
           }
         >
-          <Column header="#" body={(_, opt) => opt.rowIndex + 1} style={{ width: '3.5rem', textAlign: 'center' }} />
+          <Column
+            header=""
+            headerStyle={{ width: '3.5rem' }}
+            align="center"
+            body={(r) => {
+              const st = (r.status || '').toLowerCase();
+              const isSuccess = st === 'selesai' || st === 'dikonfirmasi';
+              const isPending = st === 'menunggu' || st === 'pending';
+              const color = isSuccess ? '#22c55e' : isPending ? '#eab308' : '#ef4444';
+              const tip = isSuccess ? 'Selesai / Dikonfirmasi' : isPending ? 'Menunggu Jadwal' : 'Batal / Tidak Hadir';
+              return <StatusSquare color={color} tooltip={tip} />;
+            }}
+          />
           <Column field="kode_booking" header="Kode Booking" sortable className="font-semibold text-800 font-mono" style={{ minWidth: '11rem' }} />
           <Column field="nama_pasien" header="Nama Pasien" sortable className="font-bold text-gray-800" style={{ minWidth: '13rem' }} />
           <Column
@@ -3477,14 +3422,6 @@ export const LaporanAppointmentView: React.FC = () => {
             style={{ minWidth: '13rem' }}
           />
           <Column field="nama_layanan" header="Layanan" sortable style={{ minWidth: '14rem' }} />
-          <Column
-            field="status"
-            header="Status"
-            sortable
-            align="center"
-            body={(r) => <Tag value={String(r.status || '').toUpperCase()} severity={getStatusSeverity(r.status)} className="text-xs" />}
-            style={{ minWidth: '9rem' }}
-          />
         </DataTable>
       </div>
     </>
@@ -3609,6 +3546,14 @@ export const LaporanStokOpnameView: React.FC = () => {
           loadingRefresh={loading}
         />
 
+        <LaporanLegendBox
+          items={[
+            { label: 'Sesuai / Balance', color: '#22c55e' },
+            { label: 'Surplus / Masuk', color: '#0284c7' },
+            { label: 'Selisih Kurang', color: '#ef4444' },
+          ]}
+        />
+
         <DataTable
           value={data}
           loading={loading}
@@ -3664,7 +3609,18 @@ export const LaporanStokOpnameView: React.FC = () => {
             />
           }
         >
-          <Column header="#" body={(_, opt) => opt.rowIndex + 1} style={{ width: '3.5rem', textAlign: 'center' }} />
+          <Column
+            header=""
+            headerStyle={{ width: '3.5rem' }}
+            align="center"
+            body={(r) => {
+              const isDiff = r.stok_sesudah !== r.stok_sebelum;
+              const isPositive = r.stok_sesudah > r.stok_sebelum || (r.jenis_movement === 'masuk' && r.qty > 0);
+              const color = !isDiff ? '#22c55e' : isPositive ? '#0284c7' : '#ef4444';
+              const tip = !isDiff ? 'Sesuai' : isPositive ? 'Surplus' : 'Selisih Kurang';
+              return <StatusSquare color={color} tooltip={tip} />;
+            }}
+          />
           <Column field="kode_produk" header="Kode Produk" sortable className="font-semibold text-800 font-mono" style={{ minWidth: '9rem' }} />
           <Column field="nama_produk" header="Nama Produk" sortable className="font-bold text-gray-800" style={{ minWidth: '14rem' }} />
           <Column field="stok_sebelum" header="Stok Sistem" sortable align="center" style={{ minWidth: '8rem' }} />
@@ -3822,6 +3778,15 @@ export const LaporanPembelianView: React.FC = () => {
           loadingRefresh={loading}
         />
 
+        <LaporanLegendBox
+          items={[
+            { label: 'Diterima', color: '#22c55e' },
+            { label: 'Dikirim', color: '#0284c7' },
+            { label: 'Draft / Menunggu', color: '#eab308' },
+            { label: 'Batal', color: '#ef4444' },
+          ]}
+        />
+
         <DataTable
           value={data}
           loading={loading}
@@ -3877,7 +3842,16 @@ export const LaporanPembelianView: React.FC = () => {
             />
           }
         >
-          <Column header="#" body={(_, opt) => opt.rowIndex + 1} style={{ width: '3.5rem', textAlign: 'center' }} />
+          <Column
+            header=""
+            headerStyle={{ width: '3.5rem' }}
+            align="center"
+            body={(r) => {
+              const st = (r.status || '').toLowerCase();
+              const color = st === 'diterima' ? '#22c55e' : st === 'dikirim' ? '#0284c7' : (st === 'draft' || st === 'menunggu') ? '#eab308' : '#ef4444';
+              return <StatusSquare color={color} tooltip={`Status: ${r.status || '-'}`} />;
+            }}
+          />
           <Column field="kode_po" header="No. Faktur PO" sortable className="font-semibold text-800 font-mono" style={{ minWidth: '12rem' }} />
           <Column
             field="tanggal_po"
@@ -3902,14 +3876,6 @@ export const LaporanPembelianView: React.FC = () => {
             align="right"
             body={(r) => <span className="font-bold text-emerald-700">{formatRupiah(r.total_po)}</span>}
             style={{ minWidth: '11rem' }}
-          />
-          <Column
-            field="status"
-            header="Status"
-            sortable
-            align="center"
-            body={(r) => <Tag value={String(r.status || '').toUpperCase()} severity={getStatusSeverity(r.status)} className="text-xs" />}
-            style={{ minWidth: '9rem' }}
           />
         </DataTable>
       </div>
@@ -4095,7 +4061,17 @@ export const LaporanMembershipView: React.FC = () => {
             />
           }
         >
-          <Column header="#" body={(_, opt) => opt.rowIndex + 1} style={{ width: '3.5rem', textAlign: 'center' }} />
+          <Column
+            header=""
+            headerStyle={{ width: '3.5rem' }}
+            align="center"
+            body={(r) => (
+              <StatusSquare
+                active={r.status === 'aktif' || !r.status}
+                tooltip={r.status === 'aktif' || !r.status ? 'Member Aktif' : 'Nonaktif'}
+              />
+            )}
+          />
           <Column field="no_rm" header="Kode Member" sortable className="font-semibold text-800 font-mono" style={{ minWidth: '10rem' }} />
           <Column field="no_rm" header="No. RM" sortable className="font-semibold text-gray-700 font-mono" style={{ minWidth: '9rem' }} />
           <Column field="nama_pasien" header="Nama Pasien" sortable className="font-bold text-gray-800" style={{ minWidth: '13rem' }} />
@@ -4121,14 +4097,6 @@ export const LaporanMembershipView: React.FC = () => {
             align="right"
             body={(r) => <span className="font-bold text-amber-600 flex align-items-center justify-content-end gap-1"><i className="pi pi-star-fill text-xs" />{new Intl.NumberFormat('id-ID').format(r.total_poin || 0)}</span>}
             style={{ minWidth: '9rem' }}
-          />
-          <Column
-            field="status"
-            header="Status"
-            sortable
-            align="center"
-            body={(r) => <Tag value={String(r.status || 'aktif').toUpperCase()} severity={r.status === 'aktif' ? 'success' : 'danger'} className="text-xs" />}
-            style={{ minWidth: '8rem' }}
           />
         </DataTable>
       </div>
@@ -4305,7 +4273,16 @@ export const LaporanKomisiView: React.FC = () => {
             />
           }
         >
-          <Column header="#" body={(_, opt) => opt.rowIndex + 1} style={{ width: '3.5rem', textAlign: 'center' }} />
+          <Column
+            header=""
+            headerStyle={{ width: '3.5rem' }}
+            align="center"
+            body={(r) => {
+              const isDicairkan = r.status_pencairan === 'sudah_dicairkan';
+              const color = isDicairkan ? '#22c55e' : '#eab308';
+              return <StatusSquare color={color} tooltip={isDicairkan ? 'Sudah Dicairkan' : 'Belum Dicairkan'} />;
+            }}
+          />
           <Column field="kode_karyawan" header="Kode Petugas" sortable className="font-semibold text-800 font-mono" style={{ minWidth: '9rem' }} />
           <Column field="nama_tenaga_medis" header="Nama Tenaga Medis" sortable className="font-bold text-gray-800" style={{ minWidth: '14rem' }} />
           <Column
@@ -4337,20 +4314,6 @@ export const LaporanKomisiView: React.FC = () => {
             sortable
             align="right"
             body={(r) => <span className="font-bold text-emerald-700">{formatRupiah(r.nominal_komisi)}</span>}
-            style={{ minWidth: '11rem' }}
-          />
-          <Column
-            field="status_pencairan"
-            header="Status Pencairan"
-            sortable
-            align="center"
-            body={(r) => (
-              <Tag
-                value={r.status_pencairan === 'sudah_dicairkan' ? 'SUDAH DICAIRKAN' : 'BELUM DICAIRKAN'}
-                severity={r.status_pencairan === 'sudah_dicairkan' ? 'success' : 'warning'}
-                className="text-xs"
-              />
-            )}
             style={{ minWidth: '11rem' }}
           />
         </DataTable>
@@ -4536,7 +4499,30 @@ export const LaporanExpiredView: React.FC = () => {
             />
           }
         >
-          <Column header="#" body={(_, opt) => opt.rowIndex + 1} style={{ width: '3.5rem', textAlign: 'center' }} />
+          <Column
+            header=""
+            headerStyle={{ width: '3.5rem' }}
+            align="center"
+            body={(r) => {
+              const color =
+                r.status_expired === 'kritis'
+                  ? '#ef4444'
+                  : r.status_expired === 'perhatian'
+                  ? '#eab308'
+                  : r.status_expired === 'aman'
+                  ? '#22c55e'
+                  : '#94a3b8';
+              const tip =
+                r.status_expired === 'kritis'
+                  ? (r.sisa_hari !== null && r.sisa_hari <= 0 ? 'Expired' : `Kritis (${r.sisa_hari ?? '<30'} Hari)`)
+                  : r.status_expired === 'perhatian'
+                  ? `Perhatian (${r.sisa_hari ?? '<90'} Hari)`
+                  : r.status_expired === 'aman'
+                  ? 'Aman'
+                  : 'Belum Diisi';
+              return <StatusSquare color={color} tooltip={tip} />;
+            }}
+          />
           <Column field="kode_produk" header="Kode Produk" sortable className="font-semibold text-800 font-mono" style={{ minWidth: '9rem' }} />
           <Column field="nama_produk" header="Nama Obat / Skincare" sortable className="font-bold text-gray-800" style={{ minWidth: '15rem' }} />
           <Column
@@ -4560,13 +4546,6 @@ export const LaporanExpiredView: React.FC = () => {
             align="center"
             body={(r) => <span className="font-bold text-gray-700">{r.stok_tersedia} {r.satuan || ''}</span>}
             style={{ minWidth: '8rem' }}
-          />
-          <Column
-            header="Status"
-            sortable
-            align="center"
-            body={renderStatusTag}
-            style={{ minWidth: '12rem' }}
           />
         </DataTable>
       </div>
@@ -4718,7 +4697,16 @@ export const LaporanDepositView: React.FC = () => {
             />
           }
         >
-          <Column header="#" body={(_, opt) => opt.rowIndex + 1} style={{ width: '3.5rem', textAlign: 'center' }} />
+          <Column
+            header=""
+            headerStyle={{ width: '3.5rem' }}
+            align="center"
+            body={(r) => {
+              const isActive = r.status_deposit === 'aktif' && parseFloat(r.saldo_deposit || 0) > 0;
+              const color = isActive ? '#22c55e' : '#94a3b8';
+              return <StatusSquare color={color} tooltip={isActive ? 'Saldo Aktif' : 'Kosong / Nonaktif'} />;
+            }}
+          />
           <Column field="no_rm" header="Kode Kunjungan / No. RM" sortable className="font-semibold text-800 font-mono" style={{ minWidth: '12rem' }} />
           <Column field="nama_pasien" header="Nama Pasien" sortable className="font-bold text-gray-800" style={{ minWidth: '14rem' }} />
           <Column
@@ -4736,20 +4724,6 @@ export const LaporanDepositView: React.FC = () => {
             align="center"
             body={(r) => <span className="font-semibold text-gray-700">{r.total_riwayat || 0} Kali Transaksi</span>}
             style={{ minWidth: '10rem' }}
-          />
-          <Column
-            field="status_deposit"
-            header="Status"
-            sortable
-            align="center"
-            body={(r) => (
-              <Tag
-                value={r.status_deposit === 'aktif' ? 'AKTIF' : 'NONAKTIF'}
-                severity={r.status_deposit === 'aktif' ? 'success' : 'secondary'}
-                className="text-xs"
-              />
-            )}
-            style={{ minWidth: '8rem' }}
           />
         </DataTable>
       </div>
@@ -4981,7 +4955,16 @@ export const LaporanCrmView: React.FC = () => {
             />
           }
         >
-          <Column header="#" body={(_, opt) => opt.rowIndex + 1} style={{ width: '3.5rem', textAlign: 'center' }} />
+          <Column
+            header=""
+            headerStyle={{ width: '3.5rem' }}
+            align="center"
+            body={(r) => {
+              const st = (r.status || '').toLowerCase();
+              const color = st === 'terkirim' ? '#22c55e' : st === 'pending' ? '#eab308' : '#ef4444';
+              return <StatusSquare color={color} tooltip={`Status: ${r.status || '-'}`} />;
+            }}
+          />
           <Column field="no_rm" header="No. RM" sortable className="font-semibold text-800 font-mono" style={{ minWidth: '9rem' }} />
           <Column field="nama_pasien" header="Nama Pasien" sortable className="font-bold text-gray-800" style={{ minWidth: '13rem' }} />
           <Column
@@ -5010,14 +4993,6 @@ export const LaporanCrmView: React.FC = () => {
               </span>
             )}
             style={{ minWidth: '11rem' }}
-          />
-          <Column
-            field="status"
-            header="Status"
-            sortable
-            align="center"
-            body={(r) => <Tag value={String(r.status || 'PENDING').toUpperCase()} severity={getStatusSeverity(r.status)} className="text-xs" />}
-            style={{ minWidth: '8rem' }}
           />
         </DataTable>
       </div>
