@@ -26,7 +26,10 @@ import {
     ShieldCheck,
     X,
     Ticket,
-    User
+    User,
+    Search,
+    RotateCcw,
+    ChevronDown
 } from 'lucide-react';
 
 interface ProdukItem {
@@ -36,6 +39,7 @@ interface ProdukItem {
     satuan?: string;
     kode_kategori_produk?: string;
     nama_kategori?: string;
+    foto?: string | null;
 }
 
 interface SelectedProduk {
@@ -45,6 +49,7 @@ interface SelectedProduk {
     satuan?: string;
     qty: number;
     is_rekomendasi_dokter?: boolean;
+    foto?: string | null;
 }
 
 interface HasilTreatmentPanelProps {
@@ -64,6 +69,20 @@ interface HasilTreatmentPanelProps {
 
 const formatRupiah = (val: number) =>
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val || 0);
+
+const getCategoryBadgeStyle = (catName?: string) => {
+    const lower = (catName || '').toLowerCase();
+    if (lower.includes('rambut') || lower.includes('hair')) {
+        return { color: '#2563EB', borderColor: '#2563EB' };
+    }
+    if (lower.includes('muka') || lower.includes('wajah') || lower.includes('face')) {
+        return { color: '#0C8F62', borderColor: '#0C8F62' };
+    }
+    if (lower.includes('badan') || lower.includes('tubuh') || lower.includes('body')) {
+        return { color: '#D97706', borderColor: '#D97706' };
+    }
+    return { color: '#0C8F62', borderColor: '#0C8F62' };
+};
 
 export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
     activePatient,
@@ -164,6 +183,7 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                 satuan: item.satuan || 'pcs',
                 qty: parseInt(item.qty || 1, 10),
                 is_rekomendasi_dokter: true,
+                foto: item.foto || item.foto_produk || null,
             }));
             setSelectedProdukList(mapped);
             return;
@@ -179,6 +199,7 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                     satuan: item.satuan || 'pcs',
                     qty: parseInt(item.qty || 1, 10),
                     is_rekomendasi_dokter: true,
+                    foto: item.foto || null,
                 }));
                 setSelectedProdukList(mapped);
             }
@@ -266,6 +287,7 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                     satuan: p.satuan || 'pcs',
                     kode_kategori_produk: p.kode_kategori_produk,
                     nama_kategori: p.nama_kategori || 'Produk',
+                    foto: p.foto || null,
                 }));
             setProdukOptions(list);
         } catch (_) {
@@ -372,7 +394,8 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                 nama: prod.nama,
                 harga_jual: prod.harga_jual,
                 satuan: prod.satuan || 'pcs',
-                qty: 1
+                qty: 1,
+                foto: prod.foto || null,
             }];
         });
     };
@@ -1011,12 +1034,31 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                         return (
                                             <div
                                                 key={item.kode_produk}
-                                                className="surface-card p-3 border-round-xl border-1 surface-border shadow-1 hover:shadow-2 transition-all flex align-items-center justify-content-between gap-3"
+                                                className="surface-card p-2.5 border-round-xl border-1 surface-border shadow-1 hover:shadow-2 transition-all flex align-items-center justify-content-between gap-3"
                                             >
+                                                {/* Thumbnail Foto Produk */}
+                                                <div
+                                                    className="flex-shrink-0 border-round-lg overflow-hidden border-1 surface-border flex align-items-center justify-content-center bg-slate-50"
+                                                    style={{ width: '38px', height: '38px' }}
+                                                >
+                                                    {item.foto ? (
+                                                        <img
+                                                            src={item.foto}
+                                                            alt={item.nama}
+                                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                                            onError={(e) => {
+                                                                (e.target as HTMLElement).style.display = 'none';
+                                                            }}
+                                                        />
+                                                    ) : (
+                                                        <ShoppingBag size={16} className="text-teal-600 opacity-60" />
+                                                    )}
+                                                </div>
+
                                                 {/* Item Info (Nama, Kode & Harga Satuan) */}
                                                 <div className="flex-1 min-w-0 flex flex-column justify-content-center" style={{ gap: '2px' }}>
                                                     <div className="flex align-items-center flex-wrap" style={{ gap: '6px' }}>
-                                                        <span className="font-bold text-xs text-slate-900" style={{ lineHeight: '1.3' }} title={item.nama}>
+                                                        <span className="font-bold text-xs text-slate-900 truncate" style={{ lineHeight: '1.3' }} title={item.nama}>
                                                             {item.nama}
                                                         </span>
                                                         <span className="text-[10px] text-slate-400 font-mono" style={{ lineHeight: 1 }}>
@@ -1036,7 +1078,7 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                     </div>
                                                 </div>
 
-                                                {/* Status Terkunci di Tampilan Utama: Read-only Qty & Subtotal (tidak bisa diubah langsung di sini) */}
+                                                {/* Status Terkunci di Tampilan Utama: Read-only Qty & Subtotal */}
                                                 <div className="flex align-items-center gap-3 flex-shrink-0">
                                                     <span
                                                         className="text-[11px] font-bold text-teal-700 bg-teal-50 border-1 border-teal-200 inline-flex align-items-center justify-content-center flex-shrink-0"
@@ -1533,19 +1575,27 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                 closable={false}
                 header={
                     <div className="flex align-items-center justify-content-between w-full">
-                        <div className="flex align-items-center" style={{ gap: '10px' }}>
+                        <div className="flex align-items-center" style={{ gap: '12px' }}>
                             <div
-                                className="flex align-items-center justify-content-center flex-shrink-0 border-round-lg text-teal-700 bg-teal-50 border-1 border-teal-200"
-                                style={{ width: '40px', height: '40px', minWidth: '40px' }}
+                                className="flex align-items-center justify-content-center flex-shrink-0"
+                                style={{
+                                    width: '44px',
+                                    height: '44px',
+                                    minWidth: '44px',
+                                    borderRadius: '10px',
+                                    backgroundColor: '#ffffff',
+                                    border: '1px solid #BFE3D1',
+                                    color: '#0C8F62'
+                                }}
                             >
-                                <ShoppingBag size={20} />
+                                <ShoppingBag size={22} />
                             </div>
-                            <div className="flex flex-column gap-1">
-                                <span className="text-base font-bold text-slate-900 block" style={{ lineHeight: 1.2 }}>
+                            <div className="flex flex-column gap-0.5">
+                                <span style={{ fontSize: '15px', fontWeight: 600, color: '#1A1916', lineHeight: 1.25 }}>
                                     Pilih Produk Tambahan Kasir
                                 </span>
-                                <span className="text-xs text-slate-500 font-normal">
-                                    Cari produk, atur kuantitas dan subtotal rincian tagihan kasir
+                                <span style={{ fontSize: '12px', color: '#8A8778', fontWeight: 400 }}>
+                                    Cari produk, atur kuantitas, dan lihat subtotal rincian tagihan kasir
                                 </span>
                             </div>
                         </div>
@@ -1553,122 +1603,185 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                         <button
                             type="button"
                             onClick={() => setShowProdukModal(false)}
-                            className="flex align-items-center justify-content-center border-none bg-transparent text-slate-400 hover:text-slate-700 hover:surface-200 cursor-pointer p-0 border-round-circle transition-all"
-                            style={{ width: '32px', height: '32px' }}
+                            className="flex align-items-center justify-content-center cursor-pointer transition-colors"
+                            style={{
+                                width: '30px',
+                                height: '30px',
+                                borderRadius: '8px',
+                                border: '1px solid #E3E2DC',
+                                backgroundColor: '#ffffff',
+                                color: '#8A8778',
+                                padding: 0
+                            }}
                             title="Tutup dialog"
                         >
-                            <X size={18} />
+                            <X size={16} />
                         </button>
                     </div>
                 }
-                style={{ width: '960px', maxWidth: '96vw' }}
-                contentStyle={{ maxHeight: '78vh', overflowY: 'auto', padding: '1rem' }}
+                style={{ width: '960px', maxWidth: '96vw', borderRadius: '16px', overflow: 'hidden' }}
+                contentStyle={{ backgroundColor: '#ffffff', padding: '16px 20px', maxHeight: '78vh', overflowY: 'auto' }}
+                headerStyle={{ backgroundColor: '#ffffff', borderBottom: '1px solid #EEECE4', padding: '16px 20px' }}
                 modal
                 className="p-fluid"
                 footer={
-                    <div className="flex align-items-center justify-content-between pt-2 border-top-1 surface-border w-full flex-wrap gap-2">
-                        <div className="flex align-items-baseline gap-2 text-left">
-                            <span className="text-xs text-slate-500 font-medium">Subtotal Produk ({draftTotalQty} item):</span>
-                            <span className="text-lg font-black text-teal-700">{formatRupiah(draftGrandTotal)}</span>
+                    <div
+                        className="flex align-items-center justify-content-between w-full flex-wrap gap-2 pt-2"
+                        style={{
+                            backgroundColor: '#ffffff',
+                            borderTop: '1px solid #EEECE4'
+                        }}
+                    >
+                        <div className="flex align-items-center gap-1.5 text-left">
+                            <span style={{ fontSize: '13px', color: '#4A473E' }}>
+                                Subtotal produk ({draftTotalQty} item):
+                            </span>
+                            <span style={{ fontSize: '14px', fontWeight: 700, color: '#1A1916' }}>
+                                {formatRupiah(draftGrandTotal)}
+                            </span>
                         </div>
                         <div className="flex align-items-center gap-2">
-                            <Button
+                            <button
                                 type="button"
-                                label="Batal"
-                                icon="pi pi-times"
-                                text
-                                size="small"
-                                severity="secondary"
-                                className="text-xs font-semibold px-3"
                                 onClick={() => setShowProdukModal(false)}
-                            />
-                            <Button
+                                className="flex align-items-center justify-content-center gap-1.5 cursor-pointer transition-colors"
+                                style={{
+                                    backgroundColor: '#ffffff',
+                                    border: '1px solid #DAD7CC',
+                                    borderRadius: '9px',
+                                    padding: '8px 16px',
+                                    fontSize: '12px',
+                                    fontWeight: 600,
+                                    color: '#4A473E'
+                                }}
+                            >
+                                <X size={14} />
+                                <span>Batal</span>
+                            </button>
+                            <button
                                 type="button"
-                                label="Konfirmasi & Terapkan"
-                                icon="pi pi-check"
-                                size="small"
-                                className="bg-teal-600 hover:bg-teal-700 border-none font-bold text-xs px-4 py-2 text-white shadow-1"
                                 onClick={handleConfirmProdukModal}
-                            />
+                                className="flex align-items-center justify-content-center gap-1.5 cursor-pointer transition-colors"
+                                style={{
+                                    backgroundColor: '#0C8F62',
+                                    border: 'none',
+                                    borderRadius: '9px',
+                                    padding: '8px 20px',
+                                    fontSize: '12px',
+                                    fontWeight: 600,
+                                    color: '#ffffff',
+                                    boxShadow: '0 2px 6px rgba(12, 143, 98, 0.25)'
+                                }}
+                            >
+                                <CheckCircle2 size={15} />
+                                <span>Konfirmasi & Terapkan</span>
+                            </button>
                         </div>
                     </div>
                 }
             >
                 <div className="grid pt-1">
-                    {/* KOLOM KIRI: KATALOG PRODUK (PERSIS MENU KASIR) */}
-                    <div className="col-12 lg:col-7 flex flex-column gap-2 border-bottom-1 lg:border-bottom-none lg:border-right-1 surface-border pb-3 lg:pb-0 lg:pr-3">
-                        {/* Search & Actions */}
-                        <div className="flex gap-2">
-                            <IconField iconPosition="left" className="w-full">
-                                <InputIcon className="pi pi-search text-xs text-400" />
-                                <InputText
+                    {/* KOLOM KIRI: KATALOG PRODUK */}
+                    <div className="col-12 lg:col-7 flex flex-column gap-2.5 border-bottom-1 lg:border-bottom-none lg:border-right-1 surface-border pb-3 lg:pb-0 lg:pr-3">
+                        {/* Search, Filter Kategori & Refresh - 1 Baris Terpadu */}
+                        <div className="flex align-items-center gap-2 mb-1">
+                            {/* Search Input (flex-1) */}
+                            <div className="relative flex-1" style={{ minWidth: '170px' }}>
+                                <span
+                                    className="absolute left-0 top-0 bottom-0 flex align-items-center pl-3 pointer-events-none text-slate-400"
+                                    style={{ zIndex: 1 }}
+                                >
+                                    <Search size={16} />
+                                </span>
+                                <input
+                                    type="text"
                                     value={modalSearch}
                                     onChange={(e) => setModalSearch(e.target.value)}
                                     placeholder="Cari nama atau kode produk..."
-                                    className="p-inputtext-sm w-full border-round-lg text-xs"
+                                    className="w-full"
+                                    style={{
+                                        height: '38px',
+                                        padding: '0 32px 0 34px',
+                                        borderRadius: '9px',
+                                        border: '1px solid #DAD7CC',
+                                        backgroundColor: '#ffffff',
+                                        color: '#1A1916',
+                                        outline: 'none',
+                                        fontSize: '12px'
+                                    }}
                                     autoFocus
                                 />
-                            </IconField>
-                            {modalSearch && (
-                                <Button
-                                    icon="pi pi-times"
-                                    outlined
-                                    size="small"
-                                    severity="secondary"
-                                    onClick={() => setModalSearch('')}
-                                    title="Hapus pencarian"
-                                />
-                            )}
-                            <Button
-                                icon="pi pi-refresh"
-                                outlined
-                                size="small"
-                                severity="secondary"
+                                {modalSearch && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setModalSearch('')}
+                                        className="absolute right-0 top-0 bottom-0 flex align-items-center pr-2.5 border-none bg-transparent text-slate-400 hover:text-slate-700 cursor-pointer"
+                                        style={{ zIndex: 2 }}
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Dropdown Filter Kategori */}
+                            <div className="relative flex-shrink-0" style={{ minWidth: '145px', maxWidth: '170px' }}>
+                                <select
+                                    value={modalCategory}
+                                    onChange={(e) => setModalCategory(e.target.value)}
+                                    className="w-full cursor-pointer appearance-none"
+                                    style={{
+                                        height: '38px',
+                                        padding: '0 28px 0 12px',
+                                        borderRadius: '9px',
+                                        border: modalCategory !== 'ALL' ? '1.5px solid #0C8F62' : '1px solid #DAD7CC',
+                                        backgroundColor: modalCategory !== 'ALL' ? '#f0fdf4' : '#ffffff',
+                                        color: modalCategory !== 'ALL' ? '#0C8F62' : '#4A473E',
+                                        fontWeight: modalCategory !== 'ALL' ? 600 : 500,
+                                        fontSize: '12px',
+                                        outline: 'none'
+                                    }}
+                                    title="Filter berdasarkan kategori"
+                                >
+                                    <option value="ALL">Semua Kategori</option>
+                                    {availableCategories.map((cat) => (
+                                        <option key={cat} value={cat}>
+                                            {cat}
+                                        </option>
+                                    ))}
+                                </select>
+                                <span
+                                    className="absolute right-0 top-0 bottom-0 flex align-items-center pr-2.5 pointer-events-none"
+                                    style={{ color: modalCategory !== 'ALL' ? '#0C8F62' : '#8A8778' }}
+                                >
+                                    <ChevronDown size={14} />
+                                </span>
+                            </div>
+
+                            {/* Tombol Refresh */}
+                            <button
+                                type="button"
                                 onClick={() => fetchProdukOptions()}
-                                loading={loadingProduk}
+                                disabled={loadingProduk}
+                                className="flex align-items-center justify-content-center cursor-pointer transition-colors"
+                                style={{
+                                    width: '38px',
+                                    height: '38px',
+                                    borderRadius: '9px',
+                                    border: '1px solid #DAD7CC',
+                                    backgroundColor: '#ffffff',
+                                    color: '#4A473E',
+                                    flexShrink: 0
+                                }}
                                 title="Segarkan data produk"
-                            />
+                            >
+                                <RotateCcw size={16} className={loadingProduk ? 'animate-spin' : ''} />
+                            </button>
                         </div>
 
-                        {/* Filter Kategori Chips */}
-                        {availableCategories.length > 0 && (
-                            <div className="flex align-items-center gap-1.5 flex-wrap overflow-x-auto pb-1 custom-thin-scrollbar">
-                                <span className="text-[11px] font-bold text-slate-500 mr-1 uppercase">Kategori:</span>
-                                <button
-                                    type="button"
-                                    onClick={() => setModalCategory('ALL')}
-                                    className={`px-3 py-1 text-xs font-bold border-round-pill border-none cursor-pointer transition-all ${
-                                        modalCategory === 'ALL'
-                                            ? 'bg-teal-600 text-white shadow-1'
-                                            : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200'
-                                    }`}
-                                >
-                                    Semua
-                                </button>
-                                {availableCategories.map((cat) => {
-                                    const isAct = modalCategory === cat;
-                                    return (
-                                        <button
-                                            key={cat}
-                                            type="button"
-                                            onClick={() => setModalCategory(cat)}
-                                            className={`px-3 py-1 text-xs font-bold border-round-pill border-none cursor-pointer transition-all ${
-                                                isAct
-                                                    ? 'bg-teal-600 text-white shadow-1'
-                                                    : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200'
-                                            }`}
-                                        >
-                                            {cat}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        )}
-
-                        {/* Grid Katalog Produk: Gaya Kasir POS */}
+                        {/* Grid Katalog Produk (2 Kolom) */}
                         <div
-                            className="surface-ground border-1 surface-border border-round-xl p-2.5 overflow-y-auto shadow-inner custom-thin-scrollbar"
-                            style={{ height: '390px' }}
+                            className="overflow-y-auto pr-1 custom-thin-scrollbar"
+                            style={{ height: '450px' }}
                         >
                             {loadingProduk ? (
                                 <div className="flex flex-column align-items-center justify-content-center h-full py-5">
@@ -1677,49 +1790,169 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                 </div>
                             ) : modalFilteredProduk.length === 0 ? (
                                 <div className="flex flex-column align-items-center justify-content-center h-full text-center py-5">
-                                    <ShoppingBag size={28} className="text-300 mb-2" />
+                                    <ShoppingBag size={28} className="text-slate-300 mb-2" />
                                     <span className="text-xs text-slate-500 font-medium">Tidak ada produk yang cocok dengan pencarian / filter.</span>
                                 </div>
                             ) : (
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: '12px' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
                                     {modalFilteredProduk.map((prod) => {
                                         const selectedQty = draftSelectedMap.get(prod.kode_produk) || 0;
                                         const isSelected = selectedQty > 0;
+                                        const badgeStyle = getCategoryBadgeStyle(prod.nama_kategori);
+
                                         return (
                                             <div
                                                 key={prod.kode_produk}
                                                 onClick={() => handleDraftAddProduk(prod)}
-                                                className={`surface-card p-3 border-round-xl border-1 transition-all user-select-none relative flex flex-column justify-content-between shadow-1 cursor-pointer hover:shadow-2 ${
-                                                    isSelected ? 'border-2 border-teal-500 bg-teal-50/50' : 'surface-border'
-                                                }`}
+                                                className="cursor-pointer transition-all"
+                                                style={{
+                                                    backgroundColor: '#ffffff',
+                                                    border: isSelected ? '1.5px solid #0C8F62' : '1px solid #E3E2DC',
+                                                    borderRadius: '12px',
+                                                    overflow: 'hidden',
+                                                    boxShadow: isSelected ? '0 2px 8px rgba(12, 143, 98, 0.12)' : '0 1px 3px rgba(0,0,0,0.02)',
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    justifyContent: 'space-between'
+                                                }}
                                             >
-                                                <div className="mb-2">
-                                                    <div className="flex align-items-start justify-content-between gap-1 mb-1">
-                                                        <div className="font-bold text-xs text-slate-900 line-height-2 flex-1" title={prod.nama}>
-                                                            {prod.nama}
+                                                {/* Area Gambar: 100px fixed, pure white, borderBottom 1px solid #EEECE4 */}
+                                                <div
+                                                    style={{
+                                                        height: '100px',
+                                                        backgroundColor: '#ffffff',
+                                                        borderBottom: '1px solid #EEECE4',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        position: 'relative',
+                                                        padding: '6px'
+                                                    }}
+                                                >
+                                                    {prod.foto ? (
+                                                        <img
+                                                            src={prod.foto}
+                                                            alt={prod.nama}
+                                                            style={{
+                                                                maxWidth: '100%',
+                                                                maxHeight: '100%',
+                                                                objectFit: 'contain',
+                                                                display: 'block'
+                                                            }}
+                                                            onError={(e) => {
+                                                                (e.target as HTMLElement).style.display = 'none';
+                                                            }}
+                                                        />
+                                                    ) : (
+                                                        <div className="flex align-items-center justify-content-center text-slate-300">
+                                                            <ShoppingBag size={28} strokeWidth={1.4} />
                                                         </div>
-                                                        {isSelected && (
-                                                            <span className="bg-teal-600 text-white font-bold px-2 py-1 border-round-md flex align-items-center gap-1 flex-shrink-0 shadow-1">
-                                                                <i className="pi pi-check" style={{ fontSize: '7px' }} />
-                                                                <span style={{ fontSize: '8px', lineHeight: 1 }}>Terpilih</span>
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <div className="text-[10px] text-slate-400 font-mono mb-1">
-                                                        {prod.kode_produk}
-                                                    </div>
-                                                    <div className="text-[11px] text-slate-500 font-medium">
-                                                        {prod.nama_kategori || 'Produk'}
-                                                    </div>
+                                                    )}
+
+                                                    {/* Selected Badge */}
+                                                    {isSelected && (
+                                                        <div
+                                                            style={{
+                                                                position: 'absolute',
+                                                                top: '6px',
+                                                                right: '6px',
+                                                                backgroundColor: '#0C8F62',
+                                                                color: '#ffffff',
+                                                                fontSize: '10px',
+                                                                fontWeight: 700,
+                                                                padding: '2px 6px',
+                                                                borderRadius: '6px',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                gap: '2px',
+                                                                boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
+                                                            }}
+                                                        >
+                                                            <i className="pi pi-check" style={{ fontSize: '8px' }} />
+                                                            <span>x{selectedQty}</span>
+                                                        </div>
+                                                    )}
                                                 </div>
 
-                                                <div className="flex align-items-center justify-content-between pt-2 border-top-1 surface-border">
-                                                    <span className="font-black text-sm text-teal-700">{formatRupiah(prod.harga_jual)}</span>
-                                                    {isSelected && (
-                                                        <span className="text-[10px] font-bold text-teal-800 bg-teal-100 px-2 py-0.5 border-round-md">
-                                                            x{selectedQty}
-                                                        </span>
-                                                    )}
+                                                {/* Info Produk (padding 10px 12px) */}
+                                                <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: '4px', flex: 1, justifyContent: 'space-between' }}>
+                                                    <div>
+                                                        {/* Baris 1: Nama di kiri, Badge Kategori di kanan */}
+                                                        <div className="flex align-items-start justify-content-between gap-1 mb-1">
+                                                            <span
+                                                                style={{
+                                                                    fontWeight: 600,
+                                                                    fontSize: '13px',
+                                                                    color: '#1A1916',
+                                                                    lineHeight: 1.25,
+                                                                    display: '-webkit-box',
+                                                                    WebkitLineClamp: 2,
+                                                                    WebkitBoxOrient: 'vertical',
+                                                                    overflow: 'hidden'
+                                                                }}
+                                                                title={prod.nama}
+                                                            >
+                                                                {prod.nama}
+                                                            </span>
+                                                            {prod.nama_kategori && (
+                                                                <span
+                                                                    style={{
+                                                                        backgroundColor: '#ffffff',
+                                                                        border: `1px solid ${badgeStyle.borderColor}`,
+                                                                        color: badgeStyle.color,
+                                                                        fontSize: '10px',
+                                                                        fontWeight: 600,
+                                                                        padding: '2px 7px',
+                                                                        borderRadius: '6px',
+                                                                        whiteSpace: 'nowrap',
+                                                                        flexShrink: 0,
+                                                                        lineHeight: 1.2
+                                                                    }}
+                                                                >
+                                                                    {prod.nama_kategori}
+                                                                </span>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Baris 2: SKU */}
+                                                        <div style={{ fontSize: '11px', color: '#8A8778' }}>
+                                                            {prod.kode_produk}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Baris 3: Harga + /pcs dan Tombol Bulat + */}
+                                                    <div className="flex align-items-center justify-content-between pt-2 mt-1" style={{ borderTop: '1px solid #EEECE4' }}>
+                                                        <div className="flex align-items-baseline gap-1">
+                                                            <span style={{ fontWeight: 600, fontSize: '13px', color: '#1A1916' }}>
+                                                                {formatRupiah(prod.harga_jual)}
+                                                            </span>
+                                                            <span style={{ fontSize: '11px', color: '#8A8778' }}>
+                                                                /{prod.satuan || 'pcs'}
+                                                            </span>
+                                                        </div>
+
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleDraftAddProduk(prod);
+                                                            }}
+                                                            className="flex align-items-center justify-content-center cursor-pointer transition-transform active:scale-95"
+                                                            style={{
+                                                                width: '26px',
+                                                                height: '26px',
+                                                                borderRadius: '50%',
+                                                                backgroundColor: '#0C8F62',
+                                                                border: 'none',
+                                                                color: '#ffffff',
+                                                                flexShrink: 0,
+                                                                boxShadow: '0 1px 3px rgba(12,143,98,0.3)'
+                                                            }}
+                                                            title="Tambah ke produk terpilih"
+                                                        >
+                                                            <Plus size={14} strokeWidth={2.5} />
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </div>
                                         );
@@ -1729,111 +1962,221 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                         </div>
                     </div>
 
-                    {/* KOLOM KANAN: PRODUK TERPILIH (PERSIS RINCIAN KASIR POS) */}
+                    {/* KOLOM KANAN: PRODUK TERPILIH */}
                     <div className="col-12 lg:col-5 flex flex-column gap-2 lg:pl-3">
-                        <div className="flex align-items-center pb-2 border-bottom-1 surface-border">
-                            <div className="flex align-items-center m-0" style={{ gap: '6px' }}>
-                                <ShoppingBag size={16} className="text-teal-600 flex-shrink-0" />
-                                <span className="text-xs font-extrabold text-teal-800 uppercase tracking-wider">
-                                    PRODUK TERPILIH ({draftProdukList.length})
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* List Item Terpilih di Modal */}
                         <div
-                            className="flex flex-column gap-2 overflow-y-auto p-2 surface-ground border-round-xl border-1 surface-border custom-thin-scrollbar"
-                            style={{ height: '280px' }}
-                        >
-                            {draftProdukList.length === 0 ? (
-                                <div className="flex flex-column align-items-center justify-content-center h-full text-center py-5">
-                                    <ShoppingBag size={28} className="text-300 mb-2" />
-                                    <span className="text-xs text-slate-500 font-medium">Belum ada produk dipilih</span>
-                                    <span className="text-[11px] text-slate-400 mt-1">Klik salah satu produk pada katalog di sebelah kiri untuk menambahkan.</span>
-                                </div>
-                            ) : (
-                                draftProdukList.map((item) => {
-                                    const itemSubtotal = item.qty * item.harga_jual;
-                                    return (
-                                        <div
-                                            key={item.kode_produk}
-                                            className="surface-card p-3 border-round-xl border-1 surface-border shadow-1 hover:shadow-2 transition-all flex align-items-center justify-content-between gap-3"
-                                        >
-                                            {/* Item Info (Nama & Harga Satuan) */}
-                                            <div className="flex-1 min-w-0 flex flex-column gap-1 justify-content-center">
-                                                <div className="flex align-items-center gap-1.5 flex-wrap">
-                                                    <span className="font-bold text-xs text-slate-900 line-height-2 truncate" title={item.nama}>
-                                                        {item.nama}
-                                                    </span>
-                                                    {item.is_rekomendasi_dokter && (
-                                                        <span className="text-[9px] font-bold px-1.5 py-0.2 border-round bg-amber-50 text-amber-700 border-1 border-amber-200">
-                                                            Resep
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <div className="text-xs text-slate-500 font-medium">
-                                                    {formatRupiah(item.harga_jual)} / {item.satuan || 'pcs'}
-                                                </div>
-                                            </div>
-
-                                            {/* Controls (Qty Stepper, Subtotal & Hapus) - SEJAJAR 1 BARIS HORIZONTAL */}
-                                            <div className="flex align-items-center gap-2.5 flex-shrink-0">
-                                                <div className="flex align-items-center gap-1 bg-slate-100 p-1 border-round-lg border-1 surface-border">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleDraftUpdateQty(item.kode_produk, -1)}
-                                                        className="border-none bg-white hover:bg-slate-200 border-round-md font-bold cursor-pointer text-slate-700 shadow-1 flex align-items-center justify-content-center"
-                                                        style={{ width: '24px', height: '24px', fontSize: '12px' }}
-                                                        title="Kurangi kuantitas"
-                                                    >−</button>
-                                                    <span className="font-extrabold text-xs px-1 text-slate-900 min-w-[20px] text-center">
-                                                        {item.qty}
-                                                    </span>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleDraftUpdateQty(item.kode_produk, 1)}
-                                                        className="border-none bg-teal-600 hover:bg-teal-700 text-white border-round-md font-bold cursor-pointer shadow-1 flex align-items-center justify-content-center"
-                                                        style={{ width: '24px', height: '24px', fontSize: '12px' }}
-                                                        title="Tambah kuantitas"
-                                                    >+</button>
-                                                </div>
-
-                                                {/* Subtotal */}
-                                                <div className="text-right flex-shrink-0" style={{ minWidth: '85px' }}>
-                                                    <div className="font-bold text-xs text-teal-700">{formatRupiah(itemSubtotal)}</div>
-                                                </div>
-
-                                                {/* Hapus button */}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleDraftRemoveProduk(item.kode_produk)}
-                                                    className="border-none bg-transparent cursor-pointer text-slate-400 hover:text-red-600 p-1 flex-shrink-0 transition-colors"
-                                                    title="Hapus Item"
-                                                >
-                                                    <i className="pi pi-trash text-xs" />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    );
-                                })
-                            )}
-                        </div>
-
-                        {/* Subtotal Card Pop-up */}
-                        <div
-                            className="p-3 border-round-xl border-1"
                             style={{
-                                background: '#f0fdfa',
-                                borderColor: '#99f6e4',
+                                backgroundColor: '#ffffff',
+                                border: '1px solid #E3E2DC',
+                                borderRadius: '12px',
+                                padding: '14px',
+                                height: '100%',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                justifyContent: 'space-between',
+                                minHeight: '480px'
                             }}
                         >
-                            <div className="flex align-items-center justify-content-between text-xs mb-1.5">
-                                <span className="text-slate-600 font-medium">Total Item:</span>
-                                <span className="font-bold text-slate-800">{draftTotalQty} item ({draftProdukList.length} jenis)</span>
+                            {/* Header Panel */}
+                            <div>
+                                <div className="flex align-items-center pb-2.5 mb-2.5" style={{ borderBottom: '1px solid #EEECE4', gap: '8px' }}>
+                                    <ShoppingBag size={16} color="#0C8F62" className="flex-shrink-0" />
+                                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#1A1916', letterSpacing: '0.3px', textTransform: 'uppercase' }}>
+                                        PRODUK TERPILIH ({draftProdukList.length})
+                                    </span>
+                                </div>
+
+                                {/* List Item Terpilih / Empty State */}
+                                {draftProdukList.length === 0 ? (
+                                    <div className="flex flex-column align-items-center justify-content-center text-center py-6" style={{ minHeight: '280px' }}>
+                                        <div
+                                            className="flex align-items-center justify-content-center mb-3"
+                                            style={{
+                                                width: '46px',
+                                                height: '46px',
+                                                borderRadius: '12px',
+                                                backgroundColor: '#ffffff',
+                                                border: '1px solid #E3E2DC',
+                                                color: '#A3A093'
+                                            }}
+                                        >
+                                            <ShoppingBag size={22} strokeWidth={1.6} />
+                                        </div>
+                                        <div style={{ fontWeight: 600, fontSize: '13px', color: '#1A1916', marginBottom: '4px' }}>
+                                            Belum ada produk dipilih
+                                        </div>
+                                        <div style={{ fontSize: '11px', color: '#8A8778', maxWidth: '240px', lineHeight: 1.4 }}>
+                                            Klik ikon + pada produk di katalog kiri untuk menambahkannya ke sini.
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div
+                                        className="flex flex-column gap-2 overflow-y-auto pr-1 custom-thin-scrollbar"
+                                        style={{ maxHeight: '310px' }}
+                                    >
+                                        {draftProdukList.map((item) => {
+                                            const itemSubtotal = item.qty * item.harga_jual;
+                                            return (
+                                                <div
+                                                    key={item.kode_produk}
+                                                    className="flex align-items-center justify-content-between gap-2 transition-all"
+                                                    style={{
+                                                        backgroundColor: '#ffffff',
+                                                        border: '1px solid #E3E2DC',
+                                                        borderRadius: '10px',
+                                                        padding: '8px 10px'
+                                                    }}
+                                                >
+                                                    {/* Thumbnail Foto */}
+                                                    <div
+                                                        className="flex-shrink-0 flex align-items-center justify-content-center"
+                                                        style={{
+                                                            width: '36px',
+                                                            height: '36px',
+                                                            borderRadius: '8px',
+                                                            border: '1px solid #EEECE4',
+                                                            backgroundColor: '#ffffff',
+                                                            overflow: 'hidden',
+                                                            padding: '2px'
+                                                        }}
+                                                    >
+                                                        {item.foto ? (
+                                                            <img
+                                                                src={item.foto}
+                                                                alt={item.nama}
+                                                                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                                                                onError={(e) => {
+                                                                    (e.target as HTMLElement).style.display = 'none';
+                                                                }}
+                                                            />
+                                                        ) : (
+                                                            <ShoppingBag size={16} color="#0C8F62" style={{ opacity: 0.6 }} />
+                                                        )}
+                                                    </div>
+
+                                                    {/* Info: Nama & Satuan */}
+                                                    <div className="flex-1 min-w-0 flex flex-column gap-0.5 justify-content-center">
+                                                        <div className="flex align-items-center gap-1.5 flex-wrap">
+                                                            <span
+                                                                style={{
+                                                                    fontWeight: 600,
+                                                                    fontSize: '12px',
+                                                                    color: '#1A1916',
+                                                                    lineHeight: 1.3,
+                                                                    whiteSpace: 'nowrap',
+                                                                    overflow: 'hidden',
+                                                                    textOverflow: 'ellipsis',
+                                                                    maxWidth: '120px'
+                                                                }}
+                                                                title={item.nama}
+                                                            >
+                                                                {item.nama}
+                                                            </span>
+                                                            {item.is_rekomendasi_dokter && (
+                                                                <span
+                                                                    style={{
+                                                                        fontSize: '9px',
+                                                                        fontWeight: 700,
+                                                                        padding: '1px 5px',
+                                                                        borderRadius: '4px',
+                                                                        backgroundColor: '#FEF3C7',
+                                                                        color: '#B45309',
+                                                                        border: '1px solid #FDE68A'
+                                                                    }}
+                                                                >
+                                                                    Resep
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div style={{ fontSize: '11px', color: '#8A8778' }}>
+                                                            {formatRupiah(item.harga_jual)} / {item.satuan || 'pcs'}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Stepper Kuantitas */}
+                                                    <div className="flex align-items-center gap-1 flex-shrink-0">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleDraftUpdateQty(item.kode_produk, -1)}
+                                                            className="flex align-items-center justify-content-center cursor-pointer transition-colors"
+                                                            style={{
+                                                                width: '22px',
+                                                                height: '22px',
+                                                                borderRadius: '6px',
+                                                                border: '1px solid #DAD7CC',
+                                                                backgroundColor: '#ffffff',
+                                                                color: '#4A473E',
+                                                                fontSize: '12px',
+                                                                fontWeight: 700
+                                                            }}
+                                                            title="Kurangi kuantitas"
+                                                        >
+                                                            −
+                                                        </button>
+                                                        <span
+                                                            style={{
+                                                                fontWeight: 700,
+                                                                fontSize: '12px',
+                                                                color: '#1A1916',
+                                                                minWidth: '20px',
+                                                                textAlign: 'center'
+                                                            }}
+                                                        >
+                                                            {item.qty}
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleDraftUpdateQty(item.kode_produk, 1)}
+                                                            className="flex align-items-center justify-content-center cursor-pointer transition-colors"
+                                                            style={{
+                                                                width: '22px',
+                                                                height: '22px',
+                                                                borderRadius: '6px',
+                                                                border: 'none',
+                                                                backgroundColor: '#0C8F62',
+                                                                color: '#ffffff',
+                                                                fontSize: '12px',
+                                                                fontWeight: 700
+                                                            }}
+                                                            title="Tambah kuantitas"
+                                                        >
+                                                            +
+                                                        </button>
+                                                    </div>
+
+                                                    {/* Subtotal Item */}
+                                                    <div className="text-right flex-shrink-0" style={{ minWidth: '70px' }}>
+                                                        <span style={{ fontWeight: 600, fontSize: '12px', color: '#1A1916' }}>
+                                                            {formatRupiah(itemSubtotal)}
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Tombol Hapus */}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleDraftRemoveProduk(item.kode_produk)}
+                                                        className="border-none bg-transparent cursor-pointer p-1 flex-shrink-0 text-slate-400 hover:text-red-500 transition-colors flex align-items-center justify-content-center"
+                                                        title="Hapus produk"
+                                                    >
+                                                        <X size={15} />
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </div>
-                            <div className="flex align-items-center justify-content-between text-xs pt-1.5" style={{ borderTop: '1px dashed #99f6e4' }}>
-                                <span className="text-teal-900 font-black uppercase tracking-tight">Subtotal Produk:</span>
-                                <span className="font-black text-sm text-teal-700">{formatRupiah(draftGrandTotal)}</span>
+
+                            {/* Ringkasan Bawah Panel */}
+                            <div style={{ borderTop: '1px dashed #DAD7CC', paddingTop: '12px', marginTop: '12px' }}>
+                                <div className="flex align-items-center justify-content-between mb-1" style={{ fontSize: '12px', color: '#4A473E' }}>
+                                    <span>Total item</span>
+                                    <span>{draftTotalQty} item · {draftProdukList.length} jenis</span>
+                                </div>
+                                <div className="flex align-items-center justify-content-between">
+                                    <span style={{ fontWeight: 700, fontSize: '13px', color: '#1A1916' }}>Subtotal produk</span>
+                                    <span style={{ fontWeight: 700, fontSize: '15px', color: '#1A1916' }}>{formatRupiah(draftGrandTotal)}</span>
+                                </div>
                             </div>
                         </div>
                     </div>

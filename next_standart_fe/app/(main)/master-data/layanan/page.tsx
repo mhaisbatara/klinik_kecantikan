@@ -870,14 +870,15 @@ const Page = () => {
                 visible={cropDialogVisible}
                 onHide={() => setCropDialogVisible(false)}
                 imageSrc={cropImageSrc}
-                aspectRatio={1.4}
+                aspectRatio={1.65}
                 targetWidth={560}
-                targetHeight={400}
+                targetHeight={340}
                 onSave={handleCropSave}
                 previewTitle={formData.nama || 'Contoh Nama Layanan'}
                 previewCategory={kategoriList.find((k: any) => k.value === formData.kode_kategori_layanan)?.label || 'LAYANAN'}
                 previewPrice={formData.harga || 100000}
                 previewDuration={formData.durasi_menit || 30}
+                consultType={formData.tipe === 'MEDICAL TREATMENT' ? 'wajib' : formData.tipe === 'SERVICE TREATMENT' ? 'tidak' : 'opsional'}
             />
         </div>
     );

@@ -112,6 +112,7 @@ const handleGetRekomendasiOptions = async (req, res) => {
         "kp.nama as nama_kategori",
         "pr.nama",
         "pr.satuan",
+        "pr.foto",
         "pr.harga_jual as harga",
         "pr.stok_minimum"
       )
@@ -127,6 +128,7 @@ const handleGetRekomendasiOptions = async (req, res) => {
       .select(
         "pp.kode_paket_produk",
         "pp.nama",
+        "pp.foto",
         "pp.harga_paket as harga",
         "pp.masa_berlaku_hari"
       )
@@ -456,10 +458,15 @@ const handleGetRekomendasiOptions = async (req, res) => {
       });
     });
 
-    const listProduk = vaProduk.map((item) =>
-      applyPromo({
+    const listProduk = vaProduk.map((item) => {
+      const fotoUrl = item.foto
+        ? (item.foto.startsWith("http") ? item.foto : `${assetsBase}/uploads/produk/${item.foto}`)
+        : null;
+
+      return applyPromo({
         jenis: "produk",
         tipe: "produk_biasa",
+        foto: fotoUrl,
         kode: item.kode_produk,
         kode_produk: item.kode_produk,
         nama: item.nama,
@@ -468,13 +475,18 @@ const handleGetRekomendasiOptions = async (req, res) => {
         kode_kategori: item.kode_kategori_produk,
         nama_kategori: item.nama_kategori || "Produk",
         is_petugas_available: true,
-      })
-    );
+      });
+    });
 
-    const listPaketProduk = vaPaketProduk.map((item) =>
-      applyPromo({
+    const listPaketProduk = vaPaketProduk.map((item) => {
+      const fotoUrl = item.foto
+        ? (item.foto.startsWith("http") ? item.foto : `${assetsBase}/uploads/paket_produk/${item.foto}`)
+        : null;
+
+      return applyPromo({
         jenis: "paket_produk",
         tipe: "paket_produk",
+        foto: fotoUrl,
         kode: item.kode_paket_produk,
         kode_produk: item.kode_paket_produk,
         nama: item.nama,
@@ -484,8 +496,8 @@ const handleGetRekomendasiOptions = async (req, res) => {
         nama_kategori: "Paket Produk",
         masa_berlaku_hari: item.masa_berlaku_hari,
         is_petugas_available: true,
-      })
-    );
+      });
+    });
 
     // Fetch ALL active treatment rooms from master
     const qAllRuangan = DB("mst_ruangan")
@@ -1079,6 +1091,10 @@ router.post("/kunjungan-produk-rekomendasi", async (req, res) => {
       "p.foto"
     );
 
+    const host = req.get("host");
+    const protocol = req.protocol || "http";
+    const assetsBase = `${protocol}://${host}`;
+
     // Group & aggregate by kode_produk
     const groupedMap = new Map();
     for (const r of rawRows) {
@@ -1088,6 +1104,9 @@ router.post("/kunjungan-produk-rekomendasi", async (req, res) => {
         item.qty = (item.qty || 1) + 1;
         item.subtotal = item.qty * parseFloat(item.harga_jual || 0);
       } else {
+        const fotoUrl = r.foto
+          ? (r.foto.startsWith("http") ? r.foto : `${assetsBase}/uploads/produk/${r.foto}`)
+          : null;
         groupedMap.set(kd, {
           kode_produk: kd,
           nama: r.nama,
@@ -1095,7 +1114,7 @@ router.post("/kunjungan-produk-rekomendasi", async (req, res) => {
           satuan: r.satuan || "pcs",
           qty: 1,
           subtotal: parseFloat(r.harga_jual || 0),
-          foto: r.foto || null,
+          foto: fotoUrl,
         });
       }
     }

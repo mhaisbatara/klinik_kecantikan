@@ -1451,18 +1451,6 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                                 <span>2. Hasil Treatment (Foto After) &amp; Rekomendasi Produk</span>
                             </button>
                         </div>
-
-                        {activeStep === 'hasil' && (
-                            <Button
-                                label="Kembali ke Form Penanganan"
-                                icon="pi pi-arrow-left"
-                                outlined
-                                size="small"
-                                severity="secondary"
-                                className="text-xs font-bold border-round-lg"
-                                onClick={() => setActiveStep('form')}
-                            />
-                        )}
                     </div>
 
                     {activeStep === 'form' ? (

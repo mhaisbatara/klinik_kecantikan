@@ -1161,9 +1161,9 @@ const Page = () => {
                 visible={cropDialogVisible}
                 onHide={() => setCropDialogVisible(false)}
                 imageSrc={cropImageSrc}
-                aspectRatio={1.4}
+                aspectRatio={1.65}
                 targetWidth={560}
-                targetHeight={400}
+                targetHeight={340}
                 onSave={handleCropSave}
                 previewTitle={formData.nama || 'Contoh Nama Paket Layanan'}
                 previewCategory="PAKET TREATMENT"

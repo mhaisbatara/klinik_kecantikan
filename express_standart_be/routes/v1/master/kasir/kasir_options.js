@@ -180,6 +180,7 @@ router.post("/", async (req, res) => {
       .select(
         "p.kode_produk",
         "p.nama",
+        "p.foto",
         "p.harga_jual as harga",
         "p.satuan",
         "k.nama as nama_kategori"
@@ -188,6 +189,7 @@ router.post("/", async (req, res) => {
 
     const listProduk = vaProduk.map((item) => ({
       jenis: "produk",
+      foto: item.foto ? (item.foto.startsWith("http") ? item.foto : `${assetsBase}/uploads/produk/${item.foto}`) : null,
       kode: item.kode_produk,
       nama: item.nama,
       nama_kategori: item.nama_kategori || "Produk",

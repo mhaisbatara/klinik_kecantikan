@@ -14,24 +14,30 @@ interface Props {
   targetWidth?: number;
   targetHeight?: number;
   onSave: (croppedFile: File, previewUrl: string) => void;
+  isProduk?: boolean;
   previewTitle?: string;
   previewCategory?: string;
   previewPrice?: number;
   previewDuration?: number;
+  previewSatuan?: string;
+  consultType?: 'wajib' | 'opsional' | 'tidak' | 'none';
 }
 
 export const ImageCropDialog: React.FC<Props> = ({
   visible,
   onHide,
   imageSrc,
-  aspectRatio = 1.4, // ~4:3 / 1.4 ratio (e.g. 560x400) matching the taller card layout
+  aspectRatio = 1.65, // ~16:10 ratio matching 240px width x 145px height in LayananCard
   targetWidth = 560,
-  targetHeight = 400,
+  targetHeight = 340,
   onSave,
-  previewTitle = 'Contoh Nama Layanan',
-  previewCategory = 'LAYANAN',
+  isProduk = false,
+  previewTitle = 'Contoh Nama Item',
+  previewCategory,
   previewPrice = 100000,
   previewDuration = 30,
+  previewSatuan = 'Pcs',
+  consultType = 'opsional',
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [imageObj, setImageObj] = useState<HTMLImageElement | null>(null);
@@ -396,23 +402,25 @@ export const ImageCropDialog: React.FC<Props> = ({
                 Pratinjau Hasil di Kartu
               </span>
               <span className="text-xs text-500">
-                Tampilan persis yang akan dilihat kasir/pasien pada Step 2 Pendaftaran
+                Ukuran & tampilan persis kartu pilihan di Step 2 Pendaftaran
               </span>
             </div>
 
             {/* Step 2 Simulated Card */}
             <div className="flex-1 flex align-items-center justify-content-center p-2">
               <div
-                className="w-full bg-white border-round-xl border-1 border-blue-500 overflow-hidden shadow-3 flex flex-column justify-content-between select-none"
+                className={`w-full bg-white border-round-xl border-2 overflow-hidden flex flex-column justify-content-between select-none ${
+                  isProduk ? 'border-amber-500 bg-amber-50/10' : 'border-blue-600 bg-blue-50/10'
+                }`}
                 style={{
-                  maxWidth: '300px',
+                  maxWidth: '240px',
                   boxShadow: '0 4px 14px 0 rgba(37, 99, 235, 0.15)',
                 }}
               >
                 {/* Top Image Banner */}
                 <div
-                  className="w-full relative overflow-hidden flex align-items-center justify-content-center"
-                  style={{ height: '185px', backgroundColor: '#f8fafc' }}
+                  className="w-full relative overflow-hidden flex align-items-center justify-content-center select-none"
+                  style={{ height: '145px', backgroundColor: '#f8fafc' }}
                 >
                   {previewDataUrl ? (
                     <img
@@ -439,23 +447,92 @@ export const ImageCropDialog: React.FC<Props> = ({
                 </div>
 
                 {/* Card Content Body */}
-                <div className="p-3 flex flex-column gap-1 bg-white">
-                  <div className="flex align-items-center gap-1 flex-wrap mb-1">
-                    <Tag value={previewCategory || 'LAYANAN'} severity="info" className="text-xs font-medium" />
-                    <Tag value="Tidak Perlu Konsul" severity="success" className="text-[10px] font-bold" />
+                <div className="p-3 flex-1 flex flex-column justify-content-between">
+                  <div>
+                    {/* Tags Row */}
+                    <div
+                      className="flex align-items-center mb-2"
+                      style={{
+                        flexWrap: 'wrap',
+                        gap: '6px',
+                        minHeight: '26px',
+                      }}
+                    >
+                      <span
+                        className="inline-flex align-items-center font-bold text-white shadow-1"
+                        style={{
+                          fontSize: '10px',
+                          padding: '3px 10px',
+                          borderRadius: '9999px',
+                          backgroundColor: isProduk ? '#d97706' : '#0284c7',
+                          lineHeight: 1.2,
+                          letterSpacing: '0.01em',
+                        }}
+                      >
+                        {previewCategory || (isProduk ? 'PRODUK' : 'Layanan')}
+                      </span>
+
+                      {!isProduk && consultType !== 'none' && (
+                        <span
+                          className="inline-flex align-items-center font-bold text-white shadow-1"
+                          style={{
+                            fontSize: '10px',
+                            padding: '3px 10px',
+                            borderRadius: '9999px',
+                            backgroundColor:
+                              consultType === 'wajib'
+                                ? '#ef4444'
+                                : consultType === 'tidak'
+                                ? '#10b981'
+                                : '#0284c7',
+                            lineHeight: 1.2,
+                            letterSpacing: '0.01em',
+                          }}
+                        >
+                          {consultType === 'wajib'
+                            ? 'Wajib Konsul'
+                            : consultType === 'tidak'
+                            ? 'Tanpa Konsul'
+                            : 'Opsional Konsul'}
+                        </span>
+                      )}
+                    </div>
+
+                    <h4
+                      className="text-sm font-bold text-900 m-0 mb-1 line-height-2"
+                      style={{
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                        minHeight: '38px',
+                      }}
+                    >
+                      {previewTitle || (isProduk ? 'Nama Produk' : 'Nama Layanan')}
+                    </h4>
                   </div>
 
-                  <h4 className="text-sm font-bold text-900 m-0 line-height-2">
-                    {previewTitle || 'Nama Layanan'}
-                  </h4>
+                  {/* Footer: Duration/Unit & Price */}
+                  <div className="pt-2 mt-2 border-top-1 surface-border flex align-items-center justify-content-between gap-2">
+                    <div className="flex align-items-center gap-1 text-xs text-600 font-medium min-w-0">
+                      {isProduk ? (
+                        <>
+                          <i className="pi pi-box text-xs text-500 flex-shrink-0" />
+                          <span className="white-space-nowrap">{previewSatuan || 'Pcs'}</span>
+                        </>
+                      ) : (
+                        <>
+                          <i className="pi pi-clock text-xs text-500 flex-shrink-0" />
+                          <span className="white-space-nowrap">{previewDuration || 30} Menit</span>
+                        </>
+                      )}
+                    </div>
 
-                  <div className="pt-2 mt-2 border-top-1 surface-border flex align-items-center justify-content-between">
-                    <span className="text-xs text-600 flex align-items-center gap-1 font-medium">
-                      <i className="pi pi-clock text-xs text-500" /> {previewDuration} Menit
-                    </span>
-                    <span className="text-sm font-extrabold text-blue-600">
-                      {formatRupiah(previewPrice || 0)}
-                    </span>
+                    <div className="flex-shrink-0">
+                      <span className={`text-sm font-extrabold white-space-nowrap ${isProduk ? 'text-amber-700' : 'text-blue-600'}`}>
+                        {formatRupiah(previewPrice || 0)}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
