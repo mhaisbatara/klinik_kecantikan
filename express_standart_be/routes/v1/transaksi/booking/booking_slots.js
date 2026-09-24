@@ -229,13 +229,23 @@ router.post("/", async (req, res) => {
       const terisi = bookedRows.length;
       const sisaKuota = Math.max(0, totalKuota - terisi);
 
-      // Cek apakah jam dinas shift petugas sudah terlewat untuk reservasi hari ini
+      // Cek apakah jam dinas shift petugas sudah terlewat atau belum dimulai untuk hari ini
       let isShiftPastToday = false;
+      let isNotStartedToday = false;
+      let isOngoingNow = false;
+
       if (isBookingToday) {
+        const [startH, startM] = (session.jam_mulai || "00:00").slice(0, 5).split(":").map(Number);
         const [endH, endM] = (session.jam_selesai || "00:00").slice(0, 5).split(":").map(Number);
+        const shiftStartMin = (isNaN(startH) ? 0 : startH) * 60 + (isNaN(startM) ? 0 : startM);
         const shiftEndMin = (isNaN(endH) ? 0 : endH) * 60 + (isNaN(endM) ? 0 : endM);
+
         if (shiftEndMin <= nowMinutes) {
           isShiftPastToday = true;
+        } else if (nowMinutes < shiftStartMin) {
+          isNotStartedToday = true;
+        } else {
+          isOngoingNow = true;
         }
       }
 
@@ -281,6 +291,8 @@ router.post("/", async (req, res) => {
         sisa_kuota: sisaKuota,
         is_available: isAvailable,
         is_past_today: isShiftPastToday,
+        is_not_started_today: isNotStartedToday,
+        is_ongoing_now: isOngoingNow,
         booked_times: bookedTimes,
         booked_intervals: bookedIntervals,
       });
@@ -302,15 +314,137 @@ router.post("/", async (req, res) => {
 
     const allKonsulStaff = await qDokterKonsul
       .select(
+        "j.id",
         "j.kode_jadwal",
-        "j.jam_mulai",
-        "j.jam_selesai",
+        "j.no_sip",
         "j.is_penanggung_jawab",
+        "k.nama as nama_petugas",
         "k.nama as nama_dokter",
         "k.jabatan as jabatan_petugas",
-        "r.nama_ruangan"
+        "j.kode_ruangan",
+        "r.nama_ruangan",
+        "j.hari",
+        "j.jam_mulai",
+        "j.jam_selesai",
+        "j.kuota"
       )
-      .orderBy("j.jam_mulai", "asc");
+      .orderBy("j.jam_mulai", "asc")
+      .orderBy("j.is_penanggung_jawab", "desc");
+
+    // Kelompokkan jadwal Ruang Konsultasi berdasarkan sesi
+    const consultSessionMap = new Map();
+    for (const jdw of allKonsulStaff) {
+      const jamMulaiClean = jdw.jam_mulai ? jdw.jam_mulai.slice(0, 5) : "08:00";
+      const jamSelesaiClean = jdw.jam_selesai ? jdw.jam_selesai.slice(0, 5) : "16:00";
+      const sessionKey = `${jdw.kode_ruangan}_${(jdw.hari || "").toLowerCase()}_${jamMulaiClean}_${jamSelesaiClean}`;
+
+      if (!consultSessionMap.has(sessionKey)) {
+        consultSessionMap.set(sessionKey, {
+          key: sessionKey,
+          kode_ruangan: jdw.kode_ruangan,
+          nama_ruangan: jdw.nama_ruangan || jdw.kode_ruangan,
+          hari: jdw.hari,
+          jam_mulai: jamMulaiClean,
+          jam_selesai: jamSelesaiClean,
+          rows: [],
+        });
+      }
+      consultSessionMap.get(sessionKey).rows.push(jdw);
+    }
+
+    // Bangun slot Ruang Konsultasi dengan format identik
+    const vaConsultSlots = [];
+    for (const session of consultSessionMap.values()) {
+      const groupRows = session.rows;
+      const pjRow = groupRows.find((r) => r.is_penanggung_jawab == 1) || groupRows[0];
+      const hasPJ = Boolean(groupRows.some((r) => r.is_penanggung_jawab == 1));
+
+      const pjNoSip = String(pjRow.no_sip || "").trim().toLowerCase();
+      const pjNama = String(pjRow.nama_petugas || "").trim().toLowerCase();
+
+      const seenCompanion = new Set();
+      if (pjNoSip) seenCompanion.add(pjNoSip);
+      if (pjNama) seenCompanion.add(pjNama);
+
+      const petugasPendamping = [];
+      for (const r of groupRows) {
+        if (r.kode_jadwal === pjRow.kode_jadwal) continue;
+        const curNoSip = String(r.no_sip || "").trim().toLowerCase();
+        const curNama = String(r.nama_petugas || "").trim().toLowerCase();
+
+        if (pjNoSip && curNoSip === pjNoSip) continue;
+        if (pjNama && curNama === pjNama) continue;
+
+        const dedupeKey = curNoSip || curNama;
+        if (dedupeKey && seenCompanion.has(dedupeKey)) continue;
+        if (dedupeKey) seenCompanion.add(dedupeKey);
+
+        petugasPendamping.push({
+          kode_jadwal: r.kode_jadwal,
+          no_sip: r.no_sip,
+          nama_petugas: r.nama_petugas || "Petugas Medis",
+          jabatan_petugas: r.jabatan_petugas || "Dokter / Perawat",
+        });
+      }
+
+      const totalKuota = parseInt(pjRow.kuota || 0, 10);
+      const allKodeJadwalInSession = groupRows.map((r) => r.kode_jadwal);
+
+      const bookedRows = await DB("trx_booking as b")
+        .whereIn("b.kode_jadwal", allKodeJadwalInSession)
+        .where("b.tanggal_booking", tanggalBooking)
+        .whereNotIn("b.status", ["dibatalkan", "tidak_hadir"])
+        .select("b.kode_booking");
+
+      const terisi = bookedRows.length;
+      const sisaKuota = Math.max(0, totalKuota - terisi);
+
+      let isShiftPastToday = false;
+      let isNotStartedToday = false;
+      let isOngoingNow = false;
+
+      if (isBookingToday) {
+        const [startH, startM] = (session.jam_mulai || "00:00").slice(0, 5).split(":").map(Number);
+        const [endH, endM] = (session.jam_selesai || "00:00").slice(0, 5).split(":").map(Number);
+        const shiftStartMin = (isNaN(startH) ? 0 : startH) * 60 + (isNaN(startM) ? 0 : startM);
+        const shiftEndMin = (isNaN(endH) ? 0 : endH) * 60 + (isNaN(endM) ? 0 : endM);
+
+        if (shiftEndMin <= nowMinutes) {
+          isShiftPastToday = true;
+        } else if (nowMinutes < shiftStartMin) {
+          isNotStartedToday = true;
+        } else {
+          isOngoingNow = true;
+        }
+      }
+
+      const isAvailable = sisaKuota > 0 && !isShiftPastToday;
+
+      vaConsultSlots.push({
+        kode_jadwal: pjRow.kode_jadwal,
+        no_sip: pjRow.no_sip,
+        nama_petugas: hasPJ ? pjRow.nama_petugas : (pjRow.nama_petugas || "Dokter Konsultasi"),
+        jabatan_petugas: pjRow.jabatan_petugas || "Dokter",
+        is_penanggung_jawab: pjRow.is_penanggung_jawab == 1,
+        has_pj: hasPJ,
+        petugas_pendamping: petugasPendamping,
+        jumlah_pendamping: petugasPendamping.length,
+        kode_ruangan: session.kode_ruangan,
+        nama_ruangan: session.nama_ruangan,
+        hari: session.hari,
+        jam_mulai: session.jam_mulai,
+        jam_selesai: session.jam_selesai,
+        jam_booking_default: session.jam_mulai,
+        kuota_total: totalKuota,
+        kuota_terisi: terisi,
+        sisa_kuota: sisaKuota,
+        is_available: isAvailable,
+        is_past_today: isShiftPastToday,
+        is_not_started_today: isNotStartedToday,
+        is_ongoing_now: isOngoingNow,
+        is_konsultasi: true,
+      });
+    }
 
     // Prioritaskan dokter yang bertugas di ruang konsultasi
     const onlyDoctors = allKonsulStaff.filter(
@@ -358,6 +492,7 @@ router.post("/", async (req, res) => {
         dp_percentage_default: DEFAULT_DP_PERCENTAGE,
         dp_nominal_default: dpNominal,
         slots: vaSlots,
+        consult_slots: vaConsultSlots,
         dokter_konsul: dokterKonsulList,
         ruang_konsultasi: {
           kode_ruangan: allKonsulStaff[0]?.kode_ruangan || "RNG-007",

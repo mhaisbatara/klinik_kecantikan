@@ -35,6 +35,7 @@ const handleProdukDropdown = async (req, res) => {
       .select(
         "pr.kode_produk",
         "pr.nama",
+        "pr.foto",
         "pr.harga_jual",
         "pr.satuan",
         "pr.kode_kategori_produk",
@@ -52,11 +53,25 @@ const handleProdukDropdown = async (req, res) => {
 
     const vaData = await query;
 
+    const host = req.get("host");
+    const protocol = req.protocol || "http";
+    const assetsBase = `${protocol}://${host}`;
+
+    const formattedData = vaData.map((item) => {
+      const fotoUrl = item.foto
+        ? (item.foto.startsWith("http") ? item.foto : `${assetsBase}/uploads/produk/${item.foto}`)
+        : null;
+      return {
+        ...item,
+        foto: fotoUrl,
+      };
+    });
+
     return res.status(200).json({
       status: status.SUKSES,
       message: "Data produk berhasil dimuat",
       datetime: formatDateSystem(),
-      data: vaData,
+      data: formattedData,
     });
   } catch (error) {
     const oResult = {

@@ -253,11 +253,11 @@ export const RMEReportPrint: React.FC<RMEReportPrintProps> = ({
                 >
                     {/* CSS FOR PRINT */}
                     <style>{`
-                        @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
+                        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
                         @media print {
                             @page {
                                 size: A4 portrait;
-                                margin: 7mm 8mm 7mm 8mm;
+                                margin: 8mm 10mm 8mm 10mm;
                             }
                             body {
                                 background: #ffffff !important;
@@ -272,52 +272,125 @@ export const RMEReportPrint: React.FC<RMEReportPrintProps> = ({
                                 box-shadow: none !important;
                                 border-radius: 0 !important;
                                 font-size: 8.5px !important;
-                                line-height: 1.25 !important;
+                                line-height: 1.3 !important;
+                                font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
                             }
                             .no-print {
                                 display: none !important;
                             }
                         }
+                        .rme-table-info {
+                            width: 100%;
+                            border-collapse: collapse;
+                        }
+                        .rme-table-info tr {
+                            border-bottom: 1px dashed #f1f5f9;
+                        }
+                        .rme-table-info tr:last-child {
+                            border-bottom: none;
+                        }
                         .rme-table-info td {
-                            padding: 1px 3px;
+                            padding: 2.5px 3px;
                             vertical-align: top;
-                            line-height: 1.25;
+                            font-size: 8.5px;
+                            line-height: 1.3;
+                        }
+                        .rme-table-info td.rme-label {
+                            width: 105px;
+                            color: #475569;
+                            font-weight: 500;
+                            white-space: nowrap;
+                        }
+                        .rme-table-info td.rme-colon {
+                            width: 10px;
+                            text-align: center;
+                            color: #64748b;
+                            font-weight: 600;
+                            padding-left: 0;
+                            padding-right: 0;
+                        }
+                        .rme-table-info td.rme-value {
+                            color: #0f172a;
+                            font-weight: 700;
                         }
                         .rme-section-header {
-                            background-color: #f1f5f9;
-                            border-left: 2.5px solid #0d9488;
-                            padding: 2px 5px;
+                            background-color: #f8fafc;
+                            border-left: 3px solid #0284c7;
+                            border-bottom: 1px solid #e2e8f0;
+                            padding: 3px 6px;
                             font-weight: 700;
                             font-size: 8.5px;
                             text-transform: uppercase;
-                            letter-spacing: 0.3px;
+                            letter-spacing: 0.4px;
                             color: #0f172a;
-                            margin-top: 3px;
-                            margin-bottom: 2px;
+                            margin-top: 5px;
+                            margin-bottom: 3px;
+                            border-radius: 0 3px 3px 0;
                         }
                         .rme-border-box {
                             border: 1px solid #cbd5e1;
-                            border-radius: 3px;
-                            padding: 3px 5px;
+                            border-radius: 4px;
+                            padding: 4px 6px;
+                            background-color: #ffffff;
                         }
                         .rme-data-table {
                             width: 100%;
                             border-collapse: collapse;
+                            border: 1px solid #cbd5e1;
+                            margin-top: 3px;
                         }
                         .rme-data-table th {
-                            background-color: #f8fafc;
+                            background-color: #f1f5f9;
                             border: 1px solid #cbd5e1;
-                            padding: 2px 4px;
+                            padding: 5px 6px;
                             font-size: 8px;
                             font-weight: 700;
-                            text-align: left;
+                            text-transform: uppercase;
+                            letter-spacing: 0.3px;
+                            color: #0f172a;
+                            vertical-align: middle;
                         }
                         .rme-data-table td {
                             border: 1px solid #cbd5e1;
-                            padding: 2px 4px;
+                            padding: 5px 6px;
                             font-size: 8.5px;
                             vertical-align: top;
-                            line-height: 1.2;
+                            line-height: 1.35;
+                            color: #0f172a;
+                        }
+                        .rme-skin-grid {
+                            display: grid;
+                            grid-template-columns: repeat(5, 1fr);
+                            gap: 4px;
+                            margin-bottom: 3px;
+                        }
+                        .rme-skin-card {
+                            border: 1px solid #cbd5e1;
+                            border-radius: 3px;
+                            background-color: #f8fafc;
+                            padding: 3px 2px;
+                            text-align: center;
+                            min-height: 34px;
+                            display: flex;
+                            flex-direction: column;
+                            justify-content: center;
+                            box-sizing: border-box;
+                        }
+                        .rme-skin-card .rme-skin-label {
+                            font-size: 7px;
+                            color: #64748b;
+                            font-weight: 600;
+                            text-transform: uppercase;
+                            line-height: 1;
+                            letter-spacing: 0.2px;
+                        }
+                        .rme-skin-card .rme-skin-value {
+                            font-size: 8px;
+                            color: #0f172a;
+                            font-weight: 700;
+                            margin-top: 2px;
+                            line-height: 1.15;
+                            word-break: break-word;
                         }
                     `}</style>
 
@@ -345,12 +418,12 @@ export const RMEReportPrint: React.FC<RMEReportPrintProps> = ({
                                         width: '38px',
                                         height: '38px',
                                         borderRadius: '8px',
-                                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                        background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
                                         color: '#ffffff',
-                                        boxShadow: '0 2px 6px rgba(16, 185, 129, 0.25)',
+                                        boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)',
                                         flexShrink: 0,
                                     }}
                                 >
@@ -379,7 +452,7 @@ export const RMEReportPrint: React.FC<RMEReportPrintProps> = ({
                         </div>
                         <div className="text-right">
                             <div style={{ fontSize: '7.5px', color: '#94a3b8', fontStyle: 'italic' }}>Rekam Medis Elektronik (RME)</div>
-                            <div style={{ fontSize: '11px', fontWeight: 800, fontFamily: 'monospace', color: '#0d9488', lineHeight: 1.1 }}>
+                            <div style={{ fontSize: '11px', fontWeight: 800, fontFamily: 'monospace', color: '#0284c7', lineHeight: 1.1 }}>
                                 {visitData.kode_kunjungan || '-'}
                             </div>
                             <div style={{ fontSize: '7.5px', color: '#64748b' }}>
@@ -389,8 +462,8 @@ export const RMEReportPrint: React.FC<RMEReportPrintProps> = ({
                     </div>
 
                     {/* 2. JUDUL DOKUMEN */}
-                    <div className="text-center" style={{ margin: '1px 0 3px 0' }}>
-                        <h2 style={{ margin: 0, fontSize: '10.5px', fontWeight: 800, textDecoration: 'underline', letterSpacing: '0.5px' }}>
+                    <div className="text-center" style={{ margin: '2px 0 4px 0' }}>
+                        <h2 style={{ margin: 0, fontSize: '11px', fontWeight: 800, textDecoration: 'underline', letterSpacing: '0.5px', color: '#0f172a' }}>
                             LAPORAN DATA REKAM MEDIS PASIEN
                         </h2>
                     </div>
@@ -399,41 +472,41 @@ export const RMEReportPrint: React.FC<RMEReportPrintProps> = ({
                     <div className="grid mb-1" style={{ margin: '0 -3px' }}>
                         {/* Kolom Kiri: Informasi Kunjungan */}
                         <div className="col-6 p-1">
-                            <div className="rme-border-box h-full" style={{ backgroundColor: '#fafafa' }}>
-                                <div style={{ fontSize: '8.5px', fontWeight: 800, color: '#0d9488', borderBottom: '1px solid #e2e8f0', paddingBottom: '2px', marginBottom: '2px' }}>
-                                    INFORMASI KUNJUNGAN
-                                </div>
-                                <table className="rme-table-info w-full" style={{ fontSize: '8.5px' }}>
+                            <div className="rme-section-header" style={{ marginTop: 0 }}>
+                                Informasi Kunjungan
+                            </div>
+                            <div className="rme-border-box h-full">
+                                <table className="rme-table-info">
                                     <tbody>
                                         <tr>
-                                            <td style={{ width: '95px', color: '#64748b' }}>Tanggal Kunjungan</td>
-                                            <td style={{ width: '6px' }}>:</td>
-                                            <td className="font-bold">{formatDateIndo(visitData.tanggal_kunjungan)}</td>
+                                            <td className="rme-label">Tanggal Kunjungan</td>
+                                            <td className="rme-colon">:</td>
+                                            <td className="rme-value">{formatDateIndo(visitData.tanggal_kunjungan)}</td>
                                         </tr>
                                         <tr>
-                                            <td style={{ color: '#64748b' }}>No. Kunjungan</td>
-                                            <td>:</td>
-                                            <td className="font-mono font-bold text-teal-800">{visitData.kode_kunjungan || '-'}</td>
+                                            <td className="rme-label">No. Kunjungan</td>
+                                            <td className="rme-colon">:</td>
+                                            <td className="rme-value font-mono text-teal-800">{visitData.kode_kunjungan || '-'}</td>
                                         </tr>
                                         <tr>
-                                            <td style={{ color: '#64748b' }}>Jaminan / Penjamin</td>
-                                            <td>:</td>
-                                            <td>Umum / Mandiri</td>
+                                            <td className="rme-label">Jaminan / Penjamin</td>
+                                            <td className="rme-colon">:</td>
+                                            <td className="rme-value">Umum / Mandiri</td>
                                         </tr>
                                         <tr>
-                                            <td style={{ color: '#64748b' }}>Nama Poli / Ruangan</td>
-                                            <td>:</td>
-                                            <td className="font-semibold">{layananList[0]?.nama_ruangan || 'Ruang Konsultasi & Treatment'}</td>
+                                            <td className="rme-label">Nama Poli / Ruangan</td>
+                                            <td className="rme-colon">:</td>
+                                            <td className="rme-value">{layananList[0]?.nama_ruangan || 'Ruang Konsultasi & Treatment'}</td>
                                         </tr>
                                         <tr>
-                                            <td style={{ color: '#64748b' }}>Dokter Pemeriksa</td>
-                                            <td>:</td>
-                                            <td className="font-bold">{dokterFormatted}</td>
+                                            <td className="rme-label">Dokter Pemeriksa</td>
+                                            <td className="rme-colon">:</td>
+                                            <td className="rme-value">{dokterFormatted}</td>
                                         </tr>
                                         <tr>
-                                            <td style={{ color: '#64748b' }}>Tanggal Pemeriksaan</td>
-                                            <td>:</td>
-                                            <td>{formatDateSimple(visitData.tanggal_kunjungan)} {visitData.jam_datang ? `(${visitData.jam_datang} WIB)` : ''}</td>
+                                            <td className="rme-label">Waktu Pemeriksaan</td>
+                                            <td className="rme-colon">:</td>
+                                            <td className="rme-value">{formatDateSimple(visitData.tanggal_kunjungan)} {visitData.jam_datang ? `(${visitData.jam_datang} WIB)` : ''}</td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -442,46 +515,46 @@ export const RMEReportPrint: React.FC<RMEReportPrintProps> = ({
 
                         {/* Kolom Kanan: Identitas Pasien */}
                         <div className="col-6 p-1">
-                            <div className="rme-border-box h-full" style={{ backgroundColor: '#fafafa' }}>
-                                <div style={{ fontSize: '8.5px', fontWeight: 800, color: '#0d9488', borderBottom: '1px solid #e2e8f0', paddingBottom: '2px', marginBottom: '2px' }}>
-                                    IDENTITAS PASIEN
-                                </div>
-                                <table className="rme-table-info w-full" style={{ fontSize: '8.5px' }}>
+                            <div className="rme-section-header" style={{ marginTop: 0 }}>
+                                Identitas Pasien
+                            </div>
+                            <div className="rme-border-box h-full">
+                                <table className="rme-table-info">
                                     <tbody>
                                         <tr>
-                                            <td style={{ width: '85px', color: '#64748b' }}>No. Rekam Medis</td>
-                                            <td style={{ width: '6px' }}>:</td>
-                                            <td className="font-mono font-bold text-teal-800">{noRm}</td>
+                                            <td className="rme-label">No. Rekam Medis</td>
+                                            <td className="rme-colon">:</td>
+                                            <td className="rme-value font-mono text-teal-800">{noRm}</td>
                                         </tr>
                                         <tr>
-                                            <td style={{ color: '#64748b' }}>NIK / Identitas</td>
-                                            <td>:</td>
-                                            <td className="font-mono">{visitData.nik || '-'}</td>
+                                            <td className="rme-label">NIK / Identitas</td>
+                                            <td className="rme-colon">:</td>
+                                            <td className="rme-value font-mono">{visitData.nik || '-'}</td>
                                         </tr>
                                         <tr>
-                                            <td style={{ color: '#64748b' }}>Nama Pasien</td>
-                                            <td>:</td>
-                                            <td className="font-bold">{patientName}</td>
+                                            <td className="rme-label">Nama Pasien</td>
+                                            <td className="rme-colon">:</td>
+                                            <td className="rme-value">{patientName}</td>
                                         </tr>
                                         <tr>
-                                            <td style={{ color: '#64748b' }}>Jenis Kelamin / Usia</td>
-                                            <td>:</td>
-                                            <td>{formatGender(visitData.jenis_kelamin)}{calculateAge(visitData.tanggal_lahir)}</td>
+                                            <td className="rme-label">Jenis Kelamin / Usia</td>
+                                            <td className="rme-colon">:</td>
+                                            <td className="rme-value">{formatGender(visitData.jenis_kelamin)}{calculateAge(visitData.tanggal_lahir)}</td>
                                         </tr>
                                         <tr>
-                                            <td style={{ color: '#64748b' }}>Alamat</td>
-                                            <td>:</td>
-                                            <td>{formatFullAddress()}</td>
+                                            <td className="rme-label">Alamat</td>
+                                            <td className="rme-colon">:</td>
+                                            <td className="rme-value">{formatFullAddress()}</td>
                                         </tr>
                                         <tr>
-                                            <td style={{ color: '#64748b' }}>No. WA / HP</td>
-                                            <td>:</td>
-                                            <td>{visitData.no_hp || '-'}</td>
+                                            <td className="rme-label">No. HP / WA</td>
+                                            <td className="rme-colon">:</td>
+                                            <td className="rme-value">{visitData.no_hp || '-'}</td>
                                         </tr>
                                         <tr>
-                                            <td style={{ color: '#64748b' }}>Alergi Obat / Zat</td>
-                                            <td>:</td>
-                                            <td className="font-semibold" style={{ color: (visitData.alergi || headerRM.riwayat_alergi) ? '#b91c1c' : '#475569' }}>
+                                            <td className="rme-label">Alergi Obat / Zat</td>
+                                            <td className="rme-colon">:</td>
+                                            <td className="rme-value" style={{ color: (visitData.alergi || headerRM.riwayat_alergi) ? '#b91c1c' : '#475569' }}>
                                                 {visitData.alergi || headerRM.riwayat_alergi || 'Tidak Ada Riwayat Alergi'}
                                             </td>
                                         </tr>
@@ -491,35 +564,35 @@ export const RMEReportPrint: React.FC<RMEReportPrintProps> = ({
                         </div>
                     </div>
 
-                    {/* 4. SUBJEKTIF & OBJEKTIF (2 KOLOM SEJAJAR SIDE-BY-SIDE UNTUK MENGHEMAT RUANG VERTIKAL) */}
+                    {/* 4. SUBJEKTIF & OBJEKTIF (2 KOLOM SEJAJAR SIDE-BY-SIDE) */}
                     <div className="grid mb-1" style={{ margin: '0 -3px' }}>
                         {/* Kolom Kiri: I. SUBJEKTIF */}
                         <div className="col-6 p-1">
                             <div className="rme-section-header">
                                 I. Subjektif (Anamnesis &amp; Keluhan)
                             </div>
-                            <div className="rme-border-box h-full" style={{ minHeight: '85px' }}>
-                                <table className="rme-table-info w-full" style={{ fontSize: '8.5px' }}>
+                            <div className="rme-border-box h-full" style={{ minHeight: '88px' }}>
+                                <table className="rme-table-info">
                                     <tbody>
                                         <tr>
-                                            <td style={{ width: '105px', color: '#64748b', fontWeight: 600 }}>Keluhan Utama</td>
-                                            <td style={{ width: '6px' }}>:</td>
-                                            <td className="font-semibold text-900">{headerRM.keluhan || headerRM.subjective || visitData.catatan_pasien || '-'}</td>
+                                            <td className="rme-label">Keluhan Utama</td>
+                                            <td className="rme-colon">:</td>
+                                            <td className="rme-value">{headerRM.keluhan || headerRM.subjective || visitData.catatan_pasien || '-'}</td>
                                         </tr>
                                         <tr>
-                                            <td style={{ color: '#64748b', fontWeight: 600 }}>Keluhan Tambahan</td>
-                                            <td>:</td>
-                                            <td>{headerRM.durasi_keluhan || '-'}</td>
+                                            <td className="rme-label">Durasi Keluhan</td>
+                                            <td className="rme-colon">:</td>
+                                            <td className="rme-value">{headerRM.durasi_keluhan || '-'}</td>
                                         </tr>
                                         <tr>
-                                            <td style={{ color: '#64748b', fontWeight: 600 }}>Riwayat Treatment</td>
-                                            <td>:</td>
-                                            <td>{headerRM.riwayat_treatment || '-'}</td>
+                                            <td className="rme-label">Riwayat Treatment</td>
+                                            <td className="rme-colon">:</td>
+                                            <td className="rme-value">{headerRM.riwayat_treatment || '-'}</td>
                                         </tr>
                                         <tr>
-                                            <td style={{ color: '#64748b', fontWeight: 600 }}>Riwayat Alergi</td>
-                                            <td>:</td>
-                                            <td style={{ color: headerRM.riwayat_alergi ? '#b91c1c' : '#475569' }}>
+                                            <td className="rme-label">Riwayat Alergi</td>
+                                            <td className="rme-colon">:</td>
+                                            <td className="rme-value" style={{ color: headerRM.riwayat_alergi ? '#b91c1c' : '#475569' }}>
                                                 {headerRM.riwayat_alergi || visitData.alergi || 'Tidak Ada'}
                                             </td>
                                         </tr>
@@ -533,53 +606,50 @@ export const RMEReportPrint: React.FC<RMEReportPrintProps> = ({
                             <div className="rme-section-header">
                                 II. Objektif (Pemeriksaan &amp; Kulit)
                             </div>
-                            <div className="rme-border-box h-full" style={{ minHeight: '85px' }}>
-                                <div style={{ fontSize: '8px', fontWeight: 700, color: '#334155', marginBottom: '2px' }}>
+                            <div className="rme-border-box h-full" style={{ minHeight: '88px' }}>
+                                <div style={{ fontSize: '8px', fontWeight: 700, color: '#334155', marginBottom: '3px' }}>
                                     Karakteristik Kulit Pasien:
                                 </div>
-                                <div className="grid" style={{ margin: '0 -2px' }}>
-                                    <div className="col-4 p-1" style={{ padding: '1px 2px' }}>
-                                        <div className="p-1 border-1 surface-border border-round" style={{ backgroundColor: '#f8fafc', fontSize: '8px', lineHeight: 1.2 }}>
-                                            <span style={{ color: '#64748b' }}>Tipe:</span> <strong>{headerRM.pemeriksaan_skin_type || 'Normal'}</strong>
-                                        </div>
+                                <div className="rme-skin-grid">
+                                    <div className="rme-skin-card">
+                                        <span className="rme-skin-label">Tipe</span>
+                                        <strong className="rme-skin-value">{headerRM.pemeriksaan_skin_type || 'Normal'}</strong>
                                     </div>
-                                    <div className="col-4 p-1" style={{ padding: '1px 2px' }}>
-                                        <div className="p-1 border-1 surface-border border-round" style={{ backgroundColor: '#f8fafc', fontSize: '8px', lineHeight: 1.2 }}>
-                                            <span style={{ color: '#64748b' }}>Inflamasi:</span> <strong>{headerRM.pemeriksaan_inflammation || 'Tidak Ada'}</strong>
-                                        </div>
+                                    <div className="rme-skin-card">
+                                        <span className="rme-skin-label">Inflamasi</span>
+                                        <strong className="rme-skin-value">{headerRM.pemeriksaan_inflammation || 'Tidak Ada'}</strong>
                                     </div>
-                                    <div className="col-4 p-1" style={{ padding: '1px 2px' }}>
-                                        <div className="p-1 border-1 surface-border border-round" style={{ backgroundColor: '#f8fafc', fontSize: '8px', lineHeight: 1.2 }}>
-                                            <span style={{ color: '#64748b' }}>Acne:</span> <strong>{headerRM.pemeriksaan_acne || 'Tidak Ada'}</strong>
-                                        </div>
+                                    <div className="rme-skin-card">
+                                        <span className="rme-skin-label">Acne</span>
+                                        <strong className="rme-skin-value">{headerRM.pemeriksaan_acne || 'Tidak Ada'}</strong>
                                     </div>
-                                    <div className="col-6 p-1" style={{ padding: '1px 2px' }}>
-                                        <div className="p-1 border-1 surface-border border-round" style={{ backgroundColor: '#f8fafc', fontSize: '8px', lineHeight: 1.2 }}>
-                                            <span style={{ color: '#64748b' }}>Pigmentasi:</span> <strong>{headerRM.pemeriksaan_pigmentation || 'Normal'}</strong>
-                                        </div>
+                                    <div className="rme-skin-card">
+                                        <span className="rme-skin-label">Pigmentasi</span>
+                                        <strong className="rme-skin-value">{headerRM.pemeriksaan_pigmentation || 'Normal'}</strong>
                                     </div>
-                                    <div className="col-6 p-1" style={{ padding: '1px 2px' }}>
-                                        <div className="p-1 border-1 surface-border border-round" style={{ backgroundColor: '#f8fafc', fontSize: '8px', lineHeight: 1.2 }}>
-                                            <span style={{ color: '#64748b' }}>Sensitivitas:</span> <strong>{headerRM.pemeriksaan_sensitivity || 'Normal'}</strong>
-                                        </div>
+                                    <div className="rme-skin-card">
+                                        <span className="rme-skin-label">Sensitivitas</span>
+                                        <strong className="rme-skin-value">{headerRM.pemeriksaan_sensitivity || 'Normal'}</strong>
                                     </div>
                                 </div>
 
                                 {headerRM.objective && (
-                                    <div className="mt-1 pt-1 border-top-1 surface-border" style={{ fontSize: '8px' }}>
-                                        <span style={{ color: '#64748b', fontWeight: 600 }}>Temuan Fisik:</span> {headerRM.objective}
+                                    <div className="mt-1 pt-1 border-top-1 surface-border" style={{ fontSize: '8px', lineHeight: 1.3 }}>
+                                        <span style={{ color: '#475569', fontWeight: 600 }}>Temuan Fisik: </span>
+                                        <span style={{ color: '#0f172a', fontWeight: 700 }}>{headerRM.objective}</span>
                                     </div>
                                 )}
 
                                 {formFieldsCombined.length > 0 && (
                                     <div className="mt-1 pt-1 border-top-1 surface-border">
-                                        <div style={{ fontSize: '8px', fontWeight: 700, color: '#334155' }}>
+                                        <div style={{ fontSize: '8px', fontWeight: 700, color: '#334155', marginBottom: '2px' }}>
                                             Form Ruangan:
                                         </div>
                                         <div className="grid" style={{ margin: '0 -2px' }}>
                                             {formFieldsCombined.slice(0, 4).map((f, fIdx) => (
                                                 <div key={fIdx} className="col-6" style={{ padding: '1px 2px', fontSize: '7.5px' }}>
-                                                    <span style={{ color: '#64748b' }}>{f.label}:</span> <strong>{String(f.value)}</strong>
+                                                    <span style={{ color: '#475569', fontWeight: 500 }}>{f.label}: </span>
+                                                    <strong style={{ color: '#0f172a', fontWeight: 700 }}>{String(f.value)}</strong>
                                                 </div>
                                             ))}
                                         </div>
@@ -597,19 +667,20 @@ export const RMEReportPrint: React.FC<RMEReportPrintProps> = ({
                         {/* Diagnosis & Plan note in compact row */}
                         <div className="flex flex-wrap gap-2 justify-content-between align-items-center mb-1 pb-1 border-bottom-1 surface-border" style={{ fontSize: '8.5px' }}>
                             <div>
-                                <span style={{ color: '#64748b', fontWeight: 600 }}>Diagnosis Utama:</span>{' '}
-                                <strong className="text-teal-900" style={{ fontSize: '9px' }}>
+                                <span style={{ color: '#475569', fontWeight: 500 }}>Diagnosis Utama:</span>{' '}
+                                <strong style={{ color: '#0f172a', fontWeight: 700, fontSize: '9px' }}>
                                     {headerRM.diagnosis || visitData.diagnosis || '-'}
                                 </strong>
                                 {headerRM.assessment && (
-                                    <span style={{ color: '#475569', marginLeft: '6px' }}>
+                                    <span style={{ color: '#475569', marginLeft: '6px', fontWeight: 500 }}>
                                         ({headerRM.assessment})
                                     </span>
                                 )}
                             </div>
                             {headerRM.plan && (
                                 <div style={{ fontSize: '8px', color: '#334155' }}>
-                                    <span style={{ color: '#64748b', fontWeight: 600 }}>Anjuran / Terapi:</span> {headerRM.plan}
+                                    <span style={{ color: '#475569', fontWeight: 500 }}>Anjuran / Terapi:</span>{' '}
+                                    <strong style={{ color: '#0f172a', fontWeight: 700 }}>{headerRM.plan}</strong>
                                 </div>
                             )}
                         </div>
@@ -619,9 +690,9 @@ export const RMEReportPrint: React.FC<RMEReportPrintProps> = ({
                             <table className="rme-data-table">
                                 <thead>
                                     <tr>
-                                        <th style={{ width: '24px', textAlign: 'center' }}>No</th>
+                                        <th style={{ width: '28px', textAlign: 'center' }}>No</th>
                                         <th>Nama Layanan / Tindakan</th>
-                                        <th style={{ width: '110px' }}>Ruangan</th>
+                                        <th style={{ width: '100px' }}>Ruangan</th>
                                         <th style={{ width: '130px' }}>Petugas / Pelaksana</th>
                                         <th>Catatan Hasil Tindakan</th>
                                     </tr>
@@ -637,16 +708,16 @@ export const RMEReportPrint: React.FC<RMEReportPrintProps> = ({
 
                                         return (
                                             <tr key={idx}>
-                                                <td style={{ textAlign: 'center' }}>{idx + 1}</td>
-                                                <td className="font-bold">{lay.nama_layanan || 'Pelayanan Klinik'}</td>
+                                                <td style={{ textAlign: 'center', fontWeight: 600 }}>{idx + 1}</td>
+                                                <td style={{ fontWeight: 700, color: '#0f172a' }}>{lay.nama_layanan || 'Pelayanan Klinik'}</td>
                                                 <td>{lay.nama_ruangan || '-'}</td>
                                                 <td>
                                                     {allDaftarPetugas.length > 0 ? (
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', fontSize: '8px' }}>
                                                             {allDaftarPetugas.map((p: any, pIdx: number) => (
-                                                                <div key={pIdx} style={{ lineHeight: '1.15' }}>
+                                                                <div key={pIdx} style={{ lineHeight: '1.2' }}>
                                                                     <span style={{ fontWeight: 700, color: '#0f172a' }}>{p.nama}</span>
-                                                                    <span style={{ color: p.is_dokter_pj ? '#0f766e' : '#6b21a8', fontSize: '7.5px', fontWeight: 600 }}> ({p.role || p.jabatan || 'PETUGAS'})</span>
+                                                                    <span style={{ color: p.is_dokter_pj ? '#0284c7' : '#7c3aed', fontSize: '7.5px', fontWeight: 600 }}> ({p.role || p.jabatan || 'PETUGAS'})</span>
                                                                     {p.no_sip && p.no_sip !== '-' && (
                                                                         <div style={{ fontSize: '7px', color: '#64748b' }}>SIP: {p.no_sip}</div>
                                                                     )}
@@ -656,18 +727,18 @@ export const RMEReportPrint: React.FC<RMEReportPrintProps> = ({
                                                     ) : (dokterObj || terapisList.length > 0) ? (
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', fontSize: '8px' }}>
                                                             {dokterObj && (
-                                                                <div style={{ lineHeight: '1.15' }}>
+                                                                <div style={{ lineHeight: '1.2' }}>
                                                                     <span style={{ fontWeight: 700, color: '#0f172a' }}>{dokterObj.nama}</span>
-                                                                    <span style={{ color: '#0f766e', fontSize: '7.5px', fontWeight: 600 }}> (Dokter/PJ)</span>
+                                                                    <span style={{ color: '#0284c7', fontSize: '7.5px', fontWeight: 600 }}> (Dokter/PJ)</span>
                                                                     {(dokterObj.kode_karyawan || dokterObj.no_sip) && (
                                                                         <div style={{ fontSize: '7px', color: '#64748b' }}>SIP: {dokterObj.kode_karyawan || dokterObj.no_sip}</div>
                                                                     )}
                                                                 </div>
                                                             )}
                                                             {terapisList.map((t: any, tIdx: number) => (
-                                                                <div key={tIdx} style={{ lineHeight: '1.15' }}>
+                                                                <div key={tIdx} style={{ lineHeight: '1.2' }}>
                                                                     <span style={{ fontWeight: 700, color: '#0f172a' }}>{t.nama || t.nama_petugas}</span>
-                                                                    <span style={{ color: '#6b21a8', fontSize: '7.5px', fontWeight: 600 }}> ({(t.role || t.jabatan || 'TERAPIS').toUpperCase()})</span>
+                                                                    <span style={{ color: '#7c3aed', fontSize: '7.5px', fontWeight: 600 }}> ({(t.role || t.jabatan || 'TERAPIS').toUpperCase()})</span>
                                                                     {t.no_sip && t.no_sip !== '-' && (
                                                                         <div style={{ fontSize: '7px', color: '#64748b' }}>SIP: {t.no_sip}</div>
                                                                     )}
@@ -675,43 +746,42 @@ export const RMEReportPrint: React.FC<RMEReportPrintProps> = ({
                                                             ))}
                                                         </div>
                                                     ) : (
-                                                        <span style={{ fontSize: '8px' }}>{dokterFormatted}</span>
+                                                        <span style={{ fontSize: '8px', fontWeight: 700 }}>{dokterFormatted}</span>
                                                     )}
                                                 </td>
-                                                <td>{catatan}</td>
+                                                <td style={{ color: catatan === '-' ? '#94a3b8' : '#0f172a' }}>{catatan}</td>
                                             </tr>
                                         );
                                     })}
                                 </tbody>
                             </table>
                         ) : (
-                            <p style={{ margin: 0, fontStyle: 'italic', color: '#94a3b8', fontSize: '8px' }}>
+                            <p style={{ margin: 0, fontStyle: 'italic', color: '#94a3b8', fontSize: '8px', padding: '4px' }}>
                                 Tidak ada tindakan / konsultasi tercatat.
                             </p>
                         )}
                     </div>
 
                     {/* 6. PENGESAHAN & TANDA TANGAN */}
-                    <div style={{ pageBreakInside: 'avoid', marginTop: '4px', paddingTop: '2px' }}>
+                    <div style={{ pageBreakInside: 'avoid', marginTop: '10px', paddingTop: '4px' }}>
                         <div className="flex justify-content-between align-items-end">
-                            <div style={{ fontSize: '7.5px', color: '#64748b', maxWidth: '300px', lineHeight: 1.2 }}>
+                            <div style={{ fontSize: '7.5px', color: '#64748b', maxWidth: '320px', lineHeight: 1.3 }}>
                                 <p style={{ margin: 0 }}>
-                                    Dokumen Rekam Medis Elektronik (RME) ini diterbitkan secara sah melalui Sistem Informasi Manajemen Klinik Kecantikan.
+                                    Dokumen Rekam Medis Elektronik (RME) ini diterbitkan secara sah melalui Sistem Informasi Manajemen Klinik.
                                 </p>
-                                <p style={{ margin: '1px 0 0 0', fontFamily: 'monospace' }}>
+                                <p style={{ margin: '2px 0 0 0', fontFamily: 'monospace', color: '#94a3b8' }}>
                                     Dicetak pada: {formatDateSimple(new Date().toISOString())}
                                 </p>
                             </div>
 
-                            <div className="text-center" style={{ minWidth: '180px' }}>
-                                <div style={{ fontSize: '8.5px', color: '#475569' }}>
-                                    {clinicConfig.msKotaPerusahaan || 'Kota Madiun'}, {formatDateSimple(new Date().toISOString())}
+                            <div className="text-center" style={{ minWidth: '190px' }}>
+                                <div style={{ fontSize: '8.5px', color: '#334155', fontWeight: 500 }}>
+                                    {clinicConfig.msKotaPerusahaan || 'Kota Madiun'}, {formatDateSimple(visitData.tanggal_kunjungan || new Date().toISOString())}
                                 </div>
-                                <div style={{ fontSize: '8.5px', fontWeight: 600, color: '#334155' }}>
+                                <div style={{ fontSize: '8.5px', fontWeight: 600, color: '#0f172a', marginTop: '1px' }}>
                                     Dokter Penanggung Jawab Pasien
                                 </div>
-                                <div style={{ height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    {/* Signature Stamp placeholder */}
+                                <div style={{ height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                     <span style={{ fontSize: '7.5px', color: '#cbd5e1', fontStyle: 'italic' }}>
                                         (Tanda Tangan &amp; Cap Digital)
                                     </span>
@@ -719,7 +789,7 @@ export const RMEReportPrint: React.FC<RMEReportPrintProps> = ({
                                 <div style={{ fontSize: '9.5px', fontWeight: 800, textDecoration: 'underline', color: '#0f172a' }}>
                                     {dokterFormatted}
                                 </div>
-                                <div style={{ fontSize: '7.5px', color: '#64748b', fontFamily: 'monospace' }}>
+                                <div style={{ fontSize: '7.5px', color: '#64748b', fontFamily: 'monospace', marginTop: '1px' }}>
                                     SIP: {headerRM.no_sip || visitData.no_sip || '440/SIP-D/2026/001'}
                                 </div>
                             </div>

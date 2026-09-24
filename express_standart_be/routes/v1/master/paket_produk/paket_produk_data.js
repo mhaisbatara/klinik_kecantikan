@@ -1,3 +1,7 @@
+/**
+ * @project Sistem Klinik Kecantikan
+ * @file paket_produk_data.js
+ */
 import express from "express";
 import DB from "../../../../core/config/knex.js";
 import { formatDateSystem } from "../../components/tools/date_tools.js";
@@ -56,6 +60,7 @@ router.post("/", async (req, res) => {
     const selectFields = [
       "p.kode_paket_produk",
       "p.nama",
+      "p.foto",
       "p.harga_paket",
       "p.masa_berlaku_hari",
       DB.raw("COALESCE(DATE_FORMAT(p.tanggal_mulai, '%Y-%m-%d'), DATE_FORMAT(p.created_at, '%Y-%m-%d')) as tanggal_mulai"),
@@ -89,7 +94,18 @@ router.post("/", async (req, res) => {
       item.details = details;
     }
 
-    return res.status(200).json({ status: status.SUKSES, message: "Data ditemukan", datetime: formatDateSystem(), data: vaData, total_data: totalRecords });
+    const assetsBase = process.env.ASSETS_PATH || "/api/assets";
+    const formattedData = vaData.map((item) => {
+      const fotoUrl = item.foto
+        ? (item.foto.startsWith("http") ? item.foto : `${assetsBase}/uploads/paket_produk/${item.foto}`)
+        : null;
+      return {
+        ...item,
+        foto: fotoUrl,
+      };
+    });
+
+    return res.status(200).json({ status: status.SUKSES, message: "Data ditemukan", datetime: formatDateSystem(), data: formattedData, total_data: totalRecords });
   } catch (error) {
     const oResult = { status: status.BAD_REQUEST, message: "Sistem sedang maintenance", datetime: formatDateSystem() };
     Logging(error, { file: "/master/paket_produk/paket_produk_data.js", func: "data", request: oPayload, response: oResult, user: username });

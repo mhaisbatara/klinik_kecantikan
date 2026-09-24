@@ -81,6 +81,8 @@ router.post("/", async (req, res) => {
       data: {
         kode_transaksi,
         metode_bayar,
+        kode_promo: existing.kode_promo || null,
+        nama_promo: existing.nama_promo || null,
         total_harga: parseFloat(existing.total_harga || 0),
         total_diskon: parseFloat(existing.total_diskon || 0),
         total_bayar: totalBayar,

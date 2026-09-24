@@ -94,6 +94,10 @@ router.post("/", async (req, res) => {
       };
     });
 
+    const host = req.get("host");
+    const protocol = req.protocol || "http";
+    const assetsBase = `${protocol}://${host}`;
+
     // 2a. Layanan Single Aktif
     const qLayananSingle = DB("mst_layanan as l")
       .leftJoin("mst_kategori_layanan as k", "l.kode_kategori_layanan", "k.kode_kategori_layanan")
@@ -108,6 +112,9 @@ router.post("/", async (req, res) => {
         "l.nama",
         "l.harga",
         "l.durasi_menit",
+        "l.wajib_konsultasi",
+        "l.tipe",
+        "l.foto",
         "l.kode_ruangan",
         "r.nama_ruangan",
         "k.nama as nama_kategori"
@@ -126,6 +133,8 @@ router.post("/", async (req, res) => {
         "pl.kode_paket_layanan",
         "pl.nama",
         "pl.harga_paket as harga",
+        "pl.tipe",
+        "pl.foto",
         "pl.kode_ruangan",
         "r.nama_ruangan"
       )
@@ -139,6 +148,10 @@ router.post("/", async (req, res) => {
         nama: item.nama,
         nama_kategori: item.nama_kategori || "Layanan",
         nama_ruangan: item.nama_ruangan || item.kode_ruangan || "-",
+        durasi_menit: item.durasi_menit || 30,
+        wajib_konsultasi: item.wajib_konsultasi || "opsional",
+        tipe: item.tipe || "BEAUTY TREATMENT",
+        foto: item.foto ? (item.foto.startsWith("http") ? item.foto : `${assetsBase}/uploads/layanan/${item.foto}`) : null,
         harga: parseFloat(item.harga || 0),
       })),
       ...vaPaketLayanan.map((item) => ({
@@ -147,6 +160,10 @@ router.post("/", async (req, res) => {
         nama: item.nama,
         nama_kategori: "Paket Layanan",
         nama_ruangan: item.nama_ruangan || item.kode_ruangan || "-",
+        durasi_menit: 45,
+        wajib_konsultasi: item.tipe === "MEDICAL TREATMENT" ? "wajib" : item.tipe === "SERVICE TREATMENT" ? "tidak" : "opsional",
+        tipe: item.tipe || "BEAUTY TREATMENT",
+        foto: item.foto ? (item.foto.startsWith("http") ? item.foto : `${assetsBase}/uploads/paket_layanan/${item.foto}`) : null,
         harga: parseFloat(item.harga || 0),
       })),
     ].sort((a, b) => a.nama.localeCompare(b.nama));
@@ -163,6 +180,7 @@ router.post("/", async (req, res) => {
       .select(
         "p.kode_produk",
         "p.nama",
+        "p.foto",
         "p.harga_jual as harga",
         "p.satuan",
         "k.nama as nama_kategori"
@@ -171,6 +189,7 @@ router.post("/", async (req, res) => {
 
     const listProduk = vaProduk.map((item) => ({
       jenis: "produk",
+      foto: item.foto ? (item.foto.startsWith("http") ? item.foto : `${assetsBase}/uploads/produk/${item.foto}`) : null,
       kode: item.kode_produk,
       nama: item.nama,
       nama_kategori: item.nama_kategori || "Produk",
@@ -194,6 +213,8 @@ router.post("/", async (req, res) => {
         "p.nama as nama_promo",
         "p.jenis_diskon",
         "p.nilai_diskon",
+        "p.tanggal_mulai",
+        "p.tanggal_selesai",
         "dp.jenis_item",
         "dp.kode_item"
       )
@@ -219,6 +240,8 @@ router.post("/", async (req, res) => {
       nama_promo: dp.nama_promo,
       jenis_diskon: dp.jenis_diskon,
       nilai_diskon: parseFloat(dp.nilai_diskon || 0),
+      tanggal_mulai: dp.tanggal_mulai,
+      tanggal_selesai: dp.tanggal_selesai,
       jenis_item: dp.jenis_item,
       kode_item: dp.kode_item,
       nama_item: namaMap[dp.kode_item] || dp.kode_item,

@@ -513,14 +513,25 @@ router.post("/", async (req, res) => {
           }
 
           if (!checkedRoomsToday.has(kodeRuanganTarget)) {
-            const activeSchedulesInRoom = await trx("mst_jadwal_karyawan")
-              .where("kode_ruangan", kodeRuanganTarget)
-              .where("hari", todayDay)
-              .where("status", "aktif")
+            const activeSchedulesInRoom = await trx("mst_jadwal_karyawan as j")
+              .leftJoin("mst_karyawan as k", "j.no_sip", "k.no_sip")
+              .leftJoin("mst_ruangan as r", "j.kode_ruangan", "r.kode_ruangan")
+              .where("j.kode_ruangan", kodeRuanganTarget)
+              .where("j.hari", todayDay)
+              .where("j.status", "aktif")
               .modify((qb) => {
-                if (branchCode) qb.where("kode_cabang", branchCode);
+                if (branchCode) qb.where("j.kode_cabang", branchCode);
               })
-              .select("id", "no_sip", "is_penanggung_jawab");
+              .select(
+                "j.id",
+                "j.kode_jadwal",
+                "j.no_sip",
+                "j.is_penanggung_jawab",
+                "j.jam_mulai",
+                "j.jam_selesai",
+                "k.nama as nama_petugas",
+                "r.nama_ruangan"
+              );
             checkedRoomsToday.set(kodeRuanganTarget, activeSchedulesInRoom);
           }
 
@@ -531,6 +542,61 @@ router.post("/", async (req, res) => {
             );
             err.statusCode = 422;
             throw err;
+          }
+
+          // Validasi apakah sesi jadwal yang dipilih atau sesi ruangan sedang aktif saat ini (Walk-In)
+          const nowMinutes = now.getHours() * 60 + now.getMinutes();
+          const selectedJadwalKode = item.kode_jadwal || oPayload.kode_jadwal;
+          let targetSchedule = null;
+          if (selectedJadwalKode) {
+            targetSchedule = activeSchedulesInRoom.find((s) => s.kode_jadwal === selectedJadwalKode);
+          }
+          if (!targetSchedule && activeSchedulesInRoom.length === 1) {
+            targetSchedule = activeSchedulesInRoom[0];
+          }
+
+          if (targetSchedule) {
+            const [startH, startM] = (targetSchedule.jam_mulai || "00:00").slice(0, 5).split(":").map(Number);
+            const [endH, endM] = (targetSchedule.jam_selesai || "00:00").slice(0, 5).split(":").map(Number);
+            const startMin = (isNaN(startH) ? 0 : startH) * 60 + (isNaN(startM) ? 0 : startM);
+            const endMin = (isNaN(endH) ? 0 : endH) * 60 + (isNaN(endM) ? 0 : endM);
+            const startStr = (targetSchedule.jam_mulai || "00:00").slice(0, 5);
+            const endStr = (targetSchedule.jam_selesai || "00:00").slice(0, 5);
+            const staffName = targetSchedule.nama_petugas ? ` (${targetSchedule.nama_petugas})` : "";
+
+            if (nowMinutes < startMin) {
+              const err = new Error(
+                `Sesi pelayanan di ${namaRuanganTarget}${staffName} baru dimulai pukul ${startStr} WIB (jadwal: ${startStr}-${endStr} WIB). Pendaftaran walk-in antrean hanya dapat dilakukan saat sesi telah aktif, atau silakan buat reservasi melalui menu Booking.`
+              );
+              err.statusCode = 422;
+              throw err;
+            }
+            if (nowMinutes >= endMin) {
+              const err = new Error(
+                `Sesi pelayanan di ${namaRuanganTarget}${staffName} telah berakhir pukul ${endStr} WIB (jadwal: ${startStr}-${endStr} WIB). Pendaftaran walk-in antrean tidak dapat diproses.`
+              );
+              err.statusCode = 422;
+              throw err;
+            }
+          } else {
+            const ongoingSchedules = activeSchedulesInRoom.filter((s) => {
+              const [startH, startM] = (s.jam_mulai || "00:00").slice(0, 5).split(":").map(Number);
+              const [endH, endM] = (s.jam_selesai || "00:00").slice(0, 5).split(":").map(Number);
+              const startMin = (isNaN(startH) ? 0 : startH) * 60 + (isNaN(startM) ? 0 : startM);
+              const endMin = (isNaN(endH) ? 0 : endH) * 60 + (isNaN(endM) ? 0 : endM);
+              return nowMinutes >= startMin && nowMinutes < endMin;
+            });
+
+            if (ongoingSchedules.length === 0) {
+              const schedulesSummary = activeSchedulesInRoom
+                .map((s) => `${s.nama_petugas ? s.nama_petugas + " " : ""}(${(s.jam_mulai || "").slice(0, 5)}-${(s.jam_selesai || "").slice(0, 5)} WIB)`)
+                .join(", ");
+              const err = new Error(
+                `Saat ini tidak ada sesi petugas yang sedang aktif bertugas di ${namaRuanganTarget} (jadwal hari ini: ${schedulesSummary}). Silakan daftar saat jam dinas petugas dimulai atau buat reservasi melalui menu Booking.`
+              );
+              err.statusCode = 422;
+              throw err;
+            }
           }
 
           // Cari promo aktif untuk item ini (disimpan sebagai referensi kasir, tidak mengubah harga)
@@ -598,59 +664,50 @@ router.post("/", async (req, res) => {
 
           // Cek apakah ada jadwal dokter aktif hari ini
           if (!activeDoctorsInKonsul || activeDoctorsInKonsul.length === 0) {
-            if (hasStrictWajib) {
-              const err = new Error(
-                `Tidak ada dokter jaga di Ruang Konsultasi (${ruangKonsul.nama_ruangan}) hari ini. Silakan jadwalkan reservasi Booking untuk tindakan medis ini.`
-              );
-              err.statusCode = 422;
-              throw err;
-            } else {
-              // Layanan opsional: Alihkan otomatis ke Langsung Tindakan (ruangan target)
-              for (const pi of processedItems) {
-                pi.kode_ruangan = pi.kode_ruangan_tujuan;
-                pi.nama_ruangan = pi.nama_ruangan_tujuan;
-                pi.needs_consult = false;
-              }
-            }
-          } else {
-            // Cek apakah jam dinas dokter di Ruang Konsultasi sudah berakhir saat ini (Walk-in)
-            const validActiveDoctorsNow = activeDoctorsInKonsul.filter((d) => {
-              const [endH, endM] = (d.jam_selesai || "00:00:00").slice(0, 5).split(":").map(Number);
-              const endMin = (isNaN(endH) ? 0 : endH) * 60 + (isNaN(endM) ? 0 : endM);
-              return endMin > nowMinutes;
-            });
+            const err = new Error(
+              `Tidak ada dokter jaga di Ruang Konsultasi (${ruangKonsul.nama_ruangan}) hari ini. Silakan pilih alur "Langsung Tindakan" atau jadwalkan via menu Booking.`
+            );
+            err.statusCode = 422;
+            throw err;
+          }
 
-            if (validActiveDoctorsNow.length === 0) {
-              if (hasStrictWajib) {
-                const maxEnd = Math.max(
-                  ...activeDoctorsInKonsul.map((d) => {
-                    const [h, m] = (d.jam_selesai || "00:00:00").slice(0, 5).split(":").map(Number);
-                    return (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m);
-                  })
-                );
-                const maxEndStr = `${String(Math.floor(maxEnd / 60)).padStart(2, "0")}:${String(maxEnd % 60).padStart(2, "0")}`;
-                const err = new Error(
-                  `Dokter jaga di Ruang Konsultasi (${ruangKonsul.nama_ruangan}) telah selesai bertugas hari ini (pukul ${maxEndStr} WIB). Silakan jadwalkan reservasi Booking untuk tindakan medis ini.`
-                );
-                err.statusCode = 422;
-                throw err;
-              } else {
-                // Layanan opsional: Alihkan otomatis ke Langsung Tindakan (ruangan target)
-                for (const pi of processedItems) {
-                  pi.kode_ruangan = pi.kode_ruangan_tujuan;
-                  pi.nama_ruangan = pi.nama_ruangan_tujuan;
-                  pi.needs_consult = false;
-                }
-              }
-            } else {
-              // Pasien hanya memiliki SATU antrean awal yaitu di Ruang Konsultasi untuk seluruh layanannya
-              for (const pi of processedItems) {
-                pi.kode_ruangan = ruangKonsul.kode_ruangan;
-                pi.nama_ruangan = ruangKonsul.nama_ruangan || "Ruang Konsultasi";
-                pi.durasi_menit = durasiSesiKonsulMenit;
-                pi.needs_consult = true;
-              }
-            }
+          // Cek apakah jam dinas dokter di Ruang Konsultasi sudah berakhir saat ini (Walk-in)
+          const validActiveDoctorsNow = activeDoctorsInKonsul.filter((d) => {
+            const [endH, endM] = (d.jam_selesai || "00:00:00").slice(0, 5).split(":").map(Number);
+            const endMin = (isNaN(endH) ? 0 : endH) * 60 + (isNaN(endM) ? 0 : endM);
+            return endMin > nowMinutes;
+          });
+
+          if (validActiveDoctorsNow.length === 0) {
+            const doctorSchedules = activeDoctorsInKonsul
+              .map((d) => {
+                const startStr = (d.jam_mulai || "08:00").slice(0, 5);
+                const endStr = (d.jam_selesai || "16:00").slice(0, 5);
+                return `${d.nama_dokter ? d.nama_dokter + " " : ""}(${startStr}-${endStr} WIB)`;
+              })
+              .join(", ");
+
+            const maxEnd = Math.max(
+              ...activeDoctorsInKonsul.map((d) => {
+                const [h, m] = (d.jam_selesai || "00:00:00").slice(0, 5).split(":").map(Number);
+                return (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m);
+              })
+            );
+            const maxEndStr = `${String(Math.floor(maxEnd / 60)).padStart(2, "0")}:${String(maxEnd % 60).padStart(2, "0")}`;
+
+            const err = new Error(
+              `Dokter di Ruang Konsultasi (${ruangKonsul.nama_ruangan}) sedang tidak bertugas atau jam dinas telah selesai pukul ${maxEndStr} WIB (jadwal dokter: ${doctorSchedules}). Silakan pilih alur "Langsung Tindakan" atau coba pada jam operasional dokter konsultasi.`
+            );
+            err.statusCode = 422;
+            throw err;
+          }
+
+          // Pasien memiliki antrean awal di Ruang Konsultasi untuk layanannya
+          for (const pi of processedItems) {
+            pi.kode_ruangan = ruangKonsul.kode_ruangan;
+            pi.nama_ruangan = ruangKonsul.nama_ruangan || "Ruang Konsultasi";
+            pi.durasi_menit = durasiSesiKonsulMenit;
+            pi.needs_consult = true;
           }
         }
 

@@ -29,6 +29,8 @@ export interface CartItem {
   nama_promo?: string | null;
   jenis_diskon?: 'persen' | 'nominal' | null;
   nilai_diskon?: number | null;
+  diskon?: number | null;
+  subtotal_setelah_diskon?: number | null;
 }
 
 export interface TransaksiListItem {
@@ -142,9 +144,9 @@ export default function KasirPage() {
           nama_pasien: pendingBayarPayload.nama_pasien,
           no_rm: pendingBayarPayload.no_rm,
           items: pendingBayarPayload.items,
-          kode_promo: pendingBayarPayload.kode_promo,
-          nama_promo: pendingBayarPayload.nama_promo,
-          total_diskon: pendingBayarPayload.total_diskon,
+          kode_promo: res.data.data?.kode_promo || pendingBayarPayload.kode_promo,
+          nama_promo: res.data.data?.nama_promo || pendingBayarPayload.nama_promo,
+          total_diskon: res.data.data?.total_diskon !== undefined ? res.data.data.total_diskon : pendingBayarPayload.total_diskon,
         };
         setBayarResult(result);
         setShowBayarModal(false);
@@ -190,6 +192,10 @@ export default function KasirPage() {
             kode_transaksi={selectedKodeTrx}
             onDraftSaved={handleDraftSaved}
             onOpenBayar={handleOpenBayar}
+            onOpenStruk={(res) => {
+              setBayarResult(res);
+              setShowStrukModal(true);
+            }}
           />
         </div>
 

@@ -244,6 +244,72 @@ export const terbitkanAntreanLanjutanRuangan = async (trx, {
       continue;
     }
 
+    // Cek ketersediaan jadwal dokter / petugas aktif hari ini di ruangan tujuan
+    const HARI_MAP = ["minggu", "senin", "selasa", "rabu", "kamis", "jumat", "sabtu"];
+    const [yr, mo, dy] = todayYmd.split("-").map(Number);
+    const todayDay = HARI_MAP[new Date(yr, mo - 1, dy).getDay()];
+
+    const activeStaffInRoom = await trx("mst_jadwal_karyawan as j")
+      .where("j.kode_ruangan", group.kode_ruangan)
+      .where("j.hari", todayDay)
+      .where("j.status", "aktif")
+      .modify((qb) => {
+        if (branchCode) qb.where("j.kode_cabang", branchCode);
+      })
+      .select("j.id", "j.jam_mulai", "j.jam_selesai");
+
+    if (!activeStaffInRoom || activeStaffInRoom.length === 0) {
+      const err = new Error(
+        `Ruangan "${group.nama_ruangan}" (${group.kode_ruangan}) tidak memiliki dokter atau petugas jaga aktif hari ini (${todayDay.toUpperCase()}). Tidak dapat menerbitkan rujukan ke ruangan ini.`
+      );
+      err.statusCode = 422;
+      throw err;
+    }
+
+    const nowTimeStr = new Date().toLocaleTimeString("en-GB", {
+      timeZone: tz || "Asia/Jakarta",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+    const [nowH, nowM] = nowTimeStr.split(":").map(Number);
+    const nowMinutes = (isNaN(nowH) ? 0 : nowH) * 60 + (isNaN(nowM) ? 0 : nowM);
+
+    const ongoingStaff = activeStaffInRoom.filter((s) => {
+      if (!s.jam_mulai || !s.jam_selesai) return false;
+      const [sh, sm] = s.jam_mulai.slice(0, 5).split(":").map(Number);
+      const [eh, em] = s.jam_selesai.slice(0, 5).split(":").map(Number);
+      const sMin = (isNaN(sh) ? 0 : sh) * 60 + (isNaN(sm) ? 0 : sm);
+      const eMin = (isNaN(eh) ? 0 : eh) * 60 + (isNaN(em) ? 0 : em);
+      return nowMinutes >= sMin && nowMinutes < eMin;
+    });
+
+    if (ongoingStaff.length === 0) {
+      const unstartedShifts = activeStaffInRoom.filter((s) => {
+        if (!s.jam_mulai) return false;
+        const [sh, sm] = s.jam_mulai.slice(0, 5).split(":").map(Number);
+        const sMin = (isNaN(sh) ? 0 : sh) * 60 + (isNaN(sm) ? 0 : sm);
+        return nowMinutes < sMin;
+      });
+
+      if (unstartedShifts.length > 0) {
+        const earliestStart = unstartedShifts
+          .map((s) => (s.jam_mulai ? s.jam_mulai.slice(0, 5) : "08:00"))
+          .sort()[0];
+        const err = new Error(
+          `Ruangan "${group.nama_ruangan}" (${group.kode_ruangan}) belum memulai jam operasional/tindakan (jadwal shift baru dimulai pukul ${earliestStart} WIB). Tidak dapat menerbitkan rujukan antrean saat ini.`
+        );
+        err.statusCode = 422;
+        throw err;
+      }
+
+      const err = new Error(
+        `Jam operasional / shift di Ruangan "${group.nama_ruangan}" (${group.kode_ruangan}) telah selesai untuk hari ini. Tidak dapat menerbitkan rujukan antrean saat ini.`
+      );
+      err.statusCode = 422;
+      throw err;
+    }
+
     // Urutan kode_antrian_layanan (global)
     const lastAntrianLayanan = await trx("trx_antrian_layanan")
       .where("kode_antrian_layanan", "like", `${prefixAntrianLayanan}%`)

@@ -21,6 +21,7 @@ const handleGetOptions = async (req, res) => {
   const oPayload = { ...req.query, ...req.body };
   const username = req?.auth?.username || "";
   const branchCode = getBranchScope(req, oPayload.kode_cabang);
+  const assetsBase = process.env.ASSETS_PATH || "/api/assets";
 
   try {
     // 1. Fetch ALL ruangan aktif from DB
@@ -435,7 +436,6 @@ const handleGetOptions = async (req, res) => {
         }
       }
 
-      const assetsBase = process.env.ASSETS_PATH || "/api/assets";
       const rawItem = {
         jenis: "layanan",
         kode_layanan: lay.kode_layanan,

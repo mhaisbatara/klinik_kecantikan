@@ -161,7 +161,7 @@ export const LayananCard: React.FC<LayananCardProps> = ({
     : `${item.jenis}_${item.kode_layanan}`;
 
   return (
-    <div key={key} className={gridClassName || "col-12 sm:col-6 md:col-4 lg:col-3 p-2"}>
+    <div key={key} className={gridClassName || "col-12 sm:col-6 md:col-4 lg:col-3 xl:col-3 p-2"}>
       <div
         className={`h-full border-round-xl border-1 overflow-hidden transition-all transition-duration-200 flex flex-column justify-content-between cursor-pointer bg-white ${
           isSelected
@@ -212,12 +212,36 @@ export const LayananCard: React.FC<LayananCardProps> = ({
             </div>
           )}
 
-
+          {/* Floating Promo Badge */}
+          {item.is_promo && !isClaimedElsewhere && (
+            <div className="absolute top-0 left-0 m-2 z-2">
+              <span
+                className="inline-flex align-items-center font-bold text-white shadow-2"
+                style={{
+                  background: 'linear-gradient(135deg, #ef4444, #f97316)',
+                  fontSize: '10px',
+                  padding: '3px 8px',
+                  borderRadius: '9999px',
+                  lineHeight: '1.2',
+                  letterSpacing: '0.02em',
+                  gap: '4px',
+                  boxShadow: '0 2px 6px rgba(239, 68, 68, 0.4)',
+                }}
+              >
+                <i className="pi pi-percentage" style={{ fontSize: '9px' }} />
+                <span>
+                  {item.jenis_diskon === 'persen'
+                    ? `PROMO ${parseFloat(String(item.nilai_diskon || 0))}%`
+                    : `PROMO ${formatRupiah(item.nilai_diskon || 0)}`}
+                </span>
+              </span>
+            </div>
+          )}
 
           {/* Floating Already Claimed Badge */}
           {!isSelected && isClaimedElsewhere && (
             <div className="absolute top-0 left-0 m-2 z-2">
-              <span className="px-2 py-0.5 bg-emerald-700 text-white font-bold text-[10px] border-round shadow-2 flex align-items-center gap-1">
+              <span className="px-2.5 py-1 bg-emerald-700 text-white font-bold text-[10px] border-round shadow-2 flex align-items-center gap-1">
                 <i className="pi pi-gift text-[10px]" /> Sudah Diklaim
               </span>
             </div>
@@ -249,42 +273,88 @@ export const LayananCard: React.FC<LayananCardProps> = ({
               className="flex align-items-center mb-2"
               style={{
                 flexWrap: 'wrap',
-                gap: '4px',
+                gap: '6px',
                 minHeight: '26px',
               }}
             >
               {isKlaim ? (
                 <Tag
+                  rounded
                   value={`🎁 Klaim${item.sisa_sesi !== undefined ? ` (${item.sisa_sesi} Sesi)` : ''}`}
                   severity="warning"
-                  style={{ fontSize: '10px', padding: '2px 6px', fontWeight: 700, lineHeight: 1.2 }}
+                  style={{ fontSize: '10px', padding: '3px 10px', fontWeight: 700, lineHeight: 1.2, borderRadius: '9999px' }}
                 />
               ) : isPaket ? (
                 <Tag
+                  rounded
                   value={`Paket${item.total_sesi ? ` (${item.total_sesi} Sesi)` : ''}`}
                   severity="warning"
-                  style={{ fontSize: '10px', padding: '2px 6px', fontWeight: 700, lineHeight: 1.2 }}
+                  style={{ fontSize: '10px', padding: '3px 10px', fontWeight: 700, lineHeight: 1.2, borderRadius: '9999px' }}
                 />
               ) : (
-                <Tag
-                  value={item.nama_kategori || 'Layanan'}
-                  severity="info"
-                  style={{ fontSize: '10px', padding: '2px 6px', fontWeight: 600, lineHeight: 1.2 }}
-                />
+                <span
+                  className="inline-flex align-items-center font-bold text-white shadow-1"
+                  style={{
+                    fontSize: '10px',
+                    padding: '3px 10px',
+                    borderRadius: '9999px',
+                    backgroundColor: '#0284c7',
+                    lineHeight: 1.2,
+                    letterSpacing: '0.01em',
+                  }}
+                >
+                  {item.nama_kategori || 'Layanan'}
+                </span>
               )}
 
               {isFullBooked && (
-                <Tag value="Penuh" severity="danger" style={{ fontSize: '10px', padding: '2px 6px', fontWeight: 700, lineHeight: 1.2 }} />
+                <Tag rounded value="Penuh" severity="danger" style={{ fontSize: '10px', padding: '3px 10px', fontWeight: 700, lineHeight: 1.2, borderRadius: '9999px' }} />
               )}
 
               {isWajib && (
-                <Tag value="Wajib Konsul" severity="danger" style={{ fontSize: '10px', padding: '2px 6px', fontWeight: 700, lineHeight: 1.2 }} />
+                <span
+                  className="inline-flex align-items-center font-bold text-white shadow-1"
+                  style={{
+                    fontSize: '10px',
+                    padding: '3px 10px',
+                    borderRadius: '9999px',
+                    backgroundColor: '#ef4444',
+                    lineHeight: 1.2,
+                    letterSpacing: '0.01em',
+                  }}
+                >
+                  Wajib Konsul
+                </span>
               )}
               {isService && (
-                <Tag value="Tanpa Konsul" severity="success" style={{ fontSize: '10px', padding: '2px 6px', fontWeight: 700, lineHeight: 1.2 }} />
+                <span
+                  className="inline-flex align-items-center font-bold text-white shadow-1"
+                  style={{
+                    fontSize: '10px',
+                    padding: '3px 10px',
+                    borderRadius: '9999px',
+                    backgroundColor: '#10b981',
+                    lineHeight: 1.2,
+                    letterSpacing: '0.01em',
+                  }}
+                >
+                  Tanpa Konsul
+                </span>
               )}
               {isOpsional && (
-                <Tag value="Opsional Konsul" severity="info" style={{ fontSize: '10px', padding: '2px 6px', fontWeight: 700, lineHeight: 1.2 }} />
+                <span
+                  className="inline-flex align-items-center font-bold text-white shadow-1"
+                  style={{
+                    fontSize: '10px',
+                    padding: '3px 10px',
+                    borderRadius: '9999px',
+                    backgroundColor: '#0284c7',
+                    lineHeight: 1.2,
+                    letterSpacing: '0.01em',
+                  }}
+                >
+                  Opsional Konsul
+                </span>
               )}
             </div>
 

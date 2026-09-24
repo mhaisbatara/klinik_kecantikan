@@ -21,6 +21,7 @@ const handleGetKepemilikanPaket = async (req, res) => {
   const oPayload = { ...req.query, ...req.body };
   const username = req?.auth?.username || "";
   const branchCode = getBranchScope(req, oPayload.kode_cabang);
+  const assetsBase = process.env.ASSETS_PATH || "/api/assets";
   const keyword = (oPayload.keyword || "").trim();
   const filterNoRm = oPayload.no_rm || null;
   const filterStatus = oPayload.status || null;
