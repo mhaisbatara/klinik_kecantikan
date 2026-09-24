@@ -91,6 +91,8 @@ router.post("/", async (req, res) => {
       "p.harga_jual",
       "p.stok_minimum",
       "p.stok_tersedia",
+      "p.no_batch",
+      "p.tanggal_kadaluarsa",
       DB.raw("(p.stok_tersedia * p.harga_beli) as nilai_aset"),
       DB.raw("CASE WHEN p.stok_tersedia <= 0 THEN 'habis' WHEN p.stok_tersedia <= p.stok_minimum THEN 'menipis' ELSE 'aman' END as status_stok"),
       "p.status",

@@ -19,10 +19,13 @@ router.post("/", async (req, res) => {
     if (cValidation) return res.status(422).json({ status: status.BAD_REQUEST, message: cValidation, datetime: formatDateSystem() });
     let kode = "";
     await DB.transaction(async (trx) => {
-      const last = await trx("mst_kategori_produk").orderBy("id", "desc").first();
-      let n = 1;
-      if (last?.kode_kategori_produk) { n = (parseInt(last.kode_kategori_produk.replace("KATPRD-", "")) || 0) + 1; }
-      kode = `KATPRD-${String(n).padStart(3, "0")}`;
+      const allKatPrd = await trx("mst_kategori_produk").where("kode_kategori_produk", "like", "KATPRD-%").select("kode_kategori_produk");
+      let maxNum = 0;
+      for (const k of allKatPrd) {
+        const num = parseInt(k.kode_kategori_produk.replace("KATPRD-", ""), 10);
+        if (!isNaN(num) && num > maxNum) maxNum = num;
+      }
+      kode = `KATPRD-${String(maxNum + 1).padStart(3, "0")}`;
       const oData = { kode_cabang: branchCode, kode_kategori_produk: kode, nama: oPayload.nama, deskripsi: oPayload.deskripsi || null, status: oPayload.status, tz: oPayload.tz || "UTC", created_by: username, created_at: formatDateSystem(), updated_by: username, updated_at: formatDateSystem() };
       await trx("mst_kategori_produk").insert(oData);
       await ChangesLog({ description: `Tambah Kategori Produk ${kode}`, tableName: "mst_kategori_produk", referenceCode: kode, action: "CREATE", dataBefore: null, dataAfter: oData, user: username, tz: oPayload.tz || "UTC" }, trx);

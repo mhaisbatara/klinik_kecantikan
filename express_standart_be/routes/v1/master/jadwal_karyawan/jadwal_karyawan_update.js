@@ -84,7 +84,6 @@ router.post("/", async (req, res) => {
       const targetNoSip = oPayload.no_sip !== undefined ? oPayload.no_sip : prev.no_sip;
       let existingQuery = trx("mst_jadwal_karyawan")
         .where({
-          kode_ruangan: targetRuangan,
           hari: targetHari,
           no_sip: targetNoSip
         })
@@ -92,6 +91,11 @@ router.post("/", async (req, res) => {
         .whereRaw("LEFT(jam_selesai, 5) = ?", [targetJamSelesai])
         .whereNot("kode_jadwal", oPayload.kode_jadwal);
       if (branchCode) existingQuery = existingQuery.andWhere("kode_cabang", branchCode);
+      if (targetRuangan) {
+        existingQuery = existingQuery.where("kode_ruangan", targetRuangan);
+      } else {
+        existingQuery = existingQuery.whereNull("kode_ruangan");
+      }
       const existing = await existingQuery.first();
 
       if (existing) {

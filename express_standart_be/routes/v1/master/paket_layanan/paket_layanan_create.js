@@ -105,10 +105,13 @@ router.post("/", upload.any(), async (req, res) => {
     }
 
     await DB.transaction(async (trx) => {
-      const last = await trx("mst_paket_layanan").orderBy("id", "desc").first();
-      let n = 1;
-      if (last?.kode_paket_layanan) { n = (parseInt(last.kode_paket_layanan.replace("PKT-", "")) || 0) + 1; }
-      kode = `PKT-${String(n).padStart(3, "0")}`;
+      const allPkt = await trx("mst_paket_layanan").where("kode_paket_layanan", "like", "PKT-%").select("kode_paket_layanan");
+      let maxNum = 0;
+      for (const p of allPkt) {
+        const num = parseInt(p.kode_paket_layanan.replace("PKT-", ""), 10);
+        if (!isNaN(num) && num > maxNum) maxNum = num;
+      }
+      kode = `PKT-${String(maxNum + 1).padStart(3, "0")}`;
 
       if (oFoto) {
         const ext = path.extname(oFoto.originalname).toLowerCase();
