@@ -115,6 +115,9 @@ const routeMiddleware = async (searchUrl: string) => {
             const res = findToValuesRecursive(menu, urlFix);
 
             if (res.length < 1) {
+                if (urlFix === '/pendaftaran-antrean/jadwal-karyawan') {
+                    return '00';
+                }
                 return '98';
             }
         } catch (error: any) {

@@ -78,6 +78,7 @@ const AVAILABLE_MODULE_CATEGORIES: PermissionCategory[] = [
       { id: 'tindakan', label: 'Tindakan Perawatan', to: '/pendaftaran-antrean/antrean?type=layanan', icon: 'pi pi-sparkles', desc: 'Antrean & pengerjaan tindakan ruangan estetika' },
       { id: 'konsul', label: 'Konsultasi Medis', to: '/pendaftaran-antrean/antrean?type=konsul', icon: 'pi pi-comments', desc: 'Antrean & konsultasi anamnesa dokter' },
       { id: 'antrean_ruangan', label: 'Antrean Ruangan', to: '/pendaftaran-antrean/antrean', icon: 'pi pi-calendar-times', desc: 'Monitoring antrean seluruh ruangan klinik' },
+      { id: 'jadwal_karyawan_layanan', label: 'Jadwal Karyawan', to: '/pendaftaran-antrean/jadwal-karyawan', icon: 'pi pi-calendar', desc: 'Melihat jadwal shift tugas dokter, terapis & staf klinik' },
     ]
   },
   {
@@ -141,10 +142,12 @@ const ROLE_PRESET_PATHS: Record<string, string[]> = {
     '/pendaftaran-antrean/registrasi-pasien',
     '/pendaftaran-antrean/pendaftaran-pasien',
     '/master-data-user/data-pasien',
+    '/pendaftaran-antrean/jadwal-karyawan',
   ],
   beautician: [
     '/pendaftaran-antrean/antrean?type=layanan',
     '/pendaftaran-antrean/antrean',
+    '/pendaftaran-antrean/jadwal-karyawan',
     '/riwayat/rekam-medis',
     '/master-data/layanan',
     '/master-data/jadwal-karyawan',
@@ -168,6 +171,7 @@ const ROLE_PRESET_PATHS: Record<string, string[]> = {
     '/pendaftaran-antrean/antrean?type=konsul',
     '/pendaftaran-antrean/antrean?type=layanan',
     '/pendaftaran-antrean/antrean',
+    '/pendaftaran-antrean/jadwal-karyawan',
     '/master-data-user/data-pasien',
     '/riwayat/rekam-medis',
     '/master-data/layanan',
@@ -196,6 +200,7 @@ const ROLE_PRESET_PATHS: Record<string, string[]> = {
     '/pendaftaran-antrean/antrean?type=layanan',
     '/pendaftaran-antrean/antrean?type=konsul',
     '/pendaftaran-antrean/antrean',
+    '/pendaftaran-antrean/jadwal-karyawan',
     '/kasir',
     '/riwayat/rekam-medis',
     '/setup/config',

@@ -708,7 +708,15 @@ const AppMenu = () => {
                                 state.allowedPaths.has('/pendaftaran-antrean/antrean') ||
                                 (state.allowedPaths.size === 0 && ['beautician', 'dokter'].includes(currentRole)));
 
-                        const canAccessLayanan = canAccessTindakan || canAccessKonsul || canAccessAntreanRuangan;
+                        const canAccessJadwalKaryawan =
+                            !isSuperAdminRole &&
+                            (isOwnerOrManager ||
+                                currentRole === 'admin' ||
+                                state.allowedPaths.has('/pendaftaran-antrean/jadwal-karyawan') ||
+                                state.allowedPaths.has('/pendaftaran-antrean/antrean') ||
+                                (state.allowedPaths.size === 0 && ['admin', 'beautician', 'dokter'].includes(currentRole)));
+
+                        const canAccessLayanan = canAccessTindakan || canAccessKonsul || canAccessAntreanRuangan || canAccessJadwalKaryawan;
 
                         const canAccessKasir =
                             !isSuperAdminRole &&
@@ -722,7 +730,8 @@ const AppMenu = () => {
                         const matchesTindakan = canAccessTindakan && (!searchLower || 'tindakan'.includes(searchLower) || 'layanan'.includes(searchLower));
                         const matchesKonsul = canAccessKonsul && (!searchLower || 'konsultasi'.includes(searchLower) || 'medis'.includes(searchLower));
                         const matchesAntreanRuangan = canAccessAntreanRuangan && (!searchLower || 'antrean ruangan'.includes(searchLower) || 'antrean'.includes(searchLower) || 'ruangan'.includes(searchLower) || 'monitoring'.includes(searchLower));
-                        const showLayananSection = canAccessLayanan && (matchesTindakan || matchesKonsul || matchesAntreanRuangan);
+                        const matchesJadwalKaryawan = canAccessJadwalKaryawan && (!searchLower || 'jadwal'.includes(searchLower) || 'jadwal karyawan'.includes(searchLower) || 'tugas'.includes(searchLower) || 'dokter'.includes(searchLower) || 'terapis'.includes(searchLower));
+                        const showLayananSection = canAccessLayanan && (matchesTindakan || matchesKonsul || matchesAntreanRuangan || matchesJadwalKaryawan);
                         const matchesKasir = canAccessKasir && (!searchLower || 'kasir'.includes(searchLower) || 'pembayaran'.includes(searchLower));
 
                         let idx = 0;
@@ -740,7 +749,7 @@ const AppMenu = () => {
                                 {/* Item Tambahan Lainnya (jika ada) */}
                                 {extraItems.map((item) => renderItem(item, idx++))}
 
-                                {/* 4. LAYANAN (Tindakan, Konsultasi, Antrean Ruangan) */}
+                                {/* 4. LAYANAN (Tindakan, Konsultasi, Antrean Ruangan, Jadwal Karyawan) */}
                                 {showLayananSection && (
                                     <li className="layout-root-menuitem" key="layanan-ruangan-section">
                                         <div className="layout-menuitem-root-text">LAYANAN</div>
@@ -749,6 +758,8 @@ const AppMenu = () => {
                                                 const typeParam = searchParams.get('type') || '';
                                                 const isAntreanRuanganActive =
                                                     pathname === '/pendaftaran-antrean/antrean' && !typeParam;
+                                                const isJadwalKaryawanActive =
+                                                    pathname === '/pendaftaran-antrean/jadwal-karyawan';
                                                 const isLayananActive =
                                                     pathname === '/pendaftaran-antrean/antrean' &&
                                                     typeParam === 'layanan';
@@ -828,6 +839,31 @@ const AppMenu = () => {
                                                                         }}
                                                                     >
                                                                         Antrean Ruangan
+                                                                    </span>
+                                                                </Link>
+                                                            </li>
+                                                        )}
+
+                                                        {/* Sidebar Jadwal Karyawan (Jadwal Tugas Dokter, Terapis, dll - Read Only) */}
+                                                        {matchesJadwalKaryawan && (
+                                                            <li className={isJadwalKaryawanActive ? 'active-menuitem' : ''}>
+                                                                <Link
+                                                                    href="/pendaftaran-antrean/jadwal-karyawan"
+                                                                    className={`p-ripple flex align-items-center gap-2${isJadwalKaryawanActive ? ' active-route' : ''}`}
+                                                                    style={{ padding: '0.75rem 1.25rem', borderRadius: '6px', transition: 'background 0.2s' }}
+                                                                >
+                                                                    <i
+                                                                        className="layout-menuitem-icon pi pi-calendar"
+                                                                        style={{ color: isJadwalKaryawanActive ? 'var(--primary-color)' : undefined }}
+                                                                    />
+                                                                    <span
+                                                                        className="layout-menuitem-text"
+                                                                        style={{
+                                                                            fontWeight: isJadwalKaryawanActive ? 700 : undefined,
+                                                                            color: isJadwalKaryawanActive ? 'var(--primary-color)' : undefined,
+                                                                        }}
+                                                                    >
+                                                                        Jadwal Karyawan
                                                                     </span>
                                                                 </Link>
                                                             </li>
