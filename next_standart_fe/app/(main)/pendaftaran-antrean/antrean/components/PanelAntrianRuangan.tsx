@@ -434,7 +434,7 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
     const sCount = roomAllItems.filter((i) => i.status === 'selesai').length;
     const bCount = roomAllItems.filter((i) => i.status === 'batal').length;
 
-    // Data Kepadatan per Ruangan untuk Visualisasi Chart & Tabel
+    // Data Kepadatan per Ruangan untuk Dashboard Ruangan (Chart & Tabel Ringkasan)
     const roomsKepadatan = ruanganList.map((ruang) => {
         const roomItems = allGridData.filter((i) => i.kode_ruangan === ruang.kode_ruangan);
         const mRuang = roomItems.filter((i) => i.status === 'menunggu').length;
@@ -460,7 +460,6 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
         };
     });
 
-    // Urutkan berdasarkan antrean menunggu terbanyak, lalu nama ruangan
     const sortedRoomsKepadatan = [...roomsKepadatan].sort((a, b) => {
         if (b.menunggu !== a.menunggu) return b.menunggu - a.menunggu;
         return a.nama_ruangan.localeCompare(b.nama_ruangan);
@@ -471,129 +470,522 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
     const totalDipanggilSemua = allGridData.filter((i) => i.status === 'dipanggil').length;
     const totalRuanganAktif = ruanganList.length;
     const totalRuanganPadat = roomsKepadatan.filter((r) => r.statusType === 'padat').length;
+    const maxMenunggu = Math.max(...roomsKepadatan.map((r) => r.menunggu), 1);
     const totalRuanganSedang = roomsKepadatan.filter((r) => r.statusType === 'sedang').length;
     const totalRuanganLonggar = roomsKepadatan.filter((r) => r.statusType === 'longgar').length;
-    const maxMenunggu = Math.max(...roomsKepadatan.map((r) => r.menunggu), 1);
+
+    const isDashboardRuangan = !typeParam;
 
     return (
         <div className="flex flex-column gap-3">
             <ConfirmDialog />
 
-            {/* TAMPILAN 1: DAFTAR RUANGAN — Hanya tampil saat belum ada ruangan yang dipilih */}
+            {/* TAMPILAN 1: SAAT BELUM ADA RUANGAN YANG DIPILIH */}
             {!selectedRuangan ? (
-                <>
-                    {/* 1. RINGKASAN STATISTIK DI ATAS (4 KARTU KPI) */}
-                    <div className="grid mb-1">
-                        {/* Stat 1: Total Menunggu */}
-                        <div className="col-12 sm:col-6 lg:col-3">
-                            <div className="surface-card border-round-xl border-1 surface-border p-3 md:p-4 shadow-1 flex flex-column justify-content-between h-full transition-all hover:shadow-2">
-                                <div className="flex align-items-center gap-2 mb-2">
-                                    <div
-                                        className="w-2rem h-2rem border-round-lg flex align-items-center justify-content-center flex-shrink-0"
-                                        style={{ backgroundColor: '#eff6ff', color: '#2563eb' }}
-                                    >
-                                        <i className="pi pi-hourglass text-sm" />
+                isDashboardRuangan ? (
+                    <>
+                        {/* 1. RINGKASAN STATISTIK DASHBOARD RUANGAN (4 KARTU KPI) */}
+                        <div className="grid mb-1">
+                            {/* Stat 1: Total Menunggu */}
+                            <div className="col-12 sm:col-6 lg:col-3">
+                                <div className="surface-card border-round-xl border-1 surface-border p-3 md:p-4 shadow-1 flex flex-column justify-content-between h-full transition-all hover:shadow-2">
+                                    <div className="flex align-items-center gap-2 mb-2">
+                                        <div
+                                            className="w-2rem h-2rem border-round-lg flex align-items-center justify-content-center flex-shrink-0"
+                                            style={{ backgroundColor: '#eff6ff', color: '#2563eb' }}
+                                        >
+                                            <i className="pi pi-hourglass text-sm" />
+                                        </div>
+                                        <span className="text-xs font-bold text-500 uppercase tracking-wider">
+                                            Total Menunggu
+                                        </span>
                                     </div>
-                                    <span className="text-xs font-bold text-500 uppercase tracking-wider">
-                                        Total Menunggu
+                                    <div className="text-3xl font-extrabold text-900 my-1">
+                                        {totalMenungguSemua}
+                                    </div>
+                                    <span className="text-xs text-500">
+                                        Seluruh ruangan klinik
                                     </span>
                                 </div>
-                                <div className="text-3xl font-extrabold text-900 my-1">
-                                    {totalMenungguSemua}
+                            </div>
+
+                            {/* Stat 2: Sedang Dipanggil */}
+                            <div className="col-12 sm:col-6 lg:col-3">
+                                <div className="surface-card border-round-xl border-1 surface-border p-3 md:p-4 shadow-1 flex flex-column justify-content-between h-full transition-all hover:shadow-2">
+                                    <div className="flex align-items-center gap-2 mb-2">
+                                        <div
+                                            className="w-2rem h-2rem border-round-lg flex align-items-center justify-content-center flex-shrink-0"
+                                            style={{ backgroundColor: '#f5f3ff', color: '#7c3aed' }}
+                                        >
+                                            <i className="pi pi-megaphone text-sm" />
+                                        </div>
+                                        <span className="text-xs font-bold text-500 uppercase tracking-wider">
+                                            Sedang Dipanggil
+                                        </span>
+                                    </div>
+                                    <div className="text-3xl font-extrabold text-900 my-1">
+                                        {totalDipanggilSemua}
+                                    </div>
+                                    <span className="text-xs text-500">
+                                        Pasien sedang dilayani
+                                    </span>
                                 </div>
-                                <span className="text-xs text-500">
-                                    Seluruh ruangan tindakan
-                                </span>
+                            </div>
+
+                            {/* Stat 3: Ruangan Padat */}
+                            <div className="col-12 sm:col-6 lg:col-3">
+                                <div className="surface-card border-round-xl border-1 surface-border p-3 md:p-4 shadow-1 flex flex-column justify-content-between h-full transition-all hover:shadow-2">
+                                    <div className="flex align-items-center gap-2 mb-2">
+                                        <div
+                                            className="w-2rem h-2rem border-round-lg flex align-items-center justify-content-center flex-shrink-0"
+                                            style={{ backgroundColor: '#fffbeb', color: '#d97706' }}
+                                        >
+                                            <i className="pi pi-exclamation-triangle text-sm" />
+                                        </div>
+                                        <span className="text-xs font-bold text-500 uppercase tracking-wider">
+                                            Ruangan Padat
+                                        </span>
+                                    </div>
+                                    <div className="text-3xl font-extrabold text-amber-600 my-1">
+                                        {totalRuanganPadat}
+                                    </div>
+                                    <span className="text-xs text-500">
+                                        Perlu perhatian
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Stat 4: Ruangan Aktif */}
+                            <div className="col-12 sm:col-6 lg:col-3">
+                                <div className="surface-card border-round-xl border-1 surface-border p-3 md:p-4 shadow-1 flex flex-column justify-content-between h-full transition-all hover:shadow-2">
+                                    <div className="flex align-items-center gap-2 mb-2">
+                                        <div
+                                            className="w-2rem h-2rem border-round-lg flex align-items-center justify-content-center flex-shrink-0"
+                                            style={{ backgroundColor: '#ecfdf5', color: '#059669' }}
+                                        >
+                                            <i className="pi pi-building text-sm" />
+                                        </div>
+                                        <span className="text-xs font-bold text-500 uppercase tracking-wider">
+                                            Ruangan Aktif
+                                        </span>
+                                    </div>
+                                    <div className="text-3xl font-extrabold text-900 my-1">
+                                        {totalRuanganAktif}
+                                    </div>
+                                    <span className="text-xs text-500">
+                                        Tersedia untuk pelayanan
+                                    </span>
+                                </div>
                             </div>
                         </div>
 
-                        {/* Stat 2: Sedang Dipanggil */}
-                        <div className="col-12 sm:col-6 lg:col-3">
-                            <div className="surface-card border-round-xl border-1 surface-border p-3 md:p-4 shadow-1 flex flex-column justify-content-between h-full transition-all hover:shadow-2">
-                                <div className="flex align-items-center gap-2 mb-2">
-                                    <div
-                                        className="w-2rem h-2rem border-round-lg flex align-items-center justify-content-center flex-shrink-0"
-                                        style={{ backgroundColor: '#f5f3ff', color: '#7c3aed' }}
-                                    >
-                                        <i className="pi pi-megaphone text-sm" />
-                                    </div>
-                                    <span className="text-xs font-bold text-500 uppercase tracking-wider">
-                                        Sedang Dipanggil
+                        {/* 2. PANEL MONITORING: KEPADATAN PER RUANGAN (BAR CHART + DONUT CHART + TABEL RINGKAS) */}
+                        <div className="surface-card border-round-xl border-1 surface-border shadow-1 p-3 md:p-4 mb-1">
+                            <div className="flex flex-column sm:flex-row align-items-start sm:align-items-center justify-content-between gap-3 pb-3 mb-3 border-bottom-1 surface-border">
+                                <div>
+                                    <h4 className="text-lg font-bold text-900 m-0">
+                                        Kepadatan per Ruangan
+                                    </h4>
+                                    <span className="text-xs text-500">
+                                        Distribusi beban antrean dan status operasional seluruh ruangan secara real-time
                                     </span>
                                 </div>
-                                <div className="text-3xl font-extrabold text-900 my-1">
-                                    {totalDipanggilSemua}
+
+                                <div className="flex align-items-center gap-2">
+                                    <Button
+                                        label="Refresh"
+                                        icon="pi pi-refresh"
+                                        outlined
+                                        size="small"
+                                        severity="secondary"
+                                        onClick={getGridData}
+                                        loading={state.loadGrid}
+                                        className="font-semibold text-xs border-round-lg"
+                                        style={{ height: '32px' }}
+                                    />
                                 </div>
-                                <span className="text-xs text-500">
-                                    Pasien sedang dilayani
-                                </span>
+                            </div>
+
+                            {loadingRuangan ? (
+                                <div className="flex align-items-center justify-content-center py-5">
+                                    <ProgressSpinner style={{ width: '32px', height: '32px' }} />
+                                    <span className="ml-2 text-sm text-500">Memuat analisis kepadatan...</span>
+                                </div>
+                            ) : ruanganList.length === 0 ? (
+                                <div className="text-center py-4 text-500 text-sm">
+                                    Belum ada data ruangan untuk dianalisis.
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="grid align-items-center">
+                                        <div className="col-12 lg:col-8 pr-0 lg:pr-4">
+                                            <div className="text-xs font-bold text-500 uppercase tracking-wider mb-3">
+                                                JUMLAH PASIEN MENUNGGU PER RUANGAN
+                                            </div>
+
+                                            <div className="flex flex-column" style={{ gap: '10px' }}>
+                                                {sortedRoomsKepadatan.map((r) => {
+                                                    const maxVal = maxMenunggu > 0 ? maxMenunggu : 5;
+                                                    const barWidthPct = maxMenunggu > 0 ? (r.menunggu / maxVal) * 100 : 0;
+                                                    const barColor =
+                                                        r.statusType === 'padat'
+                                                            ? '#ef4444'
+                                                            : r.statusType === 'sedang'
+                                                            ? '#f59e0b'
+                                                            : '#10b981';
+
+                                                    return (
+                                                        <div key={r.kode_ruangan} className="flex align-items-center" style={{ gap: '12px' }}>
+                                                            <span
+                                                                className="text-xs font-semibold text-800"
+                                                                style={{ width: '130px', minWidth: '130px', flexShrink: 0, whiteSpace: 'nowrap' }}
+                                                                title={r.nama_ruangan}
+                                                            >
+                                                                {r.nama_ruangan}
+                                                            </span>
+
+                                                            <div
+                                                                className="flex-1 overflow-hidden flex align-items-center border-round-pill"
+                                                                style={{
+                                                                    height: '18px',
+                                                                    backgroundColor: '#f1f5f9',
+                                                                    position: 'relative',
+                                                                }}
+                                                            >
+                                                                {r.menunggu > 0 ? (
+                                                                    <div
+                                                                        className="h-full border-round-pill flex align-items-center justify-content-end pr-2 transition-all shadow-1"
+                                                                        style={{
+                                                                            width: `${Math.max(barWidthPct, 12)}%`,
+                                                                            backgroundColor: barColor,
+                                                                            transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                                                                        }}
+                                                                    >
+                                                                        <span className="text-white text-xs font-bold line-height-1">
+                                                                            {r.menunggu}
+                                                                        </span>
+                                                                    </div>
+                                                                ) : (
+                                                                    <>
+                                                                        <div
+                                                                            className="h-full border-round-pill"
+                                                                            style={{
+                                                                                width: '6px',
+                                                                                backgroundColor: '#10b981',
+                                                                            }}
+                                                                        />
+                                                                        <span className="text-xs font-bold text-500 pr-2.5 ml-auto line-height-1" style={{ color: '#64748b' }}>
+                                                                            0
+                                                                        </span>
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+
+                                        <div className="col-12 lg:col-4 border-top-1 lg:border-top-none lg:border-left-1 surface-border pt-4 lg:pt-0 pl-0 lg:pl-4 mt-3 lg:mt-0 flex flex-column justify-content-center">
+                                            <div className="text-xs font-bold text-500 uppercase tracking-wider mb-3 text-center lg:text-left">
+                                                DISTRIBUSI STATUS RUANGAN
+                                            </div>
+
+                                            {(() => {
+                                                const r = 38;
+                                                const C = 2 * Math.PI * r;
+                                                const strokeW = 7.5;
+                                                const pctL = totalRuanganAktif > 0 ? totalRuanganLonggar / totalRuanganAktif : 0;
+                                                const pctS = totalRuanganAktif > 0 ? totalRuanganSedang / totalRuanganAktif : 0;
+                                                const pctP = totalRuanganAktif > 0 ? totalRuanganPadat / totalRuanganAktif : 0;
+                                                const lenL = pctL * C;
+                                                const lenS = pctS * C;
+                                                const lenP = pctP * C;
+
+                                                return (
+                                                    <div className="flex flex-column align-items-center justify-content-center my-auto">
+                                                        <div className="relative flex align-items-center justify-content-center" style={{ width: '106px', height: '106px' }}>
+                                                            <svg viewBox="0 0 100 100" style={{ width: '100%', height: '100%' }}>
+                                                                <circle
+                                                                    cx="50"
+                                                                    cy="50"
+                                                                    r={r}
+                                                                    fill="none"
+                                                                    stroke="#f1f5f9"
+                                                                    strokeWidth={strokeW}
+                                                                />
+
+                                                                {totalRuanganLonggar > 0 && (
+                                                                    <circle
+                                                                        cx="50"
+                                                                        cy="50"
+                                                                        r={r}
+                                                                        fill="none"
+                                                                        stroke="#10b981"
+                                                                        strokeWidth={strokeW}
+                                                                        strokeDasharray={`${lenL} ${C - lenL}`}
+                                                                        strokeDashoffset={0}
+                                                                        transform="rotate(-90 50 50)"
+                                                                        style={{ transition: 'all 0.5s ease-out' }}
+                                                                    />
+                                                                )}
+
+                                                                {totalRuanganSedang > 0 && (
+                                                                    <circle
+                                                                        cx="50"
+                                                                        cy="50"
+                                                                        r={r}
+                                                                        fill="none"
+                                                                        stroke="#f59e0b"
+                                                                        strokeWidth={strokeW}
+                                                                        strokeDasharray={`${lenS} ${C - lenS}`}
+                                                                        strokeDashoffset={-lenL}
+                                                                        transform="rotate(-90 50 50)"
+                                                                        style={{ transition: 'all 0.5s ease-out' }}
+                                                                    />
+                                                                )}
+
+                                                                {totalRuanganPadat > 0 && (
+                                                                    <circle
+                                                                        cx="50"
+                                                                        cy="50"
+                                                                        r={r}
+                                                                        fill="none"
+                                                                        stroke="#ef4444"
+                                                                        strokeWidth={strokeW}
+                                                                        strokeDasharray={`${lenP} ${C - lenP}`}
+                                                                        strokeDashoffset={-(lenL + lenS)}
+                                                                        transform="rotate(-90 50 50)"
+                                                                        style={{ transition: 'all 0.5s ease-out' }}
+                                                                    />
+                                                                )}
+
+                                                                <text
+                                                                    x="50"
+                                                                    y="47"
+                                                                    textAnchor="middle"
+                                                                    dominantBaseline="middle"
+                                                                    className="text-900 font-extrabold"
+                                                                    style={{ fontSize: '20px', fontWeight: 800, fill: 'currentColor' }}
+                                                                >
+                                                                    {totalRuanganAktif}
+                                                                </text>
+                                                                <text
+                                                                    x="50"
+                                                                    y="62"
+                                                                    textAnchor="middle"
+                                                                    dominantBaseline="middle"
+                                                                    style={{ fontSize: '8px', fontWeight: 700, fill: '#64748b', letterSpacing: '0.06em' }}
+                                                                >
+                                                                    RUANGAN
+                                                                </text>
+                                                            </svg>
+                                                        </div>
+
+                                                        <div className="flex flex-column gap-2 mt-3 w-full" style={{ maxWidth: '150px' }}>
+                                                            <div className="flex align-items-center justify-content-between text-xs font-semibold">
+                                                                <span className="flex align-items-center gap-2 text-700">
+                                                                    <span className="border-round-circle inline-block" style={{ width: '8px', height: '8px', backgroundColor: '#10b981' }} />
+                                                                    Longgar
+                                                                </span>
+                                                                <span className="text-900 font-bold">{totalRuanganLonggar}</span>
+                                                            </div>
+                                                            <div className="flex align-items-center justify-content-between text-xs font-semibold">
+                                                                <span className="flex align-items-center gap-2 text-700">
+                                                                    <span className="border-round-circle inline-block" style={{ width: '8px', height: '8px', backgroundColor: '#f59e0b' }} />
+                                                                    Sedang
+                                                                </span>
+                                                                <span className="text-900 font-bold">{totalRuanganSedang}</span>
+                                                            </div>
+                                                            <div className="flex align-items-center justify-content-between text-xs font-semibold">
+                                                                <span className="flex align-items-center gap-2 text-700">
+                                                                    <span className="border-round-circle inline-block" style={{ width: '8px', height: '8px', backgroundColor: '#ef4444' }} />
+                                                                    Padat
+                                                                </span>
+                                                                <span className="text-900 font-bold">{totalRuanganPadat}</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })()}
+                                        </div>
+                                    </div>
+
+                                    <div className="my-4" style={{ height: '1.5px', backgroundColor: '#e2e8f0' }} />
+
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left" style={{ borderCollapse: 'separate', borderSpacing: '0 2px', tableLayout: 'auto' }}>
+                                            <thead>
+                                                <tr className="text-xs text-500 font-bold uppercase tracking-wider" style={{ borderBottom: '1.5px solid #e2e8f0' }}>
+                                                    <th className="py-3 px-3" style={{ minWidth: '240px', width: '32%' }}>RUANGAN</th>
+                                                    <th className="py-3 px-3" style={{ minWidth: '130px', width: '18%' }}>STATUS</th>
+                                                    <th className="py-3 px-3 text-center" style={{ minWidth: '100px', width: '12%', textAlign: 'center' }}>MENUNGGU</th>
+                                                    <th className="py-3 px-3 text-center" style={{ minWidth: '100px', width: '12%', textAlign: 'center' }}>SELESAI</th>
+                                                    <th className="py-3 px-3" style={{ minWidth: '160px', width: '26%' }}>SEDANG DILAYANI</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="text-sm">
+                                                {sortedRoomsKepadatan.map((r) => {
+                                                    const statusBadgeBg =
+                                                        r.statusType === 'padat'
+                                                            ? '#fee2e2'
+                                                            : r.statusType === 'sedang'
+                                                            ? '#fef3c7'
+                                                            : '#ecfdf5';
+                                                    const statusBadgeColor =
+                                                        r.statusType === 'padat'
+                                                            ? '#b91c1c'
+                                                            : r.statusType === 'sedang'
+                                                            ? '#b45309'
+                                                            : '#047857';
+                                                    const statusBadgeText =
+                                                        r.statusType === 'padat'
+                                                            ? 'PADAT'
+                                                            : r.statusType === 'sedang'
+                                                            ? 'SEDANG'
+                                                            : 'LONGGAR';
+
+                                                    return (
+                                                        <tr
+                                                            key={r.kode_ruangan}
+                                                            className="transition-colors"
+                                                            style={{ borderRadius: '6px' }}
+                                                        >
+                                                            <td className="py-3 px-3 font-semibold text-900" style={{ whiteSpace: 'nowrap' }}>
+                                                                {r.nama_ruangan} <span className="text-400 font-normal text-xs ml-1">({r.kode_ruangan})</span>
+                                                            </td>
+                                                            <td className="py-3 px-3">
+                                                                <span
+                                                                    className="inline-block text-xs font-bold uppercase px-2.5 py-1 border-round-md line-height-1"
+                                                                    style={{
+                                                                        backgroundColor: statusBadgeBg,
+                                                                        color: statusBadgeColor,
+                                                                        letterSpacing: '0.04em',
+                                                                    }}
+                                                                >
+                                                                    {statusBadgeText}
+                                                                </span>
+                                                            </td>
+                                                            <td className="py-3 px-3 text-center font-bold text-900" style={{ textAlign: 'center' }}>
+                                                                {r.menunggu}
+                                                            </td>
+                                                            <td className="py-3 px-3 text-center font-semibold text-600" style={{ textAlign: 'center' }}>
+                                                                {r.selesai}
+                                                            </td>
+                                                            <td className="py-3 px-3 text-700 font-medium">
+                                                                {r.servingPatientName && r.servingPatientName !== '—' && r.servingPatientName !== '-' ? (
+                                                                    <span
+                                                                        className="inline-flex align-items-center text-blue-700 bg-blue-50 border-1 border-blue-200 border-round-md text-xs font-semibold"
+                                                                        style={{ padding: '6px 12px', gap: '8px' }}
+                                                                    >
+                                                                        <i className="pi pi-user text-blue-600" style={{ fontSize: '13px' }} />
+                                                                        <span className="line-height-1">{r.servingPatientName}</span>
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-400 font-semibold pl-1">—</span>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </>
+                ) : (
+                    <>
+                        {/* 1. RINGKASAN STATISTIK TINDAKAN / KONSULTASI (3 KARTU KPI) */}
+                        <div className="grid mb-1">
+                            {/* Stat 1: Total Menunggu */}
+                            <div className="col-12 sm:col-4">
+                                <div className="surface-card border-round-xl border-1 surface-border p-3 shadow-1 flex align-items-center justify-content-between transition-all hover:shadow-2">
+                                    <div className="flex flex-column">
+                                        <span className="text-xs font-semibold text-500 uppercase tracking-wider mb-1">
+                                            Total Menunggu
+                                        </span>
+                                        <div className="flex align-items-baseline gap-2">
+                                            <span className="text-3xl font-extrabold text-amber-600">
+                                                {totalMenungguSemua}
+                                            </span>
+                                            <span className="text-xs text-500 font-medium">pasien antre</span>
+                                        </div>
+                                        <span className="text-xs text-400 mt-1">Seluruh ruangan tindakan</span>
+                                    </div>
+                                    <div
+                                        className="w-3rem h-3rem border-round-xl flex align-items-center justify-content-center flex-shrink-0"
+                                        style={{ backgroundColor: '#fef3c7', color: '#d97706' }}
+                                    >
+                                        <i className="pi pi-hourglass text-xl" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Stat 2: Total Sedang Dipanggil */}
+                            <div className="col-12 sm:col-4">
+                                <div className="surface-card border-round-xl border-1 surface-border p-3 shadow-1 flex align-items-center justify-content-between transition-all hover:shadow-2">
+                                    <div className="flex flex-column">
+                                        <span className="text-xs font-semibold text-500 uppercase tracking-wider mb-1">
+                                            Sedang Dipanggil
+                                        </span>
+                                        <div className="flex align-items-baseline gap-2">
+                                            <span className="text-3xl font-extrabold text-blue-600">
+                                                {totalDipanggilSemua}
+                                            </span>
+                                            <span className="text-xs text-500 font-medium">pasien dilayani</span>
+                                        </div>
+                                        <span className="text-xs text-400 mt-1">Sedang di dalam ruangan</span>
+                                    </div>
+                                    <div
+                                        className="w-3rem h-3rem border-round-xl flex align-items-center justify-content-center flex-shrink-0"
+                                        style={{ backgroundColor: '#dbeafe', color: '#2563eb' }}
+                                    >
+                                        <i className="pi pi-megaphone text-xl" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Stat 3: Jumlah Ruangan Aktif */}
+                            <div className="col-12 sm:col-4">
+                                <div className="surface-card border-round-xl border-1 surface-border p-3 shadow-1 flex align-items-center justify-content-between transition-all hover:shadow-2">
+                                    <div className="flex flex-column">
+                                        <span className="text-xs font-semibold text-500 uppercase tracking-wider mb-1">
+                                            Ruangan Aktif
+                                        </span>
+                                        <div className="flex align-items-baseline gap-2">
+                                            <span className="text-3xl font-extrabold text-teal-700">
+                                                {totalRuanganAktif}
+                                            </span>
+                                            <span className="text-xs text-500 font-medium">ruangan aktif</span>
+                                        </div>
+                                        <span className="text-xs text-400 mt-1">Tersedia untuk pelayanan</span>
+                                    </div>
+                                    <div
+                                        className="w-3rem h-3rem border-round-xl flex align-items-center justify-content-center flex-shrink-0"
+                                        style={{ backgroundColor: '#ccfbf1', color: '#0d9488' }}
+                                    >
+                                        <i className="pi pi-building text-xl" />
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
-                        {/* Stat 3: Ruangan Padat */}
-                        <div className="col-12 sm:col-6 lg:col-3">
-                            <div className="surface-card border-round-xl border-1 surface-border p-3 md:p-4 shadow-1 flex flex-column justify-content-between h-full transition-all hover:shadow-2">
-                                <div className="flex align-items-center gap-2 mb-2">
-                                    <div
-                                        className="w-2rem h-2rem border-round-lg flex align-items-center justify-content-center flex-shrink-0"
-                                        style={{ backgroundColor: '#fffbeb', color: '#d97706' }}
-                                    >
-                                        <i className="pi pi-exclamation-triangle text-sm" />
-                                    </div>
-                                    <span className="text-xs font-bold text-500 uppercase tracking-wider">
-                                        Ruangan Padat
-                                    </span>
+                        {/* DAFTAR RUANGAN TINDAKAN & KONSULTASI */}
+                        <div className="surface-card border-round-xl border-1 surface-border shadow-1 p-3 md:p-4 fadein animation-duration-300">
+                            <div className="flex flex-column sm:flex-row align-items-start sm:align-items-center justify-content-between gap-3 mb-3 pb-2 border-bottom-1 surface-border">
+                                <div>
+                                    <h4 className="text-xl font-bold text-900 m-0 flex align-items-center gap-2">
+                                        <i className="pi pi-building text-teal-600 text-xl" />
+                                        Ruangan Tindakan & Konsultasi
+                                    </h4>
+                                    <p className="text-500 text-xs m-0 mt-1">
+                                        Pilih salah satu ruangan di bawah ini untuk membuka antrean dan mengelola pemanggilan pasien.
+                                    </p>
                                 </div>
-                                <div className="text-3xl font-extrabold text-amber-600 my-1">
-                                    {totalRuanganPadat}
-                                </div>
-                                <span className="text-xs text-500">
-                                    Perlu perhatian
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* Stat 4: Ruangan Aktif */}
-                        <div className="col-12 sm:col-6 lg:col-3">
-                            <div className="surface-card border-round-xl border-1 surface-border p-3 md:p-4 shadow-1 flex flex-column justify-content-between h-full transition-all hover:shadow-2">
-                                <div className="flex align-items-center gap-2 mb-2">
-                                    <div
-                                        className="w-2rem h-2rem border-round-lg flex align-items-center justify-content-center flex-shrink-0"
-                                        style={{ backgroundColor: '#ecfdf5', color: '#059669' }}
-                                    >
-                                        <i className="pi pi-building text-sm" />
-                                    </div>
-                                    <span className="text-xs font-bold text-500 uppercase tracking-wider">
-                                        Ruangan Aktif
-                                    </span>
-                                </div>
-                                <div className="text-3xl font-extrabold text-900 my-1">
-                                    {totalRuanganAktif}
-                                </div>
-                                <span className="text-xs text-500">
-                                    Tersedia untuk pelayanan
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* 2. PANEL MONITORING: KEPADATAN PER RUANGAN (BAR CHART + DONUT CHART + TABEL RINGKAS) */}
-                    <div className="surface-card border-round-xl border-1 surface-border shadow-1 p-3 md:p-4 mb-1">
-                        {/* Header Kepadatan per Ruangan + Legend Warna & Tombol Refresh */}
-                        <div className="flex flex-column sm:flex-row align-items-start sm:align-items-center justify-content-between gap-3 pb-3 mb-3 border-bottom-1 surface-border">
-                            <div>
-                                <h4 className="text-lg font-bold text-900 m-0">
-                                    Kepadatan per Ruangan
-                                </h4>
-                                <span className="text-xs text-500">
-                                    Distribusi beban antrean dan status operasional seluruh ruangan secara real-time
-                                </span>
-                            </div>
-
-                            <div className="flex align-items-center gap-2">
-                                {/* Refresh Button */}
                                 <Button
-                                    label="Refresh"
+                                    label="Refresh Data"
                                     icon="pi pi-refresh"
                                     outlined
                                     size="small"
@@ -601,316 +993,212 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
                                     onClick={getGridData}
                                     loading={state.loadGrid}
                                     className="font-semibold text-xs border-round-lg"
-                                    style={{ height: '32px' }}
                                 />
                             </div>
-                        </div>
 
-                        {loadingRuangan ? (
-                            <div className="flex align-items-center justify-content-center py-5">
-                                <ProgressSpinner style={{ width: '32px', height: '32px' }} />
-                                <span className="ml-2 text-sm text-500">Memuat analisis kepadatan...</span>
-                            </div>
-                        ) : ruanganList.length === 0 ? (
-                            <div className="text-center py-4 text-500 text-sm">
-                                Belum ada data ruangan untuk dianalisis.
-                            </div>
-                        ) : (
-                            <>
-                                {/* Charts Grid: Bar Chart di Kiri (col-8) & Donut Chart di Kanan (col-4) */}
-                                <div className="grid align-items-center">
-                                    {/* Kolom Kiri: Bar Chart Jumlah Pasien Menunggu per Ruangan */}
-                                    <div className="col-12 lg:col-8 pr-0 lg:pr-4">
-                                        <div className="text-xs font-bold text-500 uppercase tracking-wider mb-3">
-                                            JUMLAH PASIEN MENUNGGU PER RUANGAN
-                                        </div>
-
-                                        {/* List Bar Track Individual per Ruangan (Horizontal Bar Chart Modern) */}
-                                        <div className="flex flex-column" style={{ gap: '10px' }}>
-                                            {sortedRoomsKepadatan.map((r) => {
-                                                const maxVal = maxMenunggu > 0 ? maxMenunggu : 5;
-                                                const barWidthPct = maxMenunggu > 0 ? (r.menunggu / maxVal) * 100 : 0;
-                                                const barColor =
-                                                    r.statusType === 'padat'
-                                                        ? '#ef4444'
-                                                        : r.statusType === 'sedang'
-                                                        ? '#f59e0b'
-                                                        : '#10b981';
-
-                                                return (
-                                                    <div key={r.kode_ruangan} className="flex align-items-center" style={{ gap: '12px' }}>
-                                                        {/* Nama Ruangan (Lebar Pas & Tidak Wrap) */}
-                                                        <span
-                                                            className="text-xs font-semibold text-800"
-                                                            style={{ width: '130px', minWidth: '130px', flexShrink: 0, whiteSpace: 'nowrap' }}
-                                                            title={r.nama_ruangan}
-                                                        >
-                                                            {r.nama_ruangan}
-                                                        </span>
-
-                                                        {/* Bar Chart Track Sleek & Modern */}
-                                                        <div
-                                                            className="flex-1 overflow-hidden flex align-items-center border-round-pill"
-                                                            style={{
-                                                                height: '18px',
-                                                                backgroundColor: '#f1f5f9',
-                                                                position: 'relative',
-                                                            }}
-                                                        >
-                                                            {r.menunggu > 0 ? (
-                                                                <div
-                                                                    className="h-full border-round-pill flex align-items-center justify-content-end pr-2 transition-all shadow-1"
-                                                                    style={{
-                                                                        width: `${Math.max(barWidthPct, 12)}%`,
-                                                                        backgroundColor: barColor,
-                                                                        transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-                                                                    }}
-                                                                >
-                                                                    <span className="text-white text-xs font-bold line-height-1">
-                                                                        {r.menunggu}
-                                                                    </span>
-                                                                </div>
-                                                            ) : (
-                                                                <>
-                                                                    {/* Fill minimal hijau tipis sesuai status default 'Longgar' */}
-                                                                    <div
-                                                                        className="h-full border-round-pill"
-                                                                        style={{
-                                                                            width: '6px',
-                                                                            backgroundColor: '#10b981',
-                                                                        }}
-                                                                    />
-                                                                    {/* Angka 0 di ujung kanan bar */}
-                                                                    <span className="text-xs font-bold text-500 pr-2.5 ml-auto line-height-1" style={{ color: '#64748b' }}>
-                                                                        0
-                                                                    </span>
-                                                                </>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-
-                                    {/* Kolom Kanan: Donut Chart Distribusi Status Ruangan (Proporsional & Ramping) */}
-                                    <div className="col-12 lg:col-4 border-top-1 lg:border-top-none lg:border-left-1 surface-border pt-4 lg:pt-0 pl-0 lg:pl-4 mt-3 lg:mt-0 flex flex-column justify-content-center">
-                                        <div className="text-xs font-bold text-500 uppercase tracking-wider mb-3 text-center lg:text-left">
-                                            DISTRIBUSI STATUS RUANGAN
-                                        </div>
-
-                                        {(() => {
-                                            const r = 38;
-                                            const C = 2 * Math.PI * r;
-                                            const strokeW = 7.5;
-                                            const pctL = totalRuanganAktif > 0 ? totalRuanganLonggar / totalRuanganAktif : 0;
-                                            const pctS = totalRuanganAktif > 0 ? totalRuanganSedang / totalRuanganAktif : 0;
-                                            const pctP = totalRuanganAktif > 0 ? totalRuanganPadat / totalRuanganAktif : 0;
-                                            const lenL = pctL * C;
-                                            const lenS = pctS * C;
-                                            const lenP = pctP * C;
-
-                                            return (
-                                                <div className="flex flex-column align-items-center justify-content-center my-auto">
-                                                    <div className="relative flex align-items-center justify-content-center" style={{ width: '106px', height: '106px' }}>
-                                                        <svg viewBox="0 0 100 100" style={{ width: '100%', height: '100%' }}>
-                                                            {/* Background Track Circle */}
-                                                            <circle
-                                                                cx="50"
-                                                                cy="50"
-                                                                r={r}
-                                                                fill="none"
-                                                                stroke="#f1f5f9"
-                                                                strokeWidth={strokeW}
-                                                            />
-
-                                                            {/* Longgar Segment (Hijau) */}
-                                                            {totalRuanganLonggar > 0 && (
-                                                                <circle
-                                                                    cx="50"
-                                                                    cy="50"
-                                                                    r={r}
-                                                                    fill="none"
-                                                                    stroke="#10b981"
-                                                                    strokeWidth={strokeW}
-                                                                    strokeDasharray={`${lenL} ${C - lenL}`}
-                                                                    strokeDashoffset={0}
-                                                                    transform="rotate(-90 50 50)"
-                                                                    style={{ transition: 'all 0.5s ease-out' }}
-                                                                />
-                                                            )}
-
-                                                            {/* Sedang Segment (Kuning / Oranye) */}
-                                                            {totalRuanganSedang > 0 && (
-                                                                <circle
-                                                                    cx="50"
-                                                                    cy="50"
-                                                                    r={r}
-                                                                    fill="none"
-                                                                    stroke="#f59e0b"
-                                                                    strokeWidth={strokeW}
-                                                                    strokeDasharray={`${lenS} ${C - lenS}`}
-                                                                    strokeDashoffset={-lenL}
-                                                                    transform="rotate(-90 50 50)"
-                                                                    style={{ transition: 'all 0.5s ease-out' }}
-                                                                />
-                                                            )}
-
-                                                            {/* Padat Segment (Merah) */}
-                                                            {totalRuanganPadat > 0 && (
-                                                                <circle
-                                                                    cx="50"
-                                                                    cy="50"
-                                                                    r={r}
-                                                                    fill="none"
-                                                                    stroke="#ef4444"
-                                                                    strokeWidth={strokeW}
-                                                                    strokeDasharray={`${lenP} ${C - lenP}`}
-                                                                    strokeDashoffset={-(lenL + lenS)}
-                                                                    transform="rotate(-90 50 50)"
-                                                                    style={{ transition: 'all 0.5s ease-out' }}
-                                                                />
-                                                            )}
-
-                                                            {/* Center Text */}
-                                                            <text
-                                                                x="50"
-                                                                y="47"
-                                                                textAnchor="middle"
-                                                                dominantBaseline="middle"
-                                                                className="text-900 font-extrabold"
-                                                                style={{ fontSize: '20px', fontWeight: 800, fill: 'currentColor' }}
-                                                            >
-                                                                {totalRuanganAktif}
-                                                            </text>
-                                                            <text
-                                                                x="50"
-                                                                y="62"
-                                                                textAnchor="middle"
-                                                                dominantBaseline="middle"
-                                                                style={{ fontSize: '8px', fontWeight: 700, fill: '#64748b', letterSpacing: '0.06em' }}
-                                                            >
-                                                                RUANGAN
-                                                            </text>
-                                                        </svg>
-                                                    </div>
-
-                                                    {/* Legend Stats List Under Donut */}
-                                                    <div className="flex flex-column gap-2 mt-3 w-full" style={{ maxWidth: '150px' }}>
-                                                        <div className="flex align-items-center justify-content-between text-xs font-semibold">
-                                                            <span className="flex align-items-center gap-2 text-700">
-                                                                <span className="border-round-circle inline-block" style={{ width: '8px', height: '8px', backgroundColor: '#10b981' }} />
-                                                                Longgar
-                                                            </span>
-                                                            <span className="text-900 font-bold">{totalRuanganLonggar}</span>
-                                                        </div>
-                                                        <div className="flex align-items-center justify-content-between text-xs font-semibold">
-                                                            <span className="flex align-items-center gap-2 text-700">
-                                                                <span className="border-round-circle inline-block" style={{ width: '8px', height: '8px', backgroundColor: '#f59e0b' }} />
-                                                                Sedang
-                                                            </span>
-                                                            <span className="text-900 font-bold">{totalRuanganSedang}</span>
-                                                        </div>
-                                                        <div className="flex align-items-center justify-content-between text-xs font-semibold">
-                                                            <span className="flex align-items-center gap-2 text-700">
-                                                                <span className="border-round-circle inline-block" style={{ width: '8px', height: '8px', backgroundColor: '#ef4444' }} />
-                                                                Padat
-                                                            </span>
-                                                            <span className="text-900 font-bold">{totalRuanganPadat}</span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })()}
-                                    </div>
+                            {loadingRuangan ? (
+                                <div className="flex align-items-center justify-content-center py-6">
+                                    <ProgressSpinner style={{ width: '36px', height: '36px' }} />
+                                    <span className="ml-2 text-sm text-500">Memuat ruangan...</span>
                                 </div>
+                            ) : ruanganList.length === 0 ? (
+                                <div className="text-center py-6 text-500">
+                                    <i className="pi pi-info-circle text-3xl mb-2 text-400 block" />
+                                    <span className="text-sm font-semibold">Tidak ada ruangan yang tersedia.</span>
+                                </div>
+                            ) : (
+                                <div className="grid">
+                                    {ruanganList.map((ruang) => {
+                                        const isClicked = clickedRoom === ruang.kode_ruangan;
+                                        const roomItems = allGridData.filter((i) => i.kode_ruangan === ruang.kode_ruangan);
+                                        const totalRuang = roomItems.length;
+                                        const mRuang = roomItems.filter((i) => i.status === 'menunggu').length;
+                                        const pRuang = roomItems.filter((i) => i.status === 'dipanggil').length;
+                                        const sRuang = roomItems.filter((i) => i.status === 'selesai').length;
 
-                                {/* Garis Pemisah Jelas Antar Section */}
-                                <div className="my-4" style={{ height: '1.5px', backgroundColor: '#e2e8f0' }} />
+                                        const servingPatient = roomItems.find((i) => i.status === 'dipanggil');
+                                        const waitingPatients = roomItems.filter((i) => i.status === 'menunggu');
+                                        const nextPatient = waitingPatients.length > 0 ? waitingPatients[0] : null;
+                                        const progressPercent = totalRuang > 0 ? Math.round((sRuang / totalRuang) * 100) : 0;
 
-                                {/* Ringkasan Tabel Status Ruangan dengan Spacing Kolom Lega & Rata Kanan Konsisten */}
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left" style={{ borderCollapse: 'separate', borderSpacing: '0 2px', tableLayout: 'auto' }}>
-                                        <thead>
-                                            <tr className="text-xs text-500 font-bold uppercase tracking-wider" style={{ borderBottom: '1.5px solid #e2e8f0' }}>
-                                                <th className="py-3 px-3" style={{ minWidth: '240px', width: '32%' }}>RUANGAN</th>
-                                                <th className="py-3 px-3" style={{ minWidth: '130px', width: '18%' }}>STATUS</th>
-                                                <th className="py-3 px-3 text-center" style={{ minWidth: '100px', width: '12%', textAlign: 'center' }}>MENUNGGU</th>
-                                                <th className="py-3 px-3 text-center" style={{ minWidth: '100px', width: '12%', textAlign: 'center' }}>SELESAI</th>
-                                                <th className="py-3 px-3" style={{ minWidth: '160px', width: '26%' }}>SEDANG DILAYANI</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="text-sm">
-                                            {sortedRoomsKepadatan.map((r) => {
-                                                const statusBadgeBg =
-                                                    r.statusType === 'padat'
-                                                        ? '#fee2e2'
-                                                        : r.statusType === 'sedang'
-                                                        ? '#fef3c7'
-                                                        : '#ecfdf5';
-                                                const statusBadgeColor =
-                                                    r.statusType === 'padat'
-                                                        ? '#b91c1c'
-                                                        : r.statusType === 'sedang'
-                                                        ? '#b45309'
-                                                        : '#047857';
-                                                const statusBadgeText =
-                                                    r.statusType === 'padat'
-                                                        ? 'PADAT'
-                                                        : r.statusType === 'sedang'
-                                                        ? 'SEDANG'
-                                                        : 'LONGGAR';
-
-                                                return (
-                                                    <tr
-                                                        key={r.kode_ruangan}
-                                                        className="transition-colors"
-                                                        style={{ borderRadius: '6px' }}
-                                                    >
-                                                        <td className="py-3 px-3 font-semibold text-900" style={{ whiteSpace: 'nowrap' }}>
-                                                            {r.nama_ruangan} <span className="text-400 font-normal text-xs ml-1">({r.kode_ruangan})</span>
-                                                        </td>
-                                                        <td className="py-3 px-3">
-                                                            <span
-                                                                className="inline-block text-xs font-bold uppercase px-2.5 py-1 border-round-md line-height-1"
-                                                                style={{
-                                                                    backgroundColor: statusBadgeBg,
-                                                                    color: statusBadgeColor,
-                                                                    letterSpacing: '0.04em',
-                                                                }}
-                                                            >
-                                                                {statusBadgeText}
-                                                            </span>
-                                                        </td>
-                                                        <td className="py-3 px-3 text-center font-bold text-900" style={{ textAlign: 'center' }}>
-                                                            {r.menunggu}
-                                                        </td>
-                                                        <td className="py-3 px-3 text-center font-semibold text-600" style={{ textAlign: 'center' }}>
-                                                            {r.selesai}
-                                                        </td>
-                                                        <td className="py-3 px-3 text-700 font-medium">
-                                                            {r.servingPatientName && r.servingPatientName !== '—' && r.servingPatientName !== '-' ? (
+                                        return (
+                                            <div key={ruang.kode_ruangan} className="col-12 sm:col-6 lg:col-4">
+                                                <div
+                                                    className={`p-3 md:p-4 border-round-xl border-1 surface-card cursor-pointer flex flex-column justify-content-between h-full select-none transition-all ${
+                                                        isClicked
+                                                            ? 'border-teal-500 bg-teal-50 shadow-4'
+                                                            : 'surface-border hover:surface-50 hover:border-teal-400 shadow-1 hover:shadow-3'
+                                                    }`}
+                                                    style={{
+                                                        transform: isClicked ? 'scale(0.97)' : undefined,
+                                                        transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
+                                                    }}
+                                                    onClick={() => handleSelectRuangan(ruang.kode_ruangan)}
+                                                >
+                                                    <div>
+                                                        {/* Header Card: Tag Kode Ruangan & Total Pasien */}
+                                                        <div className="flex align-items-center justify-content-between mb-3">
+                                                            <Tag
+                                                                value={ruang.kode_ruangan}
+                                                                severity="info"
+                                                                className="text-xs font-bold line-height-1"
+                                                                style={{ padding: '6px 12px', borderRadius: '8px' }}
+                                                            />
+                                                            {totalRuang > 0 ? (
                                                                 <span
-                                                                    className="inline-flex align-items-center text-blue-700 bg-blue-50 border-1 border-blue-200 border-round-md text-xs font-semibold"
-                                                                    style={{ padding: '6px 12px', gap: '8px' }}
+                                                                    className="text-xs font-bold text-teal-800 bg-teal-50 border-1 border-teal-200 border-round-lg inline-flex align-items-center gap-2 line-height-1"
+                                                                    style={{ padding: '6px 12px', borderRadius: '8px' }}
                                                                 >
-                                                                    <i className="pi pi-user text-blue-600" style={{ fontSize: '13px' }} />
-                                                                    <span className="line-height-1">{r.servingPatientName}</span>
+                                                                    <i className="pi pi-users text-teal-600 flex-shrink-0" style={{ fontSize: '13px' }} />
+                                                                    <span>{totalRuang} Pasien</span>
                                                                 </span>
                                                             ) : (
-                                                                <span className="text-400 font-semibold pl-1">—</span>
+                                                                <span
+                                                                    className="text-xs text-500 font-medium bg-gray-50 border-1 border-gray-200 border-round-lg inline-flex align-items-center gap-2 line-height-1"
+                                                                    style={{ padding: '6px 12px', borderRadius: '8px' }}
+                                                                >
+                                                                    <i className="pi pi-users text-400 flex-shrink-0" style={{ fontSize: '13px' }} />
+                                                                    <span>0 Pasien</span>
+                                                                </span>
                                                             )}
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
+                                                        </div>
+
+                                                        {/* Nama Ruangan */}
+                                                        <h4
+                                                            className="font-bold text-base text-900 m-0 mb-3 flex align-items-center text-truncate"
+                                                            title={ruang.nama_ruangan}
+                                                        >
+                                                            <i
+                                                                className={`pi ${isClicked ? 'pi-spin pi-spinner text-teal-600' : 'pi-home text-teal-600'} flex-shrink-0`}
+                                                                style={{ fontSize: '18px', marginRight: '8px', lineHeight: 1 }}
+                                                            />
+                                                            <span className="text-truncate line-height-1">{ruang.nama_ruangan}</span>
+                                                        </h4>
+
+                                                        {/* 3. Elemen Fokus Utama: SEDANG DILAYANI */}
+                                                        <div
+                                                            className={`border-round-xl mb-3 flex flex-column transition-all ${
+                                                                servingPatient
+                                                                    ? 'bg-blue-50 border-1 border-blue-200'
+                                                                    : 'surface-50 border-1 border-dashed surface-border'
+                                                            }`}
+                                                            style={{ padding: '14px 16px' }}
+                                                        >
+                                                            <div className="flex align-items-center justify-content-between mb-2">
+                                                                <span className="text-[11px] font-bold uppercase tracking-wider text-blue-800 line-height-1 m-0">
+                                                                    SEDANG DILAYANI
+                                                                </span>
+                                                                {servingPatient && (
+                                                                    <span className="inline-flex align-items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-100 px-2 py-0.5 border-round-md line-height-1">
+                                                                        <span className="text-xs line-height-1">📢</span>
+                                                                        <span>Dipanggil</span>
+                                                                    </span>
+                                                                )}
+                                                            </div>
+
+                                                            {servingPatient ? (
+                                                                <div className="flex flex-column m-0 p-0">
+                                                                    <div className="text-3xl sm:text-4xl font-black text-blue-900 tracking-tight line-height-1 mb-2">
+                                                                        {servingPatient.nomor_antrian}
+                                                                    </div>
+                                                                    {servingPatient.nama_pasien && (
+                                                                        <div
+                                                                            className="text-xs text-blue-800 font-semibold text-truncate flex align-items-center gap-2 m-0"
+                                                                            title={servingPatient.nama_pasien}
+                                                                        >
+                                                                            <i
+                                                                                className="pi pi-user text-blue-600 flex-shrink-0"
+                                                                                style={{ fontSize: '13.5px' }}
+                                                                            />
+                                                                            <span className="text-truncate">{servingPatient.nama_pasien}</span>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            ) : (
+                                                                <div className="flex flex-column m-0 p-0">
+                                                                    <div className="text-xl font-bold text-400 line-height-1 mb-1">
+                                                                        Belum ada
+                                                                    </div>
+                                                                    <div className="text-xs text-400">
+                                                                        Ruangan tidak sedang memanggil
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Preview Antrean Berikutnya & Stat Chips */}
+                                                        <div className="surface-ground p-2.5 border-round-lg mb-3 flex flex-column gap-2 text-xs">
+                                                            <div className="flex align-items-center justify-content-between">
+                                                                <span className="text-600 font-medium flex align-items-center gap-1">
+                                                                    <i className="pi pi-forward text-teal-600 text-xs" />
+                                                                    Berikutnya:
+                                                                </span>
+                                                                {nextPatient ? (
+                                                                    <span className="font-bold text-teal-800 bg-white border-1 border-teal-200 px-2.5 py-0.5 border-round shadow-sm">
+                                                                        {nextPatient.nomor_antrian}
+                                                                        {nextPatient.nama_pasien ? ` (${nextPatient.nama_pasien.split(' ')[0]})` : ''}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-400 italic">Belum ada antrean</span>
+                                                                )}
+                                                            </div>
+
+                                                            <div className="flex align-items-center gap-2 pt-1 border-top-1 surface-border">
+                                                                <span className="text-amber-800 font-semibold bg-amber-50 border-1 border-amber-200 px-2 py-1 border-round flex-1 text-center">
+                                                                    ⏳ Menunggu: {mRuang}
+                                                                </span>
+                                                                <span className="text-green-800 font-semibold bg-green-50 border-1 border-green-200 px-2 py-1 border-round flex-1 text-center">
+                                                                    ✅ Selesai: {sRuang}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Progress Bar Tipis Selesai vs Total */}
+                                                        <div className="mb-3">
+                                                            <div className="flex justify-content-between align-items-center text-xs text-500 mb-1">
+                                                                <span>Progress Pelayanan</span>
+                                                                <span className="font-semibold text-700">
+                                                                    {sRuang}/{totalRuang} Selesai ({progressPercent}%)
+                                                                </span>
+                                                            </div>
+                                                            <div className="w-full surface-200 border-round overflow-hidden" style={{ height: '6px' }}>
+                                                                <div
+                                                                    className="h-full border-round"
+                                                                    style={{
+                                                                        width: `${progressPercent}%`,
+                                                                        backgroundColor: progressPercent === 100 && totalRuang > 0 ? '#10b981' : '#0d9488',
+                                                                        transition: 'width 0.4s ease-in-out',
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* 5. TOMBOL BUKA ANTREAN RUANGAN (CTA Menonjol) */}
+                                                    <div className="pt-2 border-top-1 surface-border">
+                                                        <Button
+                                                            type="button"
+                                                            label={isClicked ? 'Membuka Antrean...' : 'Buka Antrean Ruangan'}
+                                                            icon={isClicked ? 'pi pi-spin pi-spinner' : 'pi pi-arrow-right'}
+                                                            iconPos="right"
+                                                            size="small"
+                                                            className="w-full font-bold text-xs py-2.5 border-round-lg shadow-1 transition-all"
+                                                            severity="info"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleSelectRuangan(ruang.kode_ruangan);
+                                                            }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
-                            </>
-                        )}
-                    </div>
-                </>
+                            )}
+                        </div>
+                    </>
+                )
             ) : (
                 /* TAMPILAN 2: PANEL ANTREAN RUANGAN TERPILIH (HANYA RUANGAN INI, TERPISAH DARI DAFTAR RUANGAN) */
                 <div ref={detailSectionRef} className="flex flex-column gap-3 fadein animation-duration-300">
