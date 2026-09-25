@@ -1575,26 +1575,25 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                 closable={false}
                 header={
                     <div className="flex align-items-center justify-content-between w-full">
-                        <div className="flex align-items-center" style={{ gap: '12px' }}>
+                        <div className="flex align-items-center gap-3">
                             <div
                                 className="flex align-items-center justify-content-center flex-shrink-0"
                                 style={{
-                                    width: '44px',
-                                    height: '44px',
-                                    minWidth: '44px',
+                                    width: '40px',
+                                    height: '40px',
                                     borderRadius: '10px',
-                                    backgroundColor: '#ffffff',
-                                    border: '1px solid #BFE3D1',
+                                    backgroundColor: '#f0fdf4',
+                                    border: '1px solid #bbf7d0',
                                     color: '#0C8F62'
                                 }}
                             >
-                                <ShoppingBag size={22} />
+                                <ShoppingBag size={20} />
                             </div>
                             <div className="flex flex-column gap-0.5">
-                                <span style={{ fontSize: '15px', fontWeight: 600, color: '#1A1916', lineHeight: 1.25 }}>
+                                <span style={{ fontSize: '15px', fontWeight: 700, color: '#1e293b', lineHeight: 1.25 }}>
                                     Pilih Produk Tambahan Kasir
                                 </span>
-                                <span style={{ fontSize: '12px', color: '#8A8778', fontWeight: 400 }}>
+                                <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 400 }}>
                                     Cari produk, atur kuantitas, dan lihat subtotal rincian tagihan kasir
                                 </span>
                             </div>
@@ -1605,12 +1604,12 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                             onClick={() => setShowProdukModal(false)}
                             className="flex align-items-center justify-content-center cursor-pointer transition-colors"
                             style={{
-                                width: '30px',
-                                height: '30px',
+                                width: '32px',
+                                height: '32px',
                                 borderRadius: '8px',
-                                border: '1px solid #E3E2DC',
+                                border: '1px solid #e2e8f0',
                                 backgroundColor: '#ffffff',
-                                color: '#8A8778',
+                                color: '#64748b',
                                 padding: 0
                             }}
                             title="Tutup dialog"
@@ -1619,9 +1618,9 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                         </button>
                     </div>
                 }
-                style={{ width: '960px', maxWidth: '96vw', borderRadius: '16px', overflow: 'hidden' }}
-                contentStyle={{ backgroundColor: '#ffffff', padding: '16px 20px', maxHeight: '78vh', overflowY: 'auto' }}
-                headerStyle={{ backgroundColor: '#ffffff', borderBottom: '1px solid #EEECE4', padding: '16px 20px' }}
+                style={{ width: '980px', maxWidth: '96vw', borderRadius: '16px', overflow: 'hidden' }}
+                contentStyle={{ backgroundColor: '#ffffff', padding: '16px 20px', maxHeight: '80vh', overflowY: 'auto' }}
+                headerStyle={{ backgroundColor: '#ffffff', borderBottom: '1px solid #f1f5f9', padding: '14px 20px' }}
                 modal
                 className="p-fluid"
                 footer={
@@ -1629,14 +1628,14 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                         className="flex align-items-center justify-content-between w-full flex-wrap gap-2 pt-2"
                         style={{
                             backgroundColor: '#ffffff',
-                            borderTop: '1px solid #EEECE4'
+                            borderTop: '1px solid #f1f5f9'
                         }}
                     >
-                        <div className="flex align-items-center gap-1.5 text-left">
-                            <span style={{ fontSize: '13px', color: '#4A473E' }}>
+                        <div className="flex align-items-baseline gap-1.5 text-left">
+                            <span style={{ fontSize: '13px', color: '#64748b' }}>
                                 Subtotal produk ({draftTotalQty} item):
                             </span>
-                            <span style={{ fontSize: '14px', fontWeight: 700, color: '#1A1916' }}>
+                            <span style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a' }}>
                                 {formatRupiah(draftGrandTotal)}
                             </span>
                         </div>
@@ -1647,12 +1646,12 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                 className="flex align-items-center justify-content-center gap-1.5 cursor-pointer transition-colors"
                                 style={{
                                     backgroundColor: '#ffffff',
-                                    border: '1px solid #DAD7CC',
-                                    borderRadius: '9px',
-                                    padding: '8px 16px',
+                                    border: '1px solid #cbd5e1',
+                                    borderRadius: '8px',
+                                    padding: '7px 16px',
                                     fontSize: '12px',
                                     fontWeight: 600,
-                                    color: '#4A473E'
+                                    color: '#475569'
                                 }}
                             >
                                 <X size={14} />
@@ -1665,12 +1664,12 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                 style={{
                                     backgroundColor: '#0C8F62',
                                     border: 'none',
-                                    borderRadius: '9px',
-                                    padding: '8px 20px',
+                                    borderRadius: '8px',
+                                    padding: '7px 20px',
                                     fontSize: '12px',
                                     fontWeight: 600,
                                     color: '#ffffff',
-                                    boxShadow: '0 2px 6px rgba(12, 143, 98, 0.25)'
+                                    boxShadow: '0 1px 4px rgba(12, 143, 98, 0.25)'
                                 }}
                             >
                                 <CheckCircle2 size={15} />
@@ -1680,18 +1679,18 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                     </div>
                 }
             >
-                <div className="grid pt-1">
+                <div className="grid pt-0 m-0">
                     {/* KOLOM KIRI: KATALOG PRODUK */}
-                    <div className="col-12 lg:col-7 flex flex-column gap-2.5 border-bottom-1 lg:border-bottom-none lg:border-right-1 surface-border pb-3 lg:pb-0 lg:pr-3">
-                        {/* Search, Filter Kategori & Refresh - 1 Baris Terpadu */}
-                        <div className="flex align-items-center gap-2 mb-1">
-                            {/* Search Input (flex-1) */}
+                    <div className="col-12 lg:col-7 p-0 flex flex-column border-bottom-1 lg:border-bottom-none lg:border-right-1 surface-border pb-3 lg:pb-0 lg:pr-3">
+                        {/* Search, Filter Kategori & Refresh - Spacing rapi & proporsional */}
+                        <div className="flex align-items-center gap-2 mb-3">
+                            {/* Search Input */}
                             <div className="relative flex-1" style={{ minWidth: '170px' }}>
                                 <span
                                     className="absolute left-0 top-0 bottom-0 flex align-items-center pl-3 pointer-events-none text-slate-400"
                                     style={{ zIndex: 1 }}
                                 >
-                                    <Search size={16} />
+                                    <Search size={15} />
                                 </span>
                                 <input
                                     type="text"
@@ -1700,12 +1699,12 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                     placeholder="Cari nama atau kode produk..."
                                     className="w-full"
                                     style={{
-                                        height: '38px',
-                                        padding: '0 32px 0 34px',
-                                        borderRadius: '9px',
-                                        border: '1px solid #DAD7CC',
+                                        height: '36px',
+                                        padding: '0 30px 0 32px',
+                                        borderRadius: '8px',
+                                        border: '1px solid #e2e8f0',
                                         backgroundColor: '#ffffff',
-                                        color: '#1A1916',
+                                        color: '#1e293b',
                                         outline: 'none',
                                         fontSize: '12px'
                                     }}
@@ -1724,18 +1723,18 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                             </div>
 
                             {/* Dropdown Filter Kategori */}
-                            <div className="relative flex-shrink-0" style={{ minWidth: '145px', maxWidth: '170px' }}>
+                            <div className="relative flex-shrink-0" style={{ minWidth: '140px', maxWidth: '160px' }}>
                                 <select
                                     value={modalCategory}
                                     onChange={(e) => setModalCategory(e.target.value)}
                                     className="w-full cursor-pointer appearance-none"
                                     style={{
-                                        height: '38px',
-                                        padding: '0 28px 0 12px',
-                                        borderRadius: '9px',
-                                        border: modalCategory !== 'ALL' ? '1.5px solid #0C8F62' : '1px solid #DAD7CC',
+                                        height: '36px',
+                                        padding: '0 30px 0 10px',
+                                        borderRadius: '8px',
+                                        border: modalCategory !== 'ALL' ? '1.5px solid #0C8F62' : '1px solid #e2e8f0',
                                         backgroundColor: modalCategory !== 'ALL' ? '#f0fdf4' : '#ffffff',
-                                        color: modalCategory !== 'ALL' ? '#0C8F62' : '#4A473E',
+                                        color: modalCategory !== 'ALL' ? '#0C8F62' : '#334155',
                                         fontWeight: modalCategory !== 'ALL' ? 600 : 500,
                                         fontSize: '12px',
                                         outline: 'none'
@@ -1750,8 +1749,8 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                     ))}
                                 </select>
                                 <span
-                                    className="absolute right-0 top-0 bottom-0 flex align-items-center pr-2.5 pointer-events-none"
-                                    style={{ color: modalCategory !== 'ALL' ? '#0C8F62' : '#8A8778' }}
+                                    className="absolute top-0 bottom-0 flex align-items-center pointer-events-none"
+                                    style={{ right: '12px', color: modalCategory !== 'ALL' ? '#0C8F62' : '#94a3b8' }}
                                 >
                                     <ChevronDown size={14} />
                                 </span>
@@ -1764,24 +1763,24 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                 disabled={loadingProduk}
                                 className="flex align-items-center justify-content-center cursor-pointer transition-colors"
                                 style={{
-                                    width: '38px',
-                                    height: '38px',
-                                    borderRadius: '9px',
-                                    border: '1px solid #DAD7CC',
+                                    width: '36px',
+                                    height: '36px',
+                                    borderRadius: '8px',
+                                    border: '1px solid #e2e8f0',
                                     backgroundColor: '#ffffff',
-                                    color: '#4A473E',
+                                    color: '#475569',
                                     flexShrink: 0
                                 }}
                                 title="Segarkan data produk"
                             >
-                                <RotateCcw size={16} className={loadingProduk ? 'animate-spin' : ''} />
+                                <RotateCcw size={15} className={loadingProduk ? 'animate-spin' : ''} />
                             </button>
                         </div>
 
                         {/* Grid Katalog Produk (2 Kolom) */}
                         <div
                             className="overflow-y-auto pr-1 custom-thin-scrollbar"
-                            style={{ height: '450px' }}
+                            style={{ height: '460px' }}
                         >
                             {loadingProduk ? (
                                 <div className="flex flex-column align-items-center justify-content-center h-full py-5">
@@ -1794,7 +1793,7 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                     <span className="text-xs text-slate-500 font-medium">Tidak ada produk yang cocok dengan pencarian / filter.</span>
                                 </div>
                             ) : (
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
                                     {modalFilteredProduk.map((prod) => {
                                         const selectedQty = draftSelectedMap.get(prod.kode_produk) || 0;
                                         const isSelected = selectedQty > 0;
@@ -1807,21 +1806,22 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                 className="cursor-pointer transition-all"
                                                 style={{
                                                     backgroundColor: '#ffffff',
-                                                    border: isSelected ? '1.5px solid #0C8F62' : '1px solid #E3E2DC',
-                                                    borderRadius: '12px',
+                                                    border: isSelected ? '1.5px solid #0C8F62' : '1px solid #e2e8f0',
+                                                    borderRadius: '10px',
                                                     overflow: 'hidden',
-                                                    boxShadow: isSelected ? '0 2px 8px rgba(12, 143, 98, 0.12)' : '0 1px 3px rgba(0,0,0,0.02)',
+                                                    boxShadow: isSelected ? '0 0 0 1px #0C8F62, 0 2px 8px rgba(12, 143, 98, 0.12)' : '0 1px 3px rgba(0,0,0,0.03)',
                                                     display: 'flex',
                                                     flexDirection: 'column',
-                                                    justifyContent: 'space-between'
+                                                    justifyContent: 'space-between',
+                                                    position: 'relative'
                                                 }}
                                             >
-                                                {/* Area Gambar: 100px fixed, pure white, borderBottom 1px solid #EEECE4 */}
+                                                {/* Area Gambar Seragam */}
                                                 <div
                                                     style={{
-                                                        height: '100px',
+                                                        height: '112px',
                                                         backgroundColor: '#ffffff',
-                                                        borderBottom: '1px solid #EEECE4',
+                                                        borderBottom: '1px solid #f1f5f9',
                                                         display: 'flex',
                                                         alignItems: 'center',
                                                         justifyContent: 'center',
@@ -1845,7 +1845,7 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                         />
                                                     ) : (
                                                         <div className="flex align-items-center justify-content-center text-slate-300">
-                                                            <ShoppingBag size={28} strokeWidth={1.4} />
+                                                            <ShoppingBag size={28} strokeWidth={1.5} />
                                                         </div>
                                                     )}
 
@@ -1860,39 +1860,45 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                                 color: '#ffffff',
                                                                 fontSize: '10px',
                                                                 fontWeight: 700,
-                                                                padding: '2px 6px',
+                                                                padding: '2px 7px',
                                                                 borderRadius: '6px',
                                                                 display: 'flex',
                                                                 alignItems: 'center',
-                                                                gap: '2px',
-                                                                boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
+                                                                gap: '3px',
+                                                                boxShadow: '0 1px 4px rgba(12,143,98,0.35)'
                                                             }}
                                                         >
-                                                            <i className="pi pi-check" style={{ fontSize: '8px' }} />
+                                                            <CheckCircle2 size={11} strokeWidth={2.5} />
                                                             <span>x{selectedQty}</span>
                                                         </div>
                                                     )}
                                                 </div>
 
-                                                {/* Info Produk (padding 10px 12px) */}
-                                                <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: '4px', flex: 1, justifyContent: 'space-between' }}>
+                                                {/* Info Produk */}
+                                                <div style={{ padding: '10px 10px 8px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', flex: 1 }}>
                                                     <div>
-                                                        {/* Baris 1: Nama di kiri, Badge Kategori di kanan */}
-                                                        <div className="flex align-items-start justify-content-between gap-1 mb-1">
-                                                            <span
-                                                                style={{
-                                                                    fontWeight: 600,
-                                                                    fontSize: '13px',
-                                                                    color: '#1A1916',
-                                                                    lineHeight: 1.25,
-                                                                    display: '-webkit-box',
-                                                                    WebkitLineClamp: 2,
-                                                                    WebkitBoxOrient: 'vertical',
-                                                                    overflow: 'hidden'
-                                                                }}
-                                                                title={prod.nama}
-                                                            >
-                                                                {prod.nama}
+                                                        {/* Baris 1: Nama Produk (minHeight untuk keseragaman tinggi) */}
+                                                        <div
+                                                            style={{
+                                                                fontWeight: 600,
+                                                                fontSize: '12.5px',
+                                                                color: '#1e293b',
+                                                                lineHeight: 1.3,
+                                                                minHeight: '33px',
+                                                                display: '-webkit-box',
+                                                                WebkitLineClamp: 2,
+                                                                WebkitBoxOrient: 'vertical',
+                                                                overflow: 'hidden'
+                                                            }}
+                                                            title={prod.nama}
+                                                        >
+                                                            {prod.nama}
+                                                        </div>
+
+                                                        {/* Baris 2: SKU & Kategori rapat dengan nama */}
+                                                        <div className="flex align-items-center justify-content-between gap-1 mt-1">
+                                                            <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                                                                {prod.kode_produk}
                                                             </span>
                                                             {prod.nama_kategori && (
                                                                 <span
@@ -1900,10 +1906,10 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                                         backgroundColor: '#ffffff',
                                                                         border: `1px solid ${badgeStyle.borderColor}`,
                                                                         color: badgeStyle.color,
-                                                                        fontSize: '10px',
+                                                                        fontSize: '9.5px',
                                                                         fontWeight: 600,
-                                                                        padding: '2px 7px',
-                                                                        borderRadius: '6px',
+                                                                        padding: '1px 5px',
+                                                                        borderRadius: '4px',
                                                                         whiteSpace: 'nowrap',
                                                                         flexShrink: 0,
                                                                         lineHeight: 1.2
@@ -1913,20 +1919,15 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                                 </span>
                                                             )}
                                                         </div>
-
-                                                        {/* Baris 2: SKU */}
-                                                        <div style={{ fontSize: '11px', color: '#8A8778' }}>
-                                                            {prod.kode_produk}
-                                                        </div>
                                                     </div>
 
-                                                    {/* Baris 3: Harga + /pcs dan Tombol Bulat + */}
-                                                    <div className="flex align-items-center justify-content-between pt-2 mt-1" style={{ borderTop: '1px solid #EEECE4' }}>
-                                                        <div className="flex align-items-baseline gap-1">
-                                                            <span style={{ fontWeight: 600, fontSize: '13px', color: '#1A1916' }}>
+                                                    {/* Baris 3: Harga & Tombol + Sejajar */}
+                                                    <div className="flex align-items-center justify-content-between pt-2 mt-2" style={{ borderTop: '1px solid #f1f5f9' }}>
+                                                        <div className="flex align-items-baseline gap-1 min-w-0">
+                                                            <span style={{ fontWeight: 700, fontSize: '12.5px', color: '#0f172a' }}>
                                                                 {formatRupiah(prod.harga_jual)}
                                                             </span>
-                                                            <span style={{ fontSize: '11px', color: '#8A8778' }}>
+                                                            <span style={{ fontSize: '10.5px', color: '#94a3b8' }}>
                                                                 /{prod.satuan || 'pcs'}
                                                             </span>
                                                         </div>
@@ -1937,7 +1938,7 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                                 e.stopPropagation();
                                                                 handleDraftAddProduk(prod);
                                                             }}
-                                                            className="flex align-items-center justify-content-center cursor-pointer transition-transform active:scale-95"
+                                                            className="flex align-items-center justify-content-center cursor-pointer transition-transform active:scale-95 flex-shrink-0"
                                                             style={{
                                                                 width: '26px',
                                                                 height: '26px',
@@ -1945,7 +1946,6 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                                 backgroundColor: '#0C8F62',
                                                                 border: 'none',
                                                                 color: '#ffffff',
-                                                                flexShrink: 0,
                                                                 boxShadow: '0 1px 3px rgba(12,143,98,0.3)'
                                                             }}
                                                             title="Tambah ke produk terpilih"
@@ -1963,56 +1963,54 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                     </div>
 
                     {/* KOLOM KANAN: PRODUK TERPILIH */}
-                    <div className="col-12 lg:col-5 flex flex-column gap-2 lg:pl-3">
+                    <div className="col-12 lg:col-5 p-0 flex flex-column lg:pl-3">
                         <div
                             style={{
-                                backgroundColor: '#ffffff',
-                                border: '1px solid #E3E2DC',
+                                backgroundColor: '#f8fafc',
+                                border: '1px solid #e2e8f0',
                                 borderRadius: '12px',
-                                padding: '14px',
-                                height: '100%',
+                                padding: '8px 14px 12px 14px',
+                                height: '508px',
                                 display: 'flex',
                                 flexDirection: 'column',
-                                justifyContent: 'space-between',
-                                minHeight: '480px'
+                                justifyContent: 'space-between'
                             }}
                         >
                             {/* Header Panel */}
-                            <div>
-                                <div className="flex align-items-center pb-2.5 mb-2.5" style={{ borderBottom: '1px solid #EEECE4', gap: '8px' }}>
-                                    <ShoppingBag size={16} color="#0C8F62" className="flex-shrink-0" />
-                                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#1A1916', letterSpacing: '0.3px', textTransform: 'uppercase' }}>
-                                        PRODUK TERPILIH ({draftProdukList.length})
-                                    </span>
-                                </div>
+                            <div className="flex align-items-center pb-2" style={{ borderBottom: '1px solid #e2e8f0', gap: '8px' }}>
+                                <ShoppingBag size={15} color="#0C8F62" className="flex-shrink-0" />
+                                <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#1e293b', letterSpacing: '0.4px', textTransform: 'uppercase' }}>
+                                    PRODUK TERPILIH ({draftProdukList.length})
+                                </span>
+                            </div>
 
-                                {/* List Item Terpilih / Empty State */}
+                            {/* List Item Terpilih / Empty State */}
+                            <div className="flex-1 flex flex-column overflow-hidden mt-2">
                                 {draftProdukList.length === 0 ? (
-                                    <div className="flex flex-column align-items-center justify-content-center text-center py-6" style={{ minHeight: '280px' }}>
+                                    <div className="flex flex-column align-items-center justify-content-center text-center h-full py-4">
                                         <div
-                                            className="flex align-items-center justify-content-center mb-3"
+                                            className="flex align-items-center justify-content-center mb-2.5"
                                             style={{
-                                                width: '46px',
-                                                height: '46px',
-                                                borderRadius: '12px',
+                                                width: '42px',
+                                                height: '42px',
+                                                borderRadius: '10px',
                                                 backgroundColor: '#ffffff',
-                                                border: '1px solid #E3E2DC',
-                                                color: '#A3A093'
+                                                border: '1px solid #e2e8f0',
+                                                color: '#94a3b8'
                                             }}
                                         >
-                                            <ShoppingBag size={22} strokeWidth={1.6} />
+                                            <ShoppingBag size={20} strokeWidth={1.5} />
                                         </div>
-                                        <div style={{ fontWeight: 600, fontSize: '13px', color: '#1A1916', marginBottom: '4px' }}>
+                                        <div style={{ fontWeight: 600, fontSize: '13px', color: '#1e293b', marginBottom: '3px' }}>
                                             Belum ada produk dipilih
                                         </div>
-                                        <div style={{ fontSize: '11px', color: '#8A8778', maxWidth: '240px', lineHeight: 1.4 }}>
+                                        <div style={{ fontSize: '11px', color: '#64748b', maxWidth: '210px', lineHeight: 1.4 }}>
                                             Klik ikon + pada produk di katalog kiri untuk menambahkannya ke sini.
                                         </div>
                                     </div>
                                 ) : (
                                     <div
-                                        className="flex flex-column gap-2 overflow-y-auto pr-1 custom-thin-scrollbar"
-                                        style={{ maxHeight: '310px' }}
+                                        className="flex flex-column gap-1.5 overflow-y-auto pr-1 custom-thin-scrollbar h-full"
                                     >
                                         {draftProdukList.map((item) => {
                                             const itemSubtotal = item.qty * item.harga_jual;
@@ -2022,19 +2020,19 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                     className="flex align-items-center justify-content-between gap-2 transition-all"
                                                     style={{
                                                         backgroundColor: '#ffffff',
-                                                        border: '1px solid #E3E2DC',
-                                                        borderRadius: '10px',
-                                                        padding: '8px 10px'
+                                                        border: '1px solid #e2e8f0',
+                                                        borderRadius: '8px',
+                                                        padding: '6px 8px'
                                                     }}
                                                 >
                                                     {/* Thumbnail Foto */}
                                                     <div
                                                         className="flex-shrink-0 flex align-items-center justify-content-center"
                                                         style={{
-                                                            width: '36px',
-                                                            height: '36px',
-                                                            borderRadius: '8px',
-                                                            border: '1px solid #EEECE4',
+                                                            width: '32px',
+                                                            height: '32px',
+                                                            borderRadius: '6px',
+                                                            border: '1px solid #f1f5f9',
                                                             backgroundColor: '#ffffff',
                                                             overflow: 'hidden',
                                                             padding: '2px'
@@ -2050,23 +2048,22 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                                 }}
                                                             />
                                                         ) : (
-                                                            <ShoppingBag size={16} color="#0C8F62" style={{ opacity: 0.6 }} />
+                                                            <ShoppingBag size={15} color="#0C8F62" style={{ opacity: 0.6 }} />
                                                         )}
                                                     </div>
 
                                                     {/* Info: Nama & Satuan */}
                                                     <div className="flex-1 min-w-0 flex flex-column gap-0.5 justify-content-center">
-                                                        <div className="flex align-items-center gap-1.5 flex-wrap">
+                                                        <div className="flex align-items-center gap-1.5">
                                                             <span
                                                                 style={{
                                                                     fontWeight: 600,
                                                                     fontSize: '12px',
-                                                                    color: '#1A1916',
-                                                                    lineHeight: 1.3,
+                                                                    color: '#1e293b',
+                                                                    lineHeight: 1.25,
                                                                     whiteSpace: 'nowrap',
                                                                     overflow: 'hidden',
-                                                                    textOverflow: 'ellipsis',
-                                                                    maxWidth: '120px'
+                                                                    textOverflow: 'ellipsis'
                                                                 }}
                                                                 title={item.nama}
                                                             >
@@ -2077,18 +2074,19 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                                     style={{
                                                                         fontSize: '9px',
                                                                         fontWeight: 700,
-                                                                        padding: '1px 5px',
-                                                                        borderRadius: '4px',
+                                                                        padding: '1px 4px',
+                                                                        borderRadius: '3px',
                                                                         backgroundColor: '#FEF3C7',
                                                                         color: '#B45309',
-                                                                        border: '1px solid #FDE68A'
+                                                                        border: '1px solid #FDE68A',
+                                                                        flexShrink: 0
                                                                     }}
                                                                 >
                                                                     Resep
                                                                 </span>
                                                             )}
                                                         </div>
-                                                        <div style={{ fontSize: '11px', color: '#8A8778' }}>
+                                                        <div style={{ fontSize: '10.5px', color: '#64748b' }}>
                                                             {formatRupiah(item.harga_jual)} / {item.satuan || 'pcs'}
                                                         </div>
                                                     </div>
@@ -2100,13 +2098,13 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                             onClick={() => handleDraftUpdateQty(item.kode_produk, -1)}
                                                             className="flex align-items-center justify-content-center cursor-pointer transition-colors"
                                                             style={{
-                                                                width: '22px',
-                                                                height: '22px',
-                                                                borderRadius: '6px',
-                                                                border: '1px solid #DAD7CC',
+                                                                width: '20px',
+                                                                height: '20px',
+                                                                borderRadius: '5px',
+                                                                border: '1px solid #cbd5e1',
                                                                 backgroundColor: '#ffffff',
-                                                                color: '#4A473E',
-                                                                fontSize: '12px',
+                                                                color: '#475569',
+                                                                fontSize: '11px',
                                                                 fontWeight: 700
                                                             }}
                                                             title="Kurangi kuantitas"
@@ -2116,9 +2114,9 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                         <span
                                                             style={{
                                                                 fontWeight: 700,
-                                                                fontSize: '12px',
-                                                                color: '#1A1916',
-                                                                minWidth: '20px',
+                                                                fontSize: '11.5px',
+                                                                color: '#0f172a',
+                                                                minWidth: '18px',
                                                                 textAlign: 'center'
                                                             }}
                                                         >
@@ -2129,13 +2127,13 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                             onClick={() => handleDraftUpdateQty(item.kode_produk, 1)}
                                                             className="flex align-items-center justify-content-center cursor-pointer transition-colors"
                                                             style={{
-                                                                width: '22px',
-                                                                height: '22px',
-                                                                borderRadius: '6px',
+                                                                width: '20px',
+                                                                height: '20px',
+                                                                borderRadius: '5px',
                                                                 border: 'none',
                                                                 backgroundColor: '#0C8F62',
                                                                 color: '#ffffff',
-                                                                fontSize: '12px',
+                                                                fontSize: '11px',
                                                                 fontWeight: 700
                                                             }}
                                                             title="Tambah kuantitas"
@@ -2145,8 +2143,8 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                     </div>
 
                                                     {/* Subtotal Item */}
-                                                    <div className="text-right flex-shrink-0" style={{ minWidth: '70px' }}>
-                                                        <span style={{ fontWeight: 600, fontSize: '12px', color: '#1A1916' }}>
+                                                    <div className="text-right flex-shrink-0" style={{ minWidth: '66px' }}>
+                                                        <span style={{ fontWeight: 600, fontSize: '11.5px', color: '#0f172a' }}>
                                                             {formatRupiah(itemSubtotal)}
                                                         </span>
                                                     </div>
@@ -2155,10 +2153,10 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                     <button
                                                         type="button"
                                                         onClick={() => handleDraftRemoveProduk(item.kode_produk)}
-                                                        className="border-none bg-transparent cursor-pointer p-1 flex-shrink-0 text-slate-400 hover:text-red-500 transition-colors flex align-items-center justify-content-center"
+                                                        className="border-none bg-transparent cursor-pointer p-0.5 flex-shrink-0 text-slate-400 hover:text-red-500 transition-colors flex align-items-center justify-content-center"
                                                         title="Hapus produk"
                                                     >
-                                                        <X size={15} />
+                                                        <X size={14} />
                                                     </button>
                                                 </div>
                                             );
@@ -2168,14 +2166,14 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                             </div>
 
                             {/* Ringkasan Bawah Panel */}
-                            <div style={{ borderTop: '1px dashed #DAD7CC', paddingTop: '12px', marginTop: '12px' }}>
-                                <div className="flex align-items-center justify-content-between mb-1" style={{ fontSize: '12px', color: '#4A473E' }}>
+                            <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '10px', marginTop: '10px' }}>
+                                <div className="flex align-items-center justify-content-between mb-1" style={{ fontSize: '11.5px', color: '#64748b' }}>
                                     <span>Total item</span>
-                                    <span>{draftTotalQty} item · {draftProdukList.length} jenis</span>
+                                    <span style={{ fontWeight: 600, color: '#334155' }}>{draftTotalQty} item</span>
                                 </div>
                                 <div className="flex align-items-center justify-content-between">
-                                    <span style={{ fontWeight: 700, fontSize: '13px', color: '#1A1916' }}>Subtotal produk</span>
-                                    <span style={{ fontWeight: 700, fontSize: '15px', color: '#1A1916' }}>{formatRupiah(draftGrandTotal)}</span>
+                                    <span style={{ fontWeight: 600, fontSize: '12.5px', color: '#1e293b' }}>Subtotal produk</span>
+                                    <span style={{ fontWeight: 700, fontSize: '15px', color: '#0C8F62' }}>{formatRupiah(draftGrandTotal)}</span>
                                 </div>
                             </div>
                         </div>
