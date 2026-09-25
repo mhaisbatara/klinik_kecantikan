@@ -225,12 +225,18 @@ export const GridPanggilLayanan = ({
 
     const handleReset = () => {
         confirmDialog({
+            style: { width: '420px', maxWidth: '92vw' },
             message: (
-                <div className="flex flex-column align-items-center text-center gap-3 py-2">
-                    <i className="pi pi-refresh text-orange-500 text-5xl" />
+                <div className="flex flex-column align-items-center text-center gap-3 py-1">
+                    <div
+                        className="w-3rem h-3rem border-round-circle flex align-items-center justify-content-center shadow-1"
+                        style={{ backgroundColor: '#fff7ed', color: '#ea580c' }}
+                    >
+                        <i className="pi pi-refresh text-2xl font-bold text-orange-600" />
+                    </div>
                     <div>
-                        <h3 className="font-bold text-xl mb-1">Reset Antrean Layanan Hari Ini?</h3>
-                        <p className="text-color-secondary text-sm">
+                        <h3 className="font-bold text-lg mb-1 text-900">Reset Antrean Layanan Hari Ini?</h3>
+                        <p className="text-color-secondary text-xs m-0 line-height-3">
                             Seluruh status antrean layanan & paket pasien hari ini akan dikembalikan ke status &quot;Menunggu&quot;.
                         </p>
                     </div>
@@ -239,8 +245,8 @@ export const GridPanggilLayanan = ({
             header: 'Konfirmasi Reset Antrean',
             acceptLabel: 'Ya, Reset Semua',
             rejectLabel: 'Batal',
-            acceptClassName: 'p-button-warning',
-            rejectClassName: 'p-button-secondary p-button-outlined',
+            acceptClassName: 'p-button-warning p-button-sm font-bold',
+            rejectClassName: 'p-button-secondary p-button-outlined p-button-sm font-semibold',
             accept: async () => {
                 setState((p) => ({ ...p, loadGrid: true }));
                 try {
@@ -566,7 +572,7 @@ export const GridPanggilLayanan = ({
 
     return (
         <div className="flex flex-column gap-4">
-            <ConfirmDialog />
+            <ConfirmDialog style={{ width: '420px', maxWidth: '92vw' }} />
 
             {/* TOP GLOBAL TOOLBAR */}
             <div className="card shadow-1 border-round-xl p-4 mb-0">

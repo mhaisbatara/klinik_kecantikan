@@ -478,7 +478,7 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
 
     return (
         <div className="flex flex-column gap-3">
-            <ConfirmDialog />
+            <ConfirmDialog style={{ width: '420px', maxWidth: '92vw' }} />
 
             {/* TAMPILAN 1: SAAT BELUM ADA RUANGAN YANG DIPILIH */}
             {!selectedRuangan ? (

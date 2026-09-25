@@ -950,7 +950,9 @@ router.post("/antrian-layanan-pendaftaran-items", async (req, res) => {
       .leftJoin("mst_kategori_layanan as kl", "l.kode_kategori_layanan", "kl.kode_kategori_layanan")
       .leftJoin("mst_paket_layanan as p", "dal.kode_layanan", "p.kode_paket_layanan")
       .leftJoin("mst_ruangan as r_lay", "l.kode_ruangan", "r_lay.kode_ruangan")
-      .leftJoin("mst_ruangan as r_pkt", "p.kode_ruangan", "r_pkt.kode_ruangan");
+      .leftJoin("mst_ruangan as r_pkt", "p.kode_ruangan", "r_pkt.kode_ruangan")
+      .whereNotIn("dal.jenis_layanan", ["produk", "paket_produk", "product"])
+      .whereRaw("(dal.kode_layanan NOT LIKE 'PRD%' AND dal.kode_layanan NOT LIKE 'PKP%')");
 
     if (kode_kunjungan) {
       query = query.where("dal.kode_kunjungan", kode_kunjungan);

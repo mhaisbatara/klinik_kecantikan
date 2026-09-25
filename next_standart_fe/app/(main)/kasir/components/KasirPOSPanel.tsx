@@ -707,71 +707,80 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
                   key={`${item.jenis}_${item.kode}_${idx}`}
                   className="surface-card border-round-xl border-1 surface-border shadow-1 hover:shadow-2 transition-all flex align-items-center justify-content-between"
                   style={{
-                    padding: '16px',
-                    gap: '16px',
+                    padding: '12px 14px',
+                    gap: '12px',
                     boxSizing: 'border-box',
                   }}
                 >
                   {/* Kolom 1: Nama & Harga Satuan (Mengambil seluruh sisa ruang di kiri) */}
-                  <div className="flex-1 min-w-0 flex flex-column justify-content-center" style={{ gap: '4px' }}>
+                  <div className="flex-1 min-w-0 flex flex-column justify-content-center" style={{ gap: '3px' }}>
                     <span
-                      className="font-bold text-xs text-slate-900 line-height-2"
+                      className="font-bold text-xs text-slate-900 capitalize"
                       title={item.nama}
                       style={{
+                        lineHeight: '1.35',
                         display: '-webkit-box',
                         WebkitLineClamp: 2,
                         WebkitBoxOrient: 'vertical',
                         overflow: 'hidden',
-                        wordBreak: 'break-word',
+                        wordBreak: 'normal',
+                        overflowWrap: 'break-word',
                       }}
                     >
                       {item.nama}
                     </span>
-                    <div className="text-xs text-slate-500 font-medium">
-                      {formatRupiah(item.harga_satuan)} / {item.satuan || 'pcs'}
+                    <div className="text-[11px] text-slate-500 font-medium">
+                      {formatRupiah(item.harga_satuan)} / {item.satuan || (item.jenis === 'layanan' ? 'tindakan' : 'pcs')}
                     </div>
                   </div>
 
                   {/* Grup Kanan: Stepper + Harga + Hapus (Rapat di kanan) */}
                   <div className="flex align-items-center flex-shrink-0" style={{ gap: '8px' }}>
                     {/* Stepper Qty */}
-                    <div className="flex align-items-center justify-content-center flex-shrink-0" style={{ width: '80px' }}>
+                    <div className="flex align-items-center justify-content-center flex-shrink-0">
                       {!isReadOnly && item.jenis !== 'layanan' ? (
-                        <div className="flex align-items-center justify-content-between w-full bg-slate-100 p-1 border-round-lg border-1 surface-border">
+                        <div
+                          className="flex align-items-center justify-content-between bg-slate-100 p-0.5 border-round-lg border-1 surface-border"
+                          style={{ width: '76px' }}
+                        >
                           <button
+                            type="button"
                             onClick={() => updateQty(idx, item.qty - 1)}
-                            className="border-none bg-white hover:bg-slate-200 border-round-md font-bold cursor-pointer text-slate-700 shadow-1 flex align-items-center justify-content-center flex-shrink-0"
-                            style={{ width: '22px', height: '22px', fontSize: '11px', padding: 0 }}
+                            className="border-none bg-white hover:bg-slate-200 border-round font-bold cursor-pointer text-slate-700 shadow-1 flex align-items-center justify-content-center flex-shrink-0"
+                            style={{ width: '20px', height: '20px', fontSize: '11px', padding: 0 }}
                           >−</button>
-                          <span className="font-extrabold text-xs px-1 text-slate-900 text-center flex-1" style={{ minWidth: '16px' }}>
+                          <span className="font-extrabold text-xs px-1 text-slate-900 text-center flex-1">
                             {item.qty}
                           </span>
                           <button
+                            type="button"
                             onClick={() => updateQty(idx, item.qty + 1)}
-                            className="border-none bg-teal-600 hover:bg-teal-700 text-white border-round-md font-bold cursor-pointer shadow-1 flex align-items-center justify-content-center flex-shrink-0"
-                            style={{ width: '22px', height: '22px', fontSize: '11px', padding: 0 }}
+                            className="border-none bg-teal-600 hover:bg-teal-700 text-white border-round font-bold cursor-pointer shadow-1 flex align-items-center justify-content-center flex-shrink-0"
+                            style={{ width: '20px', height: '20px', fontSize: '11px', padding: 0 }}
                           >+</button>
                         </div>
                       ) : (
-                        <span className="font-extrabold text-xs text-slate-700">x{item.qty}</span>
+                        <span className="font-bold text-xs text-slate-600 bg-slate-100 border-1 border-slate-200 px-2 py-0.5 border-round">
+                          x{item.qty}
+                        </span>
                       )}
                     </div>
 
                     {/* Blok Harga & Tombol Hapus */}
-                    <div className="flex align-items-center justify-content-end flex-shrink-0" style={{ gap: '10px' }}>
+                    <div className="flex align-items-center justify-content-end flex-shrink-0" style={{ gap: '8px' }}>
                       {/* Blok Harga (Rata Kanan) */}
-                      <div className="text-right flex flex-column align-items-end justify-content-center" style={{ minWidth: '68px', whiteSpace: 'nowrap' }}>
+                      <div className="text-right flex flex-column align-items-end justify-content-center" style={{ minWidth: '70px', whiteSpace: 'nowrap' }}>
                         {diskonSubtotal > 0 ? (
-                          <div className="flex flex-column align-items-end" style={{ gap: '2px', lineHeight: 1.2 }}>
-                            <span className="text-slate-400 line-through font-medium" style={{ fontSize: '11px' }}>
+                          <div className="flex flex-column align-items-end" style={{ gap: '1px', lineHeight: 1.2 }}>
+                            <span className="text-slate-400 line-through font-medium text-[10px]">
                               {formatRupiah(item.subtotal)}
                             </span>
-                            <span className="font-semibold text-xs text-teal-700">
+                            <span className="font-bold text-xs text-teal-700">
                               {formatRupiah(subtotalSetelahDiskon)}
                             </span>
                           </div>
                         ) : (
-                          <span className="font-semibold text-xs text-teal-700" style={{ lineHeight: 1.2 }}>
+                          <span className="font-bold text-xs text-teal-700" style={{ lineHeight: 1.2 }}>
                             {formatRupiah(item.subtotal)}
                           </span>
                         )}
@@ -780,15 +789,16 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
                       {/* Tombol Hapus / Spacer agar sejajar vertikal antar kartu */}
                       {!isReadOnly && item.jenis !== 'layanan' ? (
                         <button
+                          type="button"
                           onClick={() => removeItem(idx)}
                           className="border-none bg-transparent cursor-pointer text-slate-400 hover:text-red-600 p-0 flex align-items-center justify-content-center flex-shrink-0 transition-colors"
-                          style={{ width: '24px', height: '24px' }}
+                          style={{ width: '20px', height: '20px' }}
                           title="Hapus Item"
                         >
                           <i className="pi pi-trash text-xs" />
                         </button>
                       ) : !isReadOnly ? (
-                        <div style={{ width: '24px', height: '24px' }} className="flex-shrink-0" />
+                        <div style={{ width: '20px', height: '20px' }} className="flex-shrink-0" />
                       ) : null}
                     </div>
                   </div>

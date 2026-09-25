@@ -208,6 +208,17 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
         }
     };
 
+    const filterOnlyLayanan = (items: any[]) => {
+        if (!Array.isArray(items)) return [];
+        return items.filter((item: any) => {
+            const jenis = (item.jenis || item.jenis_layanan || item.tipe || '').toLowerCase();
+            const kode = (item.kode || item.kode_layanan || item.kode_produk || '').toUpperCase();
+            if (jenis.includes('produk') || jenis.includes('product')) return false;
+            if (kode.startsWith('PRD-') || kode.startsWith('PKP-')) return false;
+            return true;
+        });
+    };
+
     const loadLayananPasien = async (kodeKunjungan: string) => {
         setLoadingLayanan(true);
         try {
@@ -216,20 +227,20 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
             });
             if (['00', '0000', 200, '200'].includes(res.data?.status) || res.status === 200) {
                 if (res.data?.data?.length > 0) {
-                    setLayananPasienList(res.data.data);
+                    setLayananPasienList(filterOnlyLayanan(res.data.data));
                 } else if ((activePatient as any)?.details && (activePatient as any).details.length > 0) {
-                    setLayananPasienList((activePatient as any).details);
+                    setLayananPasienList(filterOnlyLayanan((activePatient as any).details));
                 } else {
                     setLayananPasienList([]);
                 }
             } else if ((activePatient as any)?.details && (activePatient as any).details.length > 0) {
-                setLayananPasienList((activePatient as any).details);
+                setLayananPasienList(filterOnlyLayanan((activePatient as any).details));
             } else {
                 setLayananPasienList([]);
             }
         } catch (_) {
             if ((activePatient as any)?.details && (activePatient as any).details.length > 0) {
-                setLayananPasienList((activePatient as any).details);
+                setLayananPasienList(filterOnlyLayanan((activePatient as any).details));
             } else {
                 setLayananPasienList([]);
             }
@@ -1034,67 +1045,111 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                         return (
                                             <div
                                                 key={item.kode_produk}
-                                                className="surface-card p-2.5 border-round-xl border-1 surface-border shadow-1 hover:shadow-2 transition-all flex align-items-center justify-content-between gap-3"
+                                                className="treatment-summary-card surface-card border-1 surface-border p-3 flex flex-column sm:flex-row sm:align-items-center justify-content-between gap-2"
+                                                style={{
+                                                    borderRadius: '13px',
+                                                    boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+                                                    transition: 'all 0.2s ease'
+                                                }}
                                             >
-                                                {/* Thumbnail Foto Produk */}
-                                                <div
-                                                    className="flex-shrink-0 border-round-lg overflow-hidden border-1 surface-border flex align-items-center justify-content-center bg-slate-50"
-                                                    style={{ width: '38px', height: '38px' }}
-                                                >
-                                                    {item.foto ? (
-                                                        <img
-                                                            src={item.foto}
-                                                            alt={item.nama}
-                                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                                            onError={(e) => {
-                                                                (e.target as HTMLElement).style.display = 'none';
-                                                            }}
-                                                        />
-                                                    ) : (
-                                                        <ShoppingBag size={16} className="text-teal-600 opacity-60" />
-                                                    )}
-                                                </div>
-
-                                                {/* Item Info (Nama, Kode & Harga Satuan) */}
-                                                <div className="flex-1 min-w-0 flex flex-column justify-content-center" style={{ gap: '2px' }}>
-                                                    <div className="flex align-items-center flex-wrap" style={{ gap: '6px' }}>
-                                                        <span className="font-bold text-xs text-slate-900 truncate" style={{ lineHeight: '1.3' }} title={item.nama}>
-                                                            {item.nama}
-                                                        </span>
-                                                        <span className="text-[10px] text-slate-400 font-mono" style={{ lineHeight: 1 }}>
-                                                            {item.kode_produk}
-                                                        </span>
-                                                        {item.is_rekomendasi_dokter && (
-                                                            <span
-                                                                className="text-[10px] font-bold bg-amber-50 text-amber-700 border-1 border-amber-200"
-                                                                style={{ borderRadius: '4px', padding: '1px 5px', lineHeight: 1 }}
-                                                            >
-                                                                Resep Dokter
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <div className="text-xs text-slate-500 font-medium" style={{ lineHeight: '1.2' }}>
-                                                        {formatRupiah(item.harga_jual)} / {item.satuan || 'pcs'}
-                                                    </div>
-                                                </div>
-
-                                                {/* Status Terkunci di Tampilan Utama: Read-only Qty & Subtotal */}
-                                                <div className="flex align-items-center gap-3 flex-shrink-0">
-                                                    <span
-                                                        className="text-[11px] font-bold text-teal-700 bg-teal-50 border-1 border-teal-200 inline-flex align-items-center justify-content-center flex-shrink-0"
+                                                {/* Sisi Kiri: Foto/Ikon, Nama Produk, Kode, Badge Resep, Harga Satuan */}
+                                                <div className="flex align-items-center min-w-0" style={{ gap: '10px' }}>
+                                                    {/* Thumbnail Foto / Ikon Produk */}
+                                                    <div
+                                                        className="flex align-items-center justify-content-center flex-shrink-0"
                                                         style={{
-                                                            height: '22px',
-                                                            padding: '0 8px',
-                                                            borderRadius: '6px',
-                                                            whiteSpace: 'nowrap',
-                                                            lineHeight: 1
+                                                            width: '36px',
+                                                            height: '36px',
+                                                            minWidth: '36px',
+                                                            minHeight: '36px',
+                                                            borderRadius: '10px',
+                                                            background: '#f0fdfa',
+                                                            border: '1px solid #ccfbf1',
+                                                            color: '#0f766e',
+                                                            overflow: 'hidden'
                                                         }}
                                                     >
-                                                        {item.qty} {item.satuan || 'pcs'}
-                                                    </span>
-                                                    <div className="text-right flex-shrink-0 flex flex-column justify-content-center" style={{ minWidth: '85px' }}>
-                                                        <div className="font-bold text-xs text-teal-700" style={{ lineHeight: '1.3' }}>{formatRupiah(subtotal)}</div>
+                                                        {item.foto ? (
+                                                            <img
+                                                                src={item.foto}
+                                                                alt={item.nama}
+                                                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                                                onError={(e) => {
+                                                                    (e.target as HTMLElement).style.display = 'none';
+                                                                }}
+                                                            />
+                                                        ) : (
+                                                            <ShoppingBag size={18} className="text-teal-600" />
+                                                        )}
                                                     </div>
+
+                                                    {/* Info Produk (Nama, Kode, Resep Dokter, Harga Satuan) */}
+                                                    <div className="min-w-0 flex flex-column justify-content-center" style={{ gap: '3px' }}>
+                                                        <div className="flex align-items-center flex-wrap" style={{ gap: '6px' }}>
+                                                            <span
+                                                                className="font-bold text-xs text-900 block overflow-hidden text-ellipsis white-space-nowrap"
+                                                                style={{ lineHeight: '1.3' }}
+                                                                title={item.nama}
+                                                            >
+                                                                {item.nama}
+                                                            </span>
+                                                            <span
+                                                                className="text-[10px] text-500 font-mono"
+                                                                style={{
+                                                                    backgroundColor: '#f1f5f9',
+                                                                    border: '1px solid #e2e8f0',
+                                                                    borderRadius: '4px',
+                                                                    padding: '1px 5px',
+                                                                    lineHeight: 1
+                                                                }}
+                                                            >
+                                                                {item.kode_produk}
+                                                            </span>
+                                                            {item.is_rekomendasi_dokter && (
+                                                                <span
+                                                                    className="text-[10px] font-bold inline-flex align-items-center"
+                                                                    style={{
+                                                                        backgroundColor: '#f0fdfa',
+                                                                        color: '#0f766e',
+                                                                        border: '1px solid #99f6e4',
+                                                                        borderRadius: '4px',
+                                                                        padding: '1.5px 6px',
+                                                                        gap: '3px',
+                                                                        lineHeight: 1
+                                                                    }}
+                                                                >
+                                                                    <i className="pi pi-check text-[9px] font-bold" />
+                                                                    Resep Dokter
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <span
+                                                            className="text-[11px] text-500 font-medium block"
+                                                            style={{ lineHeight: '1.2' }}
+                                                        >
+                                                            {formatRupiah(item.harga_jual)} / {item.satuan || 'Pcs'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Sisi Kanan: Subtotal & Badge Qty */}
+                                                <div className="text-left sm:text-right pl-5 sm:pl-0 flex flex-column sm:align-items-end justify-content-center" style={{ gap: '3px' }}>
+                                                    <span className="font-black text-xs text-teal-800 block" style={{ lineHeight: '1.3' }}>
+                                                        {formatRupiah(subtotal)}
+                                                    </span>
+                                                    <span
+                                                        className="text-[10px] font-bold text-teal-700 inline-flex align-items-center justify-content-center"
+                                                        style={{
+                                                            backgroundColor: '#ccfbf1',
+                                                            border: '1px solid #99f6e4',
+                                                            borderRadius: '6px',
+                                                            padding: '2px 8px',
+                                                            lineHeight: 1,
+                                                            width: 'fit-content'
+                                                        }}
+                                                    >
+                                                        {item.qty} {item.satuan || 'Pcs'}
+                                                    </span>
                                                 </div>
                                             </div>
                                         );
