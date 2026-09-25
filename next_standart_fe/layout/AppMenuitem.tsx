@@ -69,11 +69,19 @@ const AppMenuitem = (props: AppMenuItemProps) => {
     const { activeMenu, setActiveMenu } = useContext(MenuContext);
     const item = props.item;
     const key = props.parentKey ? props.parentKey + '-' + props.index : String(props.index);
-    const isActiveRoute = item!.to && pathname === item!.to;
+    const typeParam = searchParams.get('type') || '';
+    const isActiveRoute =
+        item!.to &&
+        (item!.to === '/pendaftaran-antrean/antrean'
+            ? pathname === '/pendaftaran-antrean/antrean' && !typeParam
+            : pathname === item!.to);
     const active = true;
 
     const onRouteChange = (url: string) => {
         if (item!.to && item!.to === url) {
+            if (item!.to === '/pendaftaran-antrean/antrean' && typeParam) {
+                return;
+            }
             setActiveMenu(key);
         }
     };

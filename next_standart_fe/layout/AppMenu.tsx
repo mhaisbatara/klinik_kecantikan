@@ -234,6 +234,114 @@ const AppMenu = () => {
                         .map(transformItem);
 
                     const groupLabel = (newItem.label || '').toLowerCase();
+                    if (groupLabel === 'home' || groupLabel.includes('dashboard') || groupLabel === 'beranda') {
+                        const currentRole = (session?.user?.role || '').toLowerCase();
+                        const isSuperAdminRole = currentRole === 'superadmin';
+                        const isOwnerOrManager = currentRole === 'owner' || currentRole === 'manager';
+                        const canAccessDashboardRuangan =
+                            !isSuperAdminRole &&
+                            (isOwnerOrManager ||
+                                userAllowedPaths.has('/pendaftaran-antrean/antrean') ||
+                                (userAllowedPaths.size === 0 && ['beautician', 'dokter'].includes(currentRole)));
+
+                        if (canAccessDashboardRuangan) {
+                            const dashboardRuanganItem: AppMenuItem = {
+                                label: 'Dashboard Ruangan',
+                                to: '/pendaftaran-antrean/antrean',
+                                icon: 'pi pi-fw pi-home',
+                            };
+                            const hasDashboardRuangan = subItems.some(
+                                (it) =>
+                                    it.to === '/pendaftaran-antrean/antrean' ||
+                                    (it.label || '').toLowerCase().includes('dashboard ruangan') ||
+                                    (it.label || '').toLowerCase().includes('antrean ruangan')
+                            );
+
+                            if (!hasDashboardRuangan) {
+                                const dashIdx = subItems.findIndex(
+                                    (it) => it.to === '/dashboard' || (it.label || '').toLowerCase() === 'dashboard'
+                                );
+                                if (dashIdx !== -1) {
+                                    subItems.splice(dashIdx + 1, 0, dashboardRuanganItem);
+                                } else {
+                                    subItems.push(dashboardRuanganItem);
+                                }
+                            } else {
+                                subItems = subItems.map((it) => {
+                                    if (
+                                        it.to === '/pendaftaran-antrean/antrean' ||
+                                        (it.label || '').toLowerCase().includes('dashboard ruangan') ||
+                                        (it.label || '').toLowerCase().includes('antrean ruangan')
+                                    ) {
+                                        return {
+                                            ...it,
+                                            label: 'Dashboard Ruangan',
+                                            to: '/pendaftaran-antrean/antrean',
+                                            icon: 'pi pi-fw pi-home',
+                                        };
+                                    }
+                                    return it;
+                                });
+                            }
+                        }
+
+                        // Dashboard Jadwal (Di bawah Dashboard Ruangan)
+                        const canAccessCekJadwal = !isSuperAdminRole;
+                        if (canAccessCekJadwal) {
+                            const cekJadwalItem: AppMenuItem = {
+                                label: 'Dashboard Jadwal',
+                                to: '/dashboard/jadwal-ruangan',
+                                icon: 'pi pi-fw pi-home',
+                            };
+                            const hasCekJadwal = subItems.some(
+                                (it) =>
+                                    it.to === '/dashboard/jadwal-ruangan' ||
+                                    (it.label || '').toLowerCase().includes('cek jadwal') ||
+                                    (it.label || '').toLowerCase().includes('jadwal ruangan') ||
+                                    (it.label || '').toLowerCase().includes('dashboard jadwal') ||
+                                    (it.label || '').toLowerCase().includes('jadwal karyawan')
+                            );
+
+                            if (!hasCekJadwal) {
+                                const dashRuangIdx = subItems.findIndex(
+                                    (it) =>
+                                        it.to === '/pendaftaran-antrean/antrean' ||
+                                        (it.label || '').toLowerCase().includes('dashboard ruangan')
+                                );
+                                if (dashRuangIdx !== -1) {
+                                    subItems.splice(dashRuangIdx + 1, 0, cekJadwalItem);
+                                } else {
+                                    const dashIdx = subItems.findIndex(
+                                        (it) => it.to === '/dashboard' || (it.label || '').toLowerCase() === 'dashboard'
+                                    );
+                                    if (dashIdx !== -1) {
+                                        subItems.splice(dashIdx + 1, 0, cekJadwalItem);
+                                    } else {
+                                        subItems.push(cekJadwalItem);
+                                    }
+                                }
+                            } else {
+                                subItems = subItems.map((it) => {
+                                    if (
+                                        it.to === '/dashboard/jadwal-ruangan' ||
+                                        (it.label || '').toLowerCase().includes('cek jadwal') ||
+                                        (it.label || '').toLowerCase().includes('jadwal ruangan') ||
+                                        (it.label || '').toLowerCase().includes('dashboard jadwal') ||
+                                        (it.label || '').toLowerCase().includes('jadwal karyawan')
+                                    ) {
+                                        return {
+                                            ...it,
+                                            label: 'Dashboard Jadwal',
+                                            to: '/dashboard/jadwal-ruangan',
+                                            icon: 'pi pi-fw pi-home',
+                                        };
+                                    }
+                                    return it;
+                                });
+                            }
+                        }
+                    }
+
                     if (groupLabel.includes('pendaftaran') && groupLabel.includes('antrean')) {
                         const pasienBaruItem: AppMenuItem = {
                             label: 'Pasien Baru',
@@ -480,7 +588,11 @@ const AppMenu = () => {
                     {
                         label: 'HOME',
                         icon: 'pi pi-fw pi-home',
-                        items: [{ label: 'Dashboard', icon: 'pi pi-fw pi-home', to: '/dashboard' }]
+                        items: [
+                            { label: 'Dashboard', icon: 'pi pi-fw pi-home', to: '/dashboard' },
+                            { label: 'Dashboard Ruangan', icon: 'pi pi-fw pi-home', to: '/pendaftaran-antrean/antrean' },
+                            { label: 'Dashboard Jadwal', icon: 'pi pi-fw pi-home', to: '/dashboard/jadwal-ruangan' }
+                        ]
                     },
                     {
                         label: 'MASTER DATA',
@@ -702,13 +814,7 @@ const AppMenu = () => {
                                 hasAllowedPath('/pendaftaran-antrean/antrean?type=konsul') ||
                                 (state.allowedPaths.size === 0 && currentRole === 'dokter'));
 
-                        const canAccessAntreanRuangan =
-                            !isSuperAdminRole &&
-                            (isOwnerOrManager ||
-                                state.allowedPaths.has('/pendaftaran-antrean/antrean') ||
-                                (state.allowedPaths.size === 0 && ['beautician', 'dokter'].includes(currentRole)));
-
-                        const canAccessLayanan = canAccessTindakan || canAccessKonsul || canAccessAntreanRuangan;
+                        const canAccessLayanan = canAccessTindakan || canAccessKonsul;
 
                         const canAccessKasir =
                             !isSuperAdminRole &&
@@ -721,8 +827,7 @@ const AppMenu = () => {
                         const searchLower = state.searchVal.trim().toLowerCase();
                         const matchesTindakan = canAccessTindakan && (!searchLower || 'tindakan'.includes(searchLower) || 'layanan'.includes(searchLower));
                         const matchesKonsul = canAccessKonsul && (!searchLower || 'konsultasi'.includes(searchLower) || 'medis'.includes(searchLower));
-                        const matchesAntreanRuangan = canAccessAntreanRuangan && (!searchLower || 'antrean ruangan'.includes(searchLower) || 'antrean'.includes(searchLower) || 'ruangan'.includes(searchLower) || 'monitoring'.includes(searchLower));
-                        const showLayananSection = canAccessLayanan && (matchesTindakan || matchesKonsul || matchesAntreanRuangan);
+                        const showLayananSection = canAccessLayanan && (matchesTindakan || matchesKonsul);
                         const matchesKasir = canAccessKasir && (!searchLower || 'kasir'.includes(searchLower) || 'pembayaran'.includes(searchLower));
 
                         let idx = 0;
@@ -740,15 +845,13 @@ const AppMenu = () => {
                                 {/* Item Tambahan Lainnya (jika ada) */}
                                 {extraItems.map((item) => renderItem(item, idx++))}
 
-                                {/* 4. LAYANAN (Tindakan, Konsultasi, Antrean Ruangan) */}
+                                {/* 4. LAYANAN (Tindakan, Konsultasi) */}
                                 {showLayananSection && (
                                     <li className="layout-root-menuitem" key="layanan-ruangan-section">
                                         <div className="layout-menuitem-root-text">LAYANAN</div>
                                         <ul>
                                             {(() => {
                                                 const typeParam = searchParams.get('type') || '';
-                                                const isAntreanRuanganActive =
-                                                    pathname === '/pendaftaran-antrean/antrean' && !typeParam;
                                                 const isLayananActive =
                                                     pathname === '/pendaftaran-antrean/antrean' &&
                                                     typeParam === 'layanan';
@@ -803,31 +906,6 @@ const AppMenu = () => {
                                                                         }}
                                                                     >
                                                                         Konsultasi
-                                                                    </span>
-                                                                </Link>
-                                                            </li>
-                                                        )}
-
-                                                        {/* Sidebar Antrean Ruangan (Monitoring Antrean Seluruh Ruangan) */}
-                                                        {matchesAntreanRuangan && (
-                                                            <li className={isAntreanRuanganActive ? 'active-menuitem' : ''}>
-                                                                <Link
-                                                                    href="/pendaftaran-antrean/antrean"
-                                                                    className={`p-ripple flex align-items-center gap-2${isAntreanRuanganActive ? ' active-route' : ''}`}
-                                                                    style={{ padding: '0.75rem 1.25rem', borderRadius: '6px', transition: 'background 0.2s' }}
-                                                                >
-                                                                    <i
-                                                                        className="layout-menuitem-icon pi pi-calendar-times"
-                                                                        style={{ color: isAntreanRuanganActive ? 'var(--primary-color)' : undefined }}
-                                                                    />
-                                                                    <span
-                                                                        className="layout-menuitem-text"
-                                                                        style={{
-                                                                            fontWeight: isAntreanRuanganActive ? 700 : undefined,
-                                                                            color: isAntreanRuanganActive ? 'var(--primary-color)' : undefined,
-                                                                        }}
-                                                                    >
-                                                                        Antrean Ruangan
                                                                     </span>
                                                                 </Link>
                                                             </li>

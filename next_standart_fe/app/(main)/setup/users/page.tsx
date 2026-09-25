@@ -72,12 +72,20 @@ interface PermissionCategory {
 
 const AVAILABLE_MODULE_CATEGORIES: PermissionCategory[] = [
   {
+    category: 'Home & Dashboard',
+    icon: 'pi pi-home',
+    items: [
+      { id: 'dashboard', label: 'Dashboard Utama', to: '/dashboard', icon: 'pi pi-home', desc: 'Ringkasan statistik & performa operasional klinik' },
+      { id: 'antrean_ruangan', label: 'Dashboard Ruangan', to: '/pendaftaran-antrean/antrean', icon: 'pi pi-home', desc: 'Monitoring dan analisis antrean seluruh ruangan klinik' },
+      { id: 'cek_jadwal_ruangan', label: 'Dashboard Jadwal', to: '/dashboard/jadwal-ruangan', icon: 'pi pi-home', desc: 'Cek cepat jadwal shift kerja dokter & karyawan' },
+    ]
+  },
+  {
     category: 'Layanan & Tindakan',
     icon: 'pi pi-sparkles',
     items: [
       { id: 'tindakan', label: 'Tindakan Perawatan', to: '/pendaftaran-antrean/antrean?type=layanan', icon: 'pi pi-sparkles', desc: 'Antrean & pengerjaan tindakan ruangan estetika' },
       { id: 'konsul', label: 'Konsultasi Medis', to: '/pendaftaran-antrean/antrean?type=konsul', icon: 'pi pi-comments', desc: 'Antrean & konsultasi anamnesa dokter' },
-      { id: 'antrean_ruangan', label: 'Antrean Ruangan', to: '/pendaftaran-antrean/antrean', icon: 'pi pi-calendar-times', desc: 'Monitoring antrean seluruh ruangan klinik' },
     ]
   },
   {
