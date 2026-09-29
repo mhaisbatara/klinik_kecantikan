@@ -1578,69 +1578,7 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                                 </div>
                             )}
 
-                            {/* 2. DISPLAY PRODUK PILIHAN DOKTER KONSULTASI */}
-                            {resepProdukDokter.length > 0 && (
-                                <div className="p-3 border-round-xl border-1 surface-border bg-white shadow-xs">
-                                    <div className="flex align-items-center justify-content-between mb-3 pb-2 border-bottom-1 surface-border">
-                                        <div className="flex align-items-center gap-2">
-                                            <div className="w-2rem h-2rem border-round-md bg-amber-50 text-amber-600 flex align-items-center justify-content-center flex-shrink-0">
-                                                <i className="pi pi-shopping-bag text-sm" />
-                                            </div>
-                                            <div>
-                                                <span className="font-extrabold text-700 text-xs uppercase tracking-wider block">
-                                                    PRODUK &amp; RESEP PILIHAN DOKTER KONSULTASI
-                                                </span>
-                                                <span className="text-[11px] text-500">
-                                                    Direkomendasikan oleh dokter untuk pasien ini &amp; otomatis diteruskan ke kasir
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <Tag
-                                            severity="warning"
-                                            value={`${resepProdukDokter.length} Produk`}
-                                            icon="pi pi-sparkles"
-                                            className="text-xs font-bold px-2.5 py-1"
-                                        />
-                                    </div>
 
-                                    <div className="grid">
-                                        {resepProdukDokter.map((prod: any, idx: number) => {
-                                            const hrg = parseFloat(prod.harga || prod.harga_jual || 0);
-                                            const qty = parseInt(prod.qty || 1, 10);
-                                            const total = prod.subtotal ? parseFloat(prod.subtotal) : hrg * qty;
-                                            return (
-                                                <div key={idx} className="col-12 md:col-6 mb-2">
-                                                    <div className="p-2.5 border-round-lg border-1 border-amber-200 bg-amber-50/50 flex align-items-center justify-content-between gap-2">
-                                                        <div className="flex align-items-center gap-2.5 min-w-0">
-                                                            <div className="w-2.2rem h-2.2rem border-round-md bg-white border-1 border-amber-200 text-amber-700 flex align-items-center justify-content-center font-bold text-xs flex-shrink-0">
-                                                                <i className="pi pi-box text-sm" />
-                                                            </div>
-                                                            <div className="min-w-0">
-                                                                <span className="font-bold text-xs text-900 block truncate" title={prod.nama_produk || prod.nama}>
-                                                                    {prod.nama_produk || prod.nama}
-                                                                </span>
-                                                                <span className="text-[11px] text-600 block">
-                                                                    {prod.kode_produk} • {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(hrg)}
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                        <div className="text-right flex-shrink-0">
-                                                            <span className="inline-block bg-amber-600 text-white font-bold text-xs px-2 py-0.5 border-round-md">
-                                                                {qty} {prod.satuan || 'pcs'}
-                                                            </span>
-                                                            {total > 0 && (
-                                                                <span className="text-[10px] text-amber-900 font-bold block mt-0.5">
-                                                                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(total)}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            )}
 
                             {/* SECTION CATATAN PETUGAS / OBSERVASI RUANGAN */}
                             <div className="p-3 border-round-xl border-1 surface-border bg-white">

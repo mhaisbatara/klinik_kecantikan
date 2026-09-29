@@ -129,6 +129,19 @@ export const TabCetakAntrean: React.FC<TabCetakAntreanProps> = ({
     const dipanggil = state.gridData.filter((d) => d.status === 'dipanggil').length;
     const totalAktif = state.gridData.filter((d) => d.status !== 'nonaktif').length;
 
+    // Nomor aktif terurut untuk penamaan pool dinamis (cth: 01-10)
+    const activeNumbers = state.gridData
+        .filter((d) => d.status !== 'nonaktif')
+        .map((d) => d.no_antrian)
+        .sort((a, b) => {
+            const numA = parseInt(a.replace(/\D/g, '')) || 0;
+            const numB = parseInt(b.replace(/\D/g, '')) || 0;
+            return numA !== numB ? numA - numB : a.localeCompare(b);
+        });
+    const firstNo = activeNumbers.length > 0 ? activeNumbers[0] : '01';
+    const lastNo = activeNumbers.length > 0 ? activeNumbers[activeNumbers.length - 1] : `${totalAktif || 10}`;
+    const poolRangeText = activeNumbers.length > 0 ? `${firstNo}-${lastNo}` : `${totalAktif || 10}`;
+
     // Antrean yang sedang dipanggil saat ini di loket
     const currentDipanggil = state.gridData.find((d) => d.status === 'dipanggil');
 
@@ -519,13 +532,21 @@ export const TabCetakAntrean: React.FC<TabCetakAntreanProps> = ({
     // Handler Reset Seluruh Pool Antrean ke Status Tersedia
     const handleReset = () => {
         confirmDialog({
+            style: { width: '420px', maxWidth: '92vw' },
             message: (
-                <div className="flex flex-column align-items-center text-center gap-3 py-2">
-                    <i className="pi pi-refresh text-orange-500 text-5xl" />
+                <div className="flex flex-column align-items-center text-center gap-3 py-1">
+                    <div
+                        className="w-3rem h-3rem border-round-circle flex align-items-center justify-content-center shadow-1"
+                        style={{ backgroundColor: '#fff7ed', color: '#ea580c' }}
+                    >
+                        <i className="pi pi-refresh text-2xl font-bold text-orange-600" />
+                    </div>
                     <div>
-                        <h3 className="font-bold text-xl mb-1">Reset Seluruh Antrean (Pool 01-50)?</h3>
-                        <p className="text-color-secondary text-sm">
-                            Seluruh nomor kartu fisik (01-50) akan dikembalikan ke status 'Tersedia' dan data transaksi sebelumnya akan dibersihkan untuk pelayanan hari ini.
+                        <h3 className="font-bold text-lg mb-1 text-900">
+                            Reset Seluruh Antrean (Pool {poolRangeText})?
+                        </h3>
+                        <p className="text-color-secondary text-xs m-0 line-height-3">
+                            Seluruh nomor kartu fisik ({poolRangeText}) akan dikembalikan ke status &apos;Tersedia&apos; dan data transaksi sebelumnya akan dibersihkan untuk pelayanan hari ini.
                         </p>
                     </div>
                 </div>
@@ -533,8 +554,8 @@ export const TabCetakAntrean: React.FC<TabCetakAntreanProps> = ({
             header: 'Konfirmasi Reset Pool Antrean',
             acceptLabel: 'Ya, Reset Semua',
             rejectLabel: 'Batal',
-            acceptClassName: 'p-button-warning',
-            rejectClassName: 'p-button-secondary p-button-outlined',
+            acceptClassName: 'p-button-warning p-button-sm font-bold',
+            rejectClassName: 'p-button-secondary p-button-outlined p-button-sm font-semibold',
             accept: async () => {
                 try {
                     const res = await postData(apiEndpointReset, { tz: getTzUser() });
@@ -550,7 +571,7 @@ export const TabCetakAntrean: React.FC<TabCetakAntreanProps> = ({
 
     return (
         <div className="card border-round-xl surface-border shadow-1 p-4">
-            <ConfirmDialog />
+            <ConfirmDialog style={{ width: '420px', maxWidth: '92vw' }} />
 
             {/* ── Top Bar: Header & Indikator Koneksi Printer ── */}
             <div className="flex justify-content-between align-items-center flex-wrap gap-3 mb-4 pb-3 border-bottom-1 surface-border">
@@ -560,7 +581,7 @@ export const TabCetakAntrean: React.FC<TabCetakAntreanProps> = ({
                         Antrean Digital (Cetak & Panggil Loket)
                     </h3>
                     <p className="text-color-secondary text-sm m-0">
-                        Cetak struk tiket fisik untuk pasien baru, panggil antrean ke loket, dan kelola alur pelayanan terintegrasi dengan kartu fisik 01-50.
+                        Cetak struk tiket fisik untuk pasien baru, panggil antrean ke loket, dan kelola alur pelayanan terintegrasi dengan kartu fisik ({poolRangeText}).
                     </p>
                 </div>
 
@@ -584,7 +605,7 @@ export const TabCetakAntrean: React.FC<TabCetakAntreanProps> = ({
                         outlined
                         size="small"
                         onClick={handleReset}
-                        title="Reset seluruh nomor kartu fisik 01-50 ke status tersedia untuk memulai hari baru"
+                        title={`Reset seluruh nomor kartu fisik ${poolRangeText} ke status tersedia untuk memulai hari baru`}
                         className="font-semibold text-xs"
                     />
 
@@ -703,7 +724,7 @@ export const TabCetakAntrean: React.FC<TabCetakAntreanProps> = ({
                                 <span className="text-xs text-slate-500 font-medium">
                                     {tersedia > 0
                                         ? 'Nomor urutan berikutnya siap diambil & dicetak'
-                                        : 'Seluruh nomor kartu fisik (01-50) sedang terpakai'}
+                                        : `Seluruh nomor kartu fisik (${poolRangeText}) sedang terpakai`}
                                 </span>
                             </div>
                         </div>

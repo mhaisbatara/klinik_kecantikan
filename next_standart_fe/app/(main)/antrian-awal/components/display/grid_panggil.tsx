@@ -114,9 +114,6 @@ const NEXT_AKSI: Record<string, { aksi: string; label: string; pesan: string } |
 };
 
 const GridPanggil = ({ state, setState, toast, getGridData }: GridPanggilProps) => {
-    const tersedia   = state.gridData.filter((d) => d.status === 'tersedia').length;
-    const diambil    = state.gridData.filter((d) => d.status === 'diambil').length;
-    const dipanggil  = state.gridData.filter((d) => d.status === 'dipanggil').length;
     const aktif      = state.gridData.filter((d) => d.status !== 'nonaktif');
     const currentDipanggil = state.gridData.find((d) => d.status === 'dipanggil');
 
@@ -140,6 +137,19 @@ const GridPanggil = ({ state, setState, toast, getGridData }: GridPanggilProps) 
         });
     const nextAvailableToTake = availableItems.length > 0 ? availableItems[0] : null;
 
+    // Nomor aktif terurut untuk penamaan pool dinamis (cth: 01-10)
+    const activeNumbers = state.gridData
+        .filter((d) => d.status !== 'nonaktif')
+        .map((d) => d.no_antrian)
+        .sort((a, b) => {
+            const numA = parseInt(a.replace(/\D/g, '')) || 0;
+            const numB = parseInt(b.replace(/\D/g, '')) || 0;
+            return numA !== numB ? numA - numB : a.localeCompare(b);
+        });
+    const firstNo = activeNumbers.length > 0 ? activeNumbers[0] : '01';
+    const lastNo = activeNumbers.length > 0 ? activeNumbers[activeNumbers.length - 1] : `${aktif.length || 10}`;
+    const poolRangeText = activeNumbers.length > 0 ? `${firstNo}-${lastNo}` : `${aktif.length || 10}`;
+
     const handleAksi = (item: TableData) => {
         const next = NEXT_AKSI[item.status];
         if (!next) return;
@@ -154,20 +164,26 @@ const GridPanggil = ({ state, setState, toast, getGridData }: GridPanggilProps) 
         }
 
         confirmDialog({
+            style: { width: '420px', maxWidth: '92vw' },
             message: (
-                <div className="flex flex-column align-items-center text-center gap-3 py-2">
-                    <i className="pi pi-bell text-blue-500 text-5xl" />
+                <div className="flex flex-column align-items-center text-center gap-3 py-1">
+                    <div
+                        className="w-3rem h-3rem border-round-circle flex align-items-center justify-content-center shadow-1"
+                        style={{ backgroundColor: '#eff6ff', color: '#2563eb' }}
+                    >
+                        <i className="pi pi-bell text-2xl font-bold text-blue-600" />
+                    </div>
                     <div>
-                        <h3 className="font-bold text-xl mb-1">Nomor {item.no_antrian} — {next.label}</h3>
-                        <p className="text-color-secondary text-sm">{next.pesan}</p>
+                        <h3 className="font-bold text-lg mb-1 text-900">Nomor {item.no_antrian} — {next.label}</h3>
+                        <p className="text-color-secondary text-xs m-0 line-height-3">{next.pesan}</p>
                     </div>
                 </div>
             ) as any,
             header: 'Konfirmasi Aksi Antrian',
             acceptLabel: next.label,
             rejectLabel: 'Batal',
-            acceptClassName: 'p-button-primary',
-            rejectClassName: 'p-button-secondary p-button-outlined',
+            acceptClassName: 'p-button-primary p-button-sm font-bold',
+            rejectClassName: 'p-button-secondary p-button-outlined p-button-sm font-semibold',
             accept: async () => {
                 setState((p) => ({ ...p, loadGrid: true }));
                 try {
@@ -197,22 +213,28 @@ const GridPanggil = ({ state, setState, toast, getGridData }: GridPanggilProps) 
 
     const handleReset = () => {
         confirmDialog({
+            style: { width: '420px', maxWidth: '92vw' },
             message: (
-                <div className="flex flex-column align-items-center text-center gap-3 py-2">
-                    <i className="pi pi-refresh text-orange-500 text-5xl" />
+                <div className="flex flex-column align-items-center text-center gap-3 py-1">
+                    <div
+                        className="w-3rem h-3rem border-round-circle flex align-items-center justify-content-center shadow-1"
+                        style={{ backgroundColor: '#fff7ed', color: '#ea580c' }}
+                    >
+                        <i className="pi pi-refresh text-2xl font-bold text-orange-600" />
+                    </div>
                     <div>
-                        <h3 className="font-bold text-xl mb-1">Reset Semua Antrian?</h3>
-                        <p className="text-color-secondary text-sm">
-                            Semua nomor yang diambil/dipanggil akan dikembalikan ke tersedia.
+                        <h3 className="font-bold text-lg mb-1 text-900">Reset Semua Antrean ({poolRangeText})?</h3>
+                        <p className="text-color-secondary text-xs m-0 line-height-3">
+                            Semua nomor kartu fisik ({poolRangeText}) yang diambil/dipanggil akan dikembalikan ke status tersedia.
                         </p>
                     </div>
                 </div>
             ) as any,
-            header: 'Konfirmasi Reset',
-            acceptLabel: 'Ya, Reset',
+            header: 'Konfirmasi Reset Pool Antrean',
+            acceptLabel: 'Ya, Reset Semua',
             rejectLabel: 'Batal',
-            acceptClassName: 'p-button-warning',
-            rejectClassName: 'p-button-secondary p-button-outlined',
+            acceptClassName: 'p-button-warning p-button-sm font-bold',
+            rejectClassName: 'p-button-secondary p-button-outlined p-button-sm font-semibold',
             accept: async () => {
                 setState((p) => ({ ...p, loadGrid: true }));
                 try {
@@ -231,70 +253,41 @@ const GridPanggil = ({ state, setState, toast, getGridData }: GridPanggilProps) 
 
     return (
         <div className="card">
-            <ConfirmDialog />
+            <ConfirmDialog style={{ width: '420px', maxWidth: '92vw' }} />
 
             {/* Header */}
-            <div className="flex justify-content-between align-items-start mb-4 flex-wrap gap-3">
-                <div>
-                    <h3 className="text-2xl font-semibold flex align-items-center gap-2 mb-1">
-                        <i className="pi pi-bell text-blue-600 text-2xl" />
-                        Antrean Manual
-                    </h3>
-                    <p className="text-color-secondary text-sm">
-                        Klik nomor sesuai kartu pasien untuk mengubah statusnya. Panggilan antrean berjalan sesuai urutan.
-                    </p>
-                </div>
-                <div className="flex align-items-center gap-2 flex-wrap">
-                    <Button
-                        label="Display TV"
-                        icon="pi pi-desktop"
-                        severity="info"
-                        outlined
-                        size="small"
-                        onClick={() => window.open('/display-antrean-pendaftaran', '_blank')}
-                        title="Buka Layar Display TV Antrean di Tab Baru"
-                        className="font-bold text-xs"
-                    />
-                    <Button
-                        label="Reset Semua"
-                        icon="pi pi-refresh"
-                        severity="warning"
-                        outlined
-                        size="small"
-                        onClick={handleReset}
-                        loading={state.loadGrid}
-                    />
-                </div>
+            <div className="mb-3">
+                <h3 className="text-2xl font-bold flex align-items-center gap-2 mb-1 text-900">
+                    <i className="pi pi-bell text-blue-600 text-2xl" />
+                    Antrean Manual
+                </h3>
+                <p className="text-color-secondary text-sm m-0">
+                    Klik nomor sesuai kartu pasien untuk mengubah statusnya. Panggilan antrean berjalan sesuai urutan.
+                </p>
             </div>
 
-            {/* Counter */}
-            <div className="flex gap-2 mb-4 flex-wrap">
-                {[
-                    { color: '#22c55e', label: 'Tersedia',  count: tersedia   },
-                    { color: '#3b82f6', label: 'Diambil',   count: diambil    },
-                    { color: '#f59e0b', label: 'Dipanggil', count: dipanggil  },
-                    { color: '#6b7280', label: 'Total Aktif', count: aktif.length },
-                ].map((item) => (
-                    <span
-                        key={item.label}
-                        className="flex align-items-center gap-2 px-3 py-2 border-round-lg text-sm font-semibold"
-                        style={{
-                            background: `${item.color}18`,
-                            border: `1.5px solid ${item.color}55`,
-                            color: item.color,
-                        }}
-                    >
-                        <span style={{
-                            display: 'inline-block',
-                            width: '14px', height: '14px',
-                            borderRadius: '4px',
-                            backgroundColor: item.color,
-                            boxShadow: `0 1px 4px ${item.color}55`,
-                            flexShrink: 0,
-                        }} />
-                        {item.label}: <strong>{item.count}</strong>
-                    </span>
-                ))}
+            {/* Tombol Aksi: Display TV & Reset Semua */}
+            <div className="flex align-items-center gap-2 mb-3 flex-wrap">
+                <Button
+                    label="Display TV"
+                    icon="pi pi-desktop"
+                    severity="info"
+                    outlined
+                    size="small"
+                    onClick={() => window.open('/display-antrean-pendaftaran', '_blank')}
+                    title="Buka Layar Display TV Antrean di Tab Baru"
+                    className="font-bold text-xs"
+                />
+                <Button
+                    label="Reset Semua"
+                    icon="pi pi-refresh"
+                    severity="warning"
+                    outlined
+                    size="small"
+                    onClick={handleReset}
+                    loading={state.loadGrid}
+                    className="font-bold text-xs"
+                />
             </div>
 
             {/* Legend */}
@@ -323,44 +316,6 @@ const GridPanggil = ({ state, setState, toast, getGridData }: GridPanggilProps) 
                     </span>
                 ))}
             </div>
-
-            {/* Banner Antrean Aktif di Loket */}
-            {currentDipanggil && (
-                <div className="p-3 mb-4 border-round-xl border-1 border-amber-300 bg-amber-50 flex align-items-center justify-content-between flex-wrap gap-3 shadow-1">
-                    <div className="flex align-items-center gap-3">
-                        <span className="text-3xl">📢</span>
-                        <div>
-                            <div className="font-bold text-base text-amber-900">
-                                Sedang Melayani Nomor: <span className="text-xl text-amber-900 underline font-black">{currentDipanggil.no_antrian}</span> di Loket
-                            </div>
-                            <div className="text-xs text-amber-700 mt-0.5">
-                                Selesaikan antrean nomor ini terlebih dahulu sebelum dapat memanggil antrean berikutnya.
-                            </div>
-                        </div>
-                    </div>
-                    <div className="flex align-items-center gap-2">
-                        <Button
-                            label="Panggil Ulang"
-                            icon="pi pi-volume-up"
-                            severity="warning"
-                            size="small"
-                            onClick={() => {
-                                playChime();
-                                speakNomor(currentDipanggil.no_antrian);
-                            }}
-                            className="font-bold text-xs"
-                        />
-                        <Button
-                            label="Tandai Selesai"
-                            icon="pi pi-check"
-                            severity="success"
-                            size="small"
-                            onClick={() => handleAksi(currentDipanggil)}
-                            className="font-bold text-xs"
-                        />
-                    </div>
-                </div>
-            )}
 
             {/* Grid Tombol */}
             {state.loadGrid ? (

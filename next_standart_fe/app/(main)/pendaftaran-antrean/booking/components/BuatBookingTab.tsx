@@ -197,9 +197,11 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
 
   // 3. Slot Jadwal State
   const [slots, setSlots] = useState<SlotItem[]>([]);
+  const [consultSlots, setConsultSlots] = useState<SlotItem[]>([]);
   const [dokterKonsulList, setDokterKonsulList] = useState<any[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<SlotItem | null>(null);
+  const [selectedConsultSlot, setSelectedConsultSlot] = useState<SlotItem | null>(null);
   const [jamBooking, setJamBooking] = useState<string>('');
   const [isManualTime, setIsManualTime] = useState(false);
   const [manualTimeInput, setManualTimeInput] = useState('');
@@ -587,7 +589,22 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
 
   // Jendela Jam Dokter Konsultasi Aktif
   const consultWindow = useMemo(() => {
-    if (!effectiveButuhKonsul || !dokterKonsulList || dokterKonsulList.length === 0) {
+    if (!effectiveButuhKonsul) {
+      return null;
+    }
+    if (selectedConsultSlot) {
+      const docStartMin = timeToMinutes(selectedConsultSlot.jam_mulai);
+      const docEndMin = timeToMinutes(selectedConsultSlot.jam_selesai);
+      return {
+        docStartMin,
+        docEndMin,
+        docStartStr: selectedConsultSlot.jam_mulai,
+        docEndStr: selectedConsultSlot.jam_selesai,
+        dokterNames: selectedConsultSlot.nama_petugas,
+        dokterSummary: selectedConsultSlot.nama_petugas,
+      };
+    }
+    if (!dokterKonsulList || dokterKonsulList.length === 0) {
       return null;
     }
     const startMins = dokterKonsulList.map((d: any) => timeToMinutes((d.jam_mulai || '').slice(0, 5)));
@@ -607,7 +624,7 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
       dokterNames,
       dokterSummary,
     };
-  }, [effectiveButuhKonsul, dokterKonsulList]);
+  }, [effectiveButuhKonsul, selectedConsultSlot, dokterKonsulList]);
 
   // Irisan Shift Terapis & Dokter Konsultasi
   const slotOverlap = useMemo(() => {
@@ -1070,6 +1087,7 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
     if (!activeRuangan) return;
     setLoadingSlots(true);
     setSelectedSlot(null);
+    setSelectedConsultSlot(null);
     setJamBooking('');
     setIsManualTime(false);
     setManualTimeInput('');
@@ -1086,20 +1104,59 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
       if (res.data?.status === 200 || res.status === 200) {
         const d = res.data?.data;
         const rawSlots: SlotItem[] = d?.slots || [];
-        setSlots(groupSlotsBySession(rawSlots));
+        const grouped = groupSlotsBySession(rawSlots);
+        setSlots(grouped);
+
+        const rawConsultSlots: SlotItem[] = d?.consult_slots || [];
+        const groupedConsult = groupSlotsBySession(rawConsultSlots);
+        setConsultSlots(groupedConsult);
+
         setDokterKonsulList(d?.dokter_konsul || []);
+        if (d?.ruang_konsultasi) {
+          setConsultRoomInfo(d.ruang_konsultasi);
+        }
+
+        // Auto-select consult slot yang sedang aktif / tersedia
+        if (groupedConsult.length > 0) {
+          const avail = groupedConsult.find((s) => s.is_available && !s.is_past_today) || groupedConsult.find((s) => s.is_available) || groupedConsult[0];
+          setSelectedConsultSlot(avail || null);
+        } else {
+          setSelectedConsultSlot(null);
+        }
+
+        // Auto-select slot tindakan yang sedang aktif / tersedia
+        if (grouped.length > 0) {
+          const avail = grouped.find((s) => s.is_available && !s.is_past_today) || grouped.find((s) => s.is_available) || grouped[0];
+          setSelectedSlot(avail || null);
+        } else {
+          setSelectedSlot(null);
+        }
       } else {
         setSlots([]);
+        setConsultSlots([]);
         setDokterKonsulList([]);
+        setSelectedSlot(null);
+        setSelectedConsultSlot(null);
       }
     } catch (err) {
       console.error('Error fetching slots:', err);
       setSlots([]);
+      setConsultSlots([]);
       setDokterKonsulList([]);
+      setSelectedSlot(null);
+      setSelectedConsultSlot(null);
     } finally {
       setLoadingSlots(false);
     }
   };
+
+  // Auto-select consult slot jika alur konsultasi aktif dan belum ada yang terpilih
+  useEffect(() => {
+    if (effectiveButuhKonsul && consultSlots.length > 0 && !selectedConsultSlot) {
+      const avail = consultSlots.find((s) => s.is_available && !s.is_past_today) || consultSlots.find((s) => s.is_available) || consultSlots[0];
+      setSelectedConsultSlot(avail || null);
+    }
+  }, [effectiveButuhKonsul, consultSlots, selectedConsultSlot]);
 
   // 6. Submit Booking
   const handleSubmitBooking = async () => {
@@ -1117,6 +1174,10 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
         toast,
         `Tidak ada dokter jaga di Ruang Konsultasi pada hari ${hariName}. Silakan pilih alur "Langsung Tindakan" atau ubah tanggal booking ke hari praktek dokter.`
       );
+      return;
+    }
+    if (effectiveButuhKonsul && consultSlots.length > 0 && !selectedConsultSlot) {
+      showError(toast, 'Harap pilih salah satu sesi dokter di Ruang Konsultasi');
       return;
     }
     if (!selectedSlot) {
@@ -1190,6 +1251,7 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
         no_rm: selectedPasien.no_rm,
         kode_ruangan: activeRuangan,
         kode_jadwal: selectedSlot.kode_jadwal,
+        kode_jadwal_konsul: effectiveButuhKonsul && selectedConsultSlot ? selectedConsultSlot.kode_jadwal : undefined,
         tanggal_booking: formatDateToYMD(tanggalBooking),
         jam_booking: jamBooking,
         catatan_pasien: catatanPasien.trim() || undefined,
@@ -1260,6 +1322,7 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
     setSelectedMap({});
     setActiveRuangan(null);
     setSelectedSlot(null);
+    setSelectedConsultSlot(null);
     setJamBooking('');
     setIsManualTime(false);
     setManualTimeInput('');
@@ -1268,6 +1331,7 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
     setSuggestedSlot(null);
     setCatatanPasien('');
     setSlots([]);
+    setConsultSlots([]);
     setTanggalBooking(new Date());
     setOwnedPackages([]);
     setGlobalConsultChoice(true);
@@ -1287,9 +1351,9 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
         onHide={() => setShowDetailDialog(false)}
       />
 
-      <div className="grid">
+      <div className="grid align-items-stretch">
         {/* KOLOM KIRI: FORM STEP */}
-        <div className="col-12 lg:col-8">
+        <div className="col-12 lg:col-8 flex flex-column">
           {/* STEP 1: PILIH PASIEN */}
           <div className="card surface-card border-1 surface-border border-round-xl p-4 shadow-1 mb-3">
             <div className="flex justify-content-between align-items-center mb-3">
@@ -1817,7 +1881,7 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
           </div>
 
           {/* STEP 3: SLOT JADWAL & KUOTA */}
-          <div className="card surface-card border-1 surface-border border-round-xl p-4 shadow-1 mb-3">
+          <div className="card surface-card border-1 surface-border border-round-xl p-4 shadow-1 flex-1 mb-0 flex flex-column justify-content-between">
             <div className="flex align-items-center justify-content-between mb-3">
               <div className="flex align-items-center gap-2">
                 <span
@@ -1857,10 +1921,10 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
               )}
             </div>
 
-            {/* Informasi & Peringatan Alur Konsultasi Dokter (Muncul jika Alur Konsultasi Dokter Aktif) */}
+            {/* Informasi & Peringatan Alur Konsultasi Dokter (Muncul jika Alur Konsultasi Dokter Aktif dan tidak ada jadwal dokter) */}
             {activeRuangan && effectiveButuhKonsul && (
               <>
-                {!loadingSlots && dokterKonsulList.length === 0 ? (
+                {!loadingSlots && dokterKonsulList.length === 0 && consultSlots.length === 0 ? (
                   <div className="flex align-items-start gap-3 p-3 mb-3 bg-amber-50 border-round-xl border-1 border-amber-300">
                     <div className="flex align-items-center justify-content-center bg-amber-100 text-amber-800 border-round-lg p-2 flex-shrink-0 mt-0.5">
                       <i className="pi pi-exclamation-triangle text-base" />
@@ -1872,11 +1936,11 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
                       Anda memilih alur <strong>Konsultasi Dokter Dulu</strong>, namun tidak ada dokter yang bertugas di Ruang Konsultasi pada tanggal ini.
                       {hasWajibKonsul ? (
                         <div className="mt-1 font-semibold text-red-700">
-                          Karena tindakan ini berstatus Medical Treatment (Wajib Konsul), silakan ubah tanggal booking ke hari praktek dokter jaga (Senin, Selasa, Rabu, atau Sabtu). Klik tombol <strong>Jadwal Dokter Konsultasi</strong> di kanan atas untuk melihat jadwal lengkap.
+                          Karena tindakan ini berstatus Medical Treatment (Wajib Konsul), silakan ubah tanggal booking ke hari praktek dokter jaga. Klik tombol <strong>Lihat Jadwal Ruangan & Dokter</strong> di kanan atas untuk melihat jadwal lengkap.
                         </div>
                       ) : (
                         <div className="mt-1">
-                          Silakan ubah tanggal booking ke hari praktek dokter jaga (lihat tombol <strong>Jadwal Dokter Konsultasi</strong> di kanan atas), atau ubah pilihan alur di Langkah 2 menjadi <strong>&quot;Langsung Tindakan&quot;</strong> jika ingin tetap di tanggal ini.
+                          Silakan ubah tanggal booking ke hari praktek dokter jaga, atau ubah pilihan alur di Langkah 2 menjadi <strong>&quot;Langsung Tindakan&quot;</strong> jika ingin tetap di tanggal ini.
                         </div>
                       )}
                     </div>
@@ -1897,42 +1961,7 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
                       </div>
                     </div>
                   </div>
-                ) : (
-                  <div className="flex align-items-center gap-3 p-3 mb-4 bg-indigo-50 border-round-xl border-1 border-indigo-200 text-xs text-indigo-950">
-                    <div className="flex align-items-center justify-content-center bg-indigo-100 text-indigo-700 border-round-lg p-2 flex-shrink-0">
-                      <i className="pi pi-info-circle text-base" />
-                    </div>
-                    <div className="flex-1" style={{ lineHeight: 1.55 }}>
-                      {slotOverlap && consultWindow ? (
-                        <>
-                          <div>
-                            Konsultasi Dokter Dulu dipilih. Jam treatment dibatasi ke{' '}
-                            <strong className="text-indigo-900 font-bold">
-                              {slotOverlap.overlapStartStr}–{slotOverlap.overlapEndStr} WIB
-                            </strong>{' '}
-                            mengikuti jam praktik {consultWindow.dokterNames} ({consultWindow.docStartStr}–{consultWindow.docEndStr} WIB).
-                          </div>
-                          <div className="mt-1.5 text-indigo-900" style={{ lineHeight: 1.55 }}>
-                            Slot di bawah adalah jadwal terapis — jadwal dokter dicek otomatis saat check-in. Lihat jadwal dokter di hari lain lewat tombol di kanan atas.
-                          </div>
-                        </>
-                      ) : consultWindow ? (
-                        <>
-                          <div>
-                            Konsultasi Dokter Dulu dipilih. Jadwal treatment menyesuaikan jam praktik {consultWindow.dokterNames} ({consultWindow.docStartStr}–{consultWindow.docEndStr} WIB).
-                          </div>
-                          <div className="mt-1.5 text-indigo-900" style={{ lineHeight: 1.55 }}>
-                            Slot di bawah adalah jadwal terapis — jadwal dokter dicek otomatis saat check-in. Lihat jadwal dokter di hari lain lewat tombol di kanan atas.
-                          </div>
-                        </>
-                      ) : (
-                        <div>
-                          Konsultasi Dokter Dulu dipilih. Slot di bawah adalah jadwal terapis — jadwal dokter dicek otomatis saat check-in di hari-H. Lihat jadwal dokter di hari lain lewat tombol di kanan atas.
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
+                ) : null}
               </>
             )}
 
@@ -1965,6 +1994,162 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
                   <span>Pilih salah satu sesi jadwal petugas di bawah ini. Setiap sesi diwakili oleh Petugas Penanggung Jawab (PJ).</span>
                 </div>
                 <div className="grid">
+                  {/* KARTU RUANG KONSULTASI (JIKA ALUR KONSULTASI AKTIF) */}
+                  {effectiveButuhKonsul &&
+                    consultSlots.map((cSlot) => {
+                      const isSelected = selectedConsultSlot?.kode_jadwal === cSlot.kode_jadwal;
+                      const isQuotaFull = (cSlot.sisa_kuota ?? 0) <= 0;
+                      const isShiftPast = Boolean(cSlot.is_past_today);
+                      const isUnavailable = isQuotaFull || isShiftPast || !cSlot.is_available;
+                      const companions = cSlot.petugas_pendamping || [];
+                      const totalCompanions = cSlot.jumlah_pendamping || companions.length;
+                      const hasCompanions = totalCompanions > 0;
+                      const companionSummary = getCompanionSummary(companions, totalCompanions);
+                      const fullCompanionNames = companions.map((c) => c.nama_petugas).join(', ');
+
+                      return (
+                        <div key={`consult_${cSlot.kode_jadwal}`} className="col-12 sm:col-6 flex">
+                          <div
+                            onClick={() => {
+                              if (!isUnavailable) setSelectedConsultSlot(cSlot);
+                            }}
+                            className={`w-full flex flex-column justify-content-between border-round-xl p-3 border-2 transition-all transition-duration-200 ${
+                              isUnavailable
+                                ? 'surface-100 border-300 opacity-60 cursor-not-allowed'
+                                : isSelected
+                                ? 'border-primary surface-50 shadow-2 cursor-pointer'
+                                : 'surface-card border-200 hover:border-primary-300 hover:shadow-1 cursor-pointer'
+                            }`}
+                          >
+                            <div>
+                              {/* Jam Sesi & Status Badge */}
+                              <div className="flex align-items-center justify-content-between mb-2">
+                                <div className="flex align-items-center" style={{ gap: '6px' }}>
+                                  <Clock size={15} className={`${isSelected ? 'text-primary' : 'text-500'} flex-shrink-0`} />
+                                  <span className="font-bold text-sm text-900">
+                                    {cSlot.jam_mulai} - {cSlot.jam_selesai} WIB
+                                  </span>
+                                </div>
+                                {isSelected ? (
+                                  <CheckCircle2 size={18} className="text-primary flex-shrink-0" />
+                                ) : isQuotaFull ? (
+                                  <Tag
+                                    value="PENUH"
+                                    severity="danger"
+                                    className="text-xs px-2 py-0.5 font-bold flex-shrink-0"
+                                  />
+                                ) : isShiftPast ? (
+                                  <Tag
+                                    value="SUDAH BERAKHIR"
+                                    severity="warning"
+                                    className="text-xs px-2 py-0.5 font-bold flex-shrink-0"
+                                    title="Jam dinas dokter telah berakhir untuk hari ini"
+                                  />
+                                ) : !cSlot.is_available ? (
+                                  <Tag
+                                    value="TIDAK TERSEDIA"
+                                    severity="danger"
+                                    className="text-xs px-2 py-0.5 font-bold flex-shrink-0"
+                                  />
+                                ) : (
+                                  <Tag
+                                    value="TERSEDIA"
+                                    severity="success"
+                                    className="text-xs px-2 py-0.5 font-bold flex-shrink-0"
+                                  />
+                                )}
+                              </div>
+
+                              {/* Petugas PJ */}
+                              <div className="flex align-items-center justify-content-between gap-2 mb-2">
+                                <div className="flex align-items-center min-w-0 flex-1" style={{ gap: '6px' }}>
+                                  <User size={14} className="text-primary flex-shrink-0" />
+                                  <span
+                                    className="font-bold text-sm text-900 text-overflow-ellipsis overflow-hidden white-space-nowrap"
+                                    title={cSlot.nama_petugas}
+                                  >
+                                    {cSlot.nama_petugas}
+                                  </span>
+                                </div>
+                                {cSlot.is_penanggung_jawab ? (
+                                  <Tag
+                                    value="PJ"
+                                    severity="warning"
+                                    className="text-[10px] font-bold px-1.5 py-0.5 flex-shrink-0"
+                                  />
+                                ) : null}
+                              </div>
+
+                              {/* Petugas Pendamping */}
+                              <div className="flex align-items-center mb-2" style={{ minHeight: '26px' }}>
+                                {hasCompanions ? (
+                                  <div
+                                    className="companion-tooltip-target inline-flex align-items-center gap-1.5 text-[11px] min-w-0 cursor-pointer overflow-hidden text-emerald-800 hover:text-emerald-900 transition-colors"
+                                    data-pr-tooltip={`Daftar Pendamping: ${fullCompanionNames}`}
+                                    data-pr-position="top"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActiveCompanionData({
+                                        pj: cSlot.nama_petugas,
+                                        jam: `${cSlot.jam_mulai} - ${cSlot.jam_selesai} WIB`,
+                                        ruangan: cSlot.nama_ruangan || consultRoomInfo?.nama_ruangan || 'Ruang Konsultasi',
+                                        companions,
+                                      });
+                                      companionOpRef.current?.toggle(e);
+                                    }}
+                                  >
+                                    <span className="font-semibold text-emerald-800 flex-shrink-0">
+                                      +{totalCompanions} pendamping
+                                    </span>
+                                    <span
+                                      className="text-emerald-700 text-overflow-ellipsis overflow-hidden white-space-nowrap min-w-0"
+                                      title={fullCompanionNames}
+                                    >
+                                      ({companionSummary})
+                                    </span>
+                                    <ChevronDown size={12} className="text-emerald-600 flex-shrink-0 ml-0.5 opacity-80" />
+                                  </div>
+                                ) : (
+                                  <span className="text-xs text-400 italic">Tanpa petugas pendamping</span>
+                                )}
+                              </div>
+
+                              {/* Ruangan */}
+                              <div className="flex align-items-center text-xs text-500 mb-2" style={{ gap: '6px' }}>
+                                <MapPin size={13} className="text-400 flex-shrink-0" />
+                                <span className="text-overflow-ellipsis overflow-hidden white-space-nowrap">
+                                  {cSlot.nama_ruangan || consultRoomInfo?.nama_ruangan || 'Ruang Konsultasi'}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Progress Kuota Sesi (Milik Dokter) */}
+                            <div className="mt-2 pt-2 border-top-1 surface-border">
+                              <div className="flex justify-content-between text-xs mb-1">
+                                <span className="text-600">Sisa Kuota:</span>
+                                <span className={`font-bold ${isQuotaFull ? 'text-red-500' : isShiftPast ? 'text-amber-700' : 'text-green-600'}`}>
+                                  {cSlot.sisa_kuota} dari {cSlot.kuota_total}
+                                </span>
+                              </div>
+                              <ProgressBar
+                                value={Math.round((cSlot.kuota_terisi / (cSlot.kuota_total || 1)) * 100)}
+                                showValue={false}
+                                style={{ height: '6px' }}
+                                color={isQuotaFull ? '#ef4444' : isShiftPast ? '#d97706' : '#10b981'}
+                              />
+                              {isShiftPast && (
+                                <div className="text-[11px] text-amber-700 mt-1 flex align-items-center gap-1">
+                                  <Clock size={11} className="flex-shrink-0" />
+                                  <span>Jam dinas dokter telah berakhir hari ini</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                  {/* KARTU RUANG TINDAKAN */}
                   {slots.map((slot) => {
                     const isSelected = selectedSlot?.kode_jadwal === slot.kode_jadwal;
                     const isQuotaFull = (slot.sisa_kuota ?? 0) <= 0;
@@ -2351,312 +2536,334 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
         </div>
 
         {/* KOLOM KANAN: RINCIAN RESERVASI & PEMBAYARAN DP */}
-        <div className="col-12 lg:col-4">
-          <div className="card surface-card border-1 surface-border border-round-xl p-4 shadow-1 sticky" style={{ top: '0.5rem' }}>
-            <div className="flex align-items-center justify-content-between mb-3">
-              <div className="flex align-items-center gap-2">
-                <CreditCard size={22} className="text-primary" />
-                <span className="font-bold text-lg text-900">Rincian Reservasi & DP</span>
-              </div>
-              {selectedList.length > 0 && (
-                <Tag value={`${selectedList.length} Item`} severity="info" className="text-xs font-bold" />
-              )}
-            </div>
-
-            <div className="surface-50 border-round p-3 mb-3 text-sm flex flex-column gap-2">
-              <div className="flex justify-content-between">
-                <span className="text-600">Pasien:</span>
-                <span className="font-semibold text-900 text-right">
-                  {selectedPasien ? selectedPasien.nama : <span className="text-400 italic">Belum dipilih</span>}
-                </span>
-              </div>
-
-              <div className="flex justify-content-between">
-                <span className="text-600">Ruangan Tujuan:</span>
-                <span className="font-semibold text-primary text-right">
-                  {activeRoomName || <span className="text-400 italic">Belum dipilih</span>}
-                </span>
-              </div>
-
-              <div className="flex justify-content-between">
-                <span className="text-600">Tanggal:</span>
-                <span className="font-semibold text-900 text-right">
-                  {formatDateToYMD(tanggalBooking)}
-                </span>
-              </div>
-
-              <div className="flex justify-content-between">
-                <span className="text-600">Jadwal:</span>
-                <span className="font-semibold text-right">
-                  {!selectedSlot ? (
-                    <span className="text-400 italic">Belum dipilih</span>
-                  ) : !jamBooking ? (
-                    <span className="text-orange-600">
-                      {selectedSlot.nama_petugas}{' '}
-                      {selectedSlot.jumlah_pendamping ? (
-                        <span className="text-xs text-500 font-normal">
-                          (+{selectedSlot.jumlah_pendamping} pendamping){' '}
-                        </span>
-                      ) : null}
-                      <span className="text-xs font-normal underline block">(Pilih jam janji temu...)</span>
-                    </span>
-                  ) : (
-                    <span className="text-900">
-                      {selectedSlot.nama_petugas}{' '}
-                      {selectedSlot.jumlah_pendamping ? (
-                        <span className="text-xs text-500 font-normal">
-                          (+{selectedSlot.jumlah_pendamping} pendamping){' '}
-                        </span>
-                      ) : null}
-                      <strong className="text-primary">({jamBooking} WIB)</strong>
-                    </span>
-                  )}
-                </span>
-              </div>
-
-              {selectedList.length > 0 && (
-                <div className="flex justify-content-between align-items-center">
-                  <span className="text-600">Alur Kunjungan:</span>
-                  <span className="font-semibold text-right">
-                    {hasWajibKonsul ? (
-                      <Tag value="Wajib Konsul Dokter" severity="danger" className="text-[10px] font-bold" />
-                    ) : hasOpsionalKonsul ? (
-                      globalConsultChoice ? (
-                        <Tag value="Konsultasi Dulu" severity="info" className="text-[10px] font-bold" />
-                      ) : (
-                        <Tag value="Langsung Tindakan" severity="success" className="text-[10px] font-bold" />
-                      )
-                    ) : (
-                      <Tag value="Langsung Tindakan" severity="secondary" className="text-[10px] font-bold" />
-                    )}
-                  </span>
+        <div className="col-12 lg:col-4 flex flex-column">
+          <div className="card surface-card border-1 surface-border border-round-xl p-4 shadow-1 flex flex-column justify-content-between h-full mb-0">
+            <div>
+              <div className="flex align-items-center justify-content-between mb-3">
+                <div className="flex align-items-center gap-2">
+                  <CreditCard size={22} className="text-primary" />
+                  <span className="font-bold text-lg text-900">Rincian Reservasi & DP</span>
                 </div>
-              )}
-
-              <Divider className="my-1" />
-
-              {/* DAFTAR LAYANAN YANG DIPILIH */}
-              <div>
-                <div className="text-xs font-semibold text-600 mb-1">Item Layanan / Paket:</div>
-                {selectedList.length === 0 ? (
-                  <div className="text-xs text-400 italic py-1">Belum ada layanan dipilih</div>
-                ) : (
-                  <div className="flex flex-column gap-1 max-h-12rem overflow-y-auto pr-1">
-                    {selectedList.map((item) => {
-                      const itemKey = item.jenis === 'klaim_paket'
-                        ? `klaim_${item.kode_detail_kepemilikan_paket_layanan || item.kode_layanan}`
-                        : `${item.jenis}_${item.kode_layanan}`;
-                      return (
-                        <div
-                          key={itemKey}
-                          className="flex justify-content-between align-items-start text-xs py-1 border-bottom-1 surface-border"
-                        >
-                          <div className="pr-2">
-                            <div className="font-medium text-800">{item.nama}</div>
-                            <div className="text-500 text-[11px]">
-                              {item.durasi_menit ? `${item.durasi_menit} mnt · ` : ''}
-                              {item.jenis === 'klaim_paket' ? (
-                                <span className="text-amber-700 font-semibold">Klaim Sesi Paket</span>
-                              ) : (
-                                item.nama_kategori || item.jenis
-                              )}
-                            </div>
-                          </div>
-                          <div className="font-semibold text-900 white-space-nowrap">
-                            {item.jenis === 'klaim_paket' ? (
-                              <span className="text-amber-700 font-bold">Rp 0 (Klaim)</span>
-                            ) : (
-                              formatCurrency(item.harga_asal ?? item.harga)
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                {selectedList.length > 0 && (
+                  <Tag value={`${selectedList.length} Item`} severity="info" className="text-xs font-bold" />
                 )}
               </div>
 
-              <Divider className="my-1" />
-
-              <div className="flex justify-content-between align-items-center">
-                <span className="font-bold text-900">Total Biaya:</span>
-                <span className="font-bold text-primary text-base">{formatCurrency(totalHarga)}</span>
-              </div>
-            </div>
-
-            {/* Input Kalkulasi DP */}
-            <div className="mb-3">
-              <label className="font-medium text-sm block mb-1">
-                Uang Muka / DP <span className="text-red-500">*</span>
-              </label>
-              {hasOnlyKlaim ? (
-                <div className="p-3 bg-green-50 border-1 border-green-200 border-round-lg text-xs text-green-900 flex align-items-center gap-2">
-                  <i className="pi pi-check-circle text-green-600 text-base flex-shrink-0" />
-                  <div>
-                    <strong className="block">Bebas DP (Rp 0)</strong>
-                    <span>Seluruh item merupakan klaim paket aktif.</span>
-                  </div>
+              <div className="surface-50 border-round p-3 mb-3 text-sm flex flex-column gap-2">
+                <div className="flex justify-content-between">
+                  <span className="text-600">Pasien:</span>
+                  <span className="font-semibold text-900 text-right">
+                    {selectedPasien ? selectedPasien.nama : <span className="text-400 italic">Belum dipilih</span>}
+                  </span>
                 </div>
-              ) : (
-                <>
-                  <div className="grid formgrid p-fluid">
-                    <div className="col-5">
-                      <div className="p-inputgroup">
-                        <InputNumber
-                          value={dpPercentage}
-                          onValueChange={(e) => handlePercentageChange(e.value || 0)}
-                          min={0}
-                          max={100}
-                          className="w-full"
-                        />
-                        <span className="p-inputgroup-addon text-xs">%</span>
-                      </div>
-                    </div>
-                    <div className="col-7">
-                      <InputNumber
-                        value={dpNominal}
-                        onValueChange={(e) => {
-                          const val = e.value || 0;
-                          setDpNominal(val);
-                          if (totalHarga > 0) {
-                            setDpPercentage(Math.round((val / totalHarga) * 100));
-                          }
-                          if (val === 0 && !alasanBebasDp) {
-                            setAlasanBebasDp('Pasien VIP / Prioritas');
-                          }
-                        }}
-                        mode="currency"
-                        currency="IDR"
-                        locale="id-ID"
-                        className="w-full font-bold"
-                      />
-                    </div>
-                  </div>
-                  <div className="text-xs text-500 mt-1 mb-2">
-                    Default 20%. Nominal DP dapat disesuaikan manual atau 0% untuk Bebas DP.
-                  </div>
 
-                  {dpNominal > 0 ? (
-                    <div className="p-3 surface-50 border-1 border-200 border-round-lg flex flex-column gap-2.5 mt-2">
-                      <div>
-                        <label className="font-semibold text-xs text-700 block mb-1">
-                          Metode Pembayaran DP <span className="text-red-500">*</span>
-                        </label>
-                        <SelectButton
-                          value={metodePembayaranDp}
-                          options={METODE_DP_OPTIONS}
-                          onChange={(e) => e.value && setMetodePembayaranDp(e.value)}
-                          className="w-full selectbutton-sm"
-                        />
-                      </div>
+                <div className="flex justify-content-between">
+                  <span className="text-600">Ruangan Tujuan:</span>
+                  <span className="font-semibold text-primary text-right">
+                    {activeRoomName || <span className="text-400 italic">Belum dipilih</span>}
+                  </span>
+                </div>
 
-                      <div className="field-checkbox mt-1 mb-0 align-items-start gap-2 p-2.5 bg-blue-50 border-1 border-blue-200 border-round">
-                        <Checkbox
-                          inputId="konfirmasi_dp"
-                          checked={konfirmasiDpDiterima}
-                          onChange={(e) => setKonfirmasiDpDiterima(!!e.checked)}
-                          className="mt-0.5"
-                        />
-                        <label htmlFor="konfirmasi_dp" className="text-xs text-blue-900 cursor-pointer line-height-2">
-                          <strong>Konfirmasi:</strong> Uang muka (DP) sebesar{' '}
-                          <span className="font-bold text-primary">{formatCurrency(dpNominal)}</span> sudah diterima dari pasien melalui kasir/staff.
-                        </label>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="p-3 bg-yellow-50 border-1 border-yellow-200 border-round-lg flex flex-column gap-2 mt-2">
-                      <div className="flex align-items-center gap-2 text-xs text-yellow-900 font-semibold">
-                        <AlertCircle size={15} className="text-yellow-700 flex-shrink-0" />
-                        <span>Alasan Bebas DP (Wajib Dipilih) <span className="text-red-500">*</span></span>
-                      </div>
-                      <Dropdown
-                        value={alasanBebasDp}
-                        options={ALASAN_BEBAS_DP_OPTIONS}
-                        onChange={(e) => setAlasanBebasDp(e.value)}
-                        placeholder="-- Pilih Alasan Bebas DP --"
-                        className="w-full text-xs"
-                      />
-                      <span className="text-xs text-yellow-800 line-height-2">
-                        Pembebasan DP memerlukan alasan sah untuk mencegah pemesanan fiktif atau penahanan slot tanpa komitmen.
+                <div className="flex justify-content-between">
+                  <span className="text-600">Tanggal:</span>
+                  <span className="font-semibold text-900 text-right">
+                    {formatDateToYMD(tanggalBooking)}
+                  </span>
+                </div>
+
+                <div className="flex justify-content-between">
+                  <span className="text-600">Jadwal:</span>
+                  <span className="font-semibold text-right">
+                    {!selectedSlot ? (
+                      <span className="text-400 italic">Belum dipilih</span>
+                    ) : !jamBooking ? (
+                      <span className="text-orange-600">
+                        {selectedSlot.nama_petugas}{' '}
+                        {selectedSlot.jumlah_pendamping ? (
+                          <span className="text-xs text-500 font-normal">
+                            (+{selectedSlot.jumlah_pendamping} pendamping){' '}
+                          </span>
+                        ) : null}
+                        <span className="text-xs font-normal underline block">(Pilih jam janji temu...)</span>
                       </span>
+                    ) : (
+                      <span className="text-900">
+                        {selectedSlot.nama_petugas}{' '}
+                        {selectedSlot.jumlah_pendamping ? (
+                          <span className="text-xs text-500 font-normal">
+                            (+{selectedSlot.jumlah_pendamping} pendamping){' '}
+                          </span>
+                        ) : null}
+                        <strong className="text-primary">({jamBooking} WIB)</strong>
+                      </span>
+                    )}
+                  </span>
+                </div>
+
+                {selectedList.length > 0 && (
+                  <div className="flex justify-content-between align-items-center">
+                    <span className="text-600">Alur Kunjungan:</span>
+                    <span className="font-semibold text-right">
+                      {hasWajibKonsul ? (
+                        <Tag value="Wajib Konsul Dokter" severity="danger" className="text-[10px] font-bold" />
+                      ) : hasOpsionalKonsul ? (
+                        globalConsultChoice ? (
+                          <Tag value="Konsultasi Dulu" severity="info" className="text-[10px] font-bold" />
+                        ) : (
+                          <Tag value="Langsung Tindakan" severity="success" className="text-[10px] font-bold" />
+                        )
+                      ) : (
+                        <Tag value="Langsung Tindakan" severity="secondary" className="text-[10px] font-bold" />
+                      )}
+                    </span>
+                  </div>
+                )}
+
+                <Divider className="my-1" />
+
+                {/* DAFTAR LAYANAN YANG DIPILIH */}
+                <div>
+                  <div className="text-xs font-semibold text-600 mb-1">Item Layanan / Paket:</div>
+                  {selectedList.length === 0 ? (
+                    <div className="text-xs text-400 italic py-1">Belum ada layanan dipilih</div>
+                  ) : (
+                    <div className="flex flex-column gap-1 max-h-12rem overflow-y-auto pr-1">
+                      {selectedList.map((item) => {
+                        const itemKey = item.jenis === 'klaim_paket'
+                          ? `klaim_${item.kode_detail_kepemilikan_paket_layanan || item.kode_layanan}`
+                          : `${item.jenis}_${item.kode_layanan}`;
+                        return (
+                          <div
+                            key={itemKey}
+                            className="flex justify-content-between align-items-start text-xs py-1 border-bottom-1 surface-border"
+                          >
+                            <div className="pr-2">
+                              <div className="font-medium text-800">{item.nama}</div>
+                              <div className="text-500 text-[11px]">
+                                {item.durasi_menit ? `${item.durasi_menit} mnt · ` : ''}
+                                {item.jenis === 'klaim_paket' ? (
+                                  <span className="text-amber-700 font-semibold">Klaim Sesi Paket</span>
+                                ) : (
+                                  item.nama_kategori || item.jenis
+                                )}
+                              </div>
+                            </div>
+                            <div className="font-semibold text-900 white-space-nowrap">
+                              {item.jenis === 'klaim_paket' ? (
+                                <span className="text-amber-700 font-bold">Rp 0 (Klaim)</span>
+                              ) : (
+                                formatCurrency(item.harga_asal ?? item.harga)
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
-                </>
-              )}
-            </div>
-
-            {/* Sumber Reservasi */}
-            <div className="mb-3">
-              <label className="font-medium text-sm block mb-1">Sumber Reservasi</label>
-              <SelectButton
-                value={sumber}
-                options={[
-                  { label: 'Staff / Meja', value: 'staff' },
-                  { label: 'WhatsApp', value: 'whatsapp' },
-                ]}
-                onChange={(e) => e.value && setSumber(e.value)}
-                className="w-full"
-              />
-            </div>
-
-            {/* Catatan Pasien */}
-            <div className="mb-3">
-              <label className="font-medium text-sm block mb-1">Catatan Pasien (Opsional)</label>
-              <InputTextarea
-                value={catatanPasien}
-                onChange={(e) => setCatatanPasien(e.target.value)}
-                rows={2}
-                placeholder="Keluhan awal, permintaan khusus, dll..."
-                className="w-full"
-              />
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex flex-column gap-2">
-              <Button
-                label="Simpan & Konfirmasi Booking"
-                icon="pi pi-check"
-                className="p-button-primary w-full py-3 font-bold"
-                onClick={handleSubmitBooking}
-                loading={loadingSubmit}
-                disabled={!selectedPasien || selectedList.length === 0 || !selectedSlot || !jamBooking || !isDpValid}
-              />
-              {!isDpValid && selectedPasien && selectedList.length > 0 && selectedSlot && jamBooking && (
-                <div className="text-xs text-red-600 bg-red-50 border-1 border-red-200 border-round p-2">
-                  <i className="pi pi-info-circle mr-1 text-xs" />
-                  {dpNominal > 0
-                    ? 'Pilih metode pembayaran DP dan centang konfirmasi DP untuk mengaktifkan tombol simpan.'
-                    : 'Pilih alasan bebas DP untuk mengaktifkan tombol simpan.'}
                 </div>
-              )}
-              <Button
-                label="Reset Form"
-                icon={<RotateCcw size={16} className="mr-1" />}
-                className="p-button-outlined p-button-secondary w-full"
-                onClick={handleResetForm}
-                disabled={loadingSubmit}
-              />
+
+                <Divider className="my-1" />
+
+                <div className="flex justify-content-between align-items-center">
+                  <span className="font-bold text-900">Total Biaya:</span>
+                  <span className="font-bold text-primary text-base">{formatCurrency(totalHarga)}</span>
+                </div>
+              </div>
+
+              {/* Input Kalkulasi DP */}
+              <div className="mb-3">
+                <label className="font-medium text-sm block mb-1">
+                  Uang Muka / DP <span className="text-red-500">*</span>
+                </label>
+                {hasOnlyKlaim ? (
+                  <div className="p-3 bg-green-50 border-1 border-green-200 border-round-lg text-xs text-green-900 flex align-items-center gap-2">
+                    <i className="pi pi-check-circle text-green-600 text-base flex-shrink-0" />
+                    <div>
+                      <strong className="block">Bebas DP (Rp 0)</strong>
+                      <span>Seluruh item merupakan klaim paket aktif.</span>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid formgrid p-fluid">
+                      <div className="col-5">
+                        <div className="p-inputgroup">
+                          <InputNumber
+                            value={dpPercentage}
+                            onValueChange={(e) => handlePercentageChange(e.value || 0)}
+                            min={0}
+                            max={100}
+                            className="w-full"
+                          />
+                          <span className="p-inputgroup-addon text-xs">%</span>
+                        </div>
+                      </div>
+                      <div className="col-7">
+                        <InputNumber
+                          value={dpNominal}
+                          onValueChange={(e) => {
+                            const val = e.value || 0;
+                            setDpNominal(val);
+                            if (totalHarga > 0) {
+                              setDpPercentage(Math.round((val / totalHarga) * 100));
+                            }
+                            if (val === 0 && !alasanBebasDp) {
+                              setAlasanBebasDp('Pasien VIP / Prioritas');
+                            }
+                          }}
+                          mode="currency"
+                          currency="IDR"
+                          locale="id-ID"
+                          className="w-full font-bold"
+                        />
+                      </div>
+                    </div>
+                    <div className="text-xs text-500 mt-1 mb-2">
+                      Default 20%. Nominal DP dapat disesuaikan manual atau 0% untuk Bebas DP.
+                    </div>
+
+                    {dpNominal > 0 ? (
+                      <div className="p-3 surface-50 border-1 border-200 border-round-xl flex flex-column gap-3 mt-2">
+                        <div>
+                          <label className="font-semibold text-xs text-700 block mb-1.5">
+                            Metode Pembayaran DP <span className="text-red-500">*</span>
+                          </label>
+                          <SelectButton
+                            value={metodePembayaranDp}
+                            options={METODE_DP_OPTIONS}
+                            onChange={(e) => e.value && setMetodePembayaranDp(e.value)}
+                            className="w-full selectbutton-sm"
+                          />
+                        </div>
+
+                        <div
+                          onClick={() => setKonfirmasiDpDiterima(!konfirmasiDpDiterima)}
+                          className={`flex align-items-start p-3 border-round-xl border-1 transition-all cursor-pointer select-none ${
+                            konfirmasiDpDiterima
+                              ? 'bg-emerald-50 border-emerald-300 shadow-sm'
+                              : 'bg-blue-50/70 border-blue-200 hover:border-blue-300'
+                          }`}
+                          style={{ gap: '14px' }}
+                        >
+                          <Checkbox
+                            inputId="konfirmasi_dp"
+                            checked={konfirmasiDpDiterima}
+                            onChange={(e) => setKonfirmasiDpDiterima(!!e.checked)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex-shrink-0"
+                            style={{ marginTop: '2px' }}
+                          />
+                          <label
+                            htmlFor="konfirmasi_dp"
+                            className="flex-1 text-xs text-900 cursor-pointer m-0 line-height-2"
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ paddingLeft: '2px' }}
+                          >
+                            <span className="font-bold text-900">Konfirmasi:</span> Uang muka (DP) sebesar{' '}
+                            <span className="font-bold text-emerald-700 bg-emerald-100/80 px-1.5 py-0.5 border-round font-mono">
+                              {formatCurrency(dpNominal)}
+                            </span>{' '}
+                            sudah diterima dari pasien melalui kasir/staff.
+                          </label>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-3 bg-yellow-50 border-1 border-yellow-200 border-round-lg flex flex-column gap-2 mt-2">
+                        <div className="flex align-items-center gap-2 text-xs text-yellow-900 font-semibold">
+                          <AlertCircle size={15} className="text-yellow-700 flex-shrink-0" />
+                          <span>Alasan Bebas DP (Wajib Dipilih) <span className="text-red-500">*</span></span>
+                        </div>
+                        <Dropdown
+                          value={alasanBebasDp}
+                          options={ALASAN_BEBAS_DP_OPTIONS}
+                          onChange={(e) => setAlasanBebasDp(e.value)}
+                          placeholder="-- Pilih Alasan Bebas DP --"
+                          className="w-full text-xs"
+                        />
+                        <span className="text-xs text-yellow-800 line-height-2">
+                          Pembebasan DP memerlukan alasan sah untuk mencegah pemesanan fiktif atau penahanan slot tanpa komitmen.
+                        </span>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Sumber Reservasi */}
+              <div className="mb-3">
+                <label className="font-medium text-sm block mb-1">Sumber Reservasi</label>
+                <SelectButton
+                  value={sumber}
+                  options={[
+                    { label: 'Staff / Meja', value: 'staff' },
+                    { label: 'WhatsApp', value: 'whatsapp' },
+                  ]}
+                  onChange={(e) => e.value && setSumber(e.value)}
+                  className="w-full"
+                />
+              </div>
+
+              {/* Catatan Pasien */}
+              <div className="mb-3">
+                <label className="font-medium text-sm block mb-1">Catatan Pasien (Opsional)</label>
+                <InputTextarea
+                  value={catatanPasien}
+                  onChange={(e) => setCatatanPasien(e.target.value)}
+                  rows={2}
+                  placeholder="Keluhan awal, permintaan khusus, dll..."
+                  className="w-full"
+                />
+              </div>
             </div>
 
-            {/* Panel Ringkasan & Kebijakan Booking */}
-            <div className="mt-3 p-3 surface-50 border-1 border-200 border-round-lg">
-              <div className="flex align-items-center gap-2 mb-2">
-                <Info size={15} className="text-primary flex-shrink-0" />
-                <span className="font-bold text-xs uppercase tracking-wider text-700">
-                  Ringkasan & Kebijakan Booking
-                </span>
+            {/* Action Buttons & Policy Panel */}
+            <div className="mt-2">
+              <div className="flex flex-column gap-2">
+                <Button
+                  label="Simpan & Konfirmasi Booking"
+                  icon="pi pi-check"
+                  className="p-button-primary w-full py-3 font-bold"
+                  onClick={handleSubmitBooking}
+                  loading={loadingSubmit}
+                  disabled={!selectedPasien || selectedList.length === 0 || !selectedSlot || !jamBooking || !isDpValid}
+                />
+                {!isDpValid && selectedPasien && selectedList.length > 0 && selectedSlot && jamBooking && (
+                  <div className="text-xs text-red-600 bg-red-50 border-1 border-red-200 border-round p-2">
+                    <i className="pi pi-info-circle mr-1 text-xs" />
+                    {dpNominal > 0
+                      ? 'Pilih metode pembayaran DP dan centang konfirmasi DP untuk mengaktifkan tombol simpan.'
+                      : 'Pilih alasan bebas DP untuk mengaktifkan tombol simpan.'}
+                  </div>
+                )}
+                <Button
+                  label="Reset Form"
+                  icon={<RotateCcw size={16} className="mr-1" />}
+                  className="p-button-outlined p-button-secondary w-full"
+                  onClick={handleResetForm}
+                  disabled={loadingSubmit}
+                />
               </div>
-              <ul className="m-0 pl-3 text-xs text-600 line-height-3 flex flex-column gap-2" style={{ paddingLeft: '1.1rem' }}>
-                <li>
-                  <strong className="text-700">Kebijakan DP:</strong> Uang muka yang telah dibayar otomatis dipotongkan ke tagihan saat pasien <em>check-in</em> di klinik. Bila pasien tidak hadir, DP dinyatakan <em>hangus</em>.
-                </li>
-                <li>
-                  <strong className="text-700">Toleransi Keterlambatan:</strong> Maksimal <strong>30 menit</strong> dari jam booking sebelum status otomatis ditandai <em>tidak hadir</em>.
-                </li>
-                <li>
-                  <strong className="text-700">Alokasi Jadwal:</strong> Slot & jam yang dipilih akan terkunci secara khusus untuk pasien ini saat booking disimpan.
-                </li>
-              </ul>
+
+              {/* Panel Ringkasan & Kebijakan Booking */}
+              <div className="mt-3 p-3 surface-50 border-1 border-200 border-round-lg">
+                <div className="flex align-items-center gap-2 mb-2">
+                  <Info size={15} className="text-primary flex-shrink-0" />
+                  <span className="font-bold text-xs uppercase tracking-wider text-700">
+                    Ringkasan & Kebijakan Booking
+                  </span>
+                </div>
+                <ul className="m-0 pl-3 text-xs text-600 line-height-3 flex flex-column gap-2" style={{ paddingLeft: '1.1rem' }}>
+                  <li>
+                    <strong className="text-700">Kebijakan DP:</strong> Uang muka yang telah dibayar otomatis dipotongkan ke tagihan saat pasien <em>check-in</em> di klinik. Bila pasien tidak hadir, DP dinyatakan <em>hangus</em>.
+                  </li>
+                  <li>
+                    <strong className="text-700">Toleransi Keterlambatan:</strong> Maksimal <strong>30 menit</strong> dari jam booking sebelum status otomatis ditandai <em>tidak hadir</em>.
+                  </li>
+                  <li>
+                    <strong className="text-700">Alokasi Jadwal:</strong> Slot & jam yang dipilih akan terkunci secara khusus untuk pasien ini saat booking disimpan.
+                  </li>
+                </ul>
+              </div>
             </div>
           </div>
         </div>

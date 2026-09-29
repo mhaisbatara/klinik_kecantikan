@@ -401,42 +401,7 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
                                 </div>
                             )}
 
-                            {resepProdukDokter.length > 0 && (
-                                <div className={((antrianData as any)?.data_konsultasi_keluhan || (antrianData as any)?.data_konsultasi_diagnosis) ? "border-top-1 surface-border pt-2" : ""}>
-                                    <div className="flex align-items-center justify-content-between mb-2">
-                                        <label className="text-xs font-bold text-amber-800 uppercase tracking-wider flex align-items-center gap-2 m-0">
-                                            <i className="pi pi-shopping-bag text-amber-600" />
-                                            PRODUK &amp; RESEP PILIHAN DOKTER KONSULTASI
-                                        </label>
-                                        <Tag value={`${resepProdukDokter.length} Produk`} severity="warning" className="text-[10px] font-bold" />
-                                    </div>
-                                    <div className="grid">
-                                        {resepProdukDokter.map((prod: any, idx: number) => {
-                                            const hrg = parseFloat(prod.harga || prod.harga_jual || 0);
-                                            const qty = parseInt(prod.qty || 1, 10);
-                                            return (
-                                                <div key={idx} className="col-12 md:col-6 mb-2">
-                                                    <div className="p-2 border-round-lg border-1 border-amber-200 bg-amber-50/50 flex align-items-center justify-content-between gap-2 text-xs">
-                                                        <div className="min-w-0 pr-1">
-                                                            <span className="font-bold text-900 block truncate" title={prod.nama_produk || prod.nama}>
-                                                                {prod.nama_produk || prod.nama}
-                                                            </span>
-                                                            <span className="text-[11px] text-600 block">
-                                                                {prod.kode_produk} • {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(hrg)}
-                                                            </span>
-                                                        </div>
-                                                        <div className="text-right flex-shrink-0">
-                                                            <span className="bg-amber-600 text-white font-bold text-[11px] px-2 py-0.5 border-round">
-                                                                {qty} {prod.satuan || 'pcs'}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            )}
+
                         </div>
                     )}
 
