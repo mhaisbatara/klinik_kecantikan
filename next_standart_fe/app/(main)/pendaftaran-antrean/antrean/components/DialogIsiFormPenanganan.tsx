@@ -12,7 +12,7 @@ import { Toast } from 'primereact/toast';
 import { ProgressSpinner } from 'primereact/progressspinner';
 import { Tag } from 'primereact/tag';
 import postData from '@/lib/axios/postData';
-import { showError, showSuccess } from '@/lib/tools/generalTools';
+import { showError, showSuccess, showWarning } from '@/lib/tools/generalTools';
 import { AntrianLayananData, RuanganFormField } from './interfaces';
 import { FormRuanganFotoUploader } from './FormRuanganFotoUploader';
 import { RekomendasiTreatmentPanel, RekomendasiItem } from './RekomendasiTreatmentPanel';
@@ -233,13 +233,19 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
 
         if (isKonsultasi && lanjutKeTindakan) {
             const unavailableService = rekomendasiItems.find(
-                (item) => ['layanan', 'paket_layanan'].includes(item.jenis) && (item.is_petugas_available === false || Boolean(item.is_not_started_today) || Boolean(item.is_past_today))
+                (item) =>
+                    ['layanan', 'paket_layanan'].includes(item.jenis) &&
+                    (item.is_petugas_available === false ||
+                        Boolean(item.is_not_started_today) ||
+                        Boolean(item.is_past_today) ||
+                        item.status_kapasitas === 'berisiko')
             );
             if (unavailableService) {
-                showError(
+                showWarning(
                     toast,
-                    unavailableService.alasan_tidak_tersedia ||
-                        `Tidak dapat melanjutkan tindakan ke ruangan "${unavailableService.nama_ruangan || 'tujuan'}" karena jadwal shift petugas belum dimulai atau telah berakhir.`
+                    unavailableService.keterangan_status ||
+                        unavailableService.alasan_tidak_tersedia ||
+                        `Tidak dapat melanjutkan tindakan ke ruangan "${unavailableService.nama_ruangan || 'tujuan'}" karena kapasitas ruangan terkunci/penuh atau jadwal shift petugas belum dimulai/berakhir.`
                 );
                 return;
             }

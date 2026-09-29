@@ -737,6 +737,9 @@ router.post("/", async (req, res) => {
 
         // Helper untuk menghitung sisa beban antrean aktif di suatu ruangan
         const getSisaBebanRuangan = async (kodeRuangan) => {
+          const roomObj = await trx("mst_ruangan").where("kode_ruangan", kodeRuangan).select("is_konsultasi").first();
+          const isRuangKonsul = Boolean(roomObj?.is_konsultasi == 1);
+
           const activeQueues = await trx("trx_antrian_layanan as al")
             .where("al.created_at", ">=", `${todayYmd} 00:00:00`)
             .where("al.kode_ruangan", kodeRuangan)
@@ -747,7 +750,7 @@ router.post("/", async (req, res) => {
             .select("al.id", "al.kode_antrian_layanan", "al.status", "al.dipanggil_at");
 
           let queueDetails = [];
-          if (activeQueues.length > 0) {
+          if (activeQueues.length > 0 && !isRuangKonsul) {
             const queueCodes = activeQueues.map((q) => q.kode_antrian_layanan);
             queueDetails = await trx("trx_detail_antrian_layanan")
               .whereIn("kode_antrian_layanan", queueCodes)
@@ -757,22 +760,24 @@ router.post("/", async (req, res) => {
           }
 
           const queueDurationMap = new Map();
-          queueDetails.forEach((d) => {
-            const cur = queueDurationMap.get(d.kode_antrian_layanan) || 0;
-            const durasi = parseInt(d.durasi_menit, 10);
-            if (!isNaN(durasi) && durasi > 0) {
-              queueDurationMap.set(d.kode_antrian_layanan, cur + durasi);
-            }
-          });
+          if (!isRuangKonsul) {
+            queueDetails.forEach((d) => {
+              const cur = queueDurationMap.get(d.kode_antrian_layanan) || 0;
+              const durasi = parseInt(d.durasi_menit, 10);
+              if (!isNaN(durasi) && durasi > 0) {
+                queueDurationMap.set(d.kode_antrian_layanan, cur + durasi);
+              }
+            });
+          }
 
           let sisaBebanMenit = 0;
           for (const q of activeQueues) {
-            const totalDurasiAntrean = queueDurationMap.get(q.kode_antrian_layanan);
-            if (totalDurasiAntrean === undefined) {
-              console.warn(`[ANOMALI] Antrean ${q.kode_antrian_layanan} aktif tapi tidak punya detail layanan valid.`);
-            }
-            // Konservatif: menggunakan totalDurasiAntrean || 0 agar tidak menginflasi estimasi beban antrean jika ada data anomali
-            const bebanAntrean = totalDurasiAntrean || 0;
+            // Jika Ruang Konsultasi: beban per antrean selalu durasi sesi konsultasi dokter (misal 10 menit)
+            // Jika Ruang Tindakan: beban per antrean adalah akumulasi durasi tindakan di ruangan tersebut
+            const bebanAntrean = isRuangKonsul
+              ? durasiSesiKonsulMenit
+              : (queueDurationMap.get(q.kode_antrian_layanan) || 0);
+
             if (q.status === "dipanggil") {
               const dipanggilTime = q.dipanggil_at ? new Date(q.dipanggil_at).getTime() : now.getTime();
               const elapsedMin = Math.max(0, Math.floor((now.getTime() - dipanggilTime) / 60000));
@@ -875,8 +880,48 @@ router.post("/", async (req, res) => {
 
             for (const tr of targetRooms.values()) {
               const { sisaBebanMenit: sisaTarget, activeCount: countTarget } = await getSisaBebanRuangan(tr.kode);
-              // Estimasi selesai di ruangan tujuan = waktu sekarang + beban konsultasi + sisa antrean ruangan tujuan + durasi tindakan
-              const totalBebanTargetMenit = totalBebanRuanganMenit + sisaTarget + tr.durasi;
+
+              // Hitung antrean terusan dari pasien yang saat ini masih berada di Ruang Konsultasi menuju tr.kode
+              let antreanTerusanKonsulMenit = 0;
+              let antreanTerusanKonsulCount = 0;
+
+              if (ruangKonsul) {
+                const activeKonsulToTarget = await trx("trx_antrian_layanan as al")
+                  .leftJoin("trx_detail_antrian_layanan as dal", "al.kode_antrian_layanan", "dal.kode_antrian_layanan")
+                  .leftJoin("mst_layanan as ml", "dal.kode_layanan", "ml.kode_layanan")
+                  .leftJoin("mst_paket_layanan as mpl", "dal.kode_layanan", "mpl.kode_paket_layanan")
+                  .where("al.created_at", ">=", `${todayYmd} 00:00:00`)
+                  .where("al.kode_ruangan", ruangKonsul.kode_ruangan)
+                  .whereIn("al.status", ["dipanggil", "menunggu"])
+                  .where(function () {
+                    this.where("al.kode_ruangan_tujuan_lanjutan", tr.kode)
+                      .orWhere("ml.kode_ruangan", tr.kode)
+                      .orWhere("mpl.kode_ruangan", tr.kode);
+                  })
+                  .modify((qb) => {
+                    if (branchCode) qb.where("al.kode_cabang", branchCode);
+                  })
+                  .groupBy("al.id", "al.kode_antrian_layanan")
+                  .select(
+                    "al.kode_antrian_layanan",
+                    trx.raw("COALESCE(MAX(dal.durasi_menit), MAX(ml.durasi_menit), 30) as durasi_tindakan_terusan")
+                  );
+
+                antreanTerusanKonsulCount = activeKonsulToTarget.length;
+                for (const row of activeKonsulToTarget) {
+                  antreanTerusanKonsulMenit += parseInt(row.durasi_tindakan_terusan, 10) || 30;
+                }
+              }
+
+              // Waktu Ruang Tindakan bebas untuk pasien baru:
+              // 1. Pasien baru selesai konsul pada menit ke: sisaBebanMenit + walkinDurasiMenit (totalBebanRuanganMenit)
+              const waktuPasienBaruSelesaiKonsul = totalBebanRuanganMenit;
+              // 2. Ruang Tindakan selesai melayani antrean langsung + antrean terusan dari pasien konsul sebelumnya:
+              const waktuSelesaiPasienTerusan = Math.max(sisaTarget, sisaBebanMenit) + antreanTerusanKonsulMenit;
+              // 3. Waktu mulai tindakan pasien baru di Ruang Tindakan:
+              const waktuMulaiTindakanPasienBaru = Math.max(waktuPasienBaruSelesaiKonsul, waktuSelesaiPasienTerusan, sisaTarget);
+              // 4. Total waktu selesai di ruangan tujuan:
+              const totalBebanTargetMenit = waktuMulaiTindakanPasienBaru + tr.durasi;
               const estimasiSelesaiTargetDate = new Date(now.getTime() + totalBebanTargetMenit * 60000);
               const batasAmanTargetDate = new Date(estimasiSelesaiTargetDate.getTime() + bufferMenit * 60000);
 
@@ -918,6 +963,8 @@ router.post("/", async (req, res) => {
                     durasiKonsultasiMenit: walkinDurasiMenit,
                     sisaAntreanKonsulMenit: sisaBebanMenit,
                     antreanKonsulCount: activeCount,
+                    antreanTerusanKonsulMenit: antreanTerusanKonsulMenit,
+                    antreanTerusanKonsulCount: antreanTerusanKonsulCount,
                     durasiTindakanMenit: tr.durasi,
                   };
                   break;
@@ -926,39 +973,128 @@ router.post("/", async (req, res) => {
             }
           }
 
-          let isCollision = false;
-          let catatanOverride = null;
-
           if (collisionTarget) {
+            const isAccumulatedQueue = (
+              collisionTarget.sisaAntreanMenit > 0 ||
+              collisionTarget.antreanBerjalanCount > 0 ||
+              (collisionTarget.antreanTerusanKonsulCount || 0) > 0 ||
+              (collisionTarget.sisaAntreanKonsulMenit || 0) > 0 ||
+              (collisionTarget.antreanKonsulCount || 0) > 0
+            );
+
             const bookingTimeFormatted = collisionTarget.bkgTime.slice(0, 5);
-            isCollision = true;
             const namaPasienBooking = collisionTarget.booking.nama_pasien || collisionTarget.booking.no_rm;
-            catatanOverride = `Override benturan booking ${bookingTimeFormatted} WIB (${namaPasienBooking}) di ${collisionTarget.nama_ruangan}`;
 
-            const isOverridden =
-              oPayload.override_peringatan_booking === true ||
-              oPayload.override_peringatan_booking === 1 ||
-              oPayload.override_peringatan_booking === "true";
+            const totalBookingRow = await trx("trx_booking as b")
+              .leftJoin("mst_jadwal_karyawan as j", "b.kode_jadwal", "j.kode_jadwal")
+              .where("b.tanggal_booking", todayYmd)
+              .where("b.status", "dikonfirmasi")
+              .where(function () {
+                this.where("b.kode_ruangan", collisionTarget.kode_ruangan)
+                  .orWhere("j.kode_ruangan", collisionTarget.kode_ruangan);
+              })
+              .count("b.id as total")
+              .first();
 
-            if (!isOverridden) {
-              const totalBookingRow = await trx("trx_booking as b")
-                .leftJoin("mst_jadwal_karyawan as j", "b.kode_jadwal", "j.kode_jadwal")
-                .where("b.tanggal_booking", todayYmd)
-                .where("b.status", "dikonfirmasi")
-                .where(function () {
-                  this.where("b.kode_ruangan", collisionTarget.kode_ruangan)
-                    .orWhere("j.kode_ruangan", collisionTarget.kode_ruangan);
+            const totalBkgCount = parseInt(totalBookingRow?.total || 1, 10);
+
+            if (isAccumulatedQueue) {
+              // JALUR 1: PENUMPUKAN BANYAK WALK-IN -> HARD REJECT TANPA OVERRIDE
+              // 1. Ambil durasi total layanan pasien booking untuk menghitung jam sesi berikutnya
+              const bookingDetailRows = await trx("trx_detail_booking")
+                .where("kode_booking", collisionTarget.booking.kode_booking)
+                .select("durasi_menit");
+
+              const durasiBookingMenit = bookingDetailRows.reduce(
+                (sum, r) => sum + (parseInt(r.durasi_menit, 10) || 30),
+                0
+              ) || 30;
+
+              const [bkgH, bkgM] = bookingTimeFormatted.split(":").map(Number);
+              const bookingStartMinutes = (isNaN(bkgH) ? 0 : bkgH) * 60 + (isNaN(bkgM) ? 0 : bkgM);
+              const bookingEndMinutes = bookingStartMinutes + durasiBookingMenit + bufferMenit;
+              const nextAvailableH = Math.floor(bookingEndMinutes / 60) % 24;
+              const nextAvailableM = bookingEndMinutes % 60;
+              const sesiBerikutnyaStr = `${String(nextAvailableH).padStart(2, "0")}:${String(nextAvailableM).padStart(2, "0")}`;
+
+              // 2. Cari alternatif ruangan/petugas lain yang aktif hari ini
+              const otherSchedules = await trx("mst_jadwal_karyawan as j")
+                .leftJoin("mst_karyawan as k", "j.no_sip", "k.no_sip")
+                .leftJoin("mst_ruangan as r", "j.kode_ruangan", "r.kode_ruangan")
+                .where("j.hari", todayDay)
+                .where("j.status", "aktif")
+                .where("r.is_konsultasi", 0)
+                .where("r.status", "aktif")
+                .whereNot("j.kode_ruangan", collisionTarget.kode_ruangan)
+                .modify((qb) => {
+                  if (branchCode) qb.where("j.kode_cabang", branchCode);
                 })
-                .count("b.id as total")
-                .first();
+                .select(
+                  "j.kode_jadwal",
+                  "j.kode_ruangan",
+                  "r.nama_ruangan",
+                  "k.nama as nama_petugas",
+                  "j.jam_mulai",
+                  "j.jam_selesai",
+                  "j.is_penanggung_jawab"
+                )
+                .orderBy("j.is_penanggung_jawab", "desc");
 
-              const totalBkgCount = parseInt(totalBookingRow?.total || 1, 10);
+              const alternatifRuangan = [];
+              const seenRooms = new Set();
 
-              const warnErr = new Error(
-                `Estimasi antrean di ${collisionTarget.nama_ruangan} (selesai ±${collisionTarget.estimasiSelesaiStr}) ditambah buffer ${bufferMenit} menit berpotensi melewati jadwal booking pasien ${namaPasienBooking} pukul ${bookingTimeFormatted} WIB.`
+              for (const sch of otherSchedules) {
+                if (seenRooms.has(sch.kode_ruangan)) continue;
+                seenRooms.add(sch.kode_ruangan);
+
+                const { sisaBebanMenit: altSisa, activeCount: altCount } = await getSisaBebanRuangan(sch.kode_ruangan);
+                const altTotalMenit = altSisa + (collisionTarget.durasiTindakanMenit || walkinDurasiMenit);
+                const altEstimasiSelesaiDate = new Date(now.getTime() + altTotalMenit * 60000);
+                const altBatasAmanDate = new Date(altEstimasiSelesaiDate.getTime() + bufferMenit * 60000);
+                const altBatasAmanStr = altBatasAmanDate.toTimeString().slice(0, 8);
+
+                // Cek apakah ada booking di ruangan alternatif
+                const altBooking = await trx("trx_booking as b")
+                  .where("b.tanggal_booking", todayYmd)
+                  .where("b.status", "dikonfirmasi")
+                  .modify((qb) => {
+                    if (branchCode) qb.where("b.kode_cabang", branchCode);
+                  })
+                  .where("b.jam_booking", ">=", minRelevantBookingTimeStr)
+                  .where(function () {
+                    this.where("b.kode_ruangan", sch.kode_ruangan);
+                  })
+                  .orderBy("b.jam_booking", "asc")
+                  .first();
+
+                let altAvailable = true;
+                if (altBooking) {
+                  const altBkgTime = String(altBooking.jam_booking || "").slice(0, 8);
+                  if (altBatasAmanStr > altBkgTime) {
+                    altAvailable = false;
+                  }
+                }
+
+                if (altAvailable) {
+                  alternatifRuangan.push({
+                    kode_jadwal: sch.kode_jadwal,
+                    kode_ruangan: sch.kode_ruangan,
+                    nama_ruangan: sch.nama_ruangan,
+                    nama_petugas: sch.nama_petugas,
+                    jam_mulai: (sch.jam_mulai || "").slice(0, 5),
+                    jam_selesai: (sch.jam_selesai || "").slice(0, 5),
+                    sisa_antrean_menit: altSisa,
+                    antrean_count: altCount,
+                    estimasi_selesai: altEstimasiSelesaiDate.toTimeString().slice(0, 5),
+                  });
+                }
+              }
+
+              const rejectErr = new Error(
+                `Pendaftaran ditolak — estimasi waktu layanan (±${collisionTarget.estimasiSelesaiStr} WIB) akan melewati slot booking terjadwal pukul ${bookingTimeFormatted} WIB (${namaPasienBooking}) di ${collisionTarget.nama_ruangan}. Sisa kapasitas walk-in untuk sesi sebelum jam booking tersebut sudah penuh.`
               );
-              warnErr.isWarning = true;
-              warnErr.dataPeringatan = {
+              rejectErr.isRejectedCollision = true;
+              rejectErr.dataPenolakan = {
                 kode_ruangan: collisionTarget.kode_ruangan,
                 nama_ruangan: collisionTarget.nama_ruangan,
                 estimasi_selesai: collisionTarget.estimasiSelesaiStr,
@@ -967,6 +1103,9 @@ router.post("/", async (req, res) => {
                 nama_pasien_booking: namaPasienBooking,
                 no_rm_booking: collisionTarget.booking.no_rm,
                 kode_booking: collisionTarget.booking.kode_booking,
+                durasi_booking_menit: durasiBookingMenit,
+                sesi_berikutnya_rekomendasi: sesiBerikutnyaStr,
+                alternatif_ruangan: alternatifRuangan,
                 total_beban_menit: collisionTarget.totalBebanMenit,
                 durasi_walkin_menit: collisionTarget.durasiWalkinMenit,
                 sisa_antrean_menit: collisionTarget.sisaAntreanMenit,
@@ -977,14 +1116,49 @@ router.post("/", async (req, res) => {
                 durasi_konsultasi_menit: collisionTarget.durasiKonsultasiMenit || 0,
                 sisa_antrean_konsul_menit: collisionTarget.sisaAntreanKonsulMenit || 0,
                 antrean_konsul_count: collisionTarget.antreanKonsulCount || 0,
+                antrean_terusan_konsul_menit: collisionTarget.antreanTerusanKonsulMenit || 0,
+                antrean_terusan_konsul_count: collisionTarget.antreanTerusanKonsulCount || 0,
                 durasi_tindakan_menit: collisionTarget.durasiTindakanMenit || collisionTarget.durasiWalkinMenit || 0,
               };
-              throw warnErr;
+              throw rejectErr;
+            } else {
+              // JALUR 2: BENTURAN WALK-IN TUNGGAL (RUANGAN KOSONG) -> SOFT WARNING DENGAN OPSI OVERRIDE
+              if (oPayload.override_peringatan_booking) {
+                group.isCollision = true;
+                group.catatanOverride = `Override benturan booking ${bookingTimeFormatted} WIB (${namaPasienBooking})`;
+              } else {
+                const warnErr = new Error(
+                  `Estimasi waktu selesai layanan (±${collisionTarget.estimasiSelesaiStr} WIB) mendekati atau melewati jam booking terjadwal pasien ${namaPasienBooking} (${bookingTimeFormatted} WIB) di ${collisionTarget.nama_ruangan}.`
+                );
+                warnErr.isWarning = true;
+                warnErr.dataPeringatan = {
+                  kode_ruangan: collisionTarget.kode_ruangan,
+                  nama_ruangan: collisionTarget.nama_ruangan,
+                  estimasi_selesai: collisionTarget.estimasiSelesaiStr,
+                  batas_aman: collisionTarget.batasAmanDate.toTimeString().slice(0, 5),
+                  jam_booking: bookingTimeFormatted,
+                  nama_pasien_booking: namaPasienBooking,
+                  no_rm_booking: collisionTarget.booking.no_rm,
+                  kode_booking: collisionTarget.booking.kode_booking,
+                  total_beban_menit: collisionTarget.totalBebanMenit,
+                  durasi_walkin_menit: collisionTarget.durasiWalkinMenit,
+                  sisa_antrean_menit: collisionTarget.sisaAntreanMenit,
+                  buffer_menit: bufferMenit,
+                  antrean_berjalan_count: collisionTarget.antreanBerjalanCount,
+                  total_booking_hari_ini: totalBkgCount,
+                  is_lanjutan_konsultasi: Boolean(collisionTarget.isLanjutanKonsultasi),
+                  durasi_konsultasi_menit: collisionTarget.durasiKonsultasiMenit || 0,
+                  sisa_antrean_konsul_menit: collisionTarget.sisaAntreanKonsulMenit || 0,
+                  antrean_konsul_count: collisionTarget.antreanKonsulCount || 0,
+                  antrean_terusan_konsul_menit: collisionTarget.antreanTerusanKonsulMenit || 0,
+                  antrean_terusan_konsul_count: collisionTarget.antreanTerusanKonsulCount || 0,
+                  durasi_tindakan_menit: collisionTarget.durasiTindakanMenit || collisionTarget.durasiWalkinMenit || 0,
+                };
+                throw warnErr;
+              }
             }
           }
 
-          group.isCollision = isCollision;
-          group.catatanOverride = catatanOverride;
           group.estimasiSelesaiStr = estimasiSelesaiStr;
         }
 
@@ -1071,7 +1245,11 @@ router.post("/", async (req, res) => {
           for (const item of groupItems) {
             const cKodeDetailAntrian = `DAL-${todayStr}-${seqPadded}-${String(dSeq).padStart(2, "0")}`;
             dSeq++;
-            const dMenit = parseInt(item.durasi_tindakan || item.durasi_menit, 10);
+            const isGroupKonsul = Boolean(group.kode_ruangan === ruangKonsul?.kode_ruangan && hasAnyConsult);
+            // Konsultasi vs Tindakan: Jika antrean di Ruang Konsultasi, durasi sesi dicatat sesuai durasi konsultasi (durasiSesiKonsulMenit), sedangkan durasi tindakan tersimpan untuk ruang tindakan rujukan berikutnya
+            const dMenit = isGroupKonsul
+              ? durasiSesiKonsulMenit
+              : parseInt(item.durasi_tindakan || item.durasi_menit, 10);
             if (isNaN(dMenit) || dMenit <= 0) {
               const err = new Error(`Item layanan "${item.nama_layanan}" memiliki durasi tidak valid (${item.durasi_tindakan || item.durasi_menit}) saat akan disimpan`);
               err.statusCode = 422;
@@ -1160,6 +1338,16 @@ router.post("/", async (req, res) => {
       data: resultData,
     });
   } catch (error) {
+    if (error.isRejectedCollision) {
+      return res.status(200).json({
+        status: "REJECTED_BOOKING_COLLISION",
+        ditolak: true,
+        message: error.message,
+        data_penolakan: error.dataPenolakan,
+        datetime: formatDateSystem(),
+      });
+    }
+
     if (error.isWarning) {
       return res.status(200).json({
         status: "WARN_BOOKING_COLLISION",

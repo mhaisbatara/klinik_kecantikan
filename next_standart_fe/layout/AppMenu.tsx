@@ -569,7 +569,7 @@ const AppMenu = () => {
                 allowedPaths: userAllowedPaths
             }));
         } catch (error) {
-            console.error("Error loading menu:", error);
+            console.warn("Notice: Menu fallback used:", error);
             const isSuperAdminRole = (session?.user?.role || '').toLowerCase() === 'superadmin';
             const fallbackMenu: AppMenuItem[] = isSuperAdminRole
                 ? [

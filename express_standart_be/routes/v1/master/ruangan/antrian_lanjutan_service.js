@@ -63,13 +63,16 @@ export const terbitkanAntreanLanjutanRuangan = async (trx, {
           const layInfo = await trx("mst_layanan as l")
             .leftJoin("mst_ruangan as r", "l.kode_ruangan", "r.kode_ruangan")
             .where("l.kode_layanan", item.kode)
-            .select("l.kode_ruangan", "r.nama_ruangan", "r.is_konsultasi")
+            .select("l.kode_ruangan", "l.durasi_menit", "r.nama_ruangan", "r.is_konsultasi")
             .first();
 
           if (layInfo && layInfo.kode_ruangan) {
             rKode = layInfo.kode_ruangan;
             rNama = layInfo.nama_ruangan || "Ruang Treatment";
             isKonsul = Boolean(layInfo.is_konsultasi);
+            if (!item.durasi_menit && layInfo.durasi_menit) {
+              item.durasi_menit = layInfo.durasi_menit;
+            }
           } else {
             const pktInfo = await trx("mst_paket_layanan as p")
               .leftJoin("mst_ruangan as r", "p.kode_ruangan", "r.kode_ruangan")
@@ -91,6 +94,7 @@ export const terbitkanAntreanLanjutanRuangan = async (trx, {
             kode: item.kode || item.kode_layanan,
             nama: item.nama || item.nama_layanan,
             harga: parseFloat(item.harga || 0),
+            durasi_menit: parseInt(item.durasi_menit || 30, 10),
             kode_ruangan: rKode,
             nama_ruangan: rNama || "Ruang Treatment",
           });
@@ -114,6 +118,7 @@ export const terbitkanAntreanLanjutanRuangan = async (trx, {
       .select(
         "dal.*",
         "l.kode_ruangan as lay_ruangan",
+        "l.durasi_menit as lay_durasi",
         "r_layanan.nama_ruangan as lay_nama_ruangan",
         "r_layanan.is_konsultasi as lay_is_konsul",
         "p.kode_ruangan as pkt_ruangan",
@@ -140,6 +145,7 @@ export const terbitkanAntreanLanjutanRuangan = async (trx, {
           kode: d.kode_layanan,
           nama: d.nama_layanan,
           harga: parseFloat(d.harga || 0),
+          durasi_menit: parseInt(d.lay_durasi || 30, 10),
           kode_ruangan: rKode,
           nama_ruangan: rNama,
         });
@@ -382,7 +388,7 @@ export const terbitkanAntreanLanjutanRuangan = async (trx, {
         kode_layanan: item.kode || item.kode_layanan,
         nama_layanan: item.nama || item.nama_layanan,
         harga: item.harga_asal || item.harga || 0,
-        durasi_menit: item.durasi_menit || 0,
+        durasi_menit: parseInt(item.durasi_menit || 30, 10),
         kode_promo: item.kode_promo || null,
         nama_promo: item.nama_promo || null,
         jenis_diskon: item.jenis_diskon || null,

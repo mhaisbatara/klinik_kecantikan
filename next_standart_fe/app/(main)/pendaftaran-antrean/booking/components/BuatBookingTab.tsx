@@ -1351,9 +1351,9 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
         onHide={() => setShowDetailDialog(false)}
       />
 
-      <div className="grid align-items-stretch">
+      <div className="grid">
         {/* KOLOM KIRI: FORM STEP */}
-        <div className="col-12 lg:col-8 flex flex-column">
+        <div className="col-12 lg:col-8">
           {/* STEP 1: PILIH PASIEN */}
           <div className="card surface-card border-1 surface-border border-round-xl p-4 shadow-1 mb-3">
             <div className="flex justify-content-between align-items-center mb-3">
@@ -2536,8 +2536,8 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
         </div>
 
         {/* KOLOM KANAN: RINCIAN RESERVASI & PEMBAYARAN DP */}
-        <div className="col-12 lg:col-4 flex flex-column">
-          <div className="card surface-card border-1 surface-border border-round-xl p-4 shadow-1 flex flex-column justify-content-between h-full mb-0">
+        <div className="col-12 lg:col-4">
+          <div className="card surface-card border-1 surface-border border-round-xl p-4 shadow-1">
             <div>
               <div className="flex align-items-center justify-content-between mb-3">
                 <div className="flex align-items-center gap-2">
