@@ -129,32 +129,81 @@ const handleGetOptions = async (req, res) => {
       .select("p.kode_paket_layanan", "p.nama", "p.harga_paket", "p.masa_berlaku_hari", "p.tanggal_mulai", "p.tanggal_selesai", "p.tipe", "p.kode_ruangan", "p.foto", "r.nama_ruangan as nama_ruangan", "r.is_konsultasi as is_konsultasi")
       .orderBy("p.id", "asc");
 
-    // 5b. Fetch antrean aktif hari ini per ruangan
-    const qQueues = DB("trx_antrian_layanan")
+    // 5b. Fetch antrean aktif hari ini per ruangan dan hitung sisa beban waktu
+    const cfgKonsul = await DB("config").where("kode", "durasi_sesi_konsul_menit").first();
+    const durasiSesiKonsulMenit = parseInt(cfgKonsul?.keterangan || 10, 10) || 10;
+
+    const cfgBuffer = await DB("config").where("kode", "buffer_waktu_booking_menit").first();
+    const bufferBookingMenit = cfgBuffer ? parseInt(cfgBuffer.keterangan || 15, 10) : 15;
+
+    const cfgToleransi = await DB("config").where("kode", "toleransi_keterlambatan_menit").first();
+    const toleransiMenit = parseInt(cfgToleransi?.keterangan || "30", 10) || 30;
+
+    const nowTime = new Date();
+    const nowTimestamp = nowTime.getTime();
+    const nowMinutes = nowTime.getHours() * 60 + nowTime.getMinutes();
+
+    const minRelevantBookingDate = new Date(nowTimestamp - toleransiMenit * 60000);
+    const minRelevantBookingTimeStr = minRelevantBookingDate.toTimeString().slice(0, 8); // "HH:mm:ss"
+
+    const qActiveQueues = DB("trx_antrian_layanan")
       .where("created_at", ">=", `${todayStr} 00:00:00`)
       .whereIn("status", ["dipanggil", "menunggu"]);
 
-    if (branchCode) qQueues.where("kode_cabang", branchCode);
+    if (branchCode) qActiveQueues.where("kode_cabang", branchCode);
 
-    const activeQueuesToday = await qQueues
-      .select("kode_ruangan")
-      .count("id as total")
-      .groupBy("kode_ruangan");
+    const activeQueuesList = await qActiveQueues.select("id", "kode_antrian_layanan", "kode_ruangan", "status", "dipanggil_at");
 
-    const activeQueuesMap = new Map();
-    activeQueuesToday.forEach((q) => {
-      activeQueuesMap.set(q.kode_ruangan, parseInt(q.total || 0, 10));
+    const queueCodes = activeQueuesList.map((q) => q.kode_antrian_layanan);
+    let queueDetails = [];
+    if (queueCodes.length > 0) {
+      queueDetails = await DB("trx_detail_antrian_layanan")
+        .whereIn("kode_antrian_layanan", queueCodes)
+        .whereIn("jenis_layanan", ["layanan", "paket", "klaim_paket"])
+        .where("durasi_menit", ">", 0)
+        .select("kode_antrian_layanan", "durasi_menit");
+    }
+
+    const queueDurationMap = new Map();
+    queueDetails.forEach((d) => {
+      const cur = queueDurationMap.get(d.kode_antrian_layanan) || 0;
+      const durasi = parseInt(d.durasi_menit, 10);
+      if (!isNaN(durasi) && durasi > 0) {
+        queueDurationMap.set(d.kode_antrian_layanan, cur + durasi);
+      }
     });
 
-    // 5c. Fetch booking terkonfirmasi hari ini per ruangan
-    const nowTime = new Date();
+    const activeQueuesMap = new Map();
+    const roomSisaBebanMap = new Map();
+
+    activeQueuesList.forEach((q) => {
+      activeQueuesMap.set(q.kode_ruangan, (activeQueuesMap.get(q.kode_ruangan) || 0) + 1);
+
+      const isKonsulRoom = q.kode_ruangan === kodeRuanganKonsul;
+      const bebanAntrean = isKonsulRoom
+        ? durasiSesiKonsulMenit
+        : (queueDurationMap.get(q.kode_antrian_layanan) || 30);
+
+      let sisa = 0;
+      if (q.status === "dipanggil") {
+        const dipanggilTime = q.dipanggil_at ? new Date(q.dipanggil_at).getTime() : nowTimestamp;
+        const elapsedMin = Math.max(0, Math.floor((nowTimestamp - dipanggilTime) / 60000));
+        sisa = Math.max(0, bebanAntrean - elapsedMin);
+      } else if (q.status === "menunggu") {
+        sisa = bebanAntrean;
+      }
+      roomSisaBebanMap.set(q.kode_ruangan, (roomSisaBebanMap.get(q.kode_ruangan) || 0) + sisa);
+    });
+
+    // 5c. Fetch booking terkonfirmasi hari ini per ruangan yang belum lewat batas toleransi
     const currentTimeStr = nowTime.toTimeString().slice(0, 8);
     const qBookings = DB("trx_booking as b")
       .leftJoin("mst_pasien as p", "b.no_rm", "p.no_rm")
       .leftJoin("mst_jadwal_karyawan as j", "b.kode_jadwal", "j.kode_jadwal")
       .leftJoin("mst_karyawan as k", "j.no_sip", "k.no_sip")
       .where("b.tanggal_booking", todayStr)
-      .where("b.status", "dikonfirmasi");
+      .where("b.status", "dikonfirmasi")
+      .where("b.jam_booking", ">=", minRelevantBookingTimeStr);
 
     if (branchCode) qBookings.where("b.kode_cabang", branchCode);
 
@@ -262,6 +311,12 @@ const handleGetOptions = async (req, res) => {
           jabatan_petugas: s.jabatan_petugas || "Terapis / Petugas",
         }));
 
+      const [bH, bM] = jamStr.slice(0, 5).split(":").map(Number);
+      const bookingMin = (isNaN(bH) ? 0 : bH) * 60 + (isNaN(bM) ? 0 : bM);
+      const expiryMin = bookingMin + toleransiMenit;
+      const isPastTolerance = nowMinutes >= expiryMin;
+      const isUpcomingOrGrace = !isPastTolerance;
+
       const bookingItem = {
         kode_booking: b.kode_booking,
         jam_booking: jamStr.slice(0, 5),
@@ -274,7 +329,8 @@ const handleGetOptions = async (req, res) => {
         jam_selesai: bSelesai,
         durasi_menit: durasiMenit,
         layanan_summary: layananSummary,
-        is_upcoming: jamStr >= currentTimeStr,
+        is_upcoming: isUpcomingOrGrace,
+        is_in_grace: nowMinutes >= bookingMin && !isPastTolerance,
         petugas_pendamping: companions,
         daftar_petugas_pendamping: companions,
         jumlah_pendamping: companions.length,
@@ -282,14 +338,67 @@ const handleGetOptions = async (req, res) => {
 
       entry.allBookings.push(bookingItem);
 
-      if (jamStr >= currentTimeStr && !entry.nearestUpcoming) {
+      if (isUpcomingOrGrace && !entry.nearestUpcoming) {
+        const expH = Math.floor(expiryMin / 60);
+        const expM = expiryMin % 60;
         entry.nearestUpcoming = {
           jam_booking: jamStr.slice(0, 5),
           nama_pasien: b.nama_pasien || b.no_rm,
           kode_booking: b.kode_booking,
+          is_in_grace: nowMinutes >= bookingMin,
+          expiry_time: `${String(expH).padStart(2, "0")}:${String(expM).padStart(2, "0")}`,
         };
       }
     });
+
+    // Helper kalkulasi status kapasitas dini per ruangan
+    const calculateCapacityStatus = (bookingInfo, sisaBebanMenit, bufferMenit) => {
+      const nearestBkg = bookingInfo?.nearestUpcoming;
+      let statusKapasitas = "aman";
+      let statusBadge = "Aman";
+      let badgeColor = "green";
+      let slackMenit = null;
+      let keteranganStatus = "Kapasitas longgar (tidak ada booking terdekat)";
+
+      if (nearestBkg && nearestBkg.jam_booking) {
+        const [bH, bM] = String(nearestBkg.jam_booking).slice(0, 5).split(":").map(Number);
+        const bookingMinutes = (isNaN(bH) ? 0 : bH) * 60 + (isNaN(bM) ? 0 : bM);
+        const nowMin = nowTime.getHours() * 60 + nowTime.getMinutes();
+        const menitMenujuBooking = bookingMinutes - nowMin;
+        slackMenit = menitMenujuBooking - sisaBebanMenit - bufferMenit;
+
+        const pasienName = nearestBkg.nama_pasien ? ` (${nearestBkg.nama_pasien})` : "";
+        if (nearestBkg.is_in_grace || menitMenujuBooking <= 0) {
+          statusKapasitas = "berisiko";
+          statusBadge = "Berisiko Penuh";
+          badgeColor = "red";
+          keteranganStatus = `Ada booking jam ${nearestBkg.jam_booking}${pasienName} sedang ditunggu kehadirannya (batas toleransi s/d ${nearestBkg.expiry_time || '30 menit'}). Ruangan dikunci untuk booking.`;
+        } else if (slackMenit > 60) {
+          statusKapasitas = "aman";
+          statusBadge = "Aman";
+          badgeColor = "green";
+          keteranganStatus = `Ada booking jam ${nearestBkg.jam_booking}${pasienName}, sisa waktu aman > 60m (±${slackMenit}m)`;
+        } else if (slackMenit >= 15 && slackMenit <= 60) {
+          statusKapasitas = "waspada";
+          statusBadge = "Waspada";
+          badgeColor = "yellow";
+          keteranganStatus = `Ada booking jam ${nearestBkg.jam_booking}${pasienName}, sisa waktu aman ±${Math.max(0, slackMenit)} menit`;
+        } else {
+          statusKapasitas = "berisiko";
+          statusBadge = "Berisiko Penuh";
+          badgeColor = "red";
+          keteranganStatus = `Ada booking jam ${nearestBkg.jam_booking}${pasienName}, sisa waktu aman sangat terbatas (±${Math.max(0, slackMenit)} menit)`;
+        }
+      }
+
+      return {
+        status_kapasitas: statusKapasitas,
+        status_badge: statusBadge,
+        badge_color: badgeColor,
+        slack_menit: slackMenit,
+        keterangan_status: keteranganStatus,
+      };
+    };
 
     // Map layanan & paket grouped by ruangan (initialized with ALL DB rooms)
     const ruanganMap = new Map();
@@ -299,6 +408,10 @@ const handleGetOptions = async (req, res) => {
       const pjStaff = roomSchedules.find((s) => s.is_penanggung_jawab === 1) || roomSchedules[0];
       const bookingInfo = roomBookingsMap.get(rng.kode_ruangan);
       const antreanCount = activeQueuesMap.get(rng.kode_ruangan) || 0;
+      const sisaBebanMenit = roomSisaBebanMap.get(rng.kode_ruangan) || 0;
+      const estimasiMulaiDate = new Date(nowTimestamp + sisaBebanMenit * 60000);
+      const estimasiMulaiStr = estimasiMulaiDate.toTimeString().slice(0, 5);
+      const cap = calculateCapacityStatus(bookingInfo, sisaBebanMenit, bufferBookingMenit);
 
       ruanganMap.set(rng.kode_ruangan, {
         kode_ruangan: rng.kode_ruangan,
@@ -318,10 +431,18 @@ const handleGetOptions = async (req, res) => {
           : null,
         petugas_jaga_names: roomSchedules.map((s) => s.nama_petugas).filter(Boolean),
         antrean_aktif_count: antreanCount,
+        sisa_beban_menit: sisaBebanMenit,
+        estimasi_mulai_sekarang: estimasiMulaiStr,
+        buffer_booking_menit: bufferBookingMenit,
         jam_booking_terdekat: bookingInfo?.nearestUpcoming?.jam_booking || null,
         nama_pasien_booking_terdekat: bookingInfo?.nearestUpcoming?.nama_pasien || null,
         total_booking_hari_ini: bookingInfo?.total || 0,
         daftar_booking_hari_ini: bookingInfo?.allBookings || [],
+        status_kapasitas: cap.status_kapasitas,
+        status_badge: cap.status_badge,
+        badge_color: cap.badge_color,
+        slack_menit: cap.slack_menit,
+        keterangan_status: cap.keterangan_status,
         items: [],
       });
     });
@@ -436,6 +557,10 @@ const handleGetOptions = async (req, res) => {
         }
       }
 
+      const bookingInfo = roomBookingsMap.get(kodeRuang);
+      const sisaBebanMenit = roomSisaBebanMap.get(kodeRuang) || 0;
+      const cap = calculateCapacityStatus(bookingInfo, sisaBebanMenit, bufferBookingMenit);
+
       const rawItem = {
         jenis: "layanan",
         kode_layanan: lay.kode_layanan,
@@ -460,12 +585,16 @@ const handleGetOptions = async (req, res) => {
         nama_ruangan_cek: namaRuanganCek,
         petugas_jaga_count: targetSchedules.length,
         petugas_pj_nama: targetPj?.nama_petugas || null,
+        status_kapasitas: cap.status_kapasitas,
+        status_badge: cap.status_badge,
+        keterangan_status: cap.keterangan_status,
+        jam_booking_terdekat: bookingInfo?.nearestUpcoming?.jam_booking || null,
+        nama_pasien_booking_terdekat: bookingInfo?.nearestUpcoming?.nama_pasien || null,
       };
 
       const itemData = applyPromo(rawItem);
 
       if (!rngObj) {
-        const bookingInfo = roomBookingsMap.get(kodeRuang);
         rngObj = {
           kode_ruangan: kodeRuang,
           nama_ruangan: lay.nama_ruangan || "Ruangan Lainnya",
@@ -476,10 +605,17 @@ const handleGetOptions = async (req, res) => {
           petugas_pj: null,
           petugas_jaga_names: [],
           antrean_aktif_count: activeQueuesMap.get(kodeRuang) || 0,
+          sisa_beban_menit: sisaBebanMenit,
+          buffer_booking_menit: bufferBookingMenit,
           jam_booking_terdekat: bookingInfo?.nearestUpcoming?.jam_booking || null,
           nama_pasien_booking_terdekat: bookingInfo?.nearestUpcoming?.nama_pasien || null,
           total_booking_hari_ini: bookingInfo?.total || 0,
           daftar_booking_hari_ini: bookingInfo?.allBookings || [],
+          status_kapasitas: cap.status_kapasitas,
+          status_badge: cap.status_badge,
+          badge_color: cap.badge_color,
+          slack_menit: cap.slack_menit,
+          keterangan_status: cap.keterangan_status,
           items: [],
         };
         ruanganMap.set(kodeRuang, rngObj);
@@ -514,6 +650,11 @@ const handleGetOptions = async (req, res) => {
         }
       }
 
+      const kodeRuangPkt = pkt.kode_ruangan || "LAINNYA";
+      const bookingInfoPkt = roomBookingsMap.get(kodeRuangPkt);
+      const sisaBebanMenitPkt = roomSisaBebanMap.get(kodeRuangPkt) || 0;
+      const capPkt = calculateCapacityStatus(bookingInfoPkt, sisaBebanMenitPkt, bufferBookingMenit);
+
       const rawItem = {
         jenis: "paket",
         kode_layanan: pkt.kode_paket_layanan,
@@ -538,6 +679,11 @@ const handleGetOptions = async (req, res) => {
         nama_ruangan_cek: namaRuanganCek,
         petugas_jaga_count: targetSchedules.length,
         petugas_pj_nama: targetPj?.nama_petugas || null,
+        status_kapasitas: capPkt.status_kapasitas,
+        status_badge: capPkt.status_badge,
+        keterangan_status: capPkt.keterangan_status,
+        jam_booking_terdekat: bookingInfoPkt?.nearestUpcoming?.jam_booking || null,
+        nama_pasien_booking_terdekat: bookingInfoPkt?.nearestUpcoming?.nama_pasien || null,
       };
 
       const itemData = applyPromo(rawItem);
@@ -546,6 +692,8 @@ const handleGetOptions = async (req, res) => {
       let rngObj = ruanganMap.get(kodeRuang);
       if (!rngObj) {
         const bookingInfo = roomBookingsMap.get(kodeRuang);
+        const sisaBebanMenit = roomSisaBebanMap.get(kodeRuang) || 0;
+        const cap = calculateCapacityStatus(bookingInfo, sisaBebanMenit, bufferBookingMenit);
         rngObj = {
           kode_ruangan: kodeRuang,
           nama_ruangan: pkt.nama_ruangan || "Ruangan Lainnya",
@@ -556,10 +704,17 @@ const handleGetOptions = async (req, res) => {
           petugas_pj: null,
           petugas_jaga_names: [],
           antrean_aktif_count: activeQueuesMap.get(kodeRuang) || 0,
+          sisa_beban_menit: sisaBebanMenit,
+          buffer_booking_menit: bufferBookingMenit,
           jam_booking_terdekat: bookingInfo?.nearestUpcoming?.jam_booking || null,
           nama_pasien_booking_terdekat: bookingInfo?.nearestUpcoming?.nama_pasien || null,
           total_booking_hari_ini: bookingInfo?.total || 0,
           daftar_booking_hari_ini: bookingInfo?.allBookings || [],
+          status_kapasitas: cap.status_kapasitas,
+          status_badge: cap.status_badge,
+          badge_color: cap.badge_color,
+          slack_menit: cap.slack_menit,
+          keterangan_status: cap.keterangan_status,
           items: [],
         };
         ruanganMap.set(kodeRuang, rngObj);

@@ -589,9 +589,37 @@ export const DaftarBookingTab: React.FC<Props> = ({ toast, onNavigateToCreate, r
                 />
               </div>
 
-              <div className="p-3 surface-100 border-round-md border-left-3 border-primary text-xs text-700 line-height-3">
-                <i className="pi pi-info-circle mr-1.5 text-primary font-semibold" />
-                Booking akan otomatis bisa ditandai <strong>&quot;Tidak Hadir&quot;</strong> setelah pasien terlambat melebihi durasi ini dari jam janji temu.
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '12px',
+                  padding: '12px 14px',
+                  backgroundColor: '#f0fdf4',
+                  borderRadius: '10px',
+                  border: '1px solid #bbf7d0',
+                  borderLeft: '4px solid #10b981',
+                }}
+              >
+                <div
+                  style={{
+                    width: '24px',
+                    height: '24px',
+                    borderRadius: '50%',
+                    backgroundColor: '#dcfce7',
+                    color: '#059669',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    marginTop: '2px',
+                  }}
+                >
+                  <i className="pi pi-info-circle" style={{ fontSize: '13px', fontWeight: 'bold' }} />
+                </div>
+                <div style={{ flex: 1, fontSize: '12px', lineHeight: '1.6', color: '#166534' }}>
+                  Booking akan otomatis bisa ditandai <strong style={{ color: '#14532d' }}>&quot;Tidak Hadir&quot;</strong> setelah pasien terlambat melebihi durasi ini dari jam janji temu.
+                </div>
               </div>
             </div>
           )}

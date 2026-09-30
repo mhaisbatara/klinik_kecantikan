@@ -36,6 +36,29 @@ interface RuanganItem {
     kode_ruangan: string;
     nama_ruangan: string;
     is_konsultasi?: number;
+    has_petugas_jaga_today?: boolean;
+    petugas_jaga_count?: number;
+    petugas_pj?: {
+        nama?: string;
+        jabatan?: string;
+        no_sip?: string;
+        jam_mulai?: string;
+        jam_selesai?: string;
+    } | null;
+    petugas_jaga_names?: string[];
+    antrean_aktif_count?: number;
+    sisa_beban_menit?: number;
+    estimasi_mulai_sekarang?: string;
+    buffer_booking_menit?: number;
+    jam_booking_terdekat?: string | null;
+    nama_pasien_booking_terdekat?: string | null;
+    total_booking_hari_ini?: number;
+    daftar_booking_hari_ini?: any[];
+    status_kapasitas?: 'aman' | 'waspada' | 'berisiko' | string;
+    status_badge?: string;
+    badge_color?: string;
+    slack_menit?: number | null;
+    keterangan_status?: string;
 }
 
 // ─── Audio Chime ─────────────────────────────────────────────────────────────
@@ -259,6 +282,38 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
             const res = await postData('/master/ruangan-dropdown', {});
             const rawList: RuanganItem[] = res.data.data || [];
 
+            // Enrich dengan estimasi kapasitas & booking real-time untuk Dashboard Ruangan
+            try {
+                const optRes = await postData('/master/pendaftaran-pasien-layanan-options', {});
+                const ruangDataMap: Record<string, any> = {};
+                (optRes.data?.data?.ruangans || []).forEach((r: any) => {
+                    ruangDataMap[r.kode_ruangan] = r;
+                });
+
+                rawList.forEach((r) => {
+                    const extra = ruangDataMap[r.kode_ruangan];
+                    if (extra) {
+                        r.has_petugas_jaga_today = extra.has_petugas_jaga_today;
+                        r.petugas_jaga_count = extra.petugas_jaga_count;
+                        r.petugas_pj = extra.petugas_pj;
+                        r.petugas_jaga_names = extra.petugas_jaga_names;
+                        r.antrean_aktif_count = extra.antrean_aktif_count;
+                        r.sisa_beban_menit = extra.sisa_beban_menit;
+                        r.estimasi_mulai_sekarang = extra.estimasi_mulai_sekarang;
+                        r.buffer_booking_menit = extra.buffer_booking_menit;
+                        r.jam_booking_terdekat = extra.jam_booking_terdekat;
+                        r.nama_pasien_booking_terdekat = extra.nama_pasien_booking_terdekat;
+                        r.total_booking_hari_ini = extra.total_booking_hari_ini;
+                        r.daftar_booking_hari_ini = extra.daftar_booking_hari_ini;
+                        r.status_kapasitas = extra.status_kapasitas;
+                        r.status_badge = extra.status_badge;
+                        r.badge_color = extra.badge_color;
+                        r.slack_menit = extra.slack_menit;
+                        r.keterangan_status = extra.keterangan_status;
+                    }
+                });
+            } catch (_) {}
+
             let list = rawList;
             if (typeParam === 'konsul') {
                 list = rawList.filter(
@@ -474,6 +529,17 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
     const totalRuanganSedang = roomsKepadatan.filter((r) => r.statusType === 'sedang').length;
     const totalRuanganLonggar = roomsKepadatan.filter((r) => r.statusType === 'longgar').length;
 
+    // Hitung Kapasitas Pendaftaran Offline / Walk-in
+    const countAman = ruanganList.filter((r) => r.has_petugas_jaga_today !== false && (r.status_kapasitas === 'aman' || !r.status_kapasitas)).length;
+    const countWaspada = ruanganList.filter((r) => r.has_petugas_jaga_today !== false && r.status_kapasitas === 'waspada').length;
+    const countBerisiko = ruanganList.filter((r) => r.has_petugas_jaga_today !== false && r.status_kapasitas === 'berisiko').length;
+    const countTutup = ruanganList.filter((r) => r.has_petugas_jaga_today === false).length;
+
+    const handleRefreshAll = () => {
+        getGridData();
+        loadRuangan();
+    };
+
     const isDashboardRuangan = !typeParam;
 
     return (
@@ -504,7 +570,7 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
                                         {totalMenungguSemua}
                                     </div>
                                     <span className="text-xs text-500">
-                                        Seluruh ruangan klinik
+                                        Seluruh antrean menunggu
                                     </span>
                                 </div>
                             </div>
@@ -532,7 +598,30 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
                                 </div>
                             </div>
 
-                            {/* Stat 3: Ruangan Padat */}
+                            {/* Stat 3: Siap Terima Walk-In */}
+                            <div className="col-12 sm:col-6 lg:col-3">
+                                <div className="surface-card border-round-xl border-1 surface-border p-3 md:p-4 shadow-1 flex flex-column justify-content-between h-full transition-all hover:shadow-2">
+                                    <div className="flex align-items-center gap-2 mb-2">
+                                        <div
+                                            className="w-2rem h-2rem border-round-lg flex align-items-center justify-content-center flex-shrink-0"
+                                            style={{ backgroundColor: '#ecfdf5', color: '#059669' }}
+                                        >
+                                            <i className="pi pi-check-circle text-sm" />
+                                        </div>
+                                        <span className="text-xs font-bold text-500 uppercase tracking-wider">
+                                            Siap Terima Walk-In
+                                        </span>
+                                    </div>
+                                    <div className="text-3xl font-extrabold text-emerald-700 my-1">
+                                        {countAman} <span className="text-sm font-semibold text-500">/ {totalRuanganAktif}</span>
+                                    </div>
+                                    <span className="text-xs text-emerald-600 font-medium">
+                                        Kapasitas aman untuk pendaftaran offline
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Stat 4: Walk-In Berisiko / Waspada */}
                             <div className="col-12 sm:col-6 lg:col-3">
                                 <div className="surface-card border-round-xl border-1 surface-border p-3 md:p-4 shadow-1 flex flex-column justify-content-between h-full transition-all hover:shadow-2">
                                     <div className="flex align-items-center gap-2 mb-2">
@@ -543,37 +632,14 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
                                             <i className="pi pi-exclamation-triangle text-sm" />
                                         </div>
                                         <span className="text-xs font-bold text-500 uppercase tracking-wider">
-                                            Ruangan Padat
+                                            Perlu Perhatian Walk-In
                                         </span>
                                     </div>
                                     <div className="text-3xl font-extrabold text-amber-600 my-1">
-                                        {totalRuanganPadat}
+                                        {countWaspada + countBerisiko} <span className="text-sm font-semibold text-500">Ruangan</span>
                                     </div>
                                     <span className="text-xs text-500">
-                                        Perlu perhatian
-                                    </span>
-                                </div>
-                            </div>
-
-                            {/* Stat 4: Ruangan Aktif */}
-                            <div className="col-12 sm:col-6 lg:col-3">
-                                <div className="surface-card border-round-xl border-1 surface-border p-3 md:p-4 shadow-1 flex flex-column justify-content-between h-full transition-all hover:shadow-2">
-                                    <div className="flex align-items-center gap-2 mb-2">
-                                        <div
-                                            className="w-2rem h-2rem border-round-lg flex align-items-center justify-content-center flex-shrink-0"
-                                            style={{ backgroundColor: '#ecfdf5', color: '#059669' }}
-                                        >
-                                            <i className="pi pi-building text-sm" />
-                                        </div>
-                                        <span className="text-xs font-bold text-500 uppercase tracking-wider">
-                                            Ruangan Aktif
-                                        </span>
-                                    </div>
-                                    <div className="text-3xl font-extrabold text-900 my-1">
-                                        {totalRuanganAktif}
-                                    </div>
-                                    <span className="text-xs text-500">
-                                        Tersedia untuk pelayanan
+                                        Ada booking terdekat / kapasitas padat
                                     </span>
                                 </div>
                             </div>
@@ -598,7 +664,7 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
                                         outlined
                                         size="small"
                                         severity="secondary"
-                                        onClick={getGridData}
+                                        onClick={handleRefreshAll}
                                         loading={state.loadGrid}
                                         className="font-semibold text-xs border-round-lg"
                                         style={{ height: '32px' }}
@@ -817,27 +883,17 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
                                         <table className="w-full text-left" style={{ borderCollapse: 'separate', borderSpacing: '0 2px', tableLayout: 'auto' }}>
                                             <thead>
                                                 <tr className="text-xs text-500 font-bold uppercase tracking-wider" style={{ borderBottom: '1.5px solid #e2e8f0' }}>
-                                                    <th className="py-3 px-3" style={{ minWidth: '240px', width: '32%' }}>RUANGAN</th>
-                                                    <th className="py-3 px-3" style={{ minWidth: '130px', width: '18%' }}>STATUS</th>
-                                                    <th className="py-3 px-3 text-center" style={{ minWidth: '100px', width: '12%', textAlign: 'center' }}>MENUNGGU</th>
-                                                    <th className="py-3 px-3 text-center" style={{ minWidth: '100px', width: '12%', textAlign: 'center' }}>SELESAI</th>
-                                                    <th className="py-3 px-3" style={{ minWidth: '160px', width: '26%' }}>SEDANG DILAYANI</th>
+                                                    <th className="py-3 px-3" style={{ minWidth: '180px' }}>RUANGAN</th>
+                                                    <th className="py-3 px-3" style={{ minWidth: '180px' }}>STATUS WALK-IN (OFFLINE)</th>
+                                                    <th className="py-3 px-3" style={{ minWidth: '180px' }}>BOOKING TERDEKAT</th>
+                                                    <th className="py-3 px-3" style={{ minWidth: '110px' }}>STATUS ANTREAN</th>
+                                                    <th className="py-3 px-3 text-center" style={{ minWidth: '85px', textAlign: 'center' }}>MENUNGGU</th>
+                                                    <th className="py-3 px-3 text-center" style={{ minWidth: '85px', textAlign: 'center' }}>SELESAI</th>
+                                                    <th className="py-3 px-3" style={{ minWidth: '150px' }}>SEDANG DILAYANI</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="text-sm">
                                                 {sortedRoomsKepadatan.map((r) => {
-                                                    const statusBadgeBg =
-                                                        r.statusType === 'padat'
-                                                            ? '#fee2e2'
-                                                            : r.statusType === 'sedang'
-                                                            ? '#fef3c7'
-                                                            : '#ecfdf5';
-                                                    const statusBadgeColor =
-                                                        r.statusType === 'padat'
-                                                            ? '#b91c1c'
-                                                            : r.statusType === 'sedang'
-                                                            ? '#b45309'
-                                                            : '#047857';
                                                     const statusBadgeText =
                                                         r.statusType === 'padat'
                                                             ? 'PADAT'
@@ -845,26 +901,79 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
                                                             ? 'SEDANG'
                                                             : 'LONGGAR';
 
+                                                    const isClosed = r.has_petugas_jaga_today === false;
+                                                    const isBerisiko = !isClosed && r.status_kapasitas === 'berisiko';
+                                                    const isWaspada = !isClosed && r.status_kapasitas === 'waspada';
+
                                                     return (
                                                         <tr
                                                             key={r.kode_ruangan}
-                                                            className="transition-colors"
+                                                            className="transition-colors hover:surface-50 cursor-pointer"
                                                             style={{ borderRadius: '6px' }}
+                                                            onClick={() => handleSelectRuangan(r.kode_ruangan)}
                                                         >
                                                             <td className="py-3 px-3 font-semibold text-900" style={{ whiteSpace: 'nowrap' }}>
                                                                 {r.nama_ruangan} <span className="text-400 font-normal text-xs ml-1">({r.kode_ruangan})</span>
                                                             </td>
                                                             <td className="py-3 px-3">
-                                                                <span
-                                                                    className="inline-block text-xs font-bold uppercase px-2.5 py-1 border-round-md line-height-1"
-                                                                    style={{
-                                                                        backgroundColor: statusBadgeBg,
-                                                                        color: statusBadgeColor,
-                                                                        letterSpacing: '0.04em',
-                                                                    }}
-                                                                >
-                                                                    {statusBadgeText}
-                                                                </span>
+                                                                {isClosed ? (
+                                                                    <Tag
+                                                                        value="Tutup (Tanpa Petugas)"
+                                                                        icon="pi pi-ban"
+                                                                        severity="secondary"
+                                                                        className="text-xs font-bold line-height-1 inline-flex align-items-center"
+                                                                        style={{ padding: '6px 10px', borderRadius: '8px', gap: '6px' }}
+                                                                    />
+                                                                ) : isBerisiko ? (
+                                                                    <Tag
+                                                                        value={`Berisiko Bentrok${r.slack_menit !== null && r.slack_menit !== undefined ? ` (±${Math.max(0, r.slack_menit)}m)` : ''}`}
+                                                                        icon="pi pi-exclamation-triangle"
+                                                                        severity="danger"
+                                                                        className="text-xs font-bold line-height-1 inline-flex align-items-center"
+                                                                        style={{ padding: '6px 10px', borderRadius: '8px', gap: '6px' }}
+                                                                    />
+                                                                ) : isWaspada ? (
+                                                                    <Tag
+                                                                        value={`Waspada (±${r.slack_menit ?? '?'}m)`}
+                                                                        icon="pi pi-clock"
+                                                                        severity="warning"
+                                                                        className="text-xs font-bold line-height-1 inline-flex align-items-center"
+                                                                        style={{ padding: '6px 10px', borderRadius: '8px', gap: '6px' }}
+                                                                    />
+                                                                ) : (
+                                                                    <Tag
+                                                                        value="Siap Walk-In (Aman)"
+                                                                        icon="pi pi-check-circle"
+                                                                        severity="success"
+                                                                        className="text-xs font-bold line-height-1 inline-flex align-items-center"
+                                                                        style={{ padding: '6px 10px', borderRadius: '8px', gap: '6px' }}
+                                                                    />
+                                                                )}
+                                                            </td>
+                                                            <td className="py-3 px-3 text-xs">
+                                                                {r.jam_booking_terdekat ? (
+                                                                    <div className="flex flex-column gap-0.5">
+                                                                        <span className="font-bold text-indigo-700 flex align-items-center gap-1">
+                                                                            <i className="pi pi-calendar text-[11px] text-indigo-500" />
+                                                                            <span>{r.jam_booking_terdekat} WIB</span>
+                                                                        </span>
+                                                                        {r.nama_pasien_booking_terdekat && (
+                                                                            <span className="text-600 font-medium text-truncate" style={{ maxWidth: '160px' }}>
+                                                                                {r.nama_pasien_booking_terdekat}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                ) : (
+                                                                    <span className="text-400 font-normal italic">Tidak ada</span>
+                                                                )}
+                                                            </td>
+                                                            <td className="py-3 px-3">
+                                                                <Tag
+                                                                    value={statusBadgeText}
+                                                                    severity={r.statusType === 'padat' ? 'danger' : r.statusType === 'sedang' ? 'warning' : 'success'}
+                                                                    className="text-xs font-bold uppercase line-height-1"
+                                                                    style={{ padding: '5px 8px', borderRadius: '6px' }}
+                                                                />
                                                             </td>
                                                             <td className="py-3 px-3 text-center font-bold text-900" style={{ textAlign: 'center' }}>
                                                                 {r.menunggu}

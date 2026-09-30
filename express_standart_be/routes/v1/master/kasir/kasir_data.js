@@ -27,6 +27,7 @@ export const handleList = async (req, res) => {
     const baseQuery = DB("trx_transaksi as t")
       .leftJoin("mst_pasien as p", "t.no_rm", "p.no_rm")
       .leftJoin("trx_kunjungan as k", "t.kode_kunjungan", "k.kode_kunjungan")
+      .leftJoin("trx_booking as b", "k.kode_booking", "b.kode_booking")
       .leftJoin("mst_promo as pr", "t.kode_promo", "pr.kode_promo")
       .whereRaw("DATE(t.tanggal_transaksi) = ?", [tanggal])
       .modify((qb) => {
@@ -60,9 +61,9 @@ export const handleList = async (req, res) => {
         "t.total_harga",
         "t.total_diskon",
         "t.total_bayar",
-        "t.dp_nominal",
-        "t.metode_pembayaran_dp",
-        "t.sisa_bayar",
+        DB.raw("COALESCE(NULLIF(t.dp_nominal, 0), CASE WHEN b.dp_status IN ('sudah_bayar', 'lunas', 'dipotong_treatment') OR b.dp_nominal > 0 THEN b.dp_nominal ELSE 0 END, 0) as dp_nominal"),
+        DB.raw("COALESCE(t.metode_pembayaran_dp, b.metode_pembayaran_dp) as metode_pembayaran_dp"),
+        DB.raw("GREATEST(0, t.total_bayar - COALESCE(NULLIF(t.dp_nominal, 0), CASE WHEN b.dp_status IN ('sudah_bayar', 'lunas', 'dipotong_treatment') OR b.dp_nominal > 0 THEN b.dp_nominal ELSE 0 END, 0)) as sisa_bayar"),
         "t.metode_bayar",
         "t.status",
         "t.created_at",

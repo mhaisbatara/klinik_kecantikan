@@ -48,6 +48,15 @@ export interface RekomendasiItem {
   petugas_jaga_count?: number;
   petugas_pj_nama?: string | null;
   petugas_jaga_names?: string[];
+  status_kapasitas?: 'aman' | 'waspada' | 'berisiko';
+  status_badge?: string;
+  badge_color?: 'green' | 'yellow' | 'red';
+  slack_menit?: number | null;
+  keterangan_status?: string | null;
+  jam_booking_terdekat?: string | null;
+  nama_pasien_booking_terdekat?: string | null;
+  antrean_aktif_count?: number;
+  sisa_beban_menit?: number;
 }
 
 interface RekomendasiTreatmentPanelProps {
@@ -124,6 +133,17 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
         jam_mulai?: string | null;
         jam_selesai?: string | null;
       }>;
+      status_kapasitas?: 'aman' | 'waspada' | 'berisiko';
+      status_badge?: string;
+      badge_color?: 'green' | 'yellow' | 'red';
+      slack_menit?: number | null;
+      keterangan_status?: string | null;
+      jam_booking_terdekat?: string | null;
+      nama_pasien_booking_terdekat?: string | null;
+      antrean_aktif_count?: number;
+      sisa_beban_menit?: number;
+      total_booking_hari_ini?: number;
+      daftar_booking_hari_ini?: any[];
     }>;
     layanan: RekomendasiItem[];
     paket_layanan: RekomendasiItem[];
@@ -241,6 +261,15 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
           jam_mulai?: string | null;
           jam_selesai?: string | null;
         }>;
+        status_kapasitas?: 'aman' | 'waspada' | 'berisiko';
+        status_badge?: string;
+        badge_color?: 'green' | 'yellow' | 'red';
+        slack_menit?: number | null;
+        keterangan_status?: string | null;
+        jam_booking_terdekat?: string | null;
+        nama_pasien_booking_terdekat?: string | null;
+        antrean_aktif_count?: number;
+        sisa_beban_menit?: number;
       }
     >();
 
@@ -257,7 +286,7 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
         roomsMap.set(k, {
           kode: k,
           nama: n,
-          has_petugas: Boolean(r.has_petugas),
+          has_petugas: Boolean(r.has_petugas_hari_ini ?? r.has_petugas),
           has_petugas_hari_ini: Boolean(r.has_petugas_hari_ini ?? r.has_petugas),
           is_not_started_today: Boolean(r.is_not_started_today),
           is_past_today: Boolean(r.is_past_today),
@@ -273,6 +302,15 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
           shift: r.shift || null,
           earliest_start: r.earliest_start || null,
           companions: r.companions || [],
+          status_kapasitas: r.status_kapasitas,
+          status_badge: r.status_badge,
+          badge_color: r.badge_color,
+          slack_menit: r.slack_menit,
+          keterangan_status: r.keterangan_status,
+          jam_booking_terdekat: r.jam_booking_terdekat,
+          nama_pasien_booking_terdekat: r.nama_pasien_booking_terdekat,
+          antrean_aktif_count: r.antrean_aktif_count,
+          sisa_beban_menit: r.sisa_beban_menit,
         });
       }
     });
@@ -305,6 +343,15 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
           shift: item.shift || null,
           earliest_start: item.earliest_start || null,
           companions: [],
+          status_kapasitas: item.status_kapasitas,
+          status_badge: item.status_badge,
+          badge_color: item.badge_color,
+          slack_menit: item.slack_menit,
+          keterangan_status: item.keterangan_status,
+          jam_booking_terdekat: item.jam_booking_terdekat,
+          nama_pasien_booking_terdekat: item.nama_pasien_booking_terdekat,
+          antrean_aktif_count: item.antrean_aktif_count,
+          sisa_beban_menit: item.sisa_beban_menit,
         });
       }
     });
@@ -337,6 +384,10 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
       isNotStarted?: boolean;
       isPast?: boolean;
       hasPetugas?: boolean;
+      statusKapasitas?: 'aman' | 'waspada' | 'berisiko';
+      statusBadge?: string;
+      slackMenit?: number | null;
+      jamBookingTerdekat?: string | null;
     }> = [];
 
     roomList.forEach((r) => {
@@ -344,15 +395,21 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
         (s) => ['layanan', 'paket_layanan'].includes(s.jenis) && (s.kode_ruangan || 'UNASSIGNED') === r.kode
       ).length;
 
+      const isBerisiko = r.status_kapasitas === 'berisiko';
+
       tabs.push({
         key: r.kode,
         label: r.nama,
-        icon: countInRoom > 0 ? 'pi-check-circle' : 'pi-building',
+        icon: countInRoom > 0 ? 'pi-check-circle' : !r.has_petugas ? 'pi-times-circle' : 'pi-building',
         isProduct: false,
         selectedCount: countInRoom,
         isNotStarted: Boolean(r.is_not_started_today),
         isPast: Boolean(r.is_past_today),
         hasPetugas: Boolean(r.has_petugas),
+        statusKapasitas: r.status_kapasitas,
+        statusBadge: r.status_badge,
+        slackMenit: r.slack_menit,
+        jamBookingTerdekat: r.jam_booking_terdekat,
       });
     });
 
@@ -366,6 +423,7 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
       isNotStarted: false,
       isPast: false,
       hasPetugas: true,
+      statusKapasitas: 'aman',
     });
 
     return tabs;
@@ -413,6 +471,15 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
     }
 
     if (isService) {
+      if (item.status_kapasitas === 'berisiko') {
+        showWarning(
+          toast,
+          item.keterangan_status ||
+            `Ruangan "${item.nama_ruangan || 'tujuan'}" sedang dikunci karena kapasitas penuh / ada booking jam ${item.jam_booking_terdekat || ''}.`
+        );
+        return;
+      }
+
       if (item.is_not_started_today) {
         showWarning(
           toast,
@@ -500,8 +567,43 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
           {!isProductTab && currentRoomObj && (() => {
             const isNotStarted = Boolean(currentRoomObj.is_not_started_today);
             const isPast = Boolean(currentRoomObj.is_past_today);
+            const isBerisiko = currentRoomObj.status_kapasitas === 'berisiko';
             const hasOngoing = Boolean(currentRoomObj.has_petugas);
             const hasCompanions = Boolean(currentRoomObj.companions && currentRoomObj.companions.length > 0);
+
+            if (isBerisiko) {
+              return (
+                <button
+                  type="button"
+                  onClick={(e) => companionOpRef.current?.toggle(e)}
+                  className="inline-flex align-items-center border-round-pill cursor-pointer transition-all border-1 hover:shadow-1"
+                  style={{
+                    background: '#fef2f2',
+                    color: '#991b1b',
+                    borderColor: '#fca5a5',
+                    padding: '3px 10px',
+                    gap: '6px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                  }}
+                  title={currentRoomObj.keterangan_status || `Ruangan ${currentRoomObj.nama} terkunci karena kapasitas penuh / booking collision`}
+                >
+                  <i className="pi pi-lock text-xs text-rose-600 flex-shrink-0" />
+                  <span className="white-space-nowrap">
+                    {currentRoomObj.nama} ({currentRoomObj.dokter_nama || currentRoomObj.petugas_pj || `${currentRoomObj.petugas_count} Petugas`})
+                  </span>
+                  {hasCompanions && (
+                    <span
+                      className="text-xs font-bold px-1.5 py-0 border-round-pill bg-rose-100 text-rose-800 flex-shrink-0"
+                      style={{ fontSize: '10px' }}
+                    >
+                      +{currentRoomObj.companions?.length} Pendamping
+                    </span>
+                  )}
+                  <i className="pi pi-chevron-down text-xs text-rose-700 flex-shrink-0 ml-0.5 opacity-80" />
+                </button>
+              );
+            }
 
             if (isNotStarted) {
               return (
@@ -621,6 +723,7 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
           {allTabs.map((tab) => {
             const isActive = activeTabKey === tab.key;
             const hasSelected = tab.selectedCount > 0;
+            const isBerisiko = tab.statusKapasitas === 'berisiko';
 
             let iconName = 'pi-building';
             let iconClass = 'text-500';
@@ -634,6 +737,9 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
             } else if (tab.isPast) {
               iconName = 'pi-times-circle';
               iconClass = isActive ? 'text-rose-600 font-bold' : 'text-rose-400';
+            } else if (!tab.hasPetugas) {
+              iconName = 'pi-times-circle';
+              iconClass = isActive ? 'text-rose-600 font-bold' : 'text-red-500';
             } else if (tab.hasPetugas) {
               iconName = isActive ? 'pi-check-circle' : 'pi-building';
               iconClass = isActive ? 'text-primary font-bold' : 'text-emerald-600';
@@ -672,8 +778,71 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
         </div>
       </div>
 
+      {/* ── NOTIFIKASI KAPASITAS PENUH / BOOKING COLLISION BANNER ── */}
+      {!isProductTab && currentRoomObj && currentRoomObj.status_kapasitas === 'berisiko' && (
+        <div className="mb-3">
+          <div
+            className="flex align-items-center border-round-xl border-1 p-3 gap-2.5"
+            style={{
+              backgroundColor: '#fef2f2',
+              borderColor: '#fca5a5',
+              color: '#991b1b',
+            }}
+          >
+            <div
+              className="flex align-items-center justify-content-center border-circle bg-red-100 flex-shrink-0"
+              style={{ width: '32px', height: '32px' }}
+            >
+              <i className="pi pi-lock text-red-600 text-sm font-bold" />
+            </div>
+            <div className="flex-1 text-xs">
+              <span className="font-bold block text-red-900 mb-0.5" style={{ fontSize: '12.5px' }}>
+                Kapasitas {currentRoomObj.nama} Penuh / Terkunci
+              </span>
+              <span className="text-red-700 leading-normal block">
+                {currentRoomObj.keterangan_status ||
+                  'Terdapat jadwal booking terdekat atau antrean padat di ruangan ini sehingga penambahan tindakan rekomendasi dikunci untuk mencegah tabrakan jadwal booking.'}
+              </span>
+            </div>
+            {currentRoomObj.antrean_aktif_count !== undefined && currentRoomObj.antrean_aktif_count > 0 && (
+              <div className="flex-shrink-0">
+                <Tag
+                  value={`${currentRoomObj.antrean_aktif_count} Antrean Menunggu`}
+                  icon="pi pi-hourglass mr-1"
+                  severity="warning"
+                  className="text-xs font-semibold px-2.5 py-1 border-round-md"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {!isProductTab && currentRoomObj && currentRoomObj.status_kapasitas === 'waspada' && (
+        <div className="mb-3">
+          <div
+            className="flex align-items-center border-round-xl border-1 p-2.5 gap-2"
+            style={{
+              backgroundColor: '#fffbeb',
+              borderColor: '#fde68a',
+              color: '#92400e',
+            }}
+          >
+            <i className="pi pi-exclamation-triangle text-amber-600 text-sm flex-shrink-0" />
+            <div className="flex-1 text-xs">
+              <span className="font-bold text-amber-900 mr-1">
+                Perhatian Kapasitas:
+              </span>
+              <span className="text-amber-800">
+                {currentRoomObj.keterangan_status}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── NOTIFIKASI SHIFT BELUM MULAI / SELESAI / RUANGAN TERKUNCI ── */}
-      {!isProductTab && currentRoomObj && currentRoomObj.is_not_started_today && (
+      {!isProductTab && currentRoomObj && currentRoomObj.status_kapasitas !== 'berisiko' && currentRoomObj.is_not_started_today && (
         <div className="mb-3">
           <div
             className="inline-flex align-items-center border-round-lg border-1"
@@ -696,7 +865,7 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
         </div>
       )}
 
-      {!isProductTab && currentRoomObj && currentRoomObj.is_past_today && (
+      {!isProductTab && currentRoomObj && currentRoomObj.status_kapasitas !== 'berisiko' && currentRoomObj.is_past_today && (
         <div className="mb-3">
           <div
             className="inline-flex align-items-center border-round-lg border-1"
@@ -771,7 +940,8 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
               const isService = ['layanan', 'paket_layanan'].includes(item.jenis);
               const isPaket = item.jenis === 'paket_layanan' || item.jenis === 'paket_produk';
               const isProduk = ['produk', 'paket_produk'].includes(item.jenis);
-              const isUnavailable = isService && (item.is_petugas_available === false || Boolean(item.is_not_started_today) || Boolean(item.is_past_today));
+              const isCapacityLocked = isService && (item.status_kapasitas === 'berisiko' || currentRoomObj?.status_kapasitas === 'berisiko');
+              const isUnavailable = isService && (item.is_petugas_available === false || Boolean(item.is_not_started_today) || Boolean(item.is_past_today) || isCapacityLocked);
               const effectiveDisabled = isUnavailable || isRuangDisabled || disabled;
 
               return (
@@ -796,6 +966,15 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                         showError(
                           toast,
                           `Item "${item.nama}" sudah dipilih saat pendaftaran awal dan tidak dapat diubah.`
+                        );
+                        return;
+                      }
+                      if (isCapacityLocked) {
+                        showWarning(
+                          toast,
+                          item.keterangan_status ||
+                            currentRoomObj?.keterangan_status ||
+                            `Ruangan "${item.nama_ruangan || currentRoomObj?.nama || 'tujuan'}" sedang dikunci karena kapasitas penuh / ada booking jam ${item.jam_booking_terdekat || currentRoomObj?.jam_booking_terdekat || ''}.`
                         );
                         return;
                       }
@@ -946,7 +1125,22 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                             />
                           )}
 
-                          {isService && item.is_past_today && (
+                          {isService && isCapacityLocked && (
+                            <Tag
+                              rounded
+                              value="Ruangan Penuh"
+                              severity="danger"
+                              style={{
+                                fontSize: '10px',
+                                padding: '3px 8px',
+                                fontWeight: 700,
+                                lineHeight: 1.2,
+                                borderRadius: '9999px',
+                              }}
+                            />
+                          )}
+
+                          {isService && !isCapacityLocked && item.is_past_today && (
                             <Tag
                               rounded
                               value="Shift Selesai"
@@ -961,7 +1155,7 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                             />
                           )}
 
-                          {isService && !item.is_not_started_today && !item.is_past_today && item.is_petugas_available === false && (
+                          {isService && !isCapacityLocked && !item.is_not_started_today && !item.is_past_today && item.is_petugas_available === false && (
                             <Tag
                               rounded
                               value="Tidak Ada Petugas"
@@ -1047,12 +1241,8 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                             </button>
                           </div>
                         ) : (
-                          <div className="flex-shrink-0">
-                            <span
-                              className={`text-sm font-extrabold white-space-nowrap ${
-                                isPaket ? 'text-amber-700' : 'text-blue-600'
-                              }`}
-                            >
+                          <div className="flex-shrink-0 text-right">
+                            <span className="text-sm font-extrabold text-amber-700 white-space-nowrap">
                               {formatRupiah(item.harga)}
                             </span>
                           </div>

@@ -126,6 +126,44 @@ router.post("/", async (req, res) => {
     }
 
     // 4. Validasi & Fetch Detail Semua Item Layanan / Paket
+    // Ambil promo aktif pada tanggal booking untuk snapshot harga promo di awal
+    const qPromos = DB("mst_promo as p")
+      .join("mst_detail_promo as dp", "p.kode_promo", "dp.kode_promo")
+      .where("p.status", "aktif")
+      .where("dp.status", "aktif")
+      .where("p.tanggal_mulai", "<=", cleanDateStr)
+      .where("p.tanggal_selesai", ">=", cleanDateStr);
+
+    const activePromos = await qPromos.select(
+      "p.kode_promo",
+      "p.nama as nama_promo",
+      "p.jenis_diskon",
+      "p.nilai_diskon",
+      "dp.jenis_item",
+      "dp.kode_item"
+    );
+
+    const promoMap = {};
+    activePromos.forEach((pr) => {
+      const jenisClean = (pr.jenis_item || "").toLowerCase();
+      const normJenis = jenisClean.includes("layanan")
+        ? jenisClean.includes("paket") ? "paket" : "layanan"
+        : jenisClean.includes("produk") ? jenisClean.includes("paket") ? "paket" : "produk" : jenisClean;
+
+      const keys = [`${normJenis}_${pr.kode_item}`, `${jenisClean}_${pr.kode_item}`];
+      keys.forEach((key) => {
+        if (!promoMap[key]) {
+          promoMap[key] = pr;
+        } else {
+          const curVal = parseFloat(promoMap[key].nilai_diskon || 0);
+          const newVal = parseFloat(pr.nilai_diskon || 0);
+          if (newVal > curVal) {
+            promoMap[key] = pr;
+          }
+        }
+      });
+    });
+
     const validatedItems = [];
     let calculatedTotalBiaya = 0;
     let totalDurasiMenit = 0;
@@ -277,16 +315,27 @@ router.post("/", async (req, res) => {
           });
         }
 
-        const hargaPkt = parseFloat(pkt.harga_paket || 0);
+        const baseHargaPkt = parseFloat(pkt.harga_paket || 0);
         const durasiPkt = item.durasi_menit || 60;
-        calculatedTotalBiaya += hargaPkt;
+        const promoPkt = promoMap[`paket_${pkt.kode_paket_layanan}`] || promoMap[`paket_layanan_${pkt.kode_paket_layanan}`];
+        let finalHargaPkt = baseHargaPkt;
+        if (promoPkt) {
+          const nilDiskon = parseFloat(promoPkt.nilai_diskon || 0);
+          if (promoPkt.jenis_diskon === "persen") {
+            finalHargaPkt = Math.max(0, baseHargaPkt - (baseHargaPkt * nilDiskon) / 100);
+          } else {
+            finalHargaPkt = Math.max(0, baseHargaPkt - nilDiskon);
+          }
+        }
+
+        calculatedTotalBiaya += finalHargaPkt;
         totalDurasiMenit += durasiPkt;
         validatedItems.push({
           jenis_layanan: "paket",
           jenis_item: "paket_baru",
           kode_layanan: pkt.kode_paket_layanan,
           nama_layanan: pkt.nama,
-          harga: hargaPkt,
+          harga: finalHargaPkt,
           durasi_menit: durasiPkt,
           kode_kepemilikan_paket_layanan: null,
           kode_detail_kepemilikan_paket_layanan: null,
@@ -305,17 +354,29 @@ router.post("/", async (req, res) => {
           });
         }
 
-        const hargaLay = parseFloat(lay.harga || 0);
+        const baseHargaLay = parseFloat(lay.harga || 0);
         const durasiLay = lay.durasi_menit || 30;
-        calculatedTotalBiaya += hargaLay;
+        const promoLay = promoMap[`layanan_${lay.kode_layanan}`];
+        let finalHargaLay = baseHargaLay;
+        if (promoLay) {
+          const nilDiskon = parseFloat(promoLay.nilai_diskon || 0);
+          if (promoLay.jenis_diskon === "persen") {
+            finalHargaLay = Math.max(0, baseHargaLay - (baseHargaLay * nilDiskon) / 100);
+          } else {
+            finalHargaLay = Math.max(0, baseHargaLay - nilDiskon);
+          }
+        }
+
+        calculatedTotalBiaya += finalHargaLay;
         totalDurasiMenit += durasiLay;
         validatedItems.push({
           jenis_layanan: "layanan",
           jenis_item: "layanan_baru",
           kode_layanan: lay.kode_layanan,
           nama_layanan: lay.nama,
-          harga: hargaLay,
+          harga: finalHargaLay,
           durasi_menit: durasiLay,
+          is_wajib_konsul: (lay.wajib_konsultasi || "").toLowerCase() === "wajib",
           kode_kepemilikan_paket_layanan: null,
           kode_detail_kepemilikan_paket_layanan: null,
         });

@@ -84,7 +84,7 @@ export const KasirSidebar: React.FC<KasirSidebarProps> = ({
   const totalPendapatan = list.filter((i) => i.status === 'lunas').reduce((s, i) => s + parseFloat(String(i.total_bayar || 0)), 0);
 
   return (
-    <div className="flex flex-column h-full user-select-none surface-card border-right-1 surface-border">
+    <div className="flex flex-column h-full w-full user-select-none surface-card border-right-1 surface-border" style={{ minHeight: 0, minWidth: 0 }}>
       {/* Header Stat Bar */}
       <div className="p-3 bg-teal-50 border-bottom-1 surface-border flex-shrink-0">
         <div className="flex align-items-center justify-content-between mb-3">
@@ -174,7 +174,10 @@ export const KasirSidebar: React.FC<KasirSidebarProps> = ({
       </div>
 
       {/* Transaction Cards List */}
-      <div className="flex-1 overflow-y-auto p-3 surface-ground">
+      <div
+        className="flex-1 overflow-y-auto p-3 surface-ground kasir-scroll-area"
+        style={{ minHeight: 0, overscrollBehavior: 'contain' }}
+      >
         {loading ? (
           <div className="flex align-items-center justify-content-center py-5">
             <ProgressSpinner style={{ width: '28px', height: '28px' }} />
@@ -215,12 +218,27 @@ export const KasirSidebar: React.FC<KasirSidebarProps> = ({
                   <div className="flex align-items-center justify-content-between text-xs pt-1 border-top-1 surface-border">
                     <span className="text-[11px] text-500">RM: {item.no_rm}</span>
                     <div className="text-right">
-                      <span className="font-black text-teal-700 block">{formatRupiah(parseFloat(String(item.total_bayar || 0)))}</span>
-                      {parseFloat(String(item.dp_nominal || 0)) > 0 && (
-                        <span className="text-[10px] text-teal-600 font-bold block">
-                          DP: -{formatRupiah(parseFloat(String(item.dp_nominal)))}
-                        </span>
-                      )}
+                      {(() => {
+                        const totalBayar = parseFloat(String(item.total_bayar || 0));
+                        const dp = parseFloat(String(item.dp_nominal || 0));
+                        const sisa = dp > 0
+                          ? (item.sisa_bayar !== undefined && item.sisa_bayar !== null
+                              ? Math.min(parseFloat(String(item.sisa_bayar)), Math.max(0, totalBayar - dp))
+                              : Math.max(0, totalBayar - dp))
+                          : totalBayar;
+                        return (
+                          <>
+                            <span className="font-black text-teal-700 block">
+                              {formatRupiah(dp > 0 ? sisa : totalBayar)}
+                            </span>
+                            {dp > 0 && (
+                              <span className="text-[10px] text-teal-600 font-bold block">
+                                DP: -{formatRupiah(dp)}
+                              </span>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
 

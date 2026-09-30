@@ -234,6 +234,7 @@ router.post("/", async (req, res) => {
           kode_layanan: item.kode_layanan,
           nama_layanan: item.nama_layanan,
           harga: item.harga,
+          durasi_menit: isNeedsConsult ? 10 : (parseInt(item.durasi_menit, 10) || 30),
           kode_promo: null,
           nama_promo: null,
           jenis_diskon: null,

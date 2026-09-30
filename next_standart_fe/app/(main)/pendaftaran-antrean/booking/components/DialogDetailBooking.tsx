@@ -165,7 +165,7 @@ export const DialogDetailBooking: React.FC<Props> = ({
 
   const subtotal = items.reduce(
     (acc: number, item: any) =>
-      acc + (item.subtotal ?? (item.harga_asal ?? item.harga ?? 0) * (item.qty ?? 1)),
+      acc + (item.subtotal ?? (item.harga ?? item.harga_asal ?? 0) * (item.qty ?? 1)),
     0
   );
 
@@ -309,7 +309,7 @@ export const DialogDetailBooking: React.FC<Props> = ({
           {/* Item Details */}
           <div className="flex flex-column gap-2.5 my-2">
             {items.map((item: any, i: number) => {
-              const itemHarga = item.harga_asal ?? item.harga ?? dpNominal ?? 0;
+              const itemHarga = item.harga ?? item.harga_asal ?? dpNominal ?? 0;
               const itemQty = item.qty ?? 1;
               const itemSub = item.subtotal ?? itemHarga * itemQty;
               return (

@@ -133,6 +133,8 @@ const Layout = ({ children }: ChildContainerProps) => {
     unbindProfileMenuOutsideClickListener();
   });
 
+  const isKasir = pathname === '/kasir' || pathname?.startsWith('/kasir');
+
   const containerClass = classNames("layout-wrapper", {
     "layout-overlay": layoutConfig.menuMode === "overlay",
     "layout-static": layoutConfig.menuMode === "static",
@@ -143,6 +145,7 @@ const Layout = ({ children }: ChildContainerProps) => {
     "layout-mobile-active": layoutState.staticMenuMobileActive,
     "p-input-filled": layoutConfig.inputStyle === "filled",
     "p-ripple-disabled": !layoutConfig.ripple,
+    "layout-kasir-wrapper": isKasir,
   });
 
   return (
@@ -152,9 +155,9 @@ const Layout = ({ children }: ChildContainerProps) => {
         <div ref={sidebarRef} className="layout-sidebar">
           <AppSidebar />
         </div>
-        <div className="layout-main-container">
-          <div className="layout-main">{children}</div>
-          <AppFooter />
+        <div className={classNames("layout-main-container", { "layout-kasir-container": isKasir })}>
+          <div className={classNames("layout-main", { "layout-kasir-main": isKasir })}>{children}</div>
+          {!isKasir && <AppFooter />}
         </div>
         <AppConfig />
         <div className="layout-mask"></div>

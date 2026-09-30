@@ -128,6 +128,9 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
     // Layanan Pasien Pendaftaran State
     const [layananPasienList, setLayananPasienList] = useState<any[]>([]);
     const [loadingLayanan, setLoadingLayanan] = useState<boolean>(false);
+    const [dpNominal, setDpNominal] = useState<number>(0);
+    const [dpStatus, setDpStatus] = useState<string | null>(null);
+    const [metodeDp, setMetodeDp] = useState<string | null>(null);
 
     // Catatan treatment
     const [catatan, setCatatan] = useState<string>('');
@@ -226,6 +229,11 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                 kode_kunjungan: kodeKunjungan,
             });
             if (['00', '0000', 200, '200'].includes(res.data?.status) || res.status === 200) {
+                if (res.data?.booking_info) {
+                    setDpNominal(parseFloat(res.data.booking_info.dp_nominal || 0));
+                    setDpStatus(res.data.booking_info.dp_status || null);
+                    setMetodeDp(res.data.booking_info.metode_pembayaran_dp || null);
+                }
                 if (res.data?.data?.length > 0) {
                     setLayananPasienList(filterOnlyLayanan(res.data.data));
                 } else if ((activePatient as any)?.details && (activePatient as any).details.length > 0) {
@@ -261,6 +269,11 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
             const isAlreadyCompleted = activePatient?.status === 'selesai';
             setIsSubmitted(isAlreadyCompleted);
             onHasilSavedChange?.(isAlreadyCompleted);
+
+            const pDp = parseFloat(String(activePatient?.dp_nominal || 0));
+            setDpNominal(pDp);
+            setDpStatus(activePatient?.dp_status || null);
+            setMetodeDp(activePatient?.metode_pembayaran_dp || null);
 
             setFotoBeforeUrl(initialFotoBeforeUrl || savedFormData?.foto_before || (activePatient as any)?.foto_before || '');
             setFotoAfterUrl(savedFormData?.foto_after || (activePatient as any)?.foto_after || '');
@@ -431,9 +444,30 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
         setDraftProdukList((prev) => prev.filter((p) => p.kode_produk !== kode_produk));
     };
 
+    // Helper harga diskon promo yang konsisten dengan kasir
+    const getEffectiveItemPrice = (lay: any): number => {
+        const isKlaim = (lay.jenis || lay.jenis_layanan || '').toLowerCase().includes('klaim');
+        if (isKlaim) return 0;
+        const rawHrg = parseFloat(lay.harga || 0);
+        if (lay.is_promo && lay.nilai_diskon) {
+            const nDiskon = parseFloat(lay.nilai_diskon || 0);
+            if (lay.jenis_diskon === 'persen') {
+                const discNominal = (rawHrg * nDiskon) / 100;
+                if (!lay.harga_asal || lay.harga_asal === rawHrg) {
+                    return Math.max(0, rawHrg - discNominal);
+                }
+            } else if (lay.jenis_diskon === 'nominal') {
+                if (!lay.harga_asal || lay.harga_asal === rawHrg) {
+                    return Math.max(0, rawHrg - nDiskon);
+                }
+            }
+        }
+        return rawHrg;
+    };
+
     // Calculate Total di Tampilan Utama
     const grandTotal = selectedProdukList.reduce((acc, curr) => acc + curr.qty * curr.harga_jual, 0);
-    const totalHargaLayanan = layananPasienList.reduce((acc, curr) => acc + parseFloat(curr.harga || 0), 0);
+    const totalHargaLayanan = layananPasienList.reduce((acc, curr) => acc + getEffectiveItemPrice(curr), 0);
 
     // Click Simpan & Setujui
     const handleSaveClick = () => {
@@ -903,7 +937,7 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                             ) : (
                                 <div className="flex flex-column gap-2">
                                     {layananPasienList.map((lay: any, idx: number) => {
-                                        const hrg = parseFloat(lay.harga || 0);
+                                        const hrg = getEffectiveItemPrice(lay);
                                         const isKlaim = (lay.jenis || lay.jenis_layanan || '').toLowerCase().includes('klaim');
                                         return (
                                             <div
@@ -931,7 +965,7 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                         <CheckCircle2 size={15} />
                                                     </div>
                                                     <div className="min-w-0 flex flex-column justify-content-center" style={{ gap: '2px' }}>
-                                                        <div className="flex align-items-center flex-wrap" style={{ gap: '6px' }}>
+                                                        <div className="flex align-items-center flex-wrap gap-2">
                                                             <span
                                                                 className="font-bold text-xs text-900 block overflow-hidden text-ellipsis white-space-nowrap"
                                                                 style={{ lineHeight: '1.3' }}
@@ -940,14 +974,23 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                             </span>
                                                             {lay.is_promo && (
                                                                 <span
-                                                                    className="text-[10px] font-extrabold bg-red-50 text-red-600 border-1 border-red-200"
+                                                                    className="inline-flex align-items-center font-bold text-white shadow-xs flex-shrink-0"
                                                                     style={{
-                                                                        borderRadius: '4px',
-                                                                        padding: '1px 5px',
-                                                                        lineHeight: 1
+                                                                        background: 'linear-gradient(135deg, #ef4444, #f97316)',
+                                                                        fontSize: '9.5px',
+                                                                        padding: '2px 8px',
+                                                                        borderRadius: '9999px',
+                                                                        lineHeight: '1.2',
+                                                                        gap: '3px',
+                                                                        boxShadow: '0 1px 4px rgba(239, 68, 68, 0.35)',
                                                                     }}
                                                                 >
-                                                                    PROMO {lay.jenis_diskon === 'persen' ? `-${lay.nilai_diskon}%` : ''}
+                                                                    <i className="pi pi-percentage" style={{ fontSize: '8px' }} />
+                                                                    <span>
+                                                                        {lay.jenis_diskon === 'persen'
+                                                                            ? `PROMO -${parseFloat(String(lay.nilai_diskon || 0))}%`
+                                                                            : `PROMO -${formatRupiah(lay.nilai_diskon || 0)}`}
+                                                                    </span>
                                                                 </span>
                                                             )}
                                                         </div>
@@ -1190,24 +1233,33 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                     </span>
                                 </div>
 
-                                {/* Baris 3: Total Biaya ke Kasir */}
+                                {/* Baris DP (jika ada) */}
+                                {dpNominal > 0 && (
+                                    <div className="flex align-items-center justify-content-between text-xs">
+                                        <span className="text-teal-800 font-medium flex align-items-center" style={{ gap: '6px' }}>
+                                            <CheckCircle2 size={14} className="text-teal-600 flex-shrink-0" />
+                                            Uang Muka (DP {metodeDp ? metodeDp.toUpperCase() : 'Terbayar'})
+                                        </span>
+                                        <span className="font-bold text-teal-800">-{formatRupiah(dpNominal)}</span>
+                                    </div>
+                                )}
+
+
+                                {/* Baris 3: Total Biaya ke Kasir / Sisa Pelunasan */}
                                 <div
                                     className="pt-2 mt-0.5 flex align-items-center justify-content-between"
                                     style={{ borderTop: '1px dashed #99f6e4' }}
                                 >
                                     <div>
                                         <span className="font-black text-sm text-teal-950 block uppercase tracking-tight">
-                                            Total Biaya ke Kasir:
-                                        </span>
-                                        <span className="text-[10px] text-teal-700 font-medium block">
-                                            Diteruskan otomatis ke tagihan kasir
+                                            {dpNominal > 0 ? 'Sisa Pelunasan ke Kasir:' : 'Total Biaya ke Kasir:'}
                                         </span>
                                     </div>
                                     <span
                                         className="font-black text-teal-700 tracking-tight"
                                         style={{ fontSize: '1.45rem', lineHeight: '1.2' }}
                                     >
-                                        {formatRupiah(totalHargaLayanan + grandTotal)}
+                                        {formatRupiah(Math.max(0, totalHargaLayanan + grandTotal - dpNominal))}
                                     </span>
                                 </div>
                             </div>
@@ -1454,7 +1506,7 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                 </div>
                                 <div className="flex flex-column gap-1 max-h-8rem overflow-y-auto pr-1 custom-thin-scrollbar">
                                     {layananPasienList.map((lay: any, idx: number) => {
-                                        const hrg = parseFloat(lay.harga || 0);
+                                        const hrg = getEffectiveItemPrice(lay);
                                         const isKlaim = (lay.jenis || lay.jenis_layanan || '').toLowerCase().includes('klaim');
                                         const isEven = idx % 2 === 1;
                                         return (
@@ -1464,11 +1516,27 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                     isEven ? 'surface-100 border-200' : 'surface-50 surface-border'
                                                 }`}
                                             >
-                                                <div className="flex align-items-center gap-1.5 min-w-0">
-                                                    <span className="font-medium text-800 truncate">{lay.nama_layanan || lay.nama}</span>
+                                                <div className="flex align-items-center gap-2 min-w-0">
+                                                    <span className="font-semibold text-800 truncate">{lay.nama_layanan || lay.nama}</span>
                                                     {lay.is_promo && (
-                                                        <span className="text-[9px] font-extrabold px-1.5 py-0.2 border-round bg-red-50 text-red-600 border-1 border-red-200 flex-shrink-0">
-                                                            PROMO {lay.jenis_diskon === 'persen' ? `-${lay.nilai_diskon}%` : ''}
+                                                        <span
+                                                            className="inline-flex align-items-center font-bold text-white shadow-xs flex-shrink-0"
+                                                            style={{
+                                                                background: 'linear-gradient(135deg, #ef4444, #f97316)',
+                                                                fontSize: '9px',
+                                                                padding: '2px 7px',
+                                                                borderRadius: '9999px',
+                                                                lineHeight: '1.2',
+                                                                gap: '3px',
+                                                                boxShadow: '0 1px 4px rgba(239, 68, 68, 0.35)',
+                                                            }}
+                                                        >
+                                                            <i className="pi pi-percentage" style={{ fontSize: '7.5px' }} />
+                                                            <span>
+                                                                {lay.jenis_diskon === 'persen'
+                                                                    ? `PROMO -${parseFloat(String(lay.nilai_diskon || 0))}%`
+                                                                    : `PROMO -${formatRupiah(lay.nilai_diskon || 0)}`}
+                                                            </span>
                                                         </span>
                                                     )}
                                                 </div>
@@ -1526,6 +1594,18 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                             </div>
                         )}
 
+                        {/* Baris DP (jika ada) */}
+                        {dpNominal > 0 && (
+                            <div className="flex align-items-center justify-content-between text-xs">
+                                <span className="text-teal-800 font-medium flex align-items-center" style={{ gap: '6px' }}>
+                                    <CheckCircle2 size={14} className="text-teal-600 flex-shrink-0" />
+                                    Uang Muka (DP {metodeDp ? metodeDp.toUpperCase() : 'Terbayar'})
+                                </span>
+                                <span className="font-bold text-teal-800">-{formatRupiah(dpNominal)}</span>
+                            </div>
+                        )}
+
+
                         {/* Total Keseluruhan Baris */}
                         <div
                             className="mt-2 pt-2 flex align-items-center justify-content-between"
@@ -1533,14 +1613,11 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                         >
                             <div>
                                 <span className="font-black text-sm text-teal-950 block uppercase tracking-tight">
-                                    Total Keseluruhan:
-                                </span>
-                                <span className="text-[10px] text-teal-700 font-medium block">
-                                    Biaya layanan &amp; produk ke Kasir
+                                    {dpNominal > 0 ? 'Sisa Pelunasan ke Kasir:' : 'Total Keseluruhan:'}
                                 </span>
                             </div>
                             <span className="font-black text-lg sm:text-xl text-teal-700 tracking-tight">
-                                {formatRupiah(totalHargaLayanan + grandTotal)}
+                                {formatRupiah(Math.max(0, totalHargaLayanan + grandTotal - dpNominal))}
                             </span>
                         </div>
                     </div>

@@ -20,7 +20,6 @@ interface Props {
  */
 const getInitials = (name?: string): string => {
   if (!name || name.trim() === '' || name === '-') return '--';
-  // Bersihkan gelar umum medis / akademis dan koma
   const cleaned = name
     .replace(/\b(dr\.|drg\.|dr|drg|Sp\.[A-Za-z]+|S\.[A-Za-z\.]+|M\.[A-Za-z\.]+|,.*$)\b/gi, '')
     .trim();
@@ -72,7 +71,6 @@ export const DialogSemuaBookingRuangan: React.FC<Props> = ({
 
   const bookings: BookingItemDetail[] = React.useMemo(() => {
     if (!ruangan?.daftar_booking_hari_ini) return [];
-    // Urutkan secara kronologis berdasarkan jam_booking
     return [...ruangan.daftar_booking_hari_ini].sort((a, b) =>
       (a.jam_booking || '').localeCompare(b.jam_booking || '')
     );
@@ -90,7 +88,6 @@ export const DialogSemuaBookingRuangan: React.FC<Props> = ({
         className="p-dialog-clean"
         header={
           <div className="flex align-items-center gap-3">
-            {/* 1. Header Icon Badge (Kotak rounded ~36px, background biru muda tint accent) */}
             <div
               className="flex align-items-center justify-content-center flex-shrink-0 bg-blue-50 text-blue-600 border-1 border-blue-100"
               style={{ width: '36px', height: '36px', borderRadius: '10px' }}
@@ -118,7 +115,6 @@ export const DialogSemuaBookingRuangan: React.FC<Props> = ({
           </div>
         }
         footer={
-          /* 4. Footer Modal (Garis pemisah tipis, ikon check di teks total, tombol tutup secondary outline) */
           <div
             className="flex justify-content-between align-items-center pt-3 mt-1"
             style={{ borderTop: '1px solid #f3f4f6' }}
@@ -145,7 +141,7 @@ export const DialogSemuaBookingRuangan: React.FC<Props> = ({
         }
       >
         <div className="py-2">
-          {/* 2. Banner Peringatan (Background abu-abu muda netral, ikon info) */}
+          {/* Banner Peringatan */}
           <div
             className="p-3 mb-3 border-1 flex align-items-start gap-2.5"
             style={{
@@ -188,7 +184,6 @@ export const DialogSemuaBookingRuangan: React.FC<Props> = ({
                 const fullCompanionNames = companions.map((c) => c.nama_petugas).join(', ');
 
                 return (
-                  /* 3. Card Booking (Background TETAP PUTIH, border highlight biru jika Sesi Terdekat) */
                   <div
                     key={b.kode_booking || idx}
                     className="flex align-items-stretch transition-all"
@@ -201,7 +196,7 @@ export const DialogSemuaBookingRuangan: React.FC<Props> = ({
                       boxShadow: isNearestUpcoming ? '0 1px 3px 0 rgba(59, 130, 246, 0.1)' : 'none',
                     }}
                   >
-                    {/* 3a. Kotak Jam (TETAP PUTIH, Border biru accent, Teks biru accent, Stretch penuh) */}
+                    {/* Kotak Jam */}
                     <div
                       className="flex flex-column align-items-center justify-content-center flex-shrink-0 align-self-stretch"
                       style={{
@@ -226,11 +221,10 @@ export const DialogSemuaBookingRuangan: React.FC<Props> = ({
                       </span>
                     </div>
 
-                    {/* Konten Utama Card (Kanan) */}
+                    {/* Konten Utama Card */}
                     <div className="flex-1 min-w-0 flex flex-column justify-content-between" style={{ gap: '8px' }}>
-                      {/* Baris 1: Identitas Pasien (Kiri) & Badge Status (Kanan) */}
+                      {/* Baris 1: Identitas Pasien & Badge Status */}
                       <div className="flex align-items-center justify-content-between gap-2 flex-wrap">
-                        {/* Identitas: Nama Pasien + No. RM */}
                         <div className="flex align-items-center min-w-0 gap-2">
                           <span className="font-bold text-sm text-900 truncate">
                             {b.nama_pasien}
@@ -250,7 +244,7 @@ export const DialogSemuaBookingRuangan: React.FC<Props> = ({
                           )}
                         </div>
 
-                        {/* 3c. Badge Status ("Sesi Terdekat" warna AMBER/KUNING) */}
+                        {/* Badge Status */}
                         <div className="flex align-items-center flex-shrink-0">
                           {isNearestUpcoming ? (
                             <span
@@ -298,16 +292,13 @@ export const DialogSemuaBookingRuangan: React.FC<Props> = ({
 
                       {/* Baris 2: Layanan & Estimasi Durasi */}
                       <div className="flex align-items-center text-xs text-700 flex-wrap gap-2">
-                        {/* Item Layanan */}
                         <div className="flex align-items-center font-medium text-800" style={{ gap: '6px' }}>
                           <Sparkles size={13} className="text-gray-500 flex-shrink-0" />
                           <span className="truncate">{b.layanan_summary || 'Layanan / Paket'}</span>
                         </div>
 
-                        {/* Titik Pemisah */}
                         <span className="text-300 font-bold">•</span>
 
-                        {/* Item Estimasi */}
                         <div className="flex align-items-center text-600" style={{ gap: '6px' }}>
                           <Clock size={13} className="text-gray-500 flex-shrink-0" />
                           <span>
@@ -316,12 +307,11 @@ export const DialogSemuaBookingRuangan: React.FC<Props> = ({
                         </div>
                       </div>
 
-                      {/* 3e. Baris 3: Info Petugas dengan AVATAR Lingkaran, Petugas Pendamping, & Kode Booking di POJOK KANAN BAWAH */}
+                      {/* Baris 3: Info Petugas & Kode Booking */}
                       <div
                         className="flex align-items-center justify-content-between gap-2 pt-2 mt-1 flex-wrap"
                         style={{ borderTop: '1px solid #f3f4f6' }}
                       >
-                        {/* Petugas PJ + Pendamping */}
                         <div className="flex align-items-center gap-2 min-w-0 flex-wrap">
                           <div className="flex align-items-center gap-2 min-w-0">
                             <div
@@ -347,7 +337,6 @@ export const DialogSemuaBookingRuangan: React.FC<Props> = ({
                             </div>
                           </div>
 
-                          {/* Indikator Petugas Pendamping (Hanya tampil jika ADA pendamping) */}
                           {hasCompanions && (
                             <div
                               className="inline-flex align-items-center gap-1 text-[11px] text-green-700 font-medium cursor-pointer hover:underline pl-0.5"
@@ -375,7 +364,6 @@ export const DialogSemuaBookingRuangan: React.FC<Props> = ({
                           )}
                         </div>
 
-                        {/* 3d. Kode Booking di POJOK KANAN BAWAH */}
                         {b.kode_booking && (
                           <span className="text-xs font-mono text-400 flex-shrink-0">
                             {b.kode_booking}
@@ -391,7 +379,7 @@ export const DialogSemuaBookingRuangan: React.FC<Props> = ({
         </div>
       </Dialog>
 
-      {/* Popover / OverlayPanel Tim Petugas Sesi (Struktur Persis Step 3) */}
+      {/* Popover Tim Petugas Sesi */}
       <OverlayPanel ref={companionOpRef} className="shadow-4 border-round-xl">
         {activeCompanionData && (
           <div style={{ maxWidth: '320px' }}>

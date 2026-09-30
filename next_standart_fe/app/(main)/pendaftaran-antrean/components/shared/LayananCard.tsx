@@ -42,6 +42,11 @@ export interface ServiceItem {
   petugas_pj_nama?: string | null;
   ruangan_cek?: string;
   nama_ruangan_cek?: string;
+  status_kapasitas?: 'aman' | 'waspada' | 'berisiko';
+  status_badge?: string;
+  keterangan_status?: string | null;
+  jam_booking_terdekat?: string | null;
+  nama_pasien_booking_terdekat?: string | null;
 }
 
 export interface RuanganGroup {
@@ -61,10 +66,18 @@ export interface RuanganGroup {
   } | null;
   petugas_jaga_names?: string[];
   antrean_aktif_count?: number;
+  sisa_beban_menit?: number;
+  estimasi_mulai_sekarang?: string;
+  buffer_booking_menit?: number;
   jam_booking_terdekat?: string | null;
   nama_pasien_booking_terdekat?: string | null;
   total_booking_hari_ini?: number;
   daftar_booking_hari_ini?: BookingItemDetail[];
+  status_kapasitas?: 'aman' | 'waspada' | 'berisiko';
+  status_badge?: string;
+  badge_color?: 'green' | 'yellow' | 'red';
+  slack_menit?: number | null;
+  keterangan_status?: string | null;
 }
 
 export interface BookingItemDetail {
@@ -154,7 +167,8 @@ export const LayananCard: React.FC<LayananCardProps> = ({
   const { isWajib, isService, isOpsional } = getItemConsultType(item);
 
   const isFullBooked = isKlaim && item.sesi_tersedia !== undefined && item.sesi_tersedia <= 0;
-  const effectiveDisabled = isDisabled || isFullBooked || isClaimedElsewhere;
+  const isCapacityLocked = item.status_kapasitas === 'berisiko';
+  const effectiveDisabled = isDisabled || isFullBooked || isClaimedElsewhere || isCapacityLocked;
 
   const key = isKlaim
     ? `klaim_${item.kode_detail_kepemilikan_paket_layanan || item.kode_layanan}`
@@ -178,7 +192,7 @@ export const LayananCard: React.FC<LayananCardProps> = ({
           boxShadow: isSelected ? '0 4px 14px 0 rgba(37, 99, 235, 0.15)' : undefined,
         }}
         onClick={() => {
-          if (!effectiveDisabled) onToggle(item);
+          onToggle(item);
         }}
       >
         {/* Top Image / Placeholder Banner */}
@@ -311,6 +325,10 @@ export const LayananCard: React.FC<LayananCardProps> = ({
                 <Tag rounded value="Penuh" severity="danger" style={{ fontSize: '10px', padding: '3px 10px', fontWeight: 700, lineHeight: 1.2, borderRadius: '9999px' }} />
               )}
 
+              {isCapacityLocked && (
+                <Tag rounded value="Ruangan Penuh" severity="danger" style={{ fontSize: '10px', padding: '3px 8px', fontWeight: 700, lineHeight: 1.2, borderRadius: '9999px' }} />
+              )}
+
               {isWajib && (
                 <span
                   className="inline-flex align-items-center font-bold text-white shadow-1"
@@ -403,9 +421,9 @@ export const LayananCard: React.FC<LayananCardProps> = ({
               )}
             </div>
 
-            <div className="flex-shrink-0">
-              <span className={`text-sm font-extrabold white-space-nowrap ${isKlaim ? 'text-amber-700' : isPaket ? 'text-amber-700' : 'text-blue-600'}`}>
-                {isKlaim ? 'Rp 0 (Klaim)' : formatPrice(item.harga_asal ?? item.harga)}
+            <div className="flex-shrink-0 text-right">
+              <span className="text-sm font-extrabold text-amber-700 white-space-nowrap">
+                {isKlaim ? 'Rp 0 (Klaim)' : formatPrice(item.harga)}
               </span>
             </div>
           </div>

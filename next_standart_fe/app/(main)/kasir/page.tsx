@@ -20,6 +20,7 @@ export interface CartItem {
   satuan?: string;
   qty: number;
   harga_satuan: number;
+  harga_master?: number | null;
   subtotal: number;
   is_promo?: boolean;
   kode_promo_item?: string;
@@ -162,19 +163,15 @@ export default function KasirPage() {
   };
 
   return (
-    <div className="w-full">
+    <div className="w-full h-full kasir-page-container" style={{ minHeight: 0, minWidth: 0 }}>
       <div
-        style={{
-          height: 'calc(100vh - 9rem)',
-          minHeight: '600px',
-          overflow: 'hidden',
-        }}
-        className="flex gap-3 h-full overflow-hidden"
+        className="flex flex-column lg:flex-row gap-3 h-full w-full kasir-main-layout"
+        style={{ minHeight: 0, minWidth: 0 }}
       >
         <Toast ref={toast} position="top-right" />
 
         {/* SIDEBAR KIRI: Daftar Transaksi & Stat */}
-        <div style={{ width: '290px', flexShrink: 0 }} className="h-full overflow-hidden border-round-xl shadow-1 border-1 surface-border">
+        <div className="h-full overflow-hidden border-round-xl shadow-1 border-1 surface-border kasir-sidebar-wrapper">
           <KasirSidebar
             toast={toast}
             selectedKodeTrx={selectedKodeTrx}
@@ -185,8 +182,8 @@ export default function KasirPage() {
           />
         </div>
 
-        {/* PANEL UTAMA POS: Katalog (Kiri 50%) & Cart/Checkout (Kanan 50%) */}
-        <div className="flex-1 h-full overflow-hidden">
+        {/* PANEL UTAMA POS: Rincian Transaksi Kasir */}
+        <div className="h-full overflow-hidden kasir-pos-wrapper">
           <KasirPOSPanel
             toast={toast}
             kode_transaksi={selectedKodeTrx}
