@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useSession } from 'next-auth/react';
 import { Toast } from 'primereact/toast';
 import { DataTable } from 'primereact/datatable';
 import { Column } from 'primereact/column';
@@ -42,6 +43,93 @@ interface RoleItem {
     is_custom?: boolean;
 }
 
+const DEFAULT_MASTER_MENU: MenuGroup[] = [
+    {
+        label: 'HOME',
+        icon: 'pi pi-fw pi-home',
+        items: [
+            { label: 'Dashboard', icon: 'pi pi-fw pi-home', to: '/dashboard' },
+            { label: 'Dashboard Ruangan', icon: 'pi pi-fw pi-home', to: '/pendaftaran-antrean/antrean' },
+            { label: 'Dashboard Jadwal', icon: 'pi pi-fw pi-calendar', to: '/dashboard/jadwal-ruangan' }
+        ]
+    },
+    {
+        label: 'MASTER DATA',
+        icon: 'pi pi-fw pi-database',
+        items: [
+            { label: 'Kategori Layanan', icon: 'pi pi-fw pi-tags', to: '/master-data/kategori-layanan' },
+            { label: 'Data Layanan', icon: 'pi pi-fw pi-briefcase', to: '/master-data/layanan' },
+            { label: 'Paket Layanan', icon: 'pi pi-fw pi-box', to: '/master-data/paket-layanan' },
+            { label: 'Kategori Produk', icon: 'pi pi-fw pi-tags', to: '/master-data/kategori-produk' },
+            { label: 'Data Produk', icon: 'pi pi-fw pi-box', to: '/master-data/produk' },
+            { label: 'Paket Produk', icon: 'pi pi-fw pi-inbox', to: '/master-data/paket-produk' },
+            { label: 'Inventori', icon: 'pi pi-fw pi-box', to: '/master-data/inventori' },
+            { label: 'Supplier', icon: 'pi pi-fw pi-truck', to: '/master-data/supplier' },
+            { label: 'Karyawan', icon: 'pi pi-fw pi-users', to: '/master-data/karyawan' },
+            { label: 'Jadwal Karyawan', icon: 'pi pi-fw pi-calendar-times', to: '/master-data/jadwal-karyawan' },
+            { label: 'Alat & Peralatan', icon: 'pi pi-fw pi-wrench', to: '/master-data/alat' },
+            { label: 'Data Ruangan', icon: 'pi pi-fw pi-building', to: '/master-data/ruangan' },
+            { label: 'Data Promo', icon: 'pi pi-fw pi-percentage', to: '/master-data/promo' },
+            { label: 'Detail Promo', icon: 'pi pi-fw pi-tags', to: '/master-data/detail-promo' }
+        ]
+    },
+    {
+        label: 'Pendaftaran & Antrean',
+        icon: 'pi pi-fw pi-calendar',
+        items: [
+            { label: 'Antrean Pendaftaran', icon: 'pi pi-fw pi-ticket', to: '/antrian-awal' },
+            { label: 'Pasien Baru', icon: 'pi pi-fw pi-user-plus', to: '/pendaftaran-antrean/registrasi-pasien' },
+            { label: 'Pendaftaran Kunjungan', icon: 'pi pi-fw pi-calendar', to: '/pendaftaran-antrean/pendaftaran-pasien' },
+            { label: 'Data Pasien', icon: 'pi pi-fw pi-user', to: '/master-data-user/data-pasien' }
+        ]
+    },
+    {
+        label: 'LAYANAN',
+        icon: 'pi pi-fw pi-sparkles',
+        items: [
+            { label: 'Tindakan', icon: 'pi pi-fw pi-sparkles', to: '/pendaftaran-antrean/antrean?type=layanan' },
+            { label: 'Konsultasi', icon: 'pi pi-fw pi-comments', to: '/pendaftaran-antrean/antrean?type=konsul' },
+            { label: 'Jadwal Karyawan', icon: 'pi pi-fw pi-calendar', to: '/pendaftaran-antrean/jadwal-karyawan' }
+        ]
+    },
+    {
+        label: 'KASIR',
+        icon: 'pi pi-fw pi-calculator',
+        items: [
+            { label: 'Kasir', icon: 'pi pi-fw pi-calculator', to: '/kasir' }
+        ]
+    },
+    {
+        label: 'LAPORAN',
+        icon: 'pi pi-fw pi-chart-bar',
+        items: [
+            { label: 'Laporan & Rekam Medis', icon: 'pi pi-fw pi-file', to: '/riwayat/rekam-medis' }
+        ]
+    },
+    {
+        label: 'PENGATURAN KLINIK',
+        icon: 'pi pi-fw pi-cog',
+        items: [
+            { label: 'Monitoring Cabang', icon: 'pi pi-fw pi-chart-line', to: '/setup/monitoring-cabang' },
+            { label: 'Manajemen Cabang', icon: 'pi pi-fw pi-building', to: '/setup/cabang' },
+            { label: 'Pengaturan Klinik', icon: 'pi pi-fw pi-sliders-h', to: '/setup/config' },
+            { label: 'Manajemen User', icon: 'pi pi-fw pi-users', to: '/setup/users' },
+            { label: 'Manajemen Role', icon: 'pi pi-fw pi-shield', to: '/setup/navigation' }
+        ]
+    }
+];
+
+const isProtectedRole = (roleKeyOrCode: string) => {
+    const r = (roleKeyOrCode || '').toLowerCase().trim();
+    return (
+        r === 'superadmin' ||
+        r === 'owner' ||
+        r === 'manager' ||
+        r === 'role-001' ||
+        r === 'role-006'
+    );
+};
+
 const DEFAULT_ROLES: RoleItem[] = [
     {
         kode_role: 'ROLE-001',
@@ -54,15 +142,36 @@ const DEFAULT_ROLES: RoleItem[] = [
         user_count: 0,
         active_paths: [
             '/dashboard',
-            '/pendaftaran-antrean/antrean?type=layanan',
-            '/pendaftaran-antrean/antrean?type=konsul',
-            '/kasir',
-            '/riwayat/rekam-medis',
             '/pendaftaran-antrean/antrean',
+            '/dashboard/jadwal-ruangan',
+            '/master-data/kategori-layanan',
             '/master-data/layanan',
+            '/master-data/paket-layanan',
+            '/master-data/kategori-produk',
             '/master-data/produk',
+            '/master-data/paket-produk',
+            '/master-data/inventori',
+            '/master-data/supplier',
+            '/master-data/karyawan',
+            '/master-data/jadwal-karyawan',
+            '/master-data/alat',
+            '/master-data/ruangan',
             '/master-data/promo',
             '/master-data/detail-promo',
+            '/antrian-awal',
+            '/pendaftaran-antrean/registrasi-pasien',
+            '/pendaftaran-antrean/pendaftaran-pasien',
+            '/master-data-user/data-pasien',
+            '/pendaftaran-antrean/antrean?type=layanan',
+            '/pendaftaran-antrean/antrean?type=konsul',
+            '/pendaftaran-antrean/jadwal-karyawan',
+            '/kasir',
+            '/riwayat/rekam-medis',
+            '/setup/config',
+            '/setup/users',
+            '/setup/navigation',
+            '/setup/cabang',
+            '/setup/monitoring-cabang',
         ],
         is_custom: false,
     },
@@ -79,9 +188,13 @@ const DEFAULT_ROLES: RoleItem[] = [
             '/dashboard',
             '/pendaftaran-antrean/antrean?type=konsul',
             '/pendaftaran-antrean/antrean?type=layanan',
+            '/pendaftaran-antrean/antrean',
+            '/pendaftaran-antrean/jadwal-karyawan',
+            '/master-data-user/data-pasien',
             '/riwayat/rekam-medis',
             '/master-data/layanan',
             '/master-data/paket-layanan',
+            '/master-data/jadwal-karyawan',
         ],
         is_custom: false,
     },
@@ -97,8 +210,11 @@ const DEFAULT_ROLES: RoleItem[] = [
         active_paths: [
             '/dashboard',
             '/pendaftaran-antrean/antrean?type=layanan',
+            '/pendaftaran-antrean/antrean',
+            '/pendaftaran-antrean/jadwal-karyawan',
             '/riwayat/rekam-medis',
             '/master-data/layanan',
+            '/master-data/jadwal-karyawan',
         ],
         is_custom: false,
     },
@@ -115,13 +231,10 @@ const DEFAULT_ROLES: RoleItem[] = [
             '/dashboard',
             '/kasir',
             '/antrian-awal',
-            '/pendaftaran-antrean/registrasi-pasien',
-            '/pendaftaran-antrean/pendaftaran-pasien',
-            '/pendaftaran-antrean/booking',
-            '/pendaftaran-antrean/antrean',
             '/master-data-user/data-pasien',
             '/master-data/promo',
             '/master-data/detail-promo',
+            '/riwayat/rekam-medis',
         ],
         is_custom: false,
     },
@@ -142,6 +255,7 @@ const DEFAULT_ROLES: RoleItem[] = [
             '/master-data/inventori',
             '/master-data/supplier',
             '/master-data/alat',
+            '/riwayat/rekam-medis',
         ],
         is_custom: false,
     },
@@ -168,20 +282,25 @@ const DEFAULT_ROLES: RoleItem[] = [
         user_count: 0,
         active_paths: [
             '/dashboard',
+            '/dashboard/jadwal-ruangan',
             '/antrian-awal',
             '/pendaftaran-antrean/registrasi-pasien',
             '/pendaftaran-antrean/pendaftaran-pasien',
             '/master-data-user/data-pasien',
+            '/pendaftaran-antrean/jadwal-karyawan',
         ],
         is_custom: false,
     },
 ];
 
 export default function ManajemenMenuRolePage() {
+    const { data: session } = useSession();
+    const currentRole = (session?.user?.role || '').toLowerCase();
+    const isSuperAdmin = currentRole === 'superadmin';
     const toast = useRef<Toast>(null);
 
     const [roles, setRoles] = useState<RoleItem[]>(DEFAULT_ROLES);
-    const [masterMenu, setMasterMenu] = useState<MenuGroup[]>([]);
+    const [masterMenu, setMasterMenu] = useState<MenuGroup[]>(DEFAULT_MASTER_MENU);
     const [loading, setLoading] = useState<boolean>(false);
     const [rows, setRows] = useState<number>(10);
     const [keyword, setKeyword] = useState<string>('');
@@ -206,41 +325,116 @@ export default function ManajemenMenuRolePage() {
     const [modalIsCustom, setModalIsCustom] = useState<boolean>(false);
     const [modalKeyword, setModalKeyword] = useState<string>('');
 
-    // Load initial data (master menu, user counts per role)
+    // Load initial data (master menu, user counts per role, and actual active modules from Manajemen User)
     const loadAllData = async () => {
         setLoading(true);
         try {
-            // 1. Fetch master menu template
+            // 1. Fetch master menu template and any saved role menus
             const resBase = await postData('/setup/nav/base-data', { role: 'master' });
-            let fetchedMasterMenu: MenuGroup[] = [];
-            if (['00', '0000'].includes(resBase?.data?.status)) {
-                fetchedMasterMenu = resBase.data.master_menu || [];
-                setMasterMenu(fetchedMasterMenu);
+            let fetchedMasterMenu: MenuGroup[] = DEFAULT_MASTER_MENU;
+            if (
+                ['00', '0000'].includes(resBase?.data?.status) &&
+                Array.isArray(resBase?.data?.master_menu) &&
+                resBase.data.master_menu.length >= 5
+            ) {
+                fetchedMasterMenu = resBase.data.master_menu;
+            }
+            setMasterMenu(fetchedMasterMenu);
+
+            const masterPathSet = new Set<string>();
+            fetchedMasterMenu.forEach((g) => (g.items || []).forEach((it) => masterPathSet.add(it.to)));
+
+            // Role menus map from mst_navigation if available
+            const roleSavedMenus: Record<string, Set<string>> = {};
+            if (Array.isArray(resBase?.data?.all_role_menus)) {
+                resBase.data.all_role_menus.forEach((rm: any) => {
+                    if (rm.role && rm.role !== 'master' && rm.menu) {
+                        try {
+                            const parsed = typeof rm.menu === 'string' ? JSON.parse(rm.menu) : rm.menu;
+                            const rKey = String(rm.role).toLowerCase();
+                            const pSet = new Set<string>();
+                            const extract = (items: any[]) => {
+                                if (!Array.isArray(items)) return;
+                                items.forEach((it) => {
+                                    if (it.to) {
+                                        const cleanTo = it.to.split('&ruangan=')[0];
+                                        pSet.add(cleanTo);
+                                    }
+                                    if (it.items) extract(it.items);
+                                });
+                            };
+                            if (Array.isArray(parsed)) extract(parsed);
+                            if (pSet.size > 0) roleSavedMenus[rKey] = pSet;
+                        } catch (_) {}
+                    }
+                });
             }
 
-            // 2. Fetch user counts to display on table
+            // 2. Fetch user data (user counts AND actual assigned navigation modules per role from Manajemen User)
             let userMap: Record<string, number> = {};
+            let roleUserModulesMap: Record<string, Set<string>> = {};
+
             try {
                 const resUsers = await postData('/setup/user-login/user-data', {});
                 if (['00', '0000'].includes(resUsers?.data?.status)) {
                     (resUsers.data.data || []).forEach((u: any) => {
                         const r = String(u.role || '').toLowerCase();
                         userMap[r] = (userMap[r] || 0) + 1;
+
+                        if (u.navigation_menu) {
+                            try {
+                                const parsed = typeof u.navigation_menu === 'string'
+                                    ? JSON.parse(u.navigation_menu)
+                                    : u.navigation_menu;
+
+                                if (!roleUserModulesMap[r]) {
+                                    roleUserModulesMap[r] = new Set<string>();
+                                }
+
+                                const extract = (items: any[]) => {
+                                    if (!Array.isArray(items)) return;
+                                    items.forEach((it) => {
+                                        if (it.to) {
+                                            const cleanTo = it.to.split('&ruangan=')[0];
+                                            roleUserModulesMap[r].add(cleanTo);
+                                        }
+                                        if (it.items) extract(it.items);
+                                    });
+                                };
+
+                                if (Array.isArray(parsed)) {
+                                    extract(parsed);
+                                }
+                            } catch (_) {}
+                        }
                     });
                 }
             } catch (_) {
                 // silent fallback
             }
 
-            // 3. Update roles with user counts and active module paths
+            // 3. Update roles with user counts and dynamic active module paths from Manajemen User
             setRoles((prevRoles) =>
-                prevRoles.map((r) => ({
-                    ...r,
-                    user_count: userMap[r.role_key] ?? (r.role_key === 'superadmin' ? 1 : 0),
-                }))
+                prevRoles.map((r) => {
+                    const fromUser = roleUserModulesMap[r.role_key];
+                    const fromSavedRole = roleSavedMenus[r.role_key];
+
+                    let activePaths = r.active_paths;
+                    if (fromUser && fromUser.size > 0) {
+                        activePaths = Array.from(fromUser);
+                    } else if (fromSavedRole && fromSavedRole.size > 0) {
+                        activePaths = Array.from(fromSavedRole);
+                    }
+
+                    return {
+                        ...r,
+                        user_count: userMap[r.role_key] ?? (r.role_key === 'superadmin' ? 1 : 0),
+                        active_paths: r.role_key === 'superadmin' ? ['*'] : activePaths,
+                    };
+                })
             );
         } catch (error: any) {
-            showError(toast, error?.response?.data?.message || error?.message || 'Gagal memuat data hak akses role');
+            showError(toast, error?.response?.data?.message || error?.message || 'Gagal memuat data role');
         } finally {
             setLoading(false);
         }
@@ -256,7 +450,13 @@ export default function ManajemenMenuRolePage() {
         masterMenu.forEach((g) => {
             count += (g.items || []).length;
         });
-        return count || 19;
+        return count || 31;
+    }, [masterMenu]);
+
+    const allMasterPaths = useMemo(() => {
+        const set = new Set<string>();
+        masterMenu.forEach((g) => (g.items || []).forEach((it) => set.add(it.to)));
+        return set;
     }, [masterMenu]);
 
     // Filter table by search keyword
@@ -295,6 +495,11 @@ export default function ManajemenMenuRolePage() {
             .toLowerCase()
             .replace(/[^a-z0-9]/g, '_');
 
+        if (!isSuperAdmin && (isProtectedRole(generatedKey) || isProtectedRole(roleForm.kode_role))) {
+            showError(toast, 'Akses ditolak: Hanya Superadmin yang berhak membuat atau mengatur role ini.');
+            return;
+        }
+
         const newRole: RoleItem = {
             kode_role: roleForm.kode_role,
             role_key: generatedKey,
@@ -309,12 +514,17 @@ export default function ManajemenMenuRolePage() {
         };
 
         setRoles((prev) => [...prev, newRole]);
-        showSuccess(toast, `Role '${newRole.nama_role}' berhasil ditambahkan. Silakan atur hak aksesnya.`);
+        showSuccess(toast, `Role '${newRole.nama_role}' berhasil ditambahkan.`);
         setCreateRoleVisible(false);
     };
 
     // Open Modal Atur Hak Akses Role
     const handleOpenPermissionModal = async (role: RoleItem) => {
+        if (!isSuperAdmin && (isProtectedRole(role.role_key) || isProtectedRole(role.kode_role))) {
+            showError(toast, 'Akses ditolak: Hanya Superadmin yang berhak mengatur hak akses role Superadmin dan Owner/Manager.');
+            return;
+        }
+
         setActiveRole(role);
         setModalLoading(true);
         setModalKeyword('');
@@ -323,10 +533,11 @@ export default function ManajemenMenuRolePage() {
         try {
             const res = await postData('/setup/nav/base-data', { role: role.role_key });
             if (['00', '0000'].includes(res?.data?.status)) {
-                const fullMaster: MenuGroup[] = res.data.master_menu || [];
-                if (fullMaster.length > 0) {
-                    setMasterMenu(fullMaster);
-                }
+                const fullMaster: MenuGroup[] =
+                    Array.isArray(res.data.master_menu) && res.data.master_menu.length >= 5
+                        ? res.data.master_menu
+                        : DEFAULT_MASTER_MENU;
+                setMasterMenu(fullMaster);
 
                 const currentMenu: MenuGroup[] = res.data.data || [];
                 setModalIsCustom(Boolean(res.data.is_custom));
@@ -335,11 +546,13 @@ export default function ManajemenMenuRolePage() {
                 if (role.role_key === 'superadmin' && !res.data.is_custom) {
                     // All paths active
                     fullMaster.forEach((g) => (g.items || []).forEach((it) => paths.add(it.to)));
-                } else if (res.data.is_custom) {
+                } else if (res.data.is_custom && currentMenu.length > 0) {
                     currentMenu.forEach((g) => (g.items || []).forEach((it) => paths.add(it.to)));
                 } else {
                     // Use preset recommended paths
-                    role.active_paths.forEach((p) => {
+                    const defaultPreset = DEFAULT_ROLES.find((r) => r.role_key === role.role_key);
+                    const presetPaths = defaultPreset?.active_paths || role.active_paths || [];
+                    presetPaths.forEach((p) => {
                         if (p === '*') {
                             fullMaster.forEach((g) => (g.items || []).forEach((it) => paths.add(it.to)));
                         } else {
@@ -417,6 +630,11 @@ export default function ManajemenMenuRolePage() {
     const handleSavePermissions = async () => {
         if (!activeRole) return;
 
+        if (!isSuperAdmin && (isProtectedRole(activeRole.role_key) || isProtectedRole(activeRole.kode_role))) {
+            showError(toast, 'Akses ditolak: Hanya Superadmin yang berhak mengubah hak akses role ini.');
+            return;
+        }
+
         setModalSaving(true);
         try {
             const filteredMenu: MenuGroup[] = [];
@@ -463,6 +681,11 @@ export default function ManajemenMenuRolePage() {
 
     // Delete single / batch role
     const handleDeleteRole = (role: RoleItem) => {
+        if (isProtectedRole(role.role_key) || isProtectedRole(role.kode_role)) {
+            showError(toast, 'Role sistem utama (Superadmin / Owner / Manager) dilindungi dan tidak dapat dihapus.');
+            return;
+        }
+
         confirmDialog({
             message: `Apakah Anda yakin ingin menghapus / menonaktifkan role "${role.nama_role}"?`,
             header: 'Konfirmasi Hapus Role',
@@ -479,6 +702,14 @@ export default function ManajemenMenuRolePage() {
 
     const handleBatchDelete = () => {
         if (selectedRows.length === 0) return;
+        const protectedItems = selectedRows.filter(
+            (r) => isProtectedRole(r.role_key) || isProtectedRole(r.kode_role)
+        );
+        if (protectedItems.length > 0) {
+            showError(toast, 'Terdapat role sistem utama yang dipilih. Role tersebut dilindungi dan tidak dapat dihapus.');
+            return;
+        }
+
         confirmDialog({
             message: `Apakah Anda yakin ingin menghapus ${selectedRows.length} role yang dipilih?`,
             header: 'Konfirmasi Hapus Role',
@@ -521,10 +752,10 @@ export default function ManajemenMenuRolePage() {
                 <div className="mb-4">
                     <h3 className="text-2xl font-bold text-900 flex align-items-center gap-2 mb-1">
                         <i className="pi pi-shield text-purple-600 text-2xl" />
-                        Pengaturan Hak Akses Role
+                        Manajemen Role
                     </h3>
                     <p className="text-500 text-sm m-0">
-                        Kelola hak akses menu untuk setiap peran (role) pengguna secara spesifik.
+                        Daftar peran (role) sistem klinik. Pengelolaan dan penyesuaian hak akses modul staf dilakukan secara spesifik pada menu Manajemen User.
                     </p>
                 </div>
 
@@ -582,6 +813,9 @@ export default function ManajemenMenuRolePage() {
                     selection={selectedRows}
                     onSelectionChange={(e: any) => setSelectedRows(e.value as any[])}
                     dataKey="kode_role"
+                    isDataSelectable={(e) =>
+                        !isProtectedRole(e.data.role_key) && !isProtectedRole(e.data.kode_role)
+                    }
                     className="p-datatable-sm"
                     emptyMessage="Data role tidak ditemukan."
                     responsiveLayout="scroll"
@@ -747,27 +981,30 @@ export default function ManajemenMenuRolePage() {
                     <Column
                         header="Aksi"
                         align="center"
-                        headerStyle={{ width: '8rem', textAlign: 'center' }}
-                        body={(r: RoleItem) => (
-                            <div className="flex align-items-center justify-content-center gap-2">
-                                <Button
-                                    icon="pi pi-pencil"
-                                    outlined
-                                    severity="success"
-                                    className="p-button-sm border-round-md"
-                                    onClick={() => handleOpenPermissionModal(r)}
-                                    tooltip="Atur Hak Akses Menu Role"
-                                />
-                                <Button
-                                    icon="pi pi-trash"
-                                    outlined
-                                    severity="danger"
-                                    className="p-button-sm border-round-md"
-                                    onClick={() => handleDeleteRole(r)}
-                                    tooltip="Hapus Role"
-                                />
-                            </div>
-                        )}
+                        headerStyle={{ width: '6rem', textAlign: 'center' }}
+                        body={(r: RoleItem) => {
+                            const isProtected = isProtectedRole(r.role_key) || isProtectedRole(r.kode_role);
+                            const canDelete = !isProtected;
+
+                            return (
+                                <div className="flex align-items-center justify-content-center gap-2">
+                                    <Button
+                                        icon={canDelete ? 'pi pi-trash' : 'pi pi-lock'}
+                                        outlined
+                                        severity={canDelete ? 'danger' : 'secondary'}
+                                        className="p-button-sm border-round-md"
+                                        disabled={!canDelete}
+                                        onClick={() => canDelete && handleDeleteRole(r)}
+                                        tooltip={
+                                            canDelete
+                                                ? 'Hapus Role'
+                                                : 'Role sistem utama dilindungi dan tidak dapat dihapus'
+                                        }
+                                        tooltipOptions={{ position: 'top' }}
+                                    />
+                                </div>
+                            );
+                        }}
                     ></Column>
                 </DataTable>
             </div>

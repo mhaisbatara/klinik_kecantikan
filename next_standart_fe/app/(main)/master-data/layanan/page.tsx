@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import postData from '@/lib/axios/postData';
 import formUpload from '@/lib/axios/formData';
 import { Toast } from 'primereact/toast';
@@ -112,12 +112,84 @@ const Page = () => {
     const loadRuangan = async () => {
         try {
             const res = await postData('/master/ruangan-dropdown', {});
-            const list = (res.data.data || []).map((r: any) => ({ label: `${r.kode_ruangan} - ${r.nama_ruangan}`, value: r.kode_ruangan }));
+            const list = (res.data.data || []).map((r: any) => ({
+                label: `${r.kode_ruangan} - ${r.nama_ruangan}`,
+                value: r.kode_ruangan,
+                is_konsultasi: r.is_konsultasi,
+                nama_ruangan: r.nama_ruangan
+            }));
             setRuanganList(list);
         } catch (error) {
             console.error('Failed to fetch ruangan list');
         }
     };
+
+    // Filter khusus ruangan konsultasi (is_konsultasi === 1)
+    const ruanganKonsultasiOptions = useMemo(() => {
+        return ruanganList.filter((r: any) => r.is_konsultasi === 1 || r.is_konsultasi === '1');
+    }, [ruanganList]);
+
+    // Helper untuk mengecek apakah suatu kode ruangan adalah ruangan konsultasi
+    const isKonsulRoom = (kodeRuangan: string) => {
+        if (!kodeRuangan) return false;
+        const room = ruanganList.find((r: any) => r.value === kodeRuangan);
+        return Boolean(
+            room && (
+                room.is_konsultasi === 1 ||
+                room.is_konsultasi === '1' ||
+                room.is_konsultasi === true ||
+                (room.nama_ruangan && room.nama_ruangan.toLowerCase().includes('konsul')) ||
+                (room.label && room.label.toLowerCase().includes('konsul'))
+            )
+        );
+    };
+
+    // Deteksi apakah ruangan tindakan utama yang sedang dipilih adalah ruangan konsultasi
+    const isSelectedRoomKonsultasi = useMemo(() => {
+        return isKonsulRoom(formData.kode_ruangan);
+    }, [formData.kode_ruangan, ruanganList]);
+
+    // Opsi konsultasi efektif (memastikan nilai lama tetap ter-render jika ada)
+    const effectiveKonsulOptions = useMemo(() => {
+        if (!formData.kode_ruangan_konsultasi) return ruanganKonsultasiOptions;
+        const exists = ruanganKonsultasiOptions.some((r: any) => r.value === formData.kode_ruangan_konsultasi);
+        if (exists) return ruanganKonsultasiOptions;
+        const matched = ruanganList.find((r: any) => r.value === formData.kode_ruangan_konsultasi);
+        return matched ? [matched, ...ruanganKonsultasiOptions] : ruanganKonsultasiOptions;
+    }, [ruanganKonsultasiOptions, ruanganList, formData.kode_ruangan_konsultasi]);
+
+    // Handler saat memilih Ruangan Tindakan Utama
+    const handleRuanganUtamaChange = (newKodeRuangan: string) => {
+        const isKonsul = isKonsulRoom(newKodeRuangan);
+        if (isKonsul) {
+            setFormData((prev: any) => ({
+                ...prev,
+                kode_ruangan: newKodeRuangan,
+                tipe: 'SERVICE TREATMENT',
+                wajib_konsultasi: 'tidak',
+                kode_ruangan_konsultasi: ''
+            }));
+        } else {
+            setFormData((prev: any) => ({
+                ...prev,
+                kode_ruangan: newKodeRuangan
+            }));
+        }
+    };
+
+    // Auto-sync: jika ruangan tindakan utama adalah ruangan konsultasi, otomatis kunci ke SERVICE TREATMENT (Tanpa Konsul)
+    useEffect(() => {
+        if (dialogVisible && isSelectedRoomKonsultasi) {
+            if (formData.tipe !== 'SERVICE TREATMENT' || formData.wajib_konsultasi !== 'tidak' || formData.kode_ruangan_konsultasi) {
+                setFormData((prev: any) => ({
+                    ...prev,
+                    tipe: 'SERVICE TREATMENT',
+                    wajib_konsultasi: 'tidak',
+                    kode_ruangan_konsultasi: ''
+                }));
+            }
+        }
+    }, [dialogVisible, isSelectedRoomKonsultasi]);
 
     useEffect(() => {
         loadData();
@@ -168,18 +240,22 @@ const Page = () => {
         setSubmitted(false);
         if (fileInputRef.current) fileInputRef.current.value = '';
 
+        const isKonsul = isKonsulRoom(rowData.kode_ruangan);
         let wk = rowData.wajib_konsultasi;
         if (!wk) {
             if (rowData.tipe === 'MEDICAL TREATMENT') wk = 'wajib';
             else if (rowData.tipe === 'SERVICE TREATMENT') wk = 'tidak';
             else wk = 'opsional';
         }
+        if (isKonsul) {
+            wk = 'tidak';
+        }
         setFormData({
             ...rowData,
             kode_ruangan: rowData.kode_ruangan || '',
-            wajib_konsultasi: wk,
-            kode_ruangan_konsultasi: rowData.kode_ruangan_konsultasi || '',
-            tipe: rowData.tipe || 'BEAUTY TREATMENT',
+            wajib_konsultasi: isKonsul ? 'tidak' : wk,
+            kode_ruangan_konsultasi: isKonsul ? '' : (rowData.kode_ruangan_konsultasi || ''),
+            tipe: isKonsul ? 'SERVICE TREATMENT' : (rowData.tipe || 'BEAUTY TREATMENT'),
             foto: null,
             foto_url: rowData.foto || '',
             hapus_foto: false,
@@ -771,13 +847,22 @@ const Page = () => {
 
                     {/* Satu input terpadu: Tipe Layanan & Alur Konsultasi */}
                     <div>
-                        <label className="block text-sm font-semibold mb-1">Tipe Layanan & Alur Konsultasi *</label>
+                        <div className="flex align-items-center justify-content-between mb-1">
+                            <label className="text-sm font-semibold m-0">Tipe Layanan & Alur Konsultasi *</label>
+                            {isSelectedRoomKonsultasi && (
+                                <span className="text-xs font-semibold text-teal-700 bg-teal-50 px-2 py-0.5 border-round border-1 border-teal-200 flex align-items-center gap-1">
+                                    <i className="pi pi-lock text-xs" />
+                                    Terkunci otomatis (Ruangan Konsultasi)
+                                </span>
+                            )}
+                        </div>
                         <Dropdown
                             value={formData.tipe}
                             options={tipeLayananOptions}
                             onChange={(e) => handleTipeChange(e.value)}
                             placeholder="Pilih Tipe Layanan & Alur Konsultasi"
-                            className="w-full text-sm"
+                            disabled={isSelectedRoomKonsultasi}
+                            className={`w-full text-sm ${isSelectedRoomKonsultasi ? 'p-disabled' : ''}`}
                         />
                         <small className="text-500 block mt-1">
                             {formData.tipe === 'MEDICAL TREATMENT' && '🩺 Wajib melalui ruang konsultasi dokter sebelum tindakan medis.'}
@@ -802,7 +887,7 @@ const Page = () => {
                         <Dropdown
                             value={formData.kode_ruangan}
                             options={ruanganList}
-                            onChange={(e) => setFormData({ ...formData, kode_ruangan: e.value })}
+                            onChange={(e) => handleRuanganUtamaChange(e.value)}
                             placeholder="Pilih Ruangan Tindakan"
                             showClear
                             className="w-full text-sm"
@@ -817,11 +902,12 @@ const Page = () => {
                             </label>
                             <Dropdown
                                 value={formData.kode_ruangan_konsultasi}
-                                options={ruanganList}
+                                options={effectiveKonsulOptions}
                                 onChange={(e) => setFormData({ ...formData, kode_ruangan_konsultasi: e.value })}
                                 placeholder="Pilih Ruangan Konsultasi (Default Ruang Konsul)"
                                 showClear
                                 className="w-full text-sm"
+                                emptyMessage="Tidak ada ruangan konsultasi aktif"
                             />
                         </div>
                     )}

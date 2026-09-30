@@ -81,21 +81,6 @@ const AVAILABLE_MODULE_CATEGORIES: PermissionCategory[] = [
     ]
   },
   {
-    category: 'Layanan & Tindakan',
-    icon: 'pi pi-sparkles',
-    items: [
-      { id: 'tindakan', label: 'Tindakan Perawatan', to: '/pendaftaran-antrean/antrean?type=layanan', icon: 'pi pi-sparkles', desc: 'Antrean & pengerjaan tindakan ruangan estetika' },
-      { id: 'konsul', label: 'Konsultasi Medis', to: '/pendaftaran-antrean/antrean?type=konsul', icon: 'pi pi-comments', desc: 'Antrean & konsultasi anamnesa dokter' },
-    ]
-  },
-  {
-    category: 'Kasir & Pembayaran',
-    icon: 'pi pi-calculator',
-    items: [
-      { id: 'kasir', label: 'Kasir Pembayaran', to: '/kasir', icon: 'pi pi-calculator', desc: 'Transaksi pembayaran kasir, invoice, dan pelunasan' },
-    ]
-  },
-  {
     category: 'Pendaftaran & Pasien',
     icon: 'pi pi-calendar',
     items: [
@@ -106,109 +91,169 @@ const AVAILABLE_MODULE_CATEGORIES: PermissionCategory[] = [
     ]
   },
   {
-    category: 'Promo & Diskon',
-    icon: 'pi pi-percentage',
+    category: 'Layanan & Tindakan',
+    icon: 'pi pi-sparkles',
     items: [
-      { id: 'promo', label: 'Data Promo', to: '/master-data/promo', icon: 'pi pi-percentage', desc: 'Daftar promo & potongan harga klinik' },
-      { id: 'detail_promo', label: 'Detail Promo', to: '/master-data/detail-promo', icon: 'pi pi-tags', desc: 'Ketentuan dan rincian diskon promo klinik' },
+      { id: 'tindakan', label: 'Tindakan Perawatan', to: '/pendaftaran-antrean/antrean?type=layanan', icon: 'pi pi-sparkles', desc: 'Antrean & pengerjaan tindakan ruangan estetika (dengan filter hak ruangan)' },
+      { id: 'konsul', label: 'Konsultasi Medis', to: '/pendaftaran-antrean/antrean?type=konsul', icon: 'pi pi-comments', desc: 'Antrean & konsultasi anamnesa dokter (dengan filter hak ruangan)' },
+      { id: 'jadwal_karyawan_layanan', label: 'Jadwal Karyawan (Operasional)', to: '/pendaftaran-antrean/jadwal-karyawan', icon: 'pi pi-calendar', desc: 'Melihat jadwal shift tugas harian dokter, terapis & staf klinik' },
     ]
   },
   {
-    category: 'Logistik, Produk & Inventori',
+    category: 'Kasir & Pembayaran',
+    icon: 'pi pi-calculator',
+    items: [
+      { id: 'kasir', label: 'Kasir Pembayaran', to: '/kasir', icon: 'pi pi-calculator', desc: 'Transaksi pembayaran kasir, invoice, mutasi kas, dan pelunasan' },
+    ]
+  },
+  {
+    category: 'Master Data - Layanan & Treatment',
+    icon: 'pi pi-briefcase',
+    items: [
+      { id: 'kategori_layanan', label: 'Kategori Layanan', to: '/master-data/kategori-layanan', icon: 'pi pi-tags', desc: 'Master kategori tindakan dan treatment' },
+      { id: 'layanan', label: 'Data Layanan', to: '/master-data/layanan', icon: 'pi pi-briefcase', desc: 'Katalog tindakan dan treatment klinik' },
+      { id: 'paket_layanan', label: 'Paket Layanan', to: '/master-data/paket-layanan', icon: 'pi pi-box', desc: 'Paket bundling layanan treatment estetika' },
+    ]
+  },
+  {
+    category: 'Master Data - Produk & Inventori',
     icon: 'pi pi-box',
     items: [
-      { id: 'kategori_produk', label: 'Kategori Produk', to: '/master-data/kategori-produk', icon: 'pi pi-tags', desc: 'Kategori produk skincare, obat, dan bahan' },
+      { id: 'kategori_produk', label: 'Kategori Produk', to: '/master-data/kategori-produk', icon: 'pi pi-tags', desc: 'Kategori produk skincare, obat, dan bahan medis' },
       { id: 'produk', label: 'Data Produk', to: '/master-data/produk', icon: 'pi pi-box', desc: 'Katalog produk & master harga jual/beli' },
       { id: 'paket_produk', label: 'Paket Produk', to: '/master-data/paket-produk', icon: 'pi pi-inbox', desc: 'Bundling paket produk skincare' },
-      { id: 'inventori', label: 'Stok Inventori', to: '/master-data/inventori', icon: 'pi pi-box', desc: 'Monitoring saldo stok, mutasi & opname gudang' },
+      { id: 'inventori', label: 'Stok Inventori', to: '/master-data/inventori', icon: 'pi pi-box', desc: 'Monitoring saldo stok, mutasi & kartu stok gudang' },
       { id: 'supplier', label: 'Supplier & Vendor', to: '/master-data/supplier', icon: 'pi pi-truck', desc: 'Daftar vendor dan supplier pengadaan klinik' },
       { id: 'alat', label: 'Alat & Peralatan', to: '/master-data/alat', icon: 'pi pi-wrench', desc: 'Daftar mesin estetika dan peralatan medis' },
     ]
   },
   {
-    category: 'Referensi Layanan & Jadwal',
-    icon: 'pi pi-briefcase',
+    category: 'Master Data - Promo & Diskon',
+    icon: 'pi pi-percentage',
     items: [
-      { id: 'layanan', label: 'Data Layanan', to: '/master-data/layanan', icon: 'pi pi-briefcase', desc: 'Katalog tindakan dan treatment klinik' },
-      { id: 'paket_layanan', label: 'Paket Layanan', to: '/master-data/paket-layanan', icon: 'pi pi-box', desc: 'Paket bundling layanan treatment estetika' },
-      { id: 'jadwal_karyawan', label: 'Jadwal Karyawan', to: '/master-data/jadwal-karyawan', icon: 'pi pi-calendar-times', desc: 'Jadwal shift kerja & praktik dokter/staf' },
+      { id: 'promo', label: 'Data Promo', to: '/master-data/promo', icon: 'pi pi-percentage', desc: 'Master daftar program promo & potongan harga klinik' },
+      { id: 'detail_promo', label: 'Detail Promo', to: '/master-data/detail-promo', icon: 'pi pi-tags', desc: 'Ketentuan dan rincian diskon promo klinik' },
+    ]
+  },
+  {
+    category: 'Master Data - Karyawan & Ruangan',
+    icon: 'pi pi-users',
+    items: [
+      { id: 'karyawan', label: 'Data Karyawan', to: '/master-data/karyawan', icon: 'pi pi-users', desc: 'Data profil staf medis, dokter, dan terapis klinik' },
+      { id: 'jadwal_karyawan', label: 'Jadwal Karyawan (Master Shift)', to: '/master-data/jadwal-karyawan', icon: 'pi pi-calendar-times', desc: 'Master jadwal shift kerja & praktik dokter/staf' },
+      { id: 'ruangan', label: 'Data Ruangan', to: '/master-data/ruangan', icon: 'pi pi-building', desc: 'Master data ruangan perawatan, tindakan, dan konsultasi' },
     ]
   },
   {
     category: 'Laporan & Rekam Medis',
-    icon: 'pi pi-file',
+    icon: 'pi pi-chart-bar',
     items: [
-      { id: 'laporan', label: 'Laporan & Rekam Medis', to: '/riwayat/rekam-medis', icon: 'pi pi-file', desc: 'Laporan analitik, transaksi & rekam medis klinik' },
+      { id: 'lap_penjualan', label: 'Laporan Penjualan', to: '/riwayat/rekam-medis?tab=penjualan', icon: 'pi pi-shopping-cart', desc: 'Rekap transaksi kasir, invoice, dan total omzet penjualan' },
+      { id: 'lap_treatment', label: 'Laporan Treatment', to: '/riwayat/rekam-medis?tab=treatment', icon: 'pi pi-sparkles', desc: 'Pengerjaan tindakan medis, estetika, dan utilisasi ruangan' },
+      { id: 'lap_produk', label: 'Laporan Produk', to: '/riwayat/rekam-medis?tab=produk', icon: 'pi pi-box', desc: 'Volume dan rekap nilai penjualan produk skincare klinik' },
+      { id: 'lap_paket', label: 'Laporan Paket', to: '/riwayat/rekam-medis?tab=paket', icon: 'pi pi-tags', desc: 'Rekap penjualan bundling paket treatment dan produk' },
+      { id: 'lap_pasien', label: 'Laporan Pasien', to: '/riwayat/rekam-medis?tab=pasien', icon: 'pi pi-users', desc: 'Demografi, pertumbuhan pasien baru & riwayat pasien lama' },
+      { id: 'lap_kunjungan', label: 'Laporan Kunjungan', to: '/riwayat/rekam-medis?tab=kunjungan', icon: 'pi pi-calendar', desc: 'Statistik kedatangan dan volume kunjungan harian/bulanan' },
+      { id: 'lap_dokter', label: 'Laporan Dokter', to: '/riwayat/rekam-medis?tab=dokter', icon: 'pi pi-heart', desc: 'Performa konsultasi & volume penanganan pasien oleh dokter' },
+      { id: 'lap_beautician', label: 'Laporan Beautician', to: '/riwayat/rekam-medis?tab=beautician', icon: 'pi pi-star', desc: 'Kinerja pengerjaan treatment oleh terapis/beautician' },
+      { id: 'lap_inventory', label: 'Laporan Inventory', to: '/riwayat/rekam-medis?tab=inventory', icon: 'pi pi-database', desc: 'Saldo stok gudang, mutasi masuk/keluar, dan kartu stok' },
+      { id: 'lap_keuangan', label: 'Laporan Keuangan', to: '/riwayat/rekam-medis?tab=keuangan', icon: 'pi pi-wallet', desc: 'Ringkasan laba kotor, kas masuk-keluar & metode bayar' },
+      { id: 'lap_voucher', label: 'Laporan Voucher', to: '/riwayat/rekam-medis?tab=voucher', icon: 'pi pi-ticket', desc: 'Penggunaan voucher diskon promo dan potongan harga transaksi' },
+      { id: 'lap_rme', label: 'Laporan RME (Rekam Medis)', to: '/riwayat/rekam-medis?tab=rekam_medis', icon: 'pi pi-file-edit', desc: 'Riwayat catatan medis, diagnosis dokter, dan SOAP pasien' },
+      { id: 'lap_membership', label: 'Laporan Membership', to: '/riwayat/rekam-medis?tab=membership', icon: 'pi pi-id-card', desc: 'Data member aktif, tingkat tier loyalitas, dan status membership' },
+      { id: 'lap_appointment', label: 'Laporan Appointment', to: '/riwayat/rekam-medis?tab=appointment', icon: 'pi pi-clock', desc: 'Rekap jadwal reservasi & status booking kunjungan pasien' },
+      { id: 'lap_komisi', label: 'Laporan Komisi', to: '/riwayat/rekam-medis?tab=komisi', icon: 'pi pi-percentage', desc: 'Perhitungan komisi dan insentif pengerjaan tindakan staf/nakes' },
+      { id: 'lap_stok_opname', label: 'Laporan Stok Opname', to: '/riwayat/rekam-medis?tab=stok_opname', icon: 'pi pi-check-square', desc: 'Hasil audit fisik inventori vs saldo pencatatan sistem' },
+      { id: 'lap_pembelian', label: 'Laporan Pembelian', to: '/riwayat/rekam-medis?tab=pembelian', icon: 'pi pi-truck', desc: 'Pengadaan produk dan bahan medis dari vendor/supplier' },
+      { id: 'lap_expired', label: 'Laporan Expired', to: '/riwayat/rekam-medis?tab=expired', icon: 'pi pi-exclamation-triangle', desc: 'Monitoring obat dan produk mendekati tanggal kedaluwarsa' },
+      { id: 'lap_deposit', label: 'Laporan Deposit', to: '/riwayat/rekam-medis?tab=deposit', icon: 'pi pi-money-bill', desc: 'Mutasi saldo tabungan deposit pasien dan pemakaiannya' },
+      { id: 'lap_crm', label: 'Laporan CRM', to: '/riwayat/rekam-medis?tab=crm', icon: 'pi pi-comments', desc: 'Log interaksi follow-up, kepuasan, dan pengingat jadwal pasien' },
+    ]
+  },
+  {
+    category: 'Pengaturan Sistem & Cabang',
+    icon: 'pi pi-cog',
+    items: [
+      { id: 'monitoring_cabang', label: 'Monitoring Cabang', to: '/setup/monitoring-cabang', icon: 'pi pi-chart-line', desc: 'Monitoring operasional dan performa multi cabang klinik' },
+      { id: 'cabang', label: 'Manajemen Cabang', to: '/setup/cabang', icon: 'pi pi-building', desc: 'Master data cabang klinik kecantikan' },
+      { id: 'pengaturan_klinik', label: 'Pengaturan Klinik', to: '/setup/config', icon: 'pi pi-sliders-h', desc: 'Konfigurasi umum identitas, logo & profil klinik' },
+      { id: 'manajemen_user', label: 'Manajemen User', to: '/setup/users', icon: 'pi pi-users', desc: 'Kelola akun staf, reset password, dan hak akses modul' },
+      { id: 'manajemen_role', label: 'Manajemen Role', to: '/setup/navigation', icon: 'pi pi-shield', desc: 'Daftar peran dan tanggung jawab jabatan staf' },
     ]
   },
 ];
 
+const ALL_SYSTEM_MODULE_PATHS: string[] = AVAILABLE_MODULE_CATEGORIES.flatMap((c) => c.items.map((it) => it.to));
+
 const ROLE_PRESET_PATHS: Record<string, string[]> = {
   admin: [
+    '/dashboard',
     '/antrian-awal',
     '/pendaftaran-antrean/registrasi-pasien',
     '/pendaftaran-antrean/pendaftaran-pasien',
     '/master-data-user/data-pasien',
+    '/pendaftaran-antrean/jadwal-karyawan',
+    '/riwayat/rekam-medis?tab=pasien',
+    '/riwayat/rekam-medis?tab=kunjungan',
+    '/riwayat/rekam-medis?tab=appointment',
+    '/riwayat/rekam-medis?tab=membership',
   ],
   beautician: [
+    '/dashboard',
     '/pendaftaran-antrean/antrean?type=layanan',
     '/pendaftaran-antrean/antrean',
-    '/riwayat/rekam-medis',
+    '/pendaftaran-antrean/jadwal-karyawan',
     '/master-data/layanan',
     '/master-data/jadwal-karyawan',
+    '/riwayat/rekam-medis?tab=beautician',
+    '/riwayat/rekam-medis?tab=treatment',
   ],
   kasir: [
+    '/dashboard',
     '/kasir',
+    '/antrian-awal',
+    '/master-data-user/data-pasien',
     '/master-data/promo',
     '/master-data/detail-promo',
-    '/riwayat/rekam-medis',
+    '/riwayat/rekam-medis?tab=penjualan',
+    '/riwayat/rekam-medis?tab=keuangan',
+    '/riwayat/rekam-medis?tab=voucher',
+    '/riwayat/rekam-medis?tab=deposit',
+    '/riwayat/rekam-medis?tab=pasien',
   ],
   warehouse: [
+    '/dashboard',
     '/master-data/kategori-produk',
     '/master-data/produk',
     '/master-data/paket-produk',
     '/master-data/inventori',
     '/master-data/supplier',
     '/master-data/alat',
-    '/riwayat/rekam-medis',
+    '/riwayat/rekam-medis?tab=inventory',
+    '/riwayat/rekam-medis?tab=stok_opname',
+    '/riwayat/rekam-medis?tab=pembelian',
+    '/riwayat/rekam-medis?tab=expired',
+    '/riwayat/rekam-medis?tab=produk',
   ],
   dokter: [
+    '/dashboard',
     '/pendaftaran-antrean/antrean?type=konsul',
     '/pendaftaran-antrean/antrean?type=layanan',
     '/pendaftaran-antrean/antrean',
+    '/pendaftaran-antrean/jadwal-karyawan',
     '/master-data-user/data-pasien',
-    '/riwayat/rekam-medis',
     '/master-data/layanan',
     '/master-data/paket-layanan',
     '/master-data/jadwal-karyawan',
+    '/riwayat/rekam-medis?tab=dokter',
+    '/riwayat/rekam-medis?tab=rekam_medis',
+    '/riwayat/rekam-medis?tab=pasien',
+    '/riwayat/rekam-medis?tab=kunjungan',
+    '/riwayat/rekam-medis?tab=treatment',
   ],
-  owner: [
-    '/master-data/kategori-layanan',
-    '/master-data/layanan',
-    '/master-data/paket-layanan',
-    '/master-data/kategori-produk',
-    '/master-data/produk',
-    '/master-data/paket-produk',
-    '/master-data/inventori',
-    '/master-data/supplier',
-    '/master-data/karyawan',
-    '/master-data/jadwal-karyawan',
-    '/master-data/alat',
-    '/master-data/ruangan',
-    '/master-data/promo',
-    '/master-data/detail-promo',
-    '/antrian-awal',
-    '/pendaftaran-antrean/registrasi-pasien',
-    '/pendaftaran-antrean/pendaftaran-pasien',
-    '/master-data-user/data-pasien',
-    '/pendaftaran-antrean/antrean?type=layanan',
-    '/pendaftaran-antrean/antrean?type=konsul',
-    '/pendaftaran-antrean/antrean',
-    '/kasir',
-    '/riwayat/rekam-medis',
-    '/setup/config',
-    '/setup/users',
-  ],
+  owner: ALL_SYSTEM_MODULE_PATHS,
+  manager: ALL_SYSTEM_MODULE_PATHS,
+  superadmin: ALL_SYSTEM_MODULE_PATHS,
 };
 
 const buildMenuFromSelectedPaths = (
@@ -218,60 +263,152 @@ const buildMenuFromSelectedPaths = (
   tindakanRooms: any[],
   konsulRooms: any[]
 ) => {
-  const resultMenu: any[] = [
-    {
+  const resultMenu: any[] = [];
+
+  // 1. HOME
+  const homeCategory = AVAILABLE_MODULE_CATEGORIES.find((c) => c.category === 'Home & Dashboard');
+  const homeMatches = (homeCategory?.items || []).filter((it) => selectedPaths.has(it.to));
+  if (homeMatches.length > 0) {
+    resultMenu.push({
       label: 'HOME',
       icon: 'pi pi-fw pi-home',
-      items: [{ label: 'Dashboard', icon: 'pi pi-fw pi-home', to: '/dashboard' }],
-    },
-  ];
+      items: homeMatches.map((it) => ({
+        label: it.label,
+        icon: it.icon,
+        to: it.to,
+      })),
+    });
+  }
 
-  AVAILABLE_MODULE_CATEGORIES.forEach((cat) => {
-    const matchingItems = cat.items.filter((it) => selectedPaths.has(it.to));
-    if (matchingItems.length > 0) {
-      resultMenu.push({
-        label: cat.category,
-        icon: cat.icon,
-        items: matchingItems.map((it) => {
-          const itemObj: any = {
-            label: it.label,
-            icon: it.icon,
-            to: it.to,
-          };
-
-          // Rincian Ruangan Tindakan
-          if (it.to.includes('type=layanan')) {
-            const isAll = selectedTindakanRooms.size === 0 || selectedTindakanRooms.size === tindakanRooms.length;
-            itemObj.allowed_ruangan = isAll ? [] : Array.from(selectedTindakanRooms);
-            const activeRooms = tindakanRooms.filter((r) => isAll || selectedTindakanRooms.has(r.kode_ruangan));
-            if (activeRooms.length > 0) {
-              itemObj.items = activeRooms.map((r) => ({
-                label: r.nama_ruangan,
-                icon: 'pi pi-building',
-                to: `/pendaftaran-antrean/antrean?type=layanan&ruangan=${r.kode_ruangan}`,
-              }));
-            }
-          }
-
-          // Rincian Ruangan Konsultasi
-          if (it.to.includes('type=konsul')) {
-            const isAll = selectedKonsulRooms.size === 0 || selectedKonsulRooms.size === konsulRooms.length;
-            itemObj.allowed_ruangan = isAll ? [] : Array.from(selectedKonsulRooms);
-            const activeRooms = konsulRooms.filter((r) => isAll || selectedKonsulRooms.has(r.kode_ruangan));
-            if (activeRooms.length > 0) {
-              itemObj.items = activeRooms.map((r) => ({
-                label: r.nama_ruangan,
-                icon: 'pi pi-building',
-                to: `/pendaftaran-antrean/antrean?type=konsul&ruangan=${r.kode_ruangan}`,
-              }));
-            }
-          }
-
-          return itemObj;
-        }),
-      });
-    }
+  // 2. MASTER DATA (Kumpulkan semua modul dari kategori Master Data)
+  const masterCategories = AVAILABLE_MODULE_CATEGORIES.filter((c) => c.category.startsWith('Master Data'));
+  const allMasterMatches: any[] = [];
+  masterCategories.forEach((cat) => {
+    cat.items.forEach((it) => {
+      if (selectedPaths.has(it.to)) {
+        allMasterMatches.push({
+          label: it.label,
+          icon: it.icon,
+          to: it.to,
+        });
+      }
+    });
   });
+  if (allMasterMatches.length > 0) {
+    resultMenu.push({
+      label: 'MASTER DATA',
+      icon: 'pi pi-fw pi-database',
+      items: allMasterMatches,
+    });
+  }
+
+  // 3. PENDAFTARAN & PASIEN
+  const pendaftaranCat = AVAILABLE_MODULE_CATEGORIES.find((c) => c.category === 'Pendaftaran & Pasien');
+  const pendaftaranMatches = (pendaftaranCat?.items || []).filter((it) => selectedPaths.has(it.to));
+  if (pendaftaranMatches.length > 0) {
+    resultMenu.push({
+      label: 'Pendaftaran & Pasien',
+      icon: 'pi pi-calendar',
+      items: pendaftaranMatches.map((it) => ({
+        label: it.label,
+        icon: it.icon,
+        to: it.to,
+      })),
+    });
+  }
+
+  // 4. LAYANAN & TINDAKAN
+  const layananCat = AVAILABLE_MODULE_CATEGORIES.find((c) => c.category === 'Layanan & Tindakan');
+  const layananMatches = (layananCat?.items || []).filter((it) => selectedPaths.has(it.to));
+  if (layananMatches.length > 0) {
+    resultMenu.push({
+      label: 'LAYANAN',
+      icon: 'pi pi-fw pi-sparkles',
+      items: layananMatches.map((it) => {
+        const itemObj: any = {
+          label: it.label,
+          icon: it.icon,
+          to: it.to,
+        };
+
+        // Rincian Ruangan Tindakan
+        if (it.to.includes('type=layanan')) {
+          const isAll = selectedTindakanRooms.size === 0 || selectedTindakanRooms.size === tindakanRooms.length;
+          itemObj.allowed_ruangan = isAll ? [] : Array.from(selectedTindakanRooms);
+          const activeRooms = tindakanRooms.filter((r) => isAll || selectedTindakanRooms.has(r.kode_ruangan));
+          if (activeRooms.length > 0) {
+            itemObj.items = activeRooms.map((r) => ({
+              label: r.nama_ruangan,
+              icon: 'pi pi-building',
+              to: `/pendaftaran-antrean/antrean?type=layanan&ruangan=${r.kode_ruangan}`,
+            }));
+          }
+        }
+
+        // Rincian Ruangan Konsultasi
+        if (it.to.includes('type=konsul')) {
+          const isAll = selectedKonsulRooms.size === 0 || selectedKonsulRooms.size === konsulRooms.length;
+          itemObj.allowed_ruangan = isAll ? [] : Array.from(selectedKonsulRooms);
+          const activeRooms = konsulRooms.filter((r) => isAll || selectedKonsulRooms.has(r.kode_ruangan));
+          if (activeRooms.length > 0) {
+            itemObj.items = activeRooms.map((r) => ({
+              label: r.nama_ruangan,
+              icon: 'pi pi-building',
+              to: `/pendaftaran-antrean/antrean?type=konsul&ruangan=${r.kode_ruangan}`,
+            }));
+          }
+        }
+
+        return itemObj;
+      }),
+    });
+  }
+
+  // 5. KASIR & PEMBAYARAN
+  const kasirCat = AVAILABLE_MODULE_CATEGORIES.find((c) => c.category === 'Kasir & Pembayaran');
+  const kasirMatches = (kasirCat?.items || []).filter((it) => selectedPaths.has(it.to));
+  if (kasirMatches.length > 0) {
+    resultMenu.push({
+      label: 'KASIR',
+      icon: 'pi pi-fw pi-calculator',
+      items: kasirMatches.map((it) => ({
+        label: it.label,
+        icon: it.icon,
+        to: it.to,
+      })),
+    });
+  }
+
+  // 6. LAPORAN & REKAM MEDIS
+  const laporanCat = AVAILABLE_MODULE_CATEGORIES.find((c) => c.category === 'Laporan & Rekam Medis');
+  const laporanMatches = (laporanCat?.items || []).filter((it) => selectedPaths.has(it.to));
+  if (laporanMatches.length > 0) {
+    resultMenu.push({
+      label: 'LAPORAN',
+      icon: 'pi pi-fw pi-chart-bar',
+      to: '/riwayat/rekam-medis',
+      items: laporanMatches.map((it) => ({
+        label: it.label,
+        icon: it.icon,
+        to: it.to,
+      })),
+    });
+  }
+
+  // 7. PENGATURAN KLINIK
+  const pengaturanCat = AVAILABLE_MODULE_CATEGORIES.find((c) => c.category === 'Pengaturan Sistem & Cabang');
+  const pengaturanMatches = (pengaturanCat?.items || []).filter((it) => selectedPaths.has(it.to));
+  if (pengaturanMatches.length > 0) {
+    resultMenu.push({
+      label: 'PENGATURAN KLINIK',
+      icon: 'pi pi-fw pi-cog',
+      items: pengaturanMatches.map((it) => ({
+        label: it.label,
+        icon: it.icon,
+        to: it.to,
+      })),
+    });
+  }
 
   return resultMenu;
 };
@@ -505,6 +642,12 @@ export default function ManajemenUserPage() {
   };
 
   const handleOpenEdit = async (u: UserRecord) => {
+    const isTargetProtected = ['superadmin', 'owner', 'manager'].includes(String(u.role || '').toLowerCase());
+    if (!isSuperAdmin && isTargetProtected) {
+      showError(toast, 'Akses ditolak: Hanya Superadmin yang berhak mengedit data atau hak akses akun ini.');
+      return;
+    }
+
     setIsEdit(true);
     setActiveTab(0);
     const matchedKaryawan = karyawanList.find(
@@ -556,6 +699,28 @@ export default function ManajemenUserPage() {
           });
         };
         extractPaths(resNav.data.data);
+
+        // Kompatibilitas data legacy: Jika user sebelumnya memiliki rute umum '/riwayat/rekam-medis'
+        // tanpa spesifik tab '?tab=...', ekspansi otomatis ke modul laporan sesuai rolenya agar checkbox tercentang
+        const hasGranularReport = Array.from(paths).some((p) => p.startsWith('/riwayat/rekam-medis?tab='));
+        if (paths.has('/riwayat/rekam-medis') && !hasGranularReport) {
+          const reportCategory = AVAILABLE_MODULE_CATEGORIES.find((c) => c.category === 'Laporan & Rekam Medis');
+          if (reportCategory) {
+            const role = (u.role || '').toLowerCase();
+            if (['owner', 'manager', 'superadmin'].includes(role)) {
+              reportCategory.items.forEach((it) => paths.add(it.to));
+            } else {
+              const preset = ROLE_PRESET_PATHS[role] || [];
+              const presetReports = preset.filter((p) => p.startsWith('/riwayat/rekam-medis?tab='));
+              if (presetReports.length > 0) {
+                presetReports.forEach((p) => paths.add(p));
+              } else {
+                reportCategory.items.forEach((it) => paths.add(it.to));
+              }
+            }
+          }
+        }
+
         setSelectedPermissions(paths);
 
         if (hasTindakanConfig && loadedTindakanRooms.size > 0) {
@@ -833,6 +998,15 @@ export default function ManajemenUserPage() {
   };
 
   const handleDelete = (codes: string[], names?: string) => {
+    const targetUsers = users.filter((u) => codes.includes(u.user_code));
+    const hasProtectedUser = targetUsers.some((u) =>
+      ['superadmin', 'owner', 'manager'].includes(String(u.role || '').toLowerCase())
+    );
+    if (!isSuperAdmin && hasProtectedUser) {
+      showError(toast, 'Akses ditolak: Hanya Superadmin yang berhak menghapus akun Superadmin atau Owner/Manager.');
+      return;
+    }
+
     const confirmText = names || `${codes.length} data pengguna ini`;
 
     confirmDialog({
@@ -942,6 +1116,9 @@ export default function ManajemenUserPage() {
           selection={selectedRows}
           onSelectionChange={(e: any) => setSelectedRows(e.value)}
           dataKey="user_code"
+          isDataSelectable={(e) =>
+            isSuperAdmin || !['superadmin', 'owner', 'manager'].includes(String(e.data.role || '').toLowerCase())
+          }
           className="p-datatable-sm"
           emptyMessage="Data pengguna tidak ditemukan."
           responsiveLayout="scroll"
@@ -1123,26 +1300,36 @@ export default function ManajemenUserPage() {
             header="Aksi"
             align="center"
             headerStyle={{ width: '8rem', textAlign: 'center', fontWeight: 'bold' }}
-            body={(r: UserRecord) => (
-              <div className="flex align-items-center justify-content-center gap-2">
-                <Button
-                  icon="pi pi-pencil"
-                  outlined
-                  severity="success"
-                  className="p-button-sm border-round-md"
-                  tooltip="Edit Pengguna & Hak Akses"
-                  onClick={() => handleOpenEdit(r)}
-                />
-                <Button
-                  icon="pi pi-trash"
-                  outlined
-                  severity="danger"
-                  className="p-button-sm border-round-md"
-                  tooltip="Hapus Pengguna"
-                  onClick={() => handleDelete([r.user_code], `${r.fullname} (${r.username})`)}
-                />
-              </div>
-            )}
+            body={(r: UserRecord) => {
+              const isTargetProtected = ['superadmin', 'owner', 'manager'].includes(String(r.role || '').toLowerCase());
+              const canEdit = isSuperAdmin || !isTargetProtected;
+              const canDelete = isSuperAdmin || !isTargetProtected;
+
+              return (
+                <div className="flex align-items-center justify-content-center gap-2">
+                  <Button
+                    icon={canEdit ? 'pi pi-pencil' : 'pi pi-lock'}
+                    outlined
+                    severity={canEdit ? 'success' : 'secondary'}
+                    className="p-button-sm border-round-md"
+                    tooltip={canEdit ? 'Edit Pengguna & Hak Akses' : 'Hanya Superadmin yang dapat mengedit akun ini'}
+                    tooltipOptions={{ position: 'top' }}
+                    disabled={!canEdit}
+                    onClick={() => canEdit && handleOpenEdit(r)}
+                  />
+                  <Button
+                    icon={canDelete ? 'pi pi-trash' : 'pi pi-lock'}
+                    outlined
+                    severity={canDelete ? 'danger' : 'secondary'}
+                    className="p-button-sm border-round-md"
+                    tooltip={canDelete ? 'Hapus Pengguna' : 'Hanya Superadmin yang dapat menghapus akun ini'}
+                    tooltipOptions={{ position: 'top' }}
+                    disabled={!canDelete}
+                    onClick={() => canDelete && handleDelete([r.user_code], `${r.fullname} (${r.username})`)}
+                  />
+                </div>
+              );
+            }}
           />
         </DataTable>
       </div>

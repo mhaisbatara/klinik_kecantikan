@@ -16,6 +16,9 @@ import { IconField } from 'primereact/iconfield';
 import { InputIcon } from 'primereact/inputicon';
 import { showError, showSuccess } from '@/lib/tools/generalTools';
 import { PasienFormDialog } from '@/app/(main)/pendaftaran-antrean/pendaftaran-pasien/components/dialogs/PasienFormDialog';
+import { useRouter } from 'next/navigation';
+import { PasienKtpCard, Pasien } from '@/app/(main)/pendaftaran-antrean/components/PasienKtpCard';
+import { DialogPilihanKunjungan } from '@/app/(main)/pendaftaran-antrean/components/DialogPilihanKunjungan';
 
 // Helper hitung umur dari tanggal lahir
 const hitungUmur = (tglLahir: string | Date | null | undefined): string => {
@@ -44,6 +47,7 @@ const formatTanggal = (dateString: string | null | undefined): string => {
 };
 
 export default function DataPasienPage() {
+    const router = useRouter();
     const toast = useRef<Toast>(null);
 
     // Data State
@@ -59,7 +63,8 @@ export default function DataPasienPage() {
 
     // Detail Modal State
     const [detailVisible, setDetailVisible] = useState<boolean>(false);
-    const [selectedPatient, setSelectedPatient] = useState<any>(null);
+    const [selectedPatient, setSelectedPatient] = useState<Pasien | null>(null);
+    const [pilihanKunjunganPasien, setPilihanKunjunganPasien] = useState<Pasien | null>(null);
 
     // Edit Modal State
     const [editVisible, setEditVisible] = useState<boolean>(false);
@@ -145,174 +150,63 @@ export default function DataPasienPage() {
             <Toast ref={toast} />
             <ConfirmDialog />
 
-            {/* Quick Detail Dialog */}
+            {/* Quick Detail Dialog (Kartu Identitas Pasien) */}
             <Dialog
+                visible={detailVisible}
+                onHide={() => setDetailVisible(false)}
                 header={
                     <div className="flex align-items-center gap-2">
-                        <i className="pi pi-id-card text-purple-600 text-xl" />
-                        <span className="font-bold text-lg">Informasi Profil Pasien</span>
+                        <i className="pi pi-id-card text-emerald-600 text-xl" />
+                        <span className="font-bold text-base text-800">Kartu Identitas Pasien</span>
                     </div>
                 }
-                visible={detailVisible}
-                style={{ width: '650px' }}
                 modal
-                onHide={() => setDetailVisible(false)}
+                style={{ width: '100%', maxWidth: '660px' }}
+                breakpoints={{ '661px': '95vw' }}
+                contentClassName="p-3 surface-50"
                 footer={
-                    <div className="flex justify-content-end gap-2">
+                    <div className="flex justify-content-end align-items-center gap-2 pt-3 border-top-1 surface-border">
                         <Button
+                            type="button"
                             label="Tutup"
                             icon="pi pi-times"
-                            outlined
                             severity="secondary"
+                            outlined
+                            className="text-xs font-medium"
                             onClick={() => setDetailVisible(false)}
                         />
                         <Button
-                            label="Edit Pasien"
-                            icon="pi pi-pencil"
+                            type="button"
+                            label="Daftarkan Kunjungan"
+                            icon="pi pi-calendar-plus"
                             severity="success"
+                            className="font-bold text-xs px-3 py-2 bg-emerald-600 border-emerald-600 hover:bg-emerald-700 text-white shadow-1"
                             onClick={() => {
-                                setDetailVisible(false);
-                                if (selectedPatient) handleOpenEdit(selectedPatient);
+                                if (selectedPatient) {
+                                    const target = selectedPatient;
+                                    setDetailVisible(false);
+                                    setPilihanKunjunganPasien(target);
+                                }
                             }}
                         />
                     </div>
                 }
             >
-                {selectedPatient && (
-                    <div className="flex flex-column gap-3 pt-2">
-                        {/* Header Profile Card */}
-                        <div className="flex align-items-center gap-3 p-3 border-round-xl surface-100 border-1 border-200">
-                            <div
-                                className="flex align-items-center justify-content-center border-circle font-bold text-2xl"
-                                style={{
-                                    width: '56px',
-                                    height: '56px',
-                                    backgroundColor: selectedPatient.jenis_kelamin === 'P' ? '#fce7f3' : '#e0e7ff',
-                                    color: selectedPatient.jenis_kelamin === 'P' ? '#db2777' : '#4f46e5'
-                                }}
-                            >
-                                {selectedPatient.nama ? selectedPatient.nama.charAt(0).toUpperCase() : 'P'}
-                            </div>
-                            <div className="flex-1">
-                                <div className="flex align-items-center justify-content-between">
-                                    <h4 className="font-bold text-xl text-900 m-0">{selectedPatient.nama}</h4>
-                                    <Tag
-                                        value={selectedPatient.status === 'aktif' ? 'Aktif' : 'Tidak Aktif'}
-                                        severity={selectedPatient.status === 'aktif' ? 'success' : 'danger'}
-                                    />
-                                </div>
-                                <div className="flex flex-wrap align-items-center gap-2 mt-1 text-sm text-600">
-                                    <span className="font-mono font-bold text-purple-700 bg-purple-50 px-2 py-1 border-round">
-                                        {selectedPatient.no_rm}
-                                    </span>
-                                    <span>•</span>
-                                    <span>NIK: {selectedPatient.nik || '-'}</span>
-                                    <span>•</span>
-                                    <span>{selectedPatient.jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan'} ({hitungUmur(selectedPatient.tanggal_lahir)})</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Grid Data Diri */}
-                        <div className="grid text-sm">
-                            <div className="col-12 md:col-6">
-                                <div className="surface-card p-3 border-round-lg border-1 border-200 h-full">
-                                    <span className="text-xs font-bold text-500 uppercase block mb-2">Data Pribadi</span>
-                                    <div className="flex flex-column gap-2">
-                                        <div>
-                                            <span className="text-500 block text-xs">Tempat, Tanggal Lahir</span>
-                                            <span className="font-semibold text-800">
-                                                {selectedPatient.tempat_lahir || '-'}, {formatTanggal(selectedPatient.tanggal_lahir)}
-                                            </span>
-                                        </div>
-                                        <div>
-                                            <span className="text-500 block text-xs">Golongan Darah / Agama</span>
-                                            <span className="font-semibold text-800">
-                                                {selectedPatient.golongan_darah || '-'} / {selectedPatient.agama || '-'}
-                                            </span>
-                                        </div>
-                                        <div>
-                                            <span className="text-500 block text-xs">Pekerjaan</span>
-                                            <span className="font-semibold text-800">{selectedPatient.pekerjaan || '-'}</span>
-                                        </div>
-                                        <div>
-                                            <span className="text-500 block text-xs">Status Perkawinan</span>
-                                            <span className="font-semibold text-800 capitalize">
-                                                {selectedPatient.status_perkawinan ? selectedPatient.status_perkawinan.replace('_', ' ') : '-'}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="col-12 md:col-6">
-                                <div className="surface-card p-3 border-round-lg border-1 border-200 h-full">
-                                    <span className="text-xs font-bold text-500 uppercase block mb-2">Kontak & Darurat</span>
-                                    <div className="flex flex-column gap-2">
-                                        <div>
-                                            <span className="text-500 block text-xs">Nomor HP (WhatsApp)</span>
-                                            <a
-                                                href={`https://wa.me/${selectedPatient.no_hp?.replace(/^0/, '62')}`}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                className="font-semibold text-green-600 flex align-items-center gap-1 hover:underline"
-                                            >
-                                                <i className="pi pi-whatsapp" /> {selectedPatient.no_hp || '-'}
-                                            </a>
-                                        </div>
-                                        <div>
-                                            <span className="text-500 block text-xs">Email</span>
-                                            <span className="font-semibold text-800">{selectedPatient.email || '-'}</span>
-                                        </div>
-                                        <div>
-                                            <span className="text-500 block text-xs">Kontak Darurat</span>
-                                            <span className="font-semibold text-800">
-                                                {selectedPatient.nama_kontak_darurat || '-'}
-                                                {selectedPatient.hubungan_kontak_darurat ? ` (${selectedPatient.hubungan_kontak_darurat})` : ''}
-                                            </span>
-                                            {selectedPatient.no_hp_kontak_darurat && (
-                                                <span className="text-500 block text-xs">{selectedPatient.no_hp_kontak_darurat}</span>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="col-12">
-                                <div className="surface-card p-3 border-round-lg border-1 border-200">
-                                    <span className="text-xs font-bold text-500 uppercase block mb-2">Alamat Domisili</span>
-                                    <p className="m-0 font-medium text-800">
-                                        {[
-                                            selectedPatient.kelurahan_desa ? `Kel. ${selectedPatient.kelurahan_desa}` : '',
-                                            selectedPatient.kecamatan ? `Kec. ${selectedPatient.kecamatan}` : '',
-                                            selectedPatient.kota_kabupaten,
-                                            selectedPatient.provinsi,
-                                            selectedPatient.kode_pos ? `Kode Pos ${selectedPatient.kode_pos}` : ''
-                                        ].filter(Boolean).join(', ') || '-'}
-                                    </p>
-                                    {selectedPatient.patokan && (
-                                        <p className="m-0 mt-1 text-xs text-500 italic">
-                                            Patokan: {selectedPatient.patokan}
-                                        </p>
-                                    )}
-                                </div>
-                            </div>
-
-                            {selectedPatient.alergi && (
-                                <div className="col-12">
-                                    <div className="p-3 border-round-lg bg-orange-50 border-1 border-orange-200 text-orange-900">
-                                        <span className="font-bold flex align-items-center gap-1 mb-1 text-sm">
-                                            <i className="pi pi-exclamation-triangle text-orange-600" />
-                                            Catatan Riwayat Alergi:
-                                        </span>
-                                        <span className="text-sm">{selectedPatient.alergi}</span>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
+                {selectedPatient && <PasienKtpCard pasien={selectedPatient} />}
             </Dialog>
+
+            {/* POPUP PILIH JENIS PENDAFTARAN (DAFTAR SEKARANG VS BOOKING JADWAL) */}
+            <DialogPilihanKunjungan
+                visible={Boolean(pilihanKunjunganPasien)}
+                onHide={() => setPilihanKunjunganPasien(null)}
+                pasien={pilihanKunjunganPasien}
+                onSelectDaftarSekarang={(p) => {
+                    router.push(`/pendaftaran-antrean/pendaftaran-pasien?no_rm=${encodeURIComponent(p.no_rm)}`);
+                }}
+                onSelectBooking={(p) => {
+                    router.push(`/pendaftaran-antrean/pendaftaran-pasien?tab=1&no_rm=${encodeURIComponent(p.no_rm)}&create=true`);
+                }}
+            />
 
             {/* Edit Patient Dialog */}
             <PasienFormDialog
@@ -695,39 +589,32 @@ export default function DataPasienPage() {
                     {/* Kolom Aksi */}
                     <Column
                         header="Aksi"
-                        headerStyle={{ width: '8.5rem', textAlign: 'center' }}
+                        align="center"
+                        headerStyle={{ width: '6.5rem', textAlign: 'center' }}
                         bodyStyle={{ textAlign: 'center' }}
                         body={(rowData) => (
-                            <div className="flex align-items-center justify-content-center gap-1">
+                            <div className="flex align-items-center justify-content-center gap-2">
                                 <Button
+                                    type="button"
                                     icon="pi pi-eye"
                                     size="small"
-                                    text
-                                    rounded
+                                    outlined
                                     severity="info"
-                                    tooltip="Lihat Detail"
-                                    tooltipOptions={{ position: 'bottom' }}
+                                    className="w-2rem h-2rem p-0 border-round-md"
+                                    tooltip="Lihat Detail Pasien"
+                                    tooltipOptions={{ position: 'top' }}
                                     onClick={() => handleOpenDetail(rowData)}
                                 />
                                 <Button
+                                    type="button"
                                     icon="pi pi-pencil"
                                     size="small"
-                                    text
-                                    rounded
+                                    outlined
                                     severity="success"
-                                    tooltip="Edit Pasien"
-                                    tooltipOptions={{ position: 'bottom' }}
+                                    className="w-2rem h-2rem p-0 border-round-md"
+                                    tooltip="Edit Data Pasien"
+                                    tooltipOptions={{ position: 'top' }}
                                     onClick={() => handleOpenEdit(rowData)}
-                                />
-                                <Button
-                                    icon="pi pi-trash"
-                                    size="small"
-                                    text
-                                    rounded
-                                    severity="danger"
-                                    tooltip="Hapus Pasien"
-                                    tooltipOptions={{ position: 'bottom' }}
-                                    onClick={() => handleDelete([rowData.no_rm])}
                                 />
                             </div>
                         )}

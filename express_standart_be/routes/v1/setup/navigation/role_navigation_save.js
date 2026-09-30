@@ -47,6 +47,18 @@ router.post("/", async (req, res) => {
     const role = String(oPayload.role).toLowerCase();
     const targetRole = role;
 
+    // Proteksi: Role Superadmin dan Owner / Manager hanya boleh diatur saat login sebagai Superadmin
+    const senderRole = String(req?.auth?.role || req?.user?.role || '').toLowerCase();
+    const isSenderSuperadmin = senderRole === 'superadmin' || senderRole === 'dev';
+    if (['superadmin', 'owner', 'manager'].includes(targetRole) && !isSenderSuperadmin) {
+      const oResult = {
+        status: status.FORBIDDEN || '403',
+        message: "Akses ditolak: Hanya Superadmin yang berhak mengatur hak akses role Superadmin dan Owner / Manager.",
+        datetime: formatDateSystem(),
+      };
+      return res.status(403).json(oResult);
+    }
+
     let menuStr = "";
     if (typeof oPayload.menu === "string") {
       menuStr = oPayload.menu;
