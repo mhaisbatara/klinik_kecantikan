@@ -164,17 +164,18 @@ const RegistrasiPasienPage = () => {
 
   // DataTable Template
   const noRmBodyTemplate = (rowData: Pasien) => {
-    return <span className="font-bold text-900 font-mono">{rowData.no_rm}</span>;
+    return <span className="font-bold text-900 font-mono" style={{ whiteSpace: 'nowrap' }}>{rowData.no_rm}</span>;
   };
 
   const jenisKelaminBodyTemplate = (rowData: Pasien) => {
-    if (!rowData.jenis_kelamin) return <span className="text-400 font-italic">-</span>;
+    if (!rowData.jenis_kelamin) return <span className="text-400 font-italic" style={{ whiteSpace: 'nowrap' }}>-</span>;
     const isMale = rowData.jenis_kelamin === 'L';
     return (
       <Tag
         value={isMale ? 'Laki-Laki' : 'Perempuan'}
         severity={isMale ? 'warning' : 'success'}
         className="text-xs px-2 py-1"
+        style={{ whiteSpace: 'nowrap' }}
       />
     );
   };
@@ -350,6 +351,8 @@ const RegistrasiPasienPage = () => {
         <DataTable
           value={data}
           scrollable
+          tableStyle={{ minWidth: '1360px' }}
+          className="p-datatable-sm registrasi-pasien-table"
           lazy
           paginator
           first={first}
@@ -367,14 +370,14 @@ const RegistrasiPasienPage = () => {
           paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
           currentPageReportTemplate="Menampilkan {first} - {last} dari {totalRecords} data pasien"
         >
-          <Column field="no_rm" header="No. RM" body={noRmBodyTemplate} align="center" sortable style={{ minWidth: '8rem' }} />
-          <Column field="nama" header="Nama Pasien" className="font-bold text-900" sortable style={{ minWidth: '13rem' }} />
-          <Column field="nik" header="NIK" align="center" style={{ minWidth: '10rem' }} body={(r: Pasien) => r.nik || '-'} />
-          <Column field="no_hp" header="No. HP" align="center" style={{ minWidth: '10rem' }} body={(r: Pasien) => r.no_hp || '-'} />
-          <Column field="tanggal_lahir" header="Tgl Lahir" align="center" style={{ minWidth: '8rem' }} body={(r: Pasien) => formatDateOnly(r.tanggal_lahir)} />
-          <Column header="L/P" body={jenisKelaminBodyTemplate} align="center" style={{ minWidth: '7rem' }} />
-          <Column field="kota_kabupaten" header="Kota / Alamat" style={{ minWidth: '12rem' }} body={(r: Pasien) => r.kota_kabupaten || r.provinsi || '-'} />
-          <Column header="Aksi" body={actionBodyTemplate} align="center" style={{ minWidth: '7rem' }} />
+          <Column field="no_rm" header="No. RM" body={noRmBodyTemplate} align="center" sortable style={{ width: '140px', minWidth: '140px', whiteSpace: 'nowrap' }} />
+          <Column field="nama" header="Nama Pasien" className="font-bold text-900" sortable style={{ width: '220px', minWidth: '220px', whiteSpace: 'nowrap' }} body={(r: Pasien) => <span className="font-bold text-900" style={{ whiteSpace: 'nowrap', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.nama}</span>} />
+          <Column field="nik" header="NIK" align="center" style={{ width: '180px', minWidth: '180px', whiteSpace: 'nowrap' }} body={(r: Pasien) => <span style={{ whiteSpace: 'nowrap' }}>{r.nik || '-'}</span>} />
+          <Column field="no_hp" header="No. HP" align="center" style={{ width: '150px', minWidth: '150px', whiteSpace: 'nowrap' }} body={(r: Pasien) => <span style={{ whiteSpace: 'nowrap' }}>{r.no_hp || '-'}</span>} />
+          <Column field="tanggal_lahir" header="Tgl Lahir" align="center" style={{ width: '130px', minWidth: '130px', whiteSpace: 'nowrap' }} body={(r: Pasien) => <span style={{ whiteSpace: 'nowrap' }}>{formatDateOnly(r.tanggal_lahir)}</span>} />
+          <Column header="L/P" body={jenisKelaminBodyTemplate} align="center" style={{ width: '120px', minWidth: '120px', whiteSpace: 'nowrap' }} />
+          <Column field="kota_kabupaten" header="Kota / Alamat" style={{ width: '320px', minWidth: '320px', whiteSpace: 'nowrap' }} body={(r: Pasien) => <span style={{ whiteSpace: 'nowrap', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis' }} title={r.kota_kabupaten || r.provinsi || '-'}>{r.kota_kabupaten || r.provinsi || '-'}</span>} />
+          <Column header="Aksi" body={actionBodyTemplate} align="center" style={{ width: '110px', minWidth: '110px', whiteSpace: 'nowrap' }} />
         </DataTable>
       </div>
 
@@ -647,6 +650,21 @@ const RegistrasiPasienPage = () => {
           </div>
         </div>
       </Dialog>
+
+      <style jsx global>{`
+        .registrasi-pasien-table .p-datatable-tbody > tr > td {
+          white-space: nowrap !important;
+          height: 52px !important;
+          box-sizing: border-box !important;
+          vertical-align: middle !important;
+        }
+        .registrasi-pasien-table .p-datatable-thead > tr > th {
+          white-space: nowrap !important;
+          height: 48px !important;
+          box-sizing: border-box !important;
+          vertical-align: middle !important;
+        }
+      `}</style>
     </div>
   );
 };

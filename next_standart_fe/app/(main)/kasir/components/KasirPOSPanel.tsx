@@ -36,6 +36,13 @@ interface ProdukItem {
   kode_kategori_produk?: string;
   nama_kategori?: string;
   foto?: string | null;
+  is_promo?: boolean;
+  kode_promo?: string | null;
+  nama_promo?: string | null;
+  jenis_diskon?: 'persen' | 'nominal' | string | null;
+  nilai_diskon?: number | null;
+  harga_asal?: number | null;
+  harga_promo?: number | null;
 }
 
 interface SelectedProduk {
@@ -46,6 +53,13 @@ interface SelectedProduk {
   qty: number;
   is_rekomendasi_dokter?: boolean;
   foto?: string | null;
+  is_promo?: boolean;
+  kode_promo?: string | null;
+  nama_promo?: string | null;
+  jenis_diskon?: 'persen' | 'nominal' | string | null;
+  nilai_diskon?: number | null;
+  harga_asal?: number | null;
+  harga_promo?: number | null;
 }
 
 const getCategoryBadgeStyle = (catName?: string) => {
@@ -60,6 +74,13 @@ const getCategoryBadgeStyle = (catName?: string) => {
     return { color: '#D97706', borderColor: '#D97706' };
   }
   return { color: '#0C8F62', borderColor: '#0C8F62' };
+};
+
+const getEffectiveProdukPrice = (prod: { harga_jual: number; harga_promo?: number | null; is_promo?: boolean }): number => {
+  if (prod.is_promo && prod.harga_promo != null && prod.harga_promo > 0) {
+    return prod.harga_promo;
+  }
+  return prod.harga_jual || 0;
 };
 
 interface KunjunganOption {
@@ -166,6 +187,13 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
           kode_kategori_produk: p.kode_kategori_produk,
           nama_kategori: p.nama_kategori || 'Produk',
           foto: p.foto || null,
+          is_promo: Boolean(p.is_promo),
+          kode_promo: p.kode_promo || null,
+          nama_promo: p.nama_promo || null,
+          jenis_diskon: p.jenis_diskon || null,
+          nilai_diskon: p.nilai_diskon != null ? parseFloat(p.nilai_diskon) : null,
+          harga_asal: p.harga_asal != null ? parseFloat(p.harga_asal) : parseFloat(p.harga_jual || 0),
+          harga_promo: p.harga_promo != null ? parseFloat(p.harga_promo) : null,
         }));
       setProdukOptions(list);
     } catch (_) {
@@ -198,6 +226,13 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
             kode_kategori_produk: p.kode_kategori_produk,
             nama_kategori: p.nama_kategori || 'Produk',
             foto: p.foto || null,
+            is_promo: Boolean(p.is_promo),
+            kode_promo: p.kode_promo || null,
+            nama_promo: p.nama_promo || null,
+            jenis_diskon: p.jenis_diskon || null,
+            nilai_diskon: p.nilai_diskon != null ? parseFloat(p.nilai_diskon) : null,
+            harga_asal: p.harga_asal != null ? parseFloat(p.harga_asal) : parseFloat(p.harga_jual || 0),
+            harga_promo: p.harga_promo != null ? parseFloat(p.harga_promo) : null,
           }));
         setProdukOptions(list);
       }
@@ -410,16 +445,26 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
   }, [cart, selectedPromos]);
 
   // Reaktif: pantau keranjang untuk otomatis melepas promo yang targetnya dihapus dari keranjang
+  const prevCartKodesRef = useRef<Set<string>>(new Set());
   useEffect(() => {
-    if (selectedPromos.length === 0) return;
+    const currentCodes = new Set(cart.map((c) => c.kode));
+    if (selectedPromos.length === 0) {
+      prevCartKodesRef.current = currentCodes;
+      return;
+    }
     const { validPromos, droppedPromos } = filterValidPromosForCart(cart, selectedPromos);
     if (droppedPromos.length > 0) {
       setSelectedPromos(validPromos);
-      droppedPromos.forEach((p) => {
-        showInfo(toast, `Promo "${p.nama_promo}" dilepas karena item "${p.nama_item || p.kode_item}" dihapus`);
-      });
+      if (!loadingDetail) {
+        droppedPromos.forEach((p) => {
+          if (p.kode_item && prevCartKodesRef.current.has(p.kode_item)) {
+            showInfo(toast, `Promo "${p.nama_promo}" dilepas karena item "${p.nama_item || p.kode_item}" dihapus`);
+          }
+        });
+      }
     }
-  }, [cart]);
+    prevCartKodesRef.current = currentCodes;
+  }, [cart, loadingDetail]);
 
   // Auto-select promo aktif untuk produk dan layanan di keranjang yang belum memiliki promo terpilih
   useEffect(() => {
@@ -485,7 +530,7 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
 
   // Subtotal dan total item dalam draft modal
   const draftGrandTotal = useMemo(() => {
-    return draftProdukList.reduce((acc, curr) => acc + curr.qty * curr.harga_jual, 0);
+    return draftProdukList.reduce((acc, curr) => acc + curr.qty * getEffectiveProdukPrice(curr), 0);
   }, [draftProdukList]);
 
   const draftTotalQty = useMemo(() => {
@@ -506,6 +551,13 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
           satuan: item.satuan || 'pcs',
           qty: item.qty,
           foto: option?.foto || null,
+          is_promo: Boolean(option?.is_promo || item.kode_promo),
+          kode_promo: item.kode_promo || option?.kode_promo || null,
+          nama_promo: item.nama_promo || option?.nama_promo || null,
+          jenis_diskon: item.jenis_diskon || option?.jenis_diskon || null,
+          nilai_diskon: item.nilai_diskon != null ? item.nilai_diskon : (option?.nilai_diskon || null),
+          harga_asal: option?.harga_asal || item.harga_master || item.harga_satuan,
+          harga_promo: option?.harga_promo || null,
         };
       });
     setDraftProdukList(existingProdukInCart);
@@ -520,7 +572,8 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
 
     const newProdukCartItems: CartItem[] = draftProdukList.map((item) => {
       const option = produkOptions.find((p) => p.kode_produk === item.kode_produk);
-      const subtotal = item.qty * item.harga_jual;
+      const effectivePrice = item.is_promo && item.harga_promo != null ? item.harga_promo : item.harga_jual;
+      const subtotal = item.qty * effectivePrice;
       return {
         jenis: 'produk',
         kode: item.kode_produk,
@@ -528,8 +581,15 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
         satuan: item.satuan || 'pcs',
         nama_kategori: option?.nama_kategori || 'Produk',
         qty: item.qty,
-        harga_satuan: item.harga_jual,
+        harga_satuan: effectivePrice,
         harga_master: item.harga_jual,
+        is_promo: item.is_promo,
+        kode_promo: item.kode_promo,
+        nama_promo: item.nama_promo,
+        jenis_diskon: (item.jenis_diskon as 'persen' | 'nominal' | null) || null,
+        nilai_diskon: item.nilai_diskon,
+        harga_asal: item.harga_asal || item.harga_jual,
+        harga_promo: item.harga_promo,
         subtotal: subtotal,
         is_from_pendaftaran: false,
         diskon: 0,
@@ -581,6 +641,13 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
           satuan: prod.satuan || 'pcs',
           qty: 1,
           foto: prod.foto || null,
+          is_promo: Boolean(prod.is_promo),
+          kode_promo: prod.kode_promo || null,
+          nama_promo: prod.nama_promo || null,
+          jenis_diskon: prod.jenis_diskon || null,
+          nilai_diskon: prod.nilai_diskon != null ? prod.nilai_diskon : null,
+          harga_asal: prod.harga_asal || prod.harga_jual,
+          harga_promo: prod.harga_promo != null ? prod.harga_promo : null,
         },
       ];
     });
@@ -1013,68 +1080,6 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
           className="p-3 border-top-1 surface-border bg-white flex-shrink-0 flex flex-column kasir-pos-footer"
           style={{ marginTop: 'auto', gap: '12px' }}
         >
-          {/* Baris Ringkas Voucher / Promo Diskon Ala Shopee */}
-          <div>
-            <div
-              onClick={() => setShowVoucherModal(true)}
-              className="surface-card border-round-xl border-1 surface-border hover:border-teal-500 hover:shadow-2 cursor-pointer flex align-items-center justify-content-between transition-all"
-              style={{
-                minHeight: '48px',
-                padding: '12px 16px',
-                gap: '10px',
-                boxSizing: 'border-box',
-              }}
-            >
-              {/* Kiri: Icon + Label */}
-              <div className="flex align-items-center flex-1 min-w-0" style={{ gap: '10px' }}>
-                <div
-                  style={{
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '8px',
-                    background: 'linear-gradient(135deg, #0d9488 0%, #059669 100%)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                  }}
-                >
-                  <i className="pi pi-ticket text-white text-xs" />
-                </div>
-                <span
-                  className="font-extrabold text-xs text-slate-800 truncate"
-                  title="Voucher / Promo Diskon"
-                >
-                  Voucher / Promo Diskon
-                </span>
-              </div>
-
-              {/* Kanan: Ringkasan Status */}
-              <div className="flex align-items-center flex-shrink-0" style={{ gap: '8px' }}>
-                {selectedPromos.length > 0 ? (
-                  <span
-                    className="font-extrabold bg-teal-100 text-teal-800 border-round-md"
-                    style={{ fontSize: '10px', padding: '2px 8px', whiteSpace: 'nowrap' }}
-                  >
-                    {selectedPromos.length} promo dipakai
-                  </span>
-                ) : eligiblePromoCount > 0 && !isReadOnly ? (
-                  <span
-                    className="font-extrabold bg-amber-100 text-amber-800 border-round-md"
-                    style={{ fontSize: '10px', padding: '2px 8px', whiteSpace: 'nowrap' }}
-                  >
-                    {eligiblePromoCount} promo tersedia
-                  </span>
-                ) : (
-                  <span className="text-slate-400 font-medium text-xs" style={{ whiteSpace: 'nowrap' }}>
-                    {isReadOnly ? 'Tanpa Promo' : 'Pilih atau masukkan kode'}
-                  </span>
-                )}
-                <i className="pi pi-chevron-right text-slate-400 text-xs" />
-              </div>
-            </div>
-          </div>
-
           {/* Totals Summary */}
           <div
             className="surface-card border-round-xl border-1 surface-border shadow-1 flex flex-column"
@@ -1467,6 +1472,31 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
                             </div>
                           )}
 
+                          {/* Floating Promo Badge */}
+                          {prod.is_promo && (
+                            <div style={{ position: 'absolute', top: '6px', left: '6px', zIndex: 2 }}>
+                              <span
+                                className="inline-flex align-items-center font-bold text-white shadow-xs"
+                                style={{
+                                  background: 'linear-gradient(135deg, #ef4444, #f97316)',
+                                  fontSize: '9.5px',
+                                  padding: '2px 7px',
+                                  borderRadius: '9999px',
+                                  lineHeight: '1.2',
+                                  gap: '3px',
+                                  boxShadow: '0 1px 4px rgba(239, 68, 68, 0.35)',
+                                }}
+                              >
+                                <i className="pi pi-percentage" style={{ fontSize: '8px' }} />
+                                <span>
+                                  {prod.jenis_diskon === 'persen'
+                                    ? `PROMO -${parseFloat(String(prod.nilai_diskon || 0))}%`
+                                    : `PROMO -${formatRupiah(prod.nilai_diskon || 0)}`}
+                                </span>
+                              </span>
+                            </div>
+                          )}
+
                           {/* Selected Badge */}
                           {isSelected && (
                             <div
@@ -1541,13 +1571,20 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
 
                           {/* Baris 3: Harga & Tombol + */}
                           <div className="flex align-items-center justify-content-between pt-2 mt-2" style={{ borderTop: '1px solid #f1f5f9' }}>
-                            <div className="flex align-items-baseline gap-1 min-w-0">
-                              <span style={{ fontWeight: 700, fontSize: '12.5px', color: '#0f172a' }}>
-                                {formatRupiah(prod.harga_jual)}
-                              </span>
-                              <span style={{ fontSize: '10.5px', color: '#94a3b8' }}>
-                                /{prod.satuan || 'pcs'}
-                              </span>
+                            <div className="flex flex-column justify-content-center min-w-0">
+                              {prod.is_promo && prod.harga_promo != null && (
+                                <span style={{ fontSize: '10px', textDecoration: 'line-through', color: '#94a3b8', lineHeight: 1.1 }}>
+                                  {formatRupiah(prod.harga_asal || prod.harga_jual)}
+                                </span>
+                              )}
+                              <div className="flex align-items-baseline gap-1 min-w-0">
+                                <span style={{ fontWeight: 700, fontSize: '12.5px', color: prod.is_promo ? '#0C8F62' : '#0f172a' }}>
+                                  {formatRupiah(getEffectiveProdukPrice(prod))}
+                                </span>
+                                <span style={{ fontSize: '10.5px', color: '#94a3b8' }}>
+                                  /{prod.satuan || 'pcs'}
+                                </span>
+                              </div>
                             </div>
 
                             <button
@@ -1670,7 +1707,7 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
 
                           {/* Info: Nama & Satuan */}
                           <div className="flex-1 min-w-0 flex flex-column gap-0.5 justify-content-center">
-                            <div className="flex align-items-center gap-1.5">
+                            <div className="flex align-items-center gap-1.5 flex-wrap">
                               <span
                                 style={{
                                   fontWeight: 600,
@@ -1685,6 +1722,27 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
                               >
                                 {item.nama}
                               </span>
+                              {item.is_promo && (
+                                <span
+                                  className="inline-flex align-items-center font-bold text-white shadow-xs flex-shrink-0"
+                                  style={{
+                                    background: 'linear-gradient(135deg, #ef4444, #f97316)',
+                                    fontSize: '8.5px',
+                                    padding: '1px 5px',
+                                    borderRadius: '9999px',
+                                    lineHeight: '1.2',
+                                    gap: '2px',
+                                    boxShadow: '0 1px 3px rgba(239, 68, 68, 0.35)',
+                                  }}
+                                >
+                                  <i className="pi pi-percentage" style={{ fontSize: '7px' }} />
+                                  <span>
+                                    {item.jenis_diskon === 'persen'
+                                      ? `-${parseFloat(String(item.nilai_diskon || 0))}%`
+                                      : `-${formatRupiah(item.nilai_diskon || 0)}`}
+                                  </span>
+                                </span>
+                              )}
                               {item.is_rekomendasi_dokter && (
                                 <span
                                   style={{
@@ -1702,8 +1760,16 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
                                 </span>
                               )}
                             </div>
-                            <div style={{ fontSize: '10.5px', color: '#64748b' }}>
-                              {formatRupiah(item.harga_jual)} / {item.satuan || 'pcs'}
+                            <div className="flex align-items-center gap-1" style={{ fontSize: '10.5px', color: '#64748b' }}>
+                              {item.is_promo && item.harga_promo != null && (
+                                <span style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '9.5px' }}>
+                                  {formatRupiah(item.harga_asal || item.harga_jual)}
+                                </span>
+                              )}
+                              <span style={{ color: item.is_promo ? '#0C8F62' : '#64748b', fontWeight: item.is_promo ? 600 : 400 }}>
+                                {formatRupiah(getEffectiveProdukPrice(item))}
+                              </span>
+                              <span>/ {item.satuan || 'pcs'}</span>
                             </div>
                           </div>
 
