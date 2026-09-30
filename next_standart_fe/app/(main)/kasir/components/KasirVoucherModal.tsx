@@ -22,6 +22,7 @@ interface KasirVoucherModalProps {
   selectedPromos: PromoOption[];
   onApply: (newSelectedPromos: PromoOption[]) => void;
   onNotifyConflict?: (message: string) => void;
+  readOnly?: boolean;
 }
 
 interface ProcessedVoucher {
@@ -40,6 +41,7 @@ export const KasirVoucherModal: React.FC<KasirVoucherModalProps> = ({
   selectedPromos,
   onApply,
   onNotifyConflict,
+  readOnly = false,
 }) => {
   // State draft pemilihan di dalam modal (tidak langsung mengubah state kasir utama sebelum Terapkan)
   const [draftSelected, setDraftSelected] = useState<PromoOption[]>([]);
@@ -49,34 +51,49 @@ export const KasirVoucherModal: React.FC<KasirVoucherModalProps> = ({
   useEffect(() => {
     if (visible) {
       const current = [...selectedPromos];
-      const usedItemCodes = new Set(current.map((p) => p.kode_item));
-      for (const item of cart) {
-        if (!usedItemCodes.has(item.kode)) {
-          const promo = promoList.find((p) => p.kode_item === item.kode);
-          if (promo) {
-            current.push(promo);
-            usedItemCodes.add(item.kode);
+      if (!readOnly) {
+        const usedItemCodes = new Set(current.map((p) => p.kode_item));
+        for (const item of cart) {
+          if (!usedItemCodes.has(item.kode)) {
+            const promo = promoList.find((p) => p.kode_item === item.kode);
+            if (promo) {
+              current.push(promo);
+              usedItemCodes.add(item.kode);
+            }
           }
         }
       }
       setDraftSelected(current);
       setConflictNotice(null);
     }
-  }, [visible, selectedPromos, cart, promoList]);
+  }, [visible, selectedPromos, cart, promoList, readOnly]);
 
   // Satu daftar voucher yang menyambung: voucher eligible di atas, ineligible di bawahnya
   const voucherList = useMemo(() => {
+    // Gabungkan promoList dengan selectedPromos (untuk transaksi tersimpan/lunas yang promo-nya mungkin tidak ada di daftar aktif)
+    const combinedPromos = [...promoList];
+    for (const sp of selectedPromos) {
+      if (!combinedPromos.some((p) => p.kode_detail_promo === sp.kode_detail_promo || (p.kode_promo === sp.kode_promo && p.kode_item === sp.kode_item))) {
+        combinedPromos.push(sp);
+      }
+    }
+
     const eligibleItems: ProcessedVoucher[] = [];
     const ineligibleItems: ProcessedVoucher[] = [];
 
-    for (const p of promoList) {
+    for (const p of combinedPromos) {
+      const isAlreadySelected = selectedPromos.some(
+        (sp) => sp.kode_detail_promo === p.kode_detail_promo || (sp.kode_promo === p.kode_promo && sp.kode_item === p.kode_item)
+      );
       const check = checkPromoEligibility(p, cart);
-      if (check.eligible && check.targetItem) {
-        const calc = calculateItemDiscount(check.targetItem, p);
+
+      if ((check.eligible && check.targetItem) || isAlreadySelected) {
+        const target = check.targetItem || cart.find((c) => c.kode === p.kode_item);
+        const calc = target ? calculateItemDiscount(target, p) : { diskon: p.nilai_diskon || 0 };
         eligibleItems.push({
           promo: p,
           eligible: true,
-          targetItem: check.targetItem,
+          targetItem: target,
           savings: calc.diskon,
         });
       } else {
@@ -91,7 +108,7 @@ export const KasirVoucherModal: React.FC<KasirVoucherModalProps> = ({
 
     // Urutan: eligible di atas, belum memenuhi syarat di bawahnya dalam satu daftar
     return [...eligibleItems, ...ineligibleItems];
-  }, [promoList, cart]);
+  }, [promoList, selectedPromos, cart]);
 
   // Hitung total hemat sementara berdasarkan draftSelected
   const totalHematDraft = useMemo(() => {
@@ -101,6 +118,8 @@ export const KasirVoucherModal: React.FC<KasirVoucherModalProps> = ({
       if (target) {
         const calc = calculateItemDiscount(target, p);
         sum += calc.diskon;
+      } else if (p.nilai_diskon) {
+        sum += p.nilai_diskon;
       }
     }
     return sum;
@@ -108,6 +127,7 @@ export const KasirVoucherModal: React.FC<KasirVoucherModalProps> = ({
 
   // Handler toggle promo di draft
   const handleTogglePromo = (promo: PromoOption) => {
+    if (readOnly) return;
     const isChecked = draftSelected.some((p) => p.kode_detail_promo === promo.kode_detail_promo);
 
     if (isChecked) {
@@ -188,24 +208,37 @@ export const KasirVoucherModal: React.FC<KasirVoucherModalProps> = ({
             </span>
           </div>
           <div className="flex align-items-center gap-2">
-            <Button
-              type="button"
-              label="Batal"
-              icon="pi pi-times"
-              text
-              size="small"
-              severity="secondary"
-              className="text-xs font-semibold px-3"
-              onClick={onHide}
-            />
-            <Button
-              type="button"
-              label="Konfirmasi & Terapkan"
-              icon="pi pi-check"
-              size="small"
-              className="bg-teal-600 hover:bg-teal-700 border-none font-bold text-xs px-4 py-2 text-white shadow-1"
-              onClick={handleConfirm}
-            />
+            {readOnly ? (
+              <Button
+                type="button"
+                label="Tutup"
+                icon="pi pi-check"
+                size="small"
+                className="bg-teal-600 hover:bg-teal-700 border-none font-bold text-xs px-4 py-2 text-white shadow-1"
+                onClick={onHide}
+              />
+            ) : (
+              <>
+                <Button
+                  type="button"
+                  label="Batal"
+                  icon="pi pi-times"
+                  text
+                  size="small"
+                  severity="secondary"
+                  className="text-xs font-semibold px-3"
+                  onClick={onHide}
+                />
+                <Button
+                  type="button"
+                  label="Konfirmasi & Terapkan"
+                  icon="pi pi-check"
+                  size="small"
+                  className="bg-teal-600 hover:bg-teal-700 border-none font-bold text-xs px-4 py-2 text-white shadow-1"
+                  onClick={handleConfirm}
+                />
+              </>
+            )}
           </div>
         </div>
       }
@@ -285,12 +318,12 @@ export const KasirVoucherModal: React.FC<KasirVoucherModalProps> = ({
               return (
                 <div
                   key={promo.kode_detail_promo}
-                  onClick={() => eligible && handleTogglePromo(promo)}
+                  onClick={() => !readOnly && eligible && handleTogglePromo(promo)}
                   className={`voucher-card surface-card border-round-xl border-1 transition-all flex align-items-center w-full user-select-none ${
                     eligible
                       ? isChecked
-                        ? 'border-2 border-teal-500 bg-teal-50/30 shadow-2 cursor-pointer'
-                        : 'surface-border hover:border-teal-300 shadow-1 hover:shadow-2 cursor-pointer'
+                        ? `border-2 border-teal-500 bg-teal-50/30 shadow-2 ${readOnly ? 'cursor-default' : 'cursor-pointer'}`
+                        : `surface-border shadow-1 ${readOnly ? 'cursor-default' : 'hover:border-teal-300 hover:shadow-2 cursor-pointer'}`
                       : 'surface-border opacity-60 bg-slate-50 shadow-none cursor-not-allowed'
                   }`}
                   style={{
@@ -367,11 +400,6 @@ export const KasirVoucherModal: React.FC<KasirVoucherModalProps> = ({
                           <Zap size={13} className="text-emerald-500 mr-1 flex-shrink-0" />
                           Hemat {formatRupiah(savings)}
                         </span>
-                        {promo.tanggal_selesai && (
-                          <span className="text-[10px] text-slate-400 font-medium">
-                            s/d {new Date(promo.tanggal_selesai).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}
-                          </span>
-                        )}
                       </div>
                     ) : (
                       <div className="flex align-items-start text-xs text-rose-600 font-medium" style={{ gap: '6px' }}>
@@ -397,8 +425,8 @@ export const KasirVoucherModal: React.FC<KasirVoucherModalProps> = ({
                   >
                     <Checkbox
                       checked={isChecked}
-                      disabled={!eligible}
-                      onChange={() => eligible && handleTogglePromo(promo)}
+                      disabled={readOnly || !eligible}
+                      onChange={() => !readOnly && eligible && handleTogglePromo(promo)}
                       className="pointer-events-none"
                     />
                   </div>
