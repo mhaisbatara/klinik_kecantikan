@@ -1640,7 +1640,7 @@ export const LaporanPasienView: React.FC = () => {
           paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
           currentPageReportTemplate="Menampilkan {first} - {last} dari {totalRecords} data"
           emptyMessage="Data Laporan Pasien Tidak Ditemukan"
-          className="p-datatable-sm"
+          className="p-datatable-sm laporan-pasien-table"
           header={
             <LaporanTableHeaderFilter
               searchVal={keyword}
@@ -1707,18 +1707,18 @@ export const LaporanPasienView: React.FC = () => {
               />
             )}
           />
-          <Column field="no_rm" header="No. RM" sortable className="font-semibold text-800 font-mono" style={{ minWidth: '9rem' }} />
-          <Column field="nama" header="Nama Pasien" sortable className="font-semibold text-gray-800" style={{ minWidth: '13rem' }} />
-          <Column field="jenis_kelamin" header="Gender" body={(r) => (r.jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan')} style={{ minWidth: '8rem' }} />
-          <Column field="no_hp" header="No. HP" style={{ minWidth: '10rem' }} />
-          <Column field="kota_kabupaten" header="Kota/Kab" body={(r) => r.kota_kabupaten || '-'} style={{ minWidth: '9rem' }} />
+          <Column field="no_rm" header="No. RM" sortable className="font-semibold text-800 font-mono" style={{ width: '8.5rem', minWidth: '8.5rem' }} />
+          <Column field="nama" header="Nama Pasien" sortable className="font-semibold text-gray-800" style={{ width: '13rem', minWidth: '13rem' }} />
+          <Column field="jenis_kelamin" header="Gender" body={(r) => (r.jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan')} style={{ width: '7rem', minWidth: '7rem' }} />
+          <Column field="no_hp" header="No. HP" style={{ width: '9rem', minWidth: '9rem' }} />
+          <Column field="kota_kabupaten" header="Kota/Kab" body={(r) => r.kota_kabupaten || '-'} style={{ width: '11rem', minWidth: '11rem' }} />
           <Column
             field="total_kunjungan"
             header="Frekuensi Kunjungan"
             sortable
             align="center"
             body={(r) => <span className="font-bold text-blue-700">{r.total_kunjungan}x</span>}
-            style={{ minWidth: '10rem' }}
+            style={{ width: '10.5rem', minWidth: '10.5rem' }}
           />
           <Column
             field="total_transaksi"
@@ -1726,7 +1726,7 @@ export const LaporanPasienView: React.FC = () => {
             sortable
             align="right"
             body={(r) => <span className="font-semibold text-green-600">{formatRupiah(r.total_transaksi)}</span>}
-            style={{ minWidth: '11rem' }}
+            style={{ width: '11.5rem', minWidth: '11.5rem' }}
           />
         </DataTable>
       </div>

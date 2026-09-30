@@ -327,6 +327,8 @@ export default function DataPasienPage() {
                 <DataTable
                     value={data}
                     loading={loading}
+                    scrollable
+                    tableStyle={{ minWidth: '1360px' }}
                     paginator
                     rows={rows}
                     totalRecords={totalRecords}
@@ -339,9 +341,8 @@ export default function DataPasienPage() {
                     selection={selectedRows}
                     onSelectionChange={(e) => setSelectedRows(e.value as any[])}
                     dataKey="no_rm"
-                    className="p-datatable-sm"
+                    className="p-datatable-sm data-pasien-table"
                     emptyMessage="Data pasien tidak ditemukan."
-                    responsiveLayout="scroll"
                     rowsPerPageOptions={[10, 25, 50]}
                     paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
                     currentPageReportTemplate="Menampilkan {first} - {last} dari {totalRecords} data"
@@ -621,6 +622,21 @@ export default function DataPasienPage() {
                     />
                 </DataTable>
             </div>
+
+            <style jsx global>{`
+                .data-pasien-table .p-datatable-tbody > tr > td {
+                    white-space: nowrap !important;
+                    height: 52px !important;
+                    box-sizing: border-box !important;
+                    vertical-align: middle !important;
+                }
+                .data-pasien-table .p-datatable-thead > tr > th {
+                    white-space: nowrap !important;
+                    height: 48px !important;
+                    box-sizing: border-box !important;
+                    vertical-align: middle !important;
+                }
+            `}</style>
         </div>
     );
 }

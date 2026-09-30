@@ -334,6 +334,37 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
       });
     }
 
+    // Pre-fetch promo aktif untuk produk
+    let productPromoMap = {};
+    if (kodeProdukList.length > 0) {
+      const activeProductPromos = await trx("mst_promo as p")
+        .join("mst_detail_promo as dp", "p.kode_promo", "dp.kode_promo")
+        .where("p.status", "aktif")
+        .where("dp.status", "aktif")
+        .whereIn("dp.kode_item", kodeProdukList)
+        .whereRaw("DATE(p.tanggal_mulai) <= ?", [todayYmd])
+        .whereRaw("DATE(p.tanggal_selesai) >= ?", [todayYmd])
+        .select(
+          "p.kode_promo",
+          "p.nama as nama_promo",
+          "p.jenis_diskon",
+          "p.nilai_diskon",
+          "dp.kode_item"
+        );
+
+      activeProductPromos.forEach((pr) => {
+        if (!productPromoMap[pr.kode_item]) {
+          productPromoMap[pr.kode_item] = pr;
+        } else {
+          const curVal = parseFloat(productPromoMap[pr.kode_item].nilai_diskon || 0);
+          const newVal = parseFloat(pr.nilai_diskon || 0);
+          if (newVal > curVal) {
+            productPromoMap[pr.kode_item] = pr;
+          }
+        }
+      });
+    }
+
     for (const prd of extraProdukItems) {
       const kdProduk = prd.kode || prd.kode_produk;
       if (kdProduk) {
@@ -371,22 +402,52 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
           : parseFloat(prd.harga || prd.harga_satuan || prd.harga_jual || 0);
         const subtotal = qty * rawHarga;
 
+        // Ambil info promo untuk produk ini jika ada
+        const promo = (prd.kode_promo && prd.nilai_diskon != null)
+          ? {
+              kode_promo: prd.kode_promo,
+              nama_promo: prd.nama_promo || null,
+              jenis_diskon: prd.jenis_diskon || "persen",
+              nilai_diskon: parseFloat(prd.nilai_diskon),
+            }
+          : productPromoMap[kdProduk];
+
+        let itemDiskon = 0;
+        if (promo && promo.nilai_diskon) {
+          const nDisc = parseFloat(promo.nilai_diskon || 0);
+          if (promo.jenis_diskon === "persen") {
+            itemDiskon = (subtotal * nDisc) / 100;
+          } else if (promo.jenis_diskon === "nominal") {
+            itemDiskon = Math.min(nDisc * qty, subtotal);
+          }
+        }
+        const subtotalSetelahDiskon = Math.max(0, subtotal - itemDiskon);
+
         const existPrd = freshDetails.find((d) => d.kode_produk === kdProduk);
         if (existPrd) {
+          const updatePayload = {
+            qty: qty,
+            harga_satuan: rawHarga,
+            subtotal: subtotal,
+            updated_by: username,
+            updated_at: formatDateSystem(),
+          };
+          if (hasDiscountCols) {
+            updatePayload.kode_promo = promo?.kode_promo || null;
+            updatePayload.nama_promo = promo?.nama_promo || null;
+            updatePayload.jenis_diskon = promo?.jenis_diskon || null;
+            updatePayload.nilai_diskon = promo?.nilai_diskon != null ? parseFloat(promo.nilai_diskon) : null;
+            updatePayload.diskon = itemDiskon;
+            updatePayload.subtotal_setelah_diskon = subtotalSetelahDiskon;
+          }
           await trx("trx_detail_transaksi")
             .where("id", existPrd.id)
-            .update({
-              qty: qty,
-              harga_satuan: rawHarga,
-              subtotal: subtotal,
-              updated_by: username,
-              updated_at: formatDateSystem(),
-            });
+            .update(updatePayload);
         } else {
           const cKodeDetail = `${prefixDetail}${String(nextDetailSeq).padStart(3, "0")}`;
           nextDetailSeq++;
 
-          await trx("trx_detail_transaksi").insert({
+          const insertPayload = {
             kode_cabang: resolvedCabang,
             kode_detail_transaksi: cKodeDetail,
             kode_transaksi: createdTransaksiKode,
@@ -401,7 +462,16 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
             created_at: formatDateSystem(),
             updated_by: username,
             updated_at: formatDateSystem(),
-          });
+          };
+          if (hasDiscountCols) {
+            insertPayload.kode_promo = promo?.kode_promo || null;
+            insertPayload.nama_promo = promo?.nama_promo || null;
+            insertPayload.jenis_diskon = promo?.jenis_diskon || null;
+            insertPayload.nilai_diskon = promo?.nilai_diskon != null ? parseFloat(promo.nilai_diskon) : null;
+            insertPayload.diskon = itemDiskon;
+            insertPayload.subtotal_setelah_diskon = subtotalSetelahDiskon;
+          }
+          await trx("trx_detail_transaksi").insert(insertPayload);
         }
       }
     }
@@ -489,18 +559,39 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
 
   const sisaBayar = Math.max(0, grandTotalBayar - dpNominal);
 
+  // Kumpulkan semua kode promo & nama promo dari detail item untuk sinkronisasi ke header transaksi
+  const allDetailsWithPromo = await trx("trx_detail_transaksi")
+    .where("kode_transaksi", createdTransaksiKode)
+    .whereNotNull("kode_promo");
+
+  const promoCodes = [];
+  const promoNames = [];
+  allDetailsWithPromo.forEach((d) => {
+    if (d.kode_promo && !promoCodes.includes(d.kode_promo)) promoCodes.push(d.kode_promo);
+    if (d.nama_promo && !promoNames.includes(d.nama_promo)) promoNames.push(d.nama_promo);
+  });
+
+  const hasNamaPromoTrx = await trx.schema.hasColumn("trx_transaksi", "nama_promo");
+  const updateTrxPayload = {
+    total_harga: grandTotalHarga,
+    total_diskon: totalDiskon,
+    total_bayar: grandTotalBayar,
+    dp_nominal: dpNominal,
+    metode_pembayaran_dp: metodeDp,
+    sisa_bayar: sisaBayar,
+    updated_by: username,
+    updated_at: formatDateSystem(),
+  };
+  if (promoCodes.length > 0) {
+    updateTrxPayload.kode_promo = promoCodes.join(",");
+  }
+  if (hasNamaPromoTrx && promoNames.length > 0) {
+    updateTrxPayload.nama_promo = promoNames.join(", ");
+  }
+
   await trx("trx_transaksi")
     .where("kode_transaksi", createdTransaksiKode)
-    .update({
-      total_harga: grandTotalHarga,
-      total_diskon: totalDiskon,
-      total_bayar: grandTotalBayar,
-      dp_nominal: dpNominal,
-      metode_pembayaran_dp: metodeDp,
-      sisa_bayar: sisaBayar,
-      updated_by: username,
-      updated_at: formatDateSystem(),
-    });
+    .update(updateTrxPayload);
 
   return {
     kode_transaksi: createdTransaksiKode,

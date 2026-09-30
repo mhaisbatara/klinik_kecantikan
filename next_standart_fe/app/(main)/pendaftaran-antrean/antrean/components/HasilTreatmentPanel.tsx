@@ -40,6 +40,13 @@ interface ProdukItem {
     kode_kategori_produk?: string;
     nama_kategori?: string;
     foto?: string | null;
+    is_promo?: boolean;
+    kode_promo?: string | null;
+    nama_promo?: string | null;
+    jenis_diskon?: 'persen' | 'nominal' | string | null;
+    nilai_diskon?: number | null;
+    harga_asal?: number | null;
+    harga_promo?: number | null;
 }
 
 interface SelectedProduk {
@@ -50,6 +57,13 @@ interface SelectedProduk {
     qty: number;
     is_rekomendasi_dokter?: boolean;
     foto?: string | null;
+    is_promo?: boolean;
+    kode_promo?: string | null;
+    nama_promo?: string | null;
+    jenis_diskon?: 'persen' | 'nominal' | string | null;
+    nilai_diskon?: number | null;
+    harga_asal?: number | null;
+    harga_promo?: number | null;
 }
 
 interface HasilTreatmentPanelProps {
@@ -82,6 +96,13 @@ const getCategoryBadgeStyle = (catName?: string) => {
         return { color: '#D97706', borderColor: '#D97706' };
     }
     return { color: '#0C8F62', borderColor: '#0C8F62' };
+};
+
+const getEffectiveProdukPrice = (prod: { harga_jual: number; harga_promo?: number | null; is_promo?: boolean }): number => {
+    if (prod.is_promo && prod.harga_promo != null && prod.harga_promo > 0) {
+        return prod.harga_promo;
+    }
+    return prod.harga_jual || 0;
 };
 
 export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
@@ -182,11 +203,18 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
             const mapped: SelectedProduk[] = (activePatient as any).rekomendasi_produk_dokter.map((item: any) => ({
                 kode_produk: item.kode_produk,
                 nama: item.nama || item.nama_produk,
-                harga_jual: parseFloat(item.harga_jual || item.harga || 0),
+                harga_jual: parseFloat(item.harga_jual || item.harga_satuan || item.harga || 0),
                 satuan: item.satuan || 'pcs',
                 qty: parseInt(item.qty || 1, 10),
                 is_rekomendasi_dokter: true,
                 foto: item.foto || item.foto_produk || null,
+                is_promo: Boolean(item.is_promo),
+                kode_promo: item.kode_promo || null,
+                nama_promo: item.nama_promo || null,
+                jenis_diskon: item.jenis_diskon || null,
+                nilai_diskon: item.nilai_diskon != null ? parseFloat(item.nilai_diskon) : null,
+                harga_asal: item.harga_asal != null ? parseFloat(item.harga_asal) : parseFloat(item.harga_jual || item.harga || 0),
+                harga_promo: item.harga_promo != null ? parseFloat(item.harga_promo) : null,
             }));
             setSelectedProdukList(mapped);
             return;
@@ -198,11 +226,18 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                 const mapped: SelectedProduk[] = list.map((item: any) => ({
                     kode_produk: item.kode_produk,
                     nama: item.nama || item.nama_produk,
-                    harga_jual: parseFloat(item.harga_jual || item.harga || 0),
+                    harga_jual: parseFloat(item.harga_jual || item.harga_satuan || item.harga || 0),
                     satuan: item.satuan || 'pcs',
                     qty: parseInt(item.qty || 1, 10),
                     is_rekomendasi_dokter: true,
                     foto: item.foto || null,
+                    is_promo: Boolean(item.is_promo),
+                    kode_promo: item.kode_promo || null,
+                    nama_promo: item.nama_promo || null,
+                    jenis_diskon: item.jenis_diskon || null,
+                    nilai_diskon: item.nilai_diskon != null ? parseFloat(item.nilai_diskon) : null,
+                    harga_asal: item.harga_asal != null ? parseFloat(item.harga_asal) : parseFloat(item.harga_jual || item.harga || 0),
+                    harga_promo: item.harga_promo != null ? parseFloat(item.harga_promo) : null,
                 }));
                 setSelectedProdukList(mapped);
             }
@@ -312,6 +347,13 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                     kode_kategori_produk: p.kode_kategori_produk,
                     nama_kategori: p.nama_kategori || 'Produk',
                     foto: p.foto || null,
+                    is_promo: Boolean(p.is_promo),
+                    kode_promo: p.kode_promo || null,
+                    nama_promo: p.nama_promo || null,
+                    jenis_diskon: p.jenis_diskon || null,
+                    nilai_diskon: p.nilai_diskon != null ? parseFloat(p.nilai_diskon) : null,
+                    harga_asal: p.harga_asal != null ? parseFloat(p.harga_asal) : parseFloat(p.harga_jual || 0),
+                    harga_promo: p.harga_promo != null ? parseFloat(p.harga_promo) : null,
                 }));
             setProdukOptions(list);
         } catch (_) {
@@ -420,6 +462,13 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                 satuan: prod.satuan || 'pcs',
                 qty: 1,
                 foto: prod.foto || null,
+                is_promo: Boolean(prod.is_promo),
+                kode_promo: prod.kode_promo || null,
+                nama_promo: prod.nama_promo || null,
+                jenis_diskon: prod.jenis_diskon || null,
+                nilai_diskon: prod.nilai_diskon != null ? prod.nilai_diskon : null,
+                harga_asal: prod.harga_asal || prod.harga_jual,
+                harga_promo: prod.harga_promo != null ? prod.harga_promo : null,
             }];
         });
     };
@@ -466,7 +515,7 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
     };
 
     // Calculate Total di Tampilan Utama
-    const grandTotal = selectedProdukList.reduce((acc, curr) => acc + curr.qty * curr.harga_jual, 0);
+    const grandTotal = selectedProdukList.reduce((acc, curr) => acc + curr.qty * getEffectiveProdukPrice(curr), 0);
     const totalHargaLayanan = layananPasienList.reduce((acc, curr) => acc + getEffectiveItemPrice(curr), 0);
 
     // Click Simpan & Setujui
@@ -553,7 +602,15 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                     nama: p.nama,
                     qty: p.qty,
                     harga_jual: p.harga_jual,
+                    harga_satuan: p.harga_jual,
+                    harga_asal: p.harga_asal || p.harga_jual,
+                    harga_promo: p.harga_promo || null,
                     satuan: p.satuan || 'pcs',
+                    is_promo: Boolean(p.is_promo),
+                    kode_promo: p.kode_promo || null,
+                    nama_promo: p.nama_promo || null,
+                    jenis_diskon: p.jenis_diskon || null,
+                    nilai_diskon: p.nilai_diskon != null ? p.nilai_diskon : null,
                 })),
             };
 
@@ -616,7 +673,7 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
 
     // Subtotal dan total item dalam draft modal
     const draftGrandTotal = React.useMemo(() => {
-        return draftProdukList.reduce((acc, curr) => acc + curr.qty * curr.harga_jual, 0);
+        return draftProdukList.reduce((acc, curr) => acc + curr.qty * getEffectiveProdukPrice(curr), 0);
     }, [draftProdukList]);
 
     const draftTotalQty = React.useMemo(() => {
@@ -1136,6 +1193,27 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                             >
                                                                 {item.nama}
                                                             </span>
+                                                            {item.is_promo && (
+                                                                <span
+                                                                    className="inline-flex align-items-center font-bold text-white shadow-xs flex-shrink-0"
+                                                                    style={{
+                                                                        background: 'linear-gradient(135deg, #ef4444, #f97316)',
+                                                                        fontSize: '9.5px',
+                                                                        padding: '2px 7px',
+                                                                        borderRadius: '9999px',
+                                                                        lineHeight: '1.2',
+                                                                        gap: '3px',
+                                                                        boxShadow: '0 1px 4px rgba(239, 68, 68, 0.35)',
+                                                                    }}
+                                                                >
+                                                                    <i className="pi pi-percentage" style={{ fontSize: '8px' }} />
+                                                                    <span>
+                                                                        {item.jenis_diskon === 'persen'
+                                                                            ? `PROMO -${parseFloat(String(item.nilai_diskon || 0))}%`
+                                                                            : `PROMO -${formatRupiah(item.nilai_diskon || 0)}`}
+                                                                    </span>
+                                                                </span>
+                                                            )}
                                                             <span
                                                                 className="text-[10px] text-500 font-mono"
                                                                 style={{
@@ -1166,19 +1244,25 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                                 </span>
                                                             )}
                                                         </div>
-                                                        <span
-                                                            className="text-[11px] text-500 font-medium block"
-                                                            style={{ lineHeight: '1.2' }}
-                                                        >
-                                                            {formatRupiah(item.harga_jual)} / {item.satuan || 'Pcs'}
-                                                        </span>
+                                                        <div className="flex align-items-center gap-1.5 flex-wrap" style={{ lineHeight: '1.2' }}>
+                                                            {item.is_promo && item.harga_promo != null && (
+                                                                <span className="text-[10px] text-400 line-through">
+                                                                    {formatRupiah(item.harga_asal || item.harga_jual)}
+                                                                </span>
+                                                            )}
+                                                            <span
+                                                                className={`text-[11px] font-medium block ${item.is_promo ? 'text-teal-700 font-semibold' : 'text-500'}`}
+                                                            >
+                                                                {formatRupiah(getEffectiveProdukPrice(item))} / {item.satuan || 'Pcs'}
+                                                            </span>
+                                                        </div>
                                                     </div>
                                                 </div>
 
                                                 {/* Sisi Kanan: Subtotal & Badge Qty */}
                                                 <div className="text-left sm:text-right pl-5 sm:pl-0 flex flex-column sm:align-items-end justify-content-center" style={{ gap: '3px' }}>
                                                     <span className="font-black text-xs text-teal-800 block" style={{ lineHeight: '1.3' }}>
-                                                        {formatRupiah(subtotal)}
+                                                        {formatRupiah(item.qty * getEffectiveProdukPrice(item))}
                                                     </span>
                                                     <span
                                                         className="text-[10px] font-bold text-teal-700 inline-flex align-items-center justify-content-center"
@@ -1981,6 +2065,31 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                         </div>
                                                     )}
 
+                                                    {/* Floating Promo Badge */}
+                                                    {prod.is_promo && (
+                                                        <div style={{ position: 'absolute', top: '6px', left: '6px', zIndex: 2 }}>
+                                                            <span
+                                                                className="inline-flex align-items-center font-bold text-white shadow-xs"
+                                                                style={{
+                                                                    background: 'linear-gradient(135deg, #ef4444, #f97316)',
+                                                                    fontSize: '9.5px',
+                                                                    padding: '2px 7px',
+                                                                    borderRadius: '9999px',
+                                                                    lineHeight: '1.2',
+                                                                    gap: '3px',
+                                                                    boxShadow: '0 1px 4px rgba(239, 68, 68, 0.35)',
+                                                                }}
+                                                            >
+                                                                <i className="pi pi-percentage" style={{ fontSize: '8px' }} />
+                                                                <span>
+                                                                    {prod.jenis_diskon === 'persen'
+                                                                        ? `PROMO -${parseFloat(String(prod.nilai_diskon || 0))}%`
+                                                                        : `PROMO -${formatRupiah(prod.nilai_diskon || 0)}`}
+                                                                </span>
+                                                            </span>
+                                                        </div>
+                                                    )}
+
                                                     {/* Selected Badge */}
                                                     {isSelected && (
                                                         <div
@@ -2055,13 +2164,20 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
 
                                                     {/* Baris 3: Harga & Tombol + Sejajar */}
                                                     <div className="flex align-items-center justify-content-between pt-2 mt-2" style={{ borderTop: '1px solid #f1f5f9' }}>
-                                                        <div className="flex align-items-baseline gap-1 min-w-0">
-                                                            <span style={{ fontWeight: 700, fontSize: '12.5px', color: '#0f172a' }}>
-                                                                {formatRupiah(prod.harga_jual)}
-                                                            </span>
-                                                            <span style={{ fontSize: '10.5px', color: '#94a3b8' }}>
-                                                                /{prod.satuan || 'pcs'}
-                                                            </span>
+                                                        <div className="flex flex-column justify-content-center min-w-0">
+                                                            {prod.is_promo && prod.harga_promo != null && (
+                                                                <span style={{ fontSize: '10px', textDecoration: 'line-through', color: '#94a3b8', lineHeight: 1.1 }}>
+                                                                    {formatRupiah(prod.harga_asal || prod.harga_jual)}
+                                                                </span>
+                                                            )}
+                                                            <div className="flex align-items-baseline gap-1 min-w-0">
+                                                                <span style={{ fontWeight: 700, fontSize: '12.5px', color: prod.is_promo ? '#0C8F62' : '#0f172a' }}>
+                                                                    {formatRupiah(getEffectiveProdukPrice(prod))}
+                                                                </span>
+                                                                <span style={{ fontSize: '10.5px', color: '#94a3b8' }}>
+                                                                    /{prod.satuan || 'pcs'}
+                                                                </span>
+                                                            </div>
                                                         </div>
 
                                                         <button
@@ -2145,7 +2261,8 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                         className="flex flex-column gap-1.5 overflow-y-auto pr-1 custom-thin-scrollbar h-full"
                                     >
                                         {draftProdukList.map((item) => {
-                                            const itemSubtotal = item.qty * item.harga_jual;
+                                            const itemEffectivePrice = getEffectiveProdukPrice(item);
+                                            const itemSubtotal = item.qty * itemEffectivePrice;
                                             return (
                                                 <div
                                                     key={item.kode_produk}
@@ -2186,7 +2303,7 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
 
                                                     {/* Info: Nama & Satuan */}
                                                     <div className="flex-1 min-w-0 flex flex-column gap-0.5 justify-content-center">
-                                                        <div className="flex align-items-center gap-1.5">
+                                                        <div className="flex align-items-center gap-1.5 flex-wrap">
                                                             <span
                                                                 style={{
                                                                     fontWeight: 600,
@@ -2201,6 +2318,27 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                             >
                                                                 {item.nama}
                                                             </span>
+                                                            {item.is_promo && (
+                                                                <span
+                                                                    className="inline-flex align-items-center font-bold text-white shadow-xs flex-shrink-0"
+                                                                    style={{
+                                                                        background: 'linear-gradient(135deg, #ef4444, #f97316)',
+                                                                        fontSize: '8.5px',
+                                                                        padding: '1px 5px',
+                                                                        borderRadius: '9999px',
+                                                                        lineHeight: '1.2',
+                                                                        gap: '2px',
+                                                                        boxShadow: '0 1px 3px rgba(239, 68, 68, 0.35)',
+                                                                    }}
+                                                                >
+                                                                    <i className="pi pi-percentage" style={{ fontSize: '7px' }} />
+                                                                    <span>
+                                                                        {item.jenis_diskon === 'persen'
+                                                                            ? `-${parseFloat(String(item.nilai_diskon || 0))}%`
+                                                                            : `-${formatRupiah(item.nilai_diskon || 0)}`}
+                                                                    </span>
+                                                                </span>
+                                                            )}
                                                             {item.is_rekomendasi_dokter && (
                                                                 <span
                                                                     style={{
@@ -2218,8 +2356,16 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                                 </span>
                                                             )}
                                                         </div>
-                                                        <div style={{ fontSize: '10.5px', color: '#64748b' }}>
-                                                            {formatRupiah(item.harga_jual)} / {item.satuan || 'pcs'}
+                                                        <div className="flex align-items-center gap-1" style={{ fontSize: '10.5px', color: '#64748b' }}>
+                                                            {item.is_promo && item.harga_promo != null && (
+                                                                <span style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '9.5px' }}>
+                                                                    {formatRupiah(item.harga_asal || item.harga_jual)}
+                                                                </span>
+                                                            )}
+                                                            <span style={{ color: item.is_promo ? '#0C8F62' : '#64748b', fontWeight: item.is_promo ? 600 : 400 }}>
+                                                                {formatRupiah(itemEffectivePrice)}
+                                                            </span>
+                                                            <span>/ {item.satuan || 'pcs'}</span>
                                                         </div>
                                                     </div>
 

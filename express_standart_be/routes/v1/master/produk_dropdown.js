@@ -53,6 +53,47 @@ const handleProdukDropdown = async (req, res) => {
 
     const vaData = await query;
 
+    // Ambil promo aktif produk untuk hari ini
+    const todayYmd = new Date().toISOString().slice(0, 10);
+    const qPromos = DB("mst_promo as p")
+      .join("mst_detail_promo as dp", "p.kode_promo", "dp.kode_promo")
+      .where("p.status", "aktif")
+      .where("dp.status", "aktif")
+      .whereRaw("DATE(p.tanggal_mulai) <= ?", [todayYmd])
+      .whereRaw("DATE(p.tanggal_selesai) >= ?", [todayYmd]);
+
+    if (branchCode) {
+      qPromos.where(function () {
+        this.where("p.kode_cabang", branchCode).orWhereNull("p.kode_cabang");
+      });
+    }
+
+    const activePromos = await qPromos.select(
+      "p.kode_promo",
+      "p.nama as nama_promo",
+      "p.jenis_diskon",
+      "p.nilai_diskon",
+      "dp.jenis_item",
+      "dp.kode_item"
+    );
+
+    const promoMap = {};
+    activePromos.forEach((pr) => {
+      const jenisClean = (pr.jenis_item || "").toLowerCase();
+      if (jenisClean.includes("produk") || !jenisClean.includes("layanan")) {
+        const key = pr.kode_item;
+        if (!promoMap[key]) {
+          promoMap[key] = pr;
+        } else {
+          const curVal = parseFloat(promoMap[key].nilai_diskon || 0);
+          const newVal = parseFloat(pr.nilai_diskon || 0);
+          if (newVal > curVal) {
+            promoMap[key] = pr;
+          }
+        }
+      }
+    });
+
     const host = req.get("host");
     const protocol = req.protocol || "http";
     const assetsBase = `${protocol}://${host}`;
@@ -61,9 +102,38 @@ const handleProdukDropdown = async (req, res) => {
       const fotoUrl = item.foto
         ? (item.foto.startsWith("http") ? item.foto : `${assetsBase}/uploads/produk/${item.foto}`)
         : null;
+
+      const rawHarga = parseFloat(item.harga_jual || 0);
+      const promo = promoMap[item.kode_produk];
+
+      if (promo) {
+        const diskonNilai = parseFloat(promo.nilai_diskon || 0);
+        let hargaDiskon = rawHarga;
+        if (promo.jenis_diskon === "persen") {
+          hargaDiskon = Math.max(0, rawHarga - (rawHarga * diskonNilai) / 100);
+        } else {
+          hargaDiskon = Math.max(0, rawHarga - diskonNilai);
+        }
+
+        return {
+          ...item,
+          foto: fotoUrl,
+          is_promo: true,
+          kode_promo: promo.kode_promo,
+          nama_promo: promo.nama_promo,
+          jenis_diskon: promo.jenis_diskon,
+          nilai_diskon: diskonNilai,
+          harga_asal: rawHarga,
+          harga_promo: hargaDiskon,
+        };
+      }
+
       return {
         ...item,
         foto: fotoUrl,
+        is_promo: false,
+        harga_asal: rawHarga,
+        harga_promo: null,
       };
     });
 
