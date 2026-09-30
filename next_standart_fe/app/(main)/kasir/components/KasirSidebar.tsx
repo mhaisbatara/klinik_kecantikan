@@ -84,7 +84,7 @@ export const KasirSidebar: React.FC<KasirSidebarProps> = ({
   const totalPendapatan = list.filter((i) => i.status === 'lunas').reduce((s, i) => s + parseFloat(String(i.total_bayar || 0)), 0);
 
   return (
-    <div className="flex flex-column h-full user-select-none surface-card border-right-1 surface-border">
+    <div className="flex flex-column h-full w-full user-select-none surface-card border-right-1 surface-border" style={{ minHeight: 0, minWidth: 0 }}>
       {/* Header Stat Bar */}
       <div className="p-3 bg-teal-50 border-bottom-1 surface-border flex-shrink-0">
         <div className="flex align-items-center justify-content-between mb-3">
@@ -174,7 +174,10 @@ export const KasirSidebar: React.FC<KasirSidebarProps> = ({
       </div>
 
       {/* Transaction Cards List */}
-      <div className="flex-1 overflow-y-auto p-3 surface-ground">
+      <div
+        className="flex-1 overflow-y-auto p-3 surface-ground kasir-scroll-area"
+        style={{ minHeight: 0, overscrollBehavior: 'contain' }}
+      >
         {loading ? (
           <div className="flex align-items-center justify-content-center py-5">
             <ProgressSpinner style={{ width: '28px', height: '28px' }} />
