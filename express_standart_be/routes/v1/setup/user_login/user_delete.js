@@ -84,6 +84,18 @@ router.post("/", async (req, res) => {
       });
     }
 
+    const currentRole = (req.auth?.role || "").toLowerCase();
+    const hasProtectedUser = oDataBefore.some((u) =>
+      ["superadmin", "owner", "manager"].includes(String(u.role).toLowerCase())
+    );
+    if (hasProtectedUser && currentRole !== "superadmin" && currentRole !== "dev") {
+      return res.status(403).json({
+        status: status.GAGAL,
+        message: "Akses ditolak: Hanya Superadmin yang berhak menghapus akun Superadmin atau Owner/Manager",
+        datetime: formatDateSystem(),
+      });
+    }
+
     // Eksekusi penghapusan dalam Transaksi Database
     await DB.transaction(async (trx) => {
       // Lepaskan relasi kode_user pada mst_karyawan agar karyawan bisa dibuatkan akun kembali jika perlu

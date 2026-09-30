@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import postData from '@/lib/axios/postData';
 import formUpload from '@/lib/axios/formData';
 import { Toast } from 'primereact/toast';
@@ -112,12 +112,30 @@ const Page = () => {
     const loadRuangan = async () => {
         try {
             const res = await postData('/master/ruangan-dropdown', {});
-            const list = (res.data.data || []).map((r: any) => ({ label: `${r.kode_ruangan} - ${r.nama_ruangan}`, value: r.kode_ruangan }));
+            const list = (res.data.data || []).map((r: any) => ({
+                label: `${r.kode_ruangan} - ${r.nama_ruangan}`,
+                value: r.kode_ruangan,
+                is_konsultasi: r.is_konsultasi
+            }));
             setRuanganList(list);
         } catch (error) {
             console.error('Failed to fetch ruangan list');
         }
     };
+
+    // Filter khusus ruangan konsultasi (is_konsultasi === 1)
+    const ruanganKonsultasiOptions = useMemo(() => {
+        return ruanganList.filter((r: any) => r.is_konsultasi === 1 || r.is_konsultasi === '1');
+    }, [ruanganList]);
+
+    // Opsi konsultasi efektif (memastikan nilai lama tetap ter-render jika ada)
+    const effectiveKonsulOptions = useMemo(() => {
+        if (!formData.kode_ruangan_konsultasi) return ruanganKonsultasiOptions;
+        const exists = ruanganKonsultasiOptions.some((r: any) => r.value === formData.kode_ruangan_konsultasi);
+        if (exists) return ruanganKonsultasiOptions;
+        const matched = ruanganList.find((r: any) => r.value === formData.kode_ruangan_konsultasi);
+        return matched ? [matched, ...ruanganKonsultasiOptions] : ruanganKonsultasiOptions;
+    }, [ruanganKonsultasiOptions, ruanganList, formData.kode_ruangan_konsultasi]);
 
     useEffect(() => {
         loadData();
@@ -817,11 +835,12 @@ const Page = () => {
                             </label>
                             <Dropdown
                                 value={formData.kode_ruangan_konsultasi}
-                                options={ruanganList}
+                                options={effectiveKonsulOptions}
                                 onChange={(e) => setFormData({ ...formData, kode_ruangan_konsultasi: e.value })}
                                 placeholder="Pilih Ruangan Konsultasi (Default Ruang Konsul)"
                                 showClear
                                 className="w-full text-sm"
+                                emptyMessage="Tidak ada ruangan konsultasi aktif"
                             />
                         </div>
                     )}

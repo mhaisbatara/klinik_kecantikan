@@ -114,6 +114,18 @@ router.post("/", async (req, res) => {
       });
     }
 
+    const currentRole = (req.auth?.role || "").toLowerCase();
+    const isTargetProtected = ["superadmin", "owner", "manager"].includes(String(oDataBefore.role).toLowerCase()) ||
+                              ["superadmin", "owner", "manager"].includes(String(oPayload.role).toLowerCase());
+
+    if (isTargetProtected && currentRole !== "superadmin" && currentRole !== "dev") {
+      return res.status(403).json({
+        status: status.GAGAL,
+        message: "Akses ditolak: Hanya Superadmin yang berhak mengedit akun Superadmin atau Owner/Manager",
+        datetime: formatDateSystem(),
+      });
+    }
+
     // Persiapan data yang akan diupdate
     const oData = {
       fullname: oPayload.fullname,
@@ -158,6 +170,26 @@ router.post("/", async (req, res) => {
             created_at: formatDateSystem(),
             updated_at: formatDateSystem(),
           });
+        }
+
+        // Sinkronkan juga template navigasi role di mst_navigation
+        if (oPayload.role) {
+          const roleLower = String(oPayload.role).toLowerCase();
+          const existingRoleNav = await trx("mst_navigation").where("role", roleLower).first();
+          if (existingRoleNav) {
+            await trx("mst_navigation").where("role", roleLower).update({
+              menu: menuToSave,
+              updated_at: formatDateSystem(),
+            });
+          } else {
+            await trx("mst_navigation").insert({
+              role: roleLower,
+              menu: menuToSave,
+              tz: "Asia/Jakarta",
+              created_at: formatDateSystem(),
+              updated_at: formatDateSystem(),
+            });
+          }
         }
       }
 

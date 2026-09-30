@@ -27,6 +27,9 @@ const handleRuanganDropdown = async (req, res) => {
     if (branchCode) {
       qRuangan.where("r.kode_cabang", branchCode);
     }
+    if (oPayload.is_konsultasi !== undefined && oPayload.is_konsultasi !== null && oPayload.is_konsultasi !== "") {
+      qRuangan.where("r.is_konsultasi", oPayload.is_konsultasi);
+    }
     const vaData = await qRuangan
       .select(
         "r.kode_ruangan",

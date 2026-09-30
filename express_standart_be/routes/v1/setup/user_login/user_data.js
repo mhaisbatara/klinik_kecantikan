@@ -64,6 +64,7 @@ router.post("/", async (req, res) => {
     // Inisiasi Query Builder
     let oQuery = DB("user_credential as u")
       .leftJoin("mst_cabang as c", "u.kode_cabang", "c.kode_cabang")
+      .leftJoin("user_navigation as un", "u.user_code", "un.user_code")
       .select(
         "u.user_code",
         "u.username",
@@ -74,7 +75,8 @@ router.post("/", async (req, res) => {
         "u.tz",
         "u.kode_cabang",
         "c.nama_cabang",
-        "u.created_at"
+        "u.created_at",
+        "un.menu as navigation_menu"
       );
 
     // Filter Cabang (Optional)

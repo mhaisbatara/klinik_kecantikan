@@ -83,7 +83,7 @@ const Page = () => {
         try {
             const res = await postData('/master/produk-data', { status: 'aktif' });
             const list = (res.data.data || []).map((p: any) => ({
-                label: `[Produk] ${p.nama} (${p.kode_produk}) - Rp ${Number(p.harga_jual || 0).toLocaleString('id-ID')}`,
+                label: `${p.nama} (${p.kode_produk}) - Rp ${Number(p.harga_jual || 0).toLocaleString('id-ID')}`,
                 value: p.kode_produk,
                 nama: p.nama,
                 harga: Number(p.harga_jual || 0),
@@ -99,7 +99,7 @@ const Page = () => {
         try {
             const res = await postData('/master/layanan-data', { status: 'aktif' });
             const list = (res.data.data || []).map((l: any) => ({
-                label: `[Layanan] ${l.nama} (${l.kode_layanan}) - Rp ${Number(l.harga || 0).toLocaleString('id-ID')}`,
+                label: `${l.nama} (${l.kode_layanan}) - Rp ${Number(l.harga || 0).toLocaleString('id-ID')}`,
                 value: l.kode_layanan,
                 nama: l.nama,
                 harga: Number(l.harga || 0),
@@ -235,42 +235,7 @@ const Page = () => {
         });
     };
 
-    const getItemInfo = (jenis: string, code: string) => {
-        if (jenis === 'layanan') {
-            const it = layananOptions.find((l) => l.value === code);
-            return {
-                nama: it?.nama || code,
-                hargaNormal: it ? it.harga : 0,
-                satuan: 'Sesi',
-                kategori: it?.nama_kategori || 'Layanan'
-            };
-        } else {
-            const it = produkOptions.find((p) => p.value === code);
-            return {
-                nama: it?.nama || code,
-                hargaNormal: it ? it.harga : 0,
-                satuan: it?.satuan || 'Pcs',
-                kategori: it?.nama_kategori || 'Produk'
-            };
-        }
-    };
-
     const selectedPromoObj = promoOptions.find((p) => p.value === formData.kode_promo);
-
-    const calculatePromoPrice = (hargaNormal: number) => {
-        if (!selectedPromoObj) return { hargaPromo: hargaNormal, hemat: 0 };
-        const nilai = parseFloat(selectedPromoObj.nilai_diskon) || 0;
-        let hargaPromo = hargaNormal;
-        let hemat = 0;
-        if (selectedPromoObj.jenis_diskon === 'persen') {
-            hargaPromo = Math.round(hargaNormal * (1 - nilai / 100));
-            hemat = Math.max(0, hargaNormal - hargaPromo);
-        } else {
-            hargaPromo = Math.max(0, Math.round(hargaNormal - nilai));
-            hemat = Math.min(hargaNormal, nilai);
-        }
-        return { hargaPromo, hemat };
-    };
 
     const handleSave = async () => {
         setSubmitted(true);
@@ -757,7 +722,7 @@ const Page = () => {
             <Dialog
                 header={isEdit ? 'Edit Detail Promo (Produk & Layanan)' : 'Tambah Detail Promo (Produk & Layanan)'}
                 visible={dialogVisible}
-                style={{ width: '750px', maxWidth: '95vw' }}
+                style={{ width: '800px', maxWidth: '95vw' }}
                 modal
                 onHide={() => setDialogVisible(false)}
             >
@@ -814,19 +779,21 @@ const Page = () => {
                                 <Button
                                     type="button"
                                     label="Tambah Produk"
-                                    icon="pi pi-box"
+                                    icon="pi pi-plus"
                                     size="small"
+                                    outlined
                                     severity="info"
-                                    className="p-button-sm text-xs font-bold px-3 py-2 border-round-md shadow-1"
+                                    className="p-button-sm text-xs font-bold px-3 py-2 border-round-md shadow-xs cursor-pointer hover:shadow-1 transition-all"
                                     onClick={handleAddProduk}
                                 />
                                 <Button
                                     type="button"
                                     label="Tambah Layanan"
-                                    icon="pi pi-heart"
+                                    icon="pi pi-plus"
                                     size="small"
+                                    outlined
                                     severity="success"
-                                    className="p-button-sm text-xs font-bold px-3 py-2 border-round-md shadow-1"
+                                    className="p-button-sm text-xs font-bold px-3 py-2 border-round-md shadow-xs cursor-pointer hover:shadow-1 transition-all"
                                     onClick={handleAddLayanan}
                                 />
                             </div>
@@ -836,12 +803,9 @@ const Page = () => {
                         )}
 
                         {(formData.details || []).map((det: any, idx: number) => {
-                            const info = getItemInfo(det.jenis_item, det.kode_item);
-                            const { hargaPromo, hemat } = calculatePromoPrice(info.hargaNormal);
-
                             return (
-                                <div key={idx} className="flex align-items-center gap-2 mb-2 p-2 surface-100 border-round flex-wrap md:flex-nowrap">
-                                    <div style={{ width: '120px' }}>
+                                <div key={idx} className="flex align-items-center gap-2 mb-2 p-2 surface-100 border-round w-full">
+                                    <div style={{ width: '150px' }} className="flex-shrink-0">
                                         <Dropdown
                                             value={det.jenis_item || 'produk'}
                                             options={[
@@ -849,10 +813,10 @@ const Page = () => {
                                                 { label: 'Layanan', value: 'layanan' }
                                             ]}
                                             onChange={(e) => handleJenisChange(idx, e.value)}
-                                            className="w-full text-xs"
+                                            className="w-full text-sm"
                                         />
                                     </div>
-                                    <div className="flex-grow-1" style={{ minWidth: '220px' }}>
+                                    <div className="flex-grow-1 min-w-0">
                                         <Dropdown
                                             value={det.kode_item}
                                             options={det.jenis_item === 'layanan' ? layananOptions : produkOptions}
@@ -862,11 +826,6 @@ const Page = () => {
                                             className="w-full text-sm"
                                         />
                                     </div>
-                                    <div className="text-right px-2" style={{ minWidth: '150px' }}>
-                                        <div className="text-xs text-500 line-through">{formatRupiah(info.hargaNormal)}</div>
-                                        <div className="text-sm font-bold text-green-600">{formatRupiah(hargaPromo)}</div>
-                                        <div className="text-[11px] text-purple-600 font-medium">Hemat {formatRupiah(hemat)}</div>
-                                    </div>
                                     <Button
                                         type="button"
                                         icon="pi pi-trash"
@@ -875,6 +834,7 @@ const Page = () => {
                                         severity="danger"
                                         onClick={() => handleRemoveDetail(idx)}
                                         tooltip="Hapus Item"
+                                        className="flex-shrink-0"
                                     />
                                 </div>
                             );
