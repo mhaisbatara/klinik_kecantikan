@@ -95,7 +95,7 @@ export function checkPromoEligibility(promo: PromoOption, cart: CartItem[] = [])
       const jenisItem = promo.jenis_item === 'layanan' ? 'layanan' : 'produk';
       return {
         eligible: false,
-        reason: `Tambahkan ${jenisItem} "${namaItem}" ke keranjang untuk memakai promo ini`,
+        reason: `Tambahkan ${jenisItem} "${namaItem}" ke keranjang kasir untuk memakai promo ini`,
       };
     }
     return { eligible: true, targetItem: target };
@@ -103,7 +103,7 @@ export function checkPromoEligibility(promo: PromoOption, cart: CartItem[] = [])
 
   // Promo global (jika tidak ada spesifik kode_item)
   if (cart.length === 0) {
-    return { eligible: false, reason: 'Keranjang belanja masih kosong' };
+    return { eligible: false, reason: 'Keranjang kasir masih kosong' };
   }
   return { eligible: true };
 }
@@ -123,16 +123,27 @@ export function calculateItemDiscount(item: CartItem, promo: PromoOption): ItemD
   const nilaiDiskon = promo.nilai_diskon || 0;
 
   let diskon = 0;
-  if (promo.jenis_diskon === 'persen') {
-    diskon = (subtotal * nilaiDiskon) / 100;
-  } else if (promo.jenis_diskon === 'nominal') {
-    // Sesuai aturan: terapkan ke seluruh qty item target (nilai_diskon * qty), dibatasi sebesar subtotal
-    diskon = Math.min(nilaiDiskon * qty, subtotal);
+  if (item.is_from_pendaftaran) {
+    if (promo.jenis_diskon === 'persen' && nilaiDiskon > 0 && nilaiDiskon < 100) {
+      // Harga di cart sudah netto setelah diskon pendaftaran, hitung nominal penghematan aslinya
+      const basePrice = (subtotal / (100 - nilaiDiskon)) * 100;
+      diskon = Math.round(basePrice - subtotal);
+    } else if (promo.jenis_diskon === 'nominal') {
+      diskon = Math.min(nilaiDiskon * qty, subtotal);
+    } else {
+      diskon = (subtotal * nilaiDiskon) / 100;
+    }
+  } else {
+    if (promo.jenis_diskon === 'persen') {
+      diskon = (subtotal * nilaiDiskon) / 100;
+    } else if (promo.jenis_diskon === 'nominal') {
+      diskon = Math.min(nilaiDiskon * qty, subtotal);
+    }
   }
 
   // Jaga agar diskon tidak negatif dan tidak melebihi subtotal item
-  diskon = Math.max(0, Math.min(diskon, subtotal));
-  const subtotalSetelahDiskon = Math.max(0, subtotal - diskon);
+  diskon = Math.max(0, Math.min(diskon, subtotal * 2));
+  const subtotalSetelahDiskon = Math.max(0, subtotal - (item.is_from_pendaftaran ? 0 : diskon));
 
   return {
     diskon,
@@ -157,7 +168,10 @@ export function resolvePromoConflict(
   if (existingTargetIdx >= 0) {
     const replaced = currentPromos[existingTargetIdx];
     // Jika promo yang sama diklik ulang, biarkan caller menangani uncheck
-    if (replaced.kode_detail_promo === newPromo.kode_detail_promo) {
+    if (
+      (replaced.kode_detail_promo && newPromo.kode_detail_promo && replaced.kode_detail_promo === newPromo.kode_detail_promo) ||
+      (replaced.kode_promo === newPromo.kode_promo && replaced.kode_item === newPromo.kode_item)
+    ) {
       return { nextPromos: currentPromos, replacedPromo: null };
     }
     const next = [...currentPromos];
@@ -214,7 +228,7 @@ export function calculateTransactionDiscounts(
 ): TransactionDiscountSummary {
   const totalHarga = cart.reduce((sum, item) => sum + (item.subtotal || 0), 0);
 
-  // Filter promo agar hanya yang targetnya ada di keranjang
+  // Filter promo agar hanya yang targetnya ada di keranjang kasir
   const { validPromos } = filterValidPromosForCart(cart, selectedPromos);
 
   // Pastikan hanya 1 promo per target item (ambil yang terakhir dipilih)
@@ -231,30 +245,103 @@ export function calculateTransactionDiscounts(
 
   for (const item of cart) {
     const promo = promoMapByItem.get(item.kode);
+    const isPendaftaran = Boolean(item.is_from_pendaftaran) || item.jenis === 'layanan' || item.jenis === 'paket';
+
     if (promo) {
-      const calc = calculateItemDiscount(item, promo);
-      totalDiskon += calc.diskon;
-
-      itemDiscounts[item.kode] = {
-        diskon: calc.diskon,
-        subtotal_setelah_diskon: calc.subtotal_setelah_diskon,
-        promo,
-      };
-
-      const breakdownKey = promo.kode_detail_promo || `${promo.kode_promo}_${promo.kode_item}`;
-      if (!breakdownMap[breakdownKey]) {
-        breakdownMap[breakdownKey] = {
-          kode_promo: promo.kode_promo,
-          kode_detail_promo: promo.kode_detail_promo,
-          nama_promo: promo.nama_promo,
-          nama_item: promo.nama_item || item.nama,
+      if (isPendaftaran) {
+        // Layanan / Paket dari alur pendaftaran/booking: harga sudah netto (sudah berdiskon sejak pendaftaran),
+        // jadi tidak ada pemotongan tambahan di kasir (diskon = 0, subtotal = item.subtotal),
+        // tetapi promo terdaftar sebagai promo terpilih aktif dan itemDiscounts terisi untuk display info diskon
+        itemDiscounts[item.kode] = {
           diskon: 0,
+          subtotal_setelah_diskon: item.subtotal,
+          promo,
         };
+        const breakdownKey = promo.kode_detail_promo || `${promo.kode_promo}_${promo.kode_item}`;
+        if (!breakdownMap[breakdownKey]) {
+          breakdownMap[breakdownKey] = {
+            kode_promo: promo.kode_promo,
+            kode_detail_promo: promo.kode_detail_promo,
+            nama_promo: promo.nama_promo,
+            nama_item: promo.nama_item || item.nama,
+            diskon: 0,
+          };
+        }
+      } else {
+        // Item produk tambahan kasir: potong diskon kasir
+        const calc = calculateItemDiscount(item, promo);
+        totalDiskon += calc.diskon;
+
+        itemDiscounts[item.kode] = {
+          diskon: calc.diskon,
+          subtotal_setelah_diskon: calc.subtotal_setelah_diskon,
+          promo,
+        };
+
+        const breakdownKey = promo.kode_detail_promo || `${promo.kode_promo}_${promo.kode_item}`;
+        if (!breakdownMap[breakdownKey]) {
+          breakdownMap[breakdownKey] = {
+            kode_promo: promo.kode_promo,
+            kode_detail_promo: promo.kode_detail_promo,
+            nama_promo: promo.nama_promo,
+            nama_item: promo.nama_item || item.nama,
+            diskon: 0,
+          };
+        }
+        breakdownMap[breakdownKey].diskon += calc.diskon;
       }
-      breakdownMap[breakdownKey].diskon += calc.diskon;
-    } else if (item.diskon && item.diskon > 0) {
-      // Pertahankan diskon snapshot jika item sudah memiliki diskon tersimpan (misal struk / reload)
-      totalDiskon += item.diskon;
+    } else if (isPendaftaran && item.nilai_diskon && item.nilai_diskon > 0) {
+      // Info display jika item pendaftaran memiliki diskon
+      itemDiscounts[item.kode] = {
+        diskon: 0,
+        subtotal_setelah_diskon: item.subtotal,
+        promo: {
+          kode_detail_promo: `pendaftaran_${item.kode_promo || 'promo'}_${item.kode}`,
+          kode_promo: item.kode_promo || '',
+          nama_promo: item.nama_promo || 'Diskon Pendaftaran',
+          jenis_diskon: (item.jenis_diskon as any) || 'persen',
+          nilai_diskon: Number(item.nilai_diskon) || 0,
+          kode_item: item.kode,
+          nama_item: item.nama,
+        },
+      };
+    } else if (!isPendaftaran && item.diskon && item.diskon > 0) {
+      const itemDiscVal = Number(item.diskon) || 0;
+      totalDiskon += itemDiscVal;
+      const subDisc = item.subtotal_setelah_diskon != null && item.subtotal_setelah_diskon > 0
+        ? Number(item.subtotal_setelah_diskon)
+        : Math.max(0, (item.subtotal || item.harga_satuan * item.qty) - itemDiscVal);
+      itemDiscounts[item.kode] = {
+        diskon: itemDiscVal,
+        subtotal_setelah_diskon: subDisc,
+        promo: {
+          kode_detail_promo: `saved_${item.kode_promo || 'promo'}_${item.kode}`,
+          kode_promo: item.kode_promo || '',
+          nama_promo: item.nama_promo || 'Promo Diskon',
+          jenis_diskon: (item.jenis_diskon as any) || 'persen',
+          nilai_diskon: Number(item.nilai_diskon) || 0,
+          kode_item: item.kode,
+          nama_item: item.nama,
+        },
+      };
+    } else if (!item.is_from_pendaftaran && item.nilai_diskon && item.nilai_diskon > 0) {
+      const itemSubtotal = item.subtotal || item.harga_satuan * item.qty;
+      const nDiskon = parseFloat(String(item.nilai_diskon));
+      const calcDiskon = item.jenis_diskon === 'nominal' ? Math.min(nDiskon * item.qty, itemSubtotal) : (itemSubtotal * nDiskon) / 100;
+      totalDiskon += calcDiskon;
+      itemDiscounts[item.kode] = {
+        diskon: calcDiskon,
+        subtotal_setelah_diskon: Math.max(0, itemSubtotal - calcDiskon),
+        promo: {
+          kode_detail_promo: `saved_${item.kode_promo || 'promo'}_${item.kode}`,
+          kode_promo: item.kode_promo || '',
+          nama_promo: item.nama_promo || 'Promo Diskon',
+          jenis_diskon: (item.jenis_diskon as any) || 'persen',
+          nilai_diskon: nDiskon,
+          kode_item: item.kode,
+          nama_item: item.nama,
+        },
+      };
     }
   }
 

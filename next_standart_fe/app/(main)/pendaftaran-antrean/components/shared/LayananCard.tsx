@@ -421,9 +421,9 @@ export const LayananCard: React.FC<LayananCardProps> = ({
               )}
             </div>
 
-            <div className="flex-shrink-0">
-              <span className={`text-sm font-extrabold white-space-nowrap ${isKlaim ? 'text-amber-700' : isPaket ? 'text-amber-700' : 'text-blue-600'}`}>
-                {isKlaim ? 'Rp 0 (Klaim)' : formatPrice(item.harga_asal ?? item.harga)}
+            <div className="flex-shrink-0 text-right">
+              <span className="text-sm font-extrabold text-amber-700 white-space-nowrap">
+                {isKlaim ? 'Rp 0 (Klaim)' : formatPrice(item.harga)}
               </span>
             </div>
           </div>

@@ -29,6 +29,9 @@ export interface AntrianLayananData {
     jabatan_petugas?: string | null;
     kelurahan_desa?: string | null;
     kode_booking?: string | null;
+    dp_nominal?: number | null;
+    dp_status?: string | null;
+    metode_pembayaran_dp?: string | null;
     booking_no_sip?: string | null;
     booking_nama_petugas?: string | null;
     booking_jabatan_petugas?: string | null;

@@ -20,6 +20,7 @@ export interface CartItem {
   satuan?: string;
   qty: number;
   harga_satuan: number;
+  harga_master?: number | null;
   subtotal: number;
   is_promo?: boolean;
   kode_promo_item?: string;

@@ -387,7 +387,7 @@ export const terbitkanAntreanLanjutanRuangan = async (trx, {
         jenis_layanan: item.jenis === "paket_layanan" ? "paket" : "layanan",
         kode_layanan: item.kode || item.kode_layanan,
         nama_layanan: item.nama || item.nama_layanan,
-        harga: item.harga_asal || item.harga || 0,
+        harga: item.harga || 0,
         durasi_menit: parseInt(item.durasi_menit || 30, 10),
         kode_promo: item.kode_promo || null,
         nama_promo: item.nama_promo || null,

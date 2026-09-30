@@ -508,7 +508,7 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
   };
 
   const selectedList = Object.values(selectedMap);
-  const totalHarga = selectedList.reduce((acc, curr) => acc + (curr.jenis === 'klaim_paket' ? 0 : (curr.harga_asal ?? curr.harga)), 0);
+  const totalHarga = selectedList.reduce((acc, curr) => acc + (curr.jenis === 'klaim_paket' ? 0 : (curr.harga || 0)), 0);
   const totalDurasi = selectedList.reduce((acc, curr) => acc + (curr.durasi_menit || 0), 0);
 
   const activeRoomName = useMemo(() => {

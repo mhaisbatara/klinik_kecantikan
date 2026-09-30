@@ -165,7 +165,7 @@ export const StepPilihLayanan: React.FC<Props> = ({
   };
 
   const selectedList = Object.values(selectedMap);
-  const totalHarga = selectedList.reduce((acc, curr) => acc + (curr.jenis === 'klaim_paket' ? 0 : (curr.harga_asal ?? curr.harga)), 0);
+  const totalHarga = selectedList.reduce((acc, curr) => acc + (curr.jenis === 'klaim_paket' ? 0 : (curr.harga || 0)), 0);
   const totalDurasi = selectedList.reduce((acc, curr) => acc + (curr.durasi_menit || 0), 0);
 
   const formatRupiah = (val: number) => {
@@ -445,7 +445,7 @@ export const StepPilihLayanan: React.FC<Props> = ({
             {selectedList.map((it) => {
               const key = `${it.jenis}_${it.kode_layanan}`;
               const { isWajib, isService, isOpsional } = getItemConsultType(it);
-              const priceText = it.jenis === 'klaim_paket' ? 'Rp 0 (Klaim Sesi)' : formatRupiah(it.harga_asal ?? it.harga);
+              const priceText = it.jenis === 'klaim_paket' ? 'Rp 0 (Klaim Sesi)' : formatRupiah(it.harga);
               const konsulChoice = submitConsultChoices[key];
 
               return (

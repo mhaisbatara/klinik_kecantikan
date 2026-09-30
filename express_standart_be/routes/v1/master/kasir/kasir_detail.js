@@ -130,25 +130,61 @@ router.post("/", async (req, res) => {
         "dt.qty",
         "dt.harga_satuan",
         "dt.subtotal",
+        "l.harga as master_harga_layanan",
+        "pl.harga_paket as master_harga_paket",
+        "prod.harga_jual as master_harga_produk",
         DB.raw("COALESCE(dt.is_from_pendaftaran, 0) as is_from_pendaftaran"),
         ...promoSelectCols
       )
       .orderBy("dt.is_from_pendaftaran", "desc")
       .orderBy("dt.id", "asc");
 
-    const detailsMapped = details.map((d) => ({
-      ...d,
-      jenis: d.kode_layanan ? "layanan" : "produk",
-      kode: d.kode_layanan || d.kode_produk,
-      nama: d.nama_layanan_single || d.nama_paket_layanan || d.nama_produk || "-",
-      satuan: d.satuan || (d.kode_layanan ? "tindakan" : "pcs"),
-      harga_satuan: parseFloat(d.harga_satuan || 0),
-      subtotal: parseFloat(d.subtotal || 0),
-      diskon: parseFloat(d.diskon || 0),
-      subtotal_setelah_diskon: parseFloat(d.subtotal_setelah_diskon !== null ? d.subtotal_setelah_diskon : d.subtotal),
-      nilai_diskon: d.nilai_diskon != null ? parseFloat(d.nilai_diskon) : null,
-      is_from_pendaftaran: Boolean(d.is_from_pendaftaran),
-    }));
+    const detailsMapped = details.map((d) => {
+      const hrg = parseFloat(d.harga_satuan || 0);
+      const masterHrg = parseFloat(d.master_harga_layanan || d.master_harga_paket || d.master_harga_produk || d.harga_satuan || 0);
+      const qty = parseInt(d.qty || 1, 10);
+      const subtotal = parseFloat(d.subtotal || hrg * qty);
+      const isPendaftaran = Boolean(d.is_from_pendaftaran);
+
+      let diskon = isPendaftaran ? 0 : parseFloat(d.diskon || 0);
+      if (!isPendaftaran && diskon === 0 && d.nilai_diskon && parseFloat(d.nilai_diskon) > 0) {
+        const nDisc = parseFloat(d.nilai_diskon);
+        diskon = d.jenis_diskon === "nominal" ? Math.min(nDisc * qty, subtotal) : (subtotal * nDisc) / 100;
+      }
+      const subtotal_setelah_diskon = isPendaftaran
+        ? subtotal
+        : (d.subtotal_setelah_diskon !== null && parseFloat(d.subtotal_setelah_diskon) > 0 && parseFloat(d.subtotal_setelah_diskon) < subtotal
+          ? parseFloat(d.subtotal_setelah_diskon)
+          : Math.max(0, subtotal - diskon));
+
+      return {
+        ...d,
+        jenis: d.kode_layanan ? "layanan" : "produk",
+        kode: d.kode_layanan || d.kode_produk,
+        nama: d.nama_layanan_single || d.nama_paket_layanan || d.nama_produk || "-",
+        satuan: d.satuan || (d.kode_layanan ? "tindakan" : "pcs"),
+        harga_satuan: hrg,
+        harga_master: masterHrg,
+        subtotal: subtotal,
+        diskon: diskon,
+        subtotal_setelah_diskon: subtotal_setelah_diskon,
+        nilai_diskon: d.nilai_diskon != null ? parseFloat(d.nilai_diskon) : null,
+        is_from_pendaftaran: isPendaftaran,
+      };
+    });
+
+    // Validasi total diskon & total bayar pada objek trx jika detail non-pendaftaran memiliki diskon
+    let sumDiskon = 0;
+    let sumHarga = 0;
+    detailsMapped.forEach((d) => {
+      sumHarga += d.subtotal;
+      sumDiskon += d.diskon;
+    });
+    if (sumDiskon > 0 && parseFloat(trx.total_diskon || 0) === 0) {
+      trx.total_diskon = sumDiskon;
+      trx.total_bayar = Math.max(0, sumHarga - sumDiskon);
+      trx.sisa_bayar = Math.max(0, trx.total_bayar - resolvedDpNominal);
+    }
 
     return res.status(200).json({
       status: status.SUKSES,

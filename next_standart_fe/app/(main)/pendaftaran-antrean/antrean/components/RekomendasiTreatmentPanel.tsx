@@ -1241,12 +1241,8 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                             </button>
                           </div>
                         ) : (
-                          <div className="flex-shrink-0">
-                            <span
-                              className={`text-sm font-extrabold white-space-nowrap ${
-                                isPaket ? 'text-amber-700' : 'text-blue-600'
-                              }`}
-                            >
+                          <div className="flex-shrink-0 text-right">
+                            <span className="text-sm font-extrabold text-amber-700 white-space-nowrap">
                               {formatRupiah(item.harga)}
                             </span>
                           </div>

@@ -520,8 +520,8 @@ const handleGetRekomendasiOptions = async (req, res) => {
           jenis_diskon: promo.jenis_diskon,
           nilai_diskon: diskonNilai,
           harga_asal: item.harga,
-          harga: item.harga, // Base price tetap harga asli/normal
-          harga_promo: hargaDiskon, // Metadata estimasi promo
+          harga: hargaDiskon, // Harga final setelah diskon promo
+          harga_promo: hargaDiskon,
         };
       }
 
@@ -529,6 +529,7 @@ const handleGetRekomendasiOptions = async (req, res) => {
         ...item,
         is_promo: false,
         harga_asal: item.harga,
+        harga: item.harga,
       };
     };
 
@@ -1370,13 +1371,29 @@ router.post("/antrian-layanan-pendaftaran-items", async (req, res) => {
         const roomName = isPaket ? (i.pkt_nama_ruangan || i.nama_ruangan) : (i.lay_nama_ruangan || i.nama_ruangan);
         const isKlaim = jenisStr.includes("klaim");
 
-        // Base price selalu harga master normal, bukan harga setelah diskon promo
-        let basePrice = isPaket
+        // Base price selalu harga master normal
+        let baseMasterPrice = isPaket
           ? (i.pkt_master_harga !== null && i.pkt_master_harga !== undefined ? parseFloat(i.pkt_master_harga) : parseFloat(i.harga || 0))
           : (i.lay_master_harga !== null && i.lay_master_harga !== undefined ? parseFloat(i.lay_master_harga) : parseFloat(i.harga || 0));
 
         if (isKlaim) {
-          basePrice = 0;
+          baseMasterPrice = 0;
+        }
+
+        // Harga final yang berlaku (setelah promo diskon pendaftaran/booking, sama persis seperti di Kasir)
+        let finalPrice = isKlaim
+          ? 0
+          : (i.harga !== null && i.harga !== undefined ? parseFloat(i.harga) : baseMasterPrice);
+
+        // Jika terdapat promo dan nilai_diskon, pastikan finalPrice adalah harga setelah dipotong diskon
+        if (!isKlaim && (i.kode_promo || i.nama_promo) && i.nilai_diskon) {
+          const nDiskon = parseFloat(i.nilai_diskon || 0);
+          if (i.jenis_diskon === "persen") {
+            const diskonNominal = (baseMasterPrice * nDiskon) / 100;
+            finalPrice = Math.max(0, baseMasterPrice - diskonNominal);
+          } else if (i.jenis_diskon === "nominal") {
+            finalPrice = Math.max(0, baseMasterPrice - nDiskon);
+          }
         }
 
         return {
@@ -1385,8 +1402,8 @@ router.post("/antrian-layanan-pendaftaran-items", async (req, res) => {
           kode: i.kode_layanan,
           nama: i.nama_layanan,
           nama_kategori: i.lay_nama_kategori || (isPaket ? "Paket Layanan" : "Perawatan"),
-          harga: basePrice,
-          harga_asal: basePrice,
+          harga: finalPrice,
+          harga_asal: baseMasterPrice,
           is_promo: Boolean(i.kode_promo || i.nama_promo),
           kode_promo: i.kode_promo || null,
           nama_promo: i.nama_promo || null,
@@ -1410,11 +1427,30 @@ router.post("/antrian-layanan-pendaftaran-items", async (req, res) => {
     });
     const uniqueFormatted = Array.from(uniqueItemsMap.values());
 
+    let bookingInfo = null;
+    const targetKunjungan = kode_kunjungan || (rawItems.length > 0 ? rawItems[0].kode_kunjungan : null);
+    if (targetKunjungan) {
+      const bRow = await DB("trx_kunjungan as k")
+        .leftJoin("trx_booking as b", "k.kode_booking", "b.kode_booking")
+        .where("k.kode_kunjungan", targetKunjungan)
+        .select("b.dp_nominal", "b.dp_status", "b.metode_pembayaran_dp", "k.kode_booking")
+        .first();
+      if (bRow && bRow.kode_booking) {
+        bookingInfo = {
+          kode_booking: bRow.kode_booking,
+          dp_nominal: parseFloat(bRow.dp_nominal || 0),
+          dp_status: bRow.dp_status || null,
+          metode_pembayaran_dp: bRow.metode_pembayaran_dp || null,
+        };
+      }
+    }
+
     return res.status(200).json({
       status: status.SUKSES,
       message: "Data item pendaftaran berhasil dimuat",
       datetime: formatDateSystem(),
       data: uniqueFormatted,
+      booking_info: bookingInfo,
     });
   } catch (error) {
     Logging(error, {

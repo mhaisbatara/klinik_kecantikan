@@ -26,6 +26,9 @@ export const getCompletedItemsForKasir = async (dbOrTrx, kodeKunjungan) => {
 
   let query = dbOrTrx("trx_detail_antrian_layanan as dal")
     .join("trx_antrian_layanan as al", "dal.kode_antrian_layanan", "al.kode_antrian_layanan")
+    .leftJoin("mst_layanan as l", "dal.kode_layanan", "l.kode_layanan")
+    .leftJoin("mst_paket_layanan as pl", "dal.kode_layanan", "pl.kode_paket_layanan")
+    .leftJoin("mst_produk as prod", "dal.kode_layanan", "prod.kode_produk")
     .where("al.status", "selesai")
     .whereNotExists(function () {
       this.select("child.id")
@@ -47,7 +50,10 @@ export const getCompletedItemsForKasir = async (dbOrTrx, kodeKunjungan) => {
       "dal.kode_promo",
       "dal.nama_promo",
       "dal.jenis_diskon",
-      "dal.nilai_diskon"
+      "dal.nilai_diskon",
+      "l.harga as master_harga_layanan",
+      "pl.harga_paket as master_harga_paket",
+      "prod.harga_jual as master_harga_produk"
     )
     .orderBy("dal.id", "asc");
 
@@ -252,7 +258,7 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
               qty: 1,
               harga_satuan: hargaSatuan,
               subtotal: hargaSatuan,
-              is_from_pendaftaran: 0,
+              is_from_pendaftaran: 1,
               tz: tz || "Asia/Jakarta",
               created_by: username,
               created_at: formatDateSystem(),
@@ -264,6 +270,8 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
               insertPayload.nama_promo = item.nama_promo || null;
               insertPayload.jenis_diskon = item.jenis_diskon || null;
               insertPayload.nilai_diskon = item.nilai_diskon != null ? parseFloat(item.nilai_diskon) : null;
+              insertPayload.diskon = 0;
+              insertPayload.subtotal_setelah_diskon = hargaSatuan;
             }
 
             await trx("trx_detail_transaksi").insert(insertPayload);
@@ -300,6 +308,8 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
             insertPayload.nama_promo = item.nama_promo || null;
             insertPayload.jenis_diskon = item.jenis_diskon || null;
             insertPayload.nilai_diskon = item.nilai_diskon != null ? parseFloat(item.nilai_diskon) : null;
+            insertPayload.diskon = 0;
+            insertPayload.subtotal_setelah_diskon = hargaSatuan;
           }
 
           await trx("trx_detail_transaksi").insert(insertPayload);
@@ -409,19 +419,25 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
     .where("kode_transaksi", createdTransaksiKode)
     .first();
 
-  let totalDiskon = parseFloat(currentTrx?.total_diskon || 0);
+  // Hanya hitung diskon kasir untuk item tambahan kasir (is_from_pendaftaran = 0)
+  const extraDetails = await trx("trx_detail_transaksi")
+    .where("kode_transaksi", createdTransaksiKode)
+    .where("is_from_pendaftaran", 0);
 
-  if (currentTrx?.kode_promo) {
+  let totalDiskon = 0;
+  extraDetails.forEach((d) => {
+    totalDiskon += parseFloat(d.diskon || 0);
+  });
+
+  if (totalDiskon === 0 && currentTrx?.kode_promo && extraDetails.length > 0) {
     const rawCodes = String(currentTrx.kode_promo).split(",").map((s) => s.trim()).filter(Boolean);
     const activePromos = await trx("mst_promo")
       .whereIn("kode_promo", rawCodes)
       .where("status", "aktif");
 
-    const allDetails = await trx("trx_detail_transaksi")
-      .where("kode_transaksi", createdTransaksiKode)
-      .select("kode_layanan", "kode_produk", "qty", "harga_satuan");
-
     let calculatedDiskon = 0;
+    const extraTotalHarga = extraDetails.reduce((sum, d) => sum + parseFloat(d.subtotal || 0), 0);
+
     for (const promoData of activePromos) {
       const nilDiskon = parseFloat(promoData.nilai_diskon || 0);
       const detailPromo = await trx("mst_detail_promo")
@@ -431,12 +447,12 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
 
       if (detailPromo.length === 0) {
         calculatedDiskon += promoData.jenis_diskon === "persen"
-          ? (grandTotalHarga * nilDiskon) / 100
+          ? (extraTotalHarga * nilDiskon) / 100
           : nilDiskon;
       } else {
         const promoKodeSet = new Set(detailPromo.map((dp) => dp.kode_item));
         let baseDiskon = 0;
-        for (const d of allDetails) {
+        for (const d of extraDetails) {
           const kode = d.kode_layanan || d.kode_produk;
           if (kode && promoKodeSet.has(kode)) {
             baseDiskon += parseFloat(d.harga_satuan || 0) * parseInt(d.qty || 1, 10);
@@ -448,12 +464,15 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
       }
     }
     totalDiskon = Math.min(calculatedDiskon, grandTotalHarga);
+  } else {
+    totalDiskon = Math.min(totalDiskon, grandTotalHarga);
   }
 
   const grandTotalBayar = Math.max(0, grandTotalHarga - totalDiskon);
 
   // Cek DP jika ada booking
   let dpNominal = 0;
+  let metodeDp = null;
   const kunjunganRow = await trx("trx_kunjungan")
     .where("kode_kunjungan", kodeKunjungan)
     .first();
@@ -462,8 +481,9 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
     const bookingRow = await trx("trx_booking")
       .where("kode_booking", kunjunganRow.kode_booking)
       .first();
-    if (bookingRow && (bookingRow.dp_status === "sudah_bayar" || bookingRow.dp_status === "lunas")) {
+    if (bookingRow && (["sudah_bayar", "lunas", "dipotong_treatment"].includes(bookingRow.dp_status) || parseFloat(bookingRow.dp_nominal || 0) > 0)) {
       dpNominal = parseFloat(bookingRow.dp_nominal || 0);
+      metodeDp = dpNominal > 0 ? bookingRow.metode_pembayaran_dp : null;
     }
   }
 
@@ -475,6 +495,8 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
       total_harga: grandTotalHarga,
       total_diskon: totalDiskon,
       total_bayar: grandTotalBayar,
+      dp_nominal: dpNominal,
+      metode_pembayaran_dp: metodeDp,
       sisa_bayar: sisaBayar,
       updated_by: username,
       updated_at: formatDateSystem(),
@@ -485,6 +507,8 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
     total_harga: grandTotalHarga,
     total_diskon: totalDiskon,
     total_bayar: grandTotalBayar,
+    dp_nominal: dpNominal,
+    metode_pembayaran_dp: metodeDp,
     sisa_bayar: sisaBayar,
   };
 };

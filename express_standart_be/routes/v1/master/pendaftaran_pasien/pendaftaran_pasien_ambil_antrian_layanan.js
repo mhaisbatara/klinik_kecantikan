@@ -599,15 +599,26 @@ router.post("/", async (req, res) => {
             }
           }
 
-          // Cari promo aktif untuk item ini (disimpan sebagai referensi kasir, tidak mengubah harga)
+          // Cari promo aktif untuk item ini dan hitung harga final setelah diskon
           const promoKey1 = `${jenis}_${kodeLayanan}`;
           const promoItem = promoMap[promoKey1] || null;
+
+          let finalHargaItem = hargaLayanan;
+          if (promoItem) {
+            const diskonNilai = parseFloat(promoItem.nilai_diskon || 0);
+            if (promoItem.jenis_diskon === "persen") {
+              finalHargaItem = Math.max(0, hargaLayanan - (hargaLayanan * diskonNilai) / 100);
+            } else {
+              finalHargaItem = Math.max(0, hargaLayanan - diskonNilai);
+            }
+          }
 
           processedItems.push({
             jenis_layanan: jenis,
             kode_layanan: kodeLayanan,
             nama_layanan: namaLayanan,
-            harga: hargaLayanan,         // harga ASLI — diskon diterapkan di kasir
+            harga: finalHargaItem,         // harga FINAL setelah diskon promo
+            harga_asal: hargaLayanan,
             durasi_menit: durasiItem,
             durasi_tindakan: durasiItem,
             kode_promo: promoItem?.kode_promo || null,
@@ -1262,7 +1273,7 @@ router.post("/", async (req, res) => {
               jenis_layanan: item.jenis_layanan || "layanan",
               kode_layanan: item.kode_layanan,
               nama_layanan: item.nama_layanan,
-              harga: item.harga || 0,         // harga ASLI — diskon diterapkan di kasir
+              harga: item.harga || 0,         // harga FINAL setelah diskon promo
               durasi_menit: dMenit,
               kode_promo: item.kode_promo || null,
               nama_promo: item.nama_promo || null,

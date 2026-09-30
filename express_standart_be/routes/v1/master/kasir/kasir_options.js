@@ -67,6 +67,7 @@ router.post("/", async (req, res) => {
         const isProduct = ["produk", "paket_produk"].includes((l.jenis_layanan || "").toLowerCase());
         const isKlaim = (l.jenis_layanan || "").toLowerCase() === "klaim_paket";
         const itemHarga = isKlaim ? 0 : parseFloat(l.harga || 0);
+        const masterHarga = parseFloat(l.master_harga_layanan || l.master_harga_paket || l.master_harga_produk || itemHarga);
         return {
           id: l.id,
           kode_detail_antrian_layanan: l.kode_detail_antrian_layanan,
@@ -76,6 +77,7 @@ router.post("/", async (req, res) => {
           satuan: isProduct ? "pcs" : "tindakan",
           qty: 1,
           harga_satuan: itemHarga,
+          harga_master: masterHarga,
           subtotal: itemHarga,
           is_from_pendaftaran: isProduct ? false : true,
           is_klaim_paket: isKlaim,
@@ -83,6 +85,8 @@ router.post("/", async (req, res) => {
           nama_promo: l.nama_promo || null,
           jenis_diskon: l.jenis_diskon || null,
           nilai_diskon: l.nilai_diskon ? parseFloat(l.nilai_diskon) : null,
+          diskon: 0,
+          subtotal_setelah_diskon: itemHarga,
         };
       });
       return {

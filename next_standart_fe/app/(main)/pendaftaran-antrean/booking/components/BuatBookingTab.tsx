@@ -487,7 +487,7 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
 
   const selectedList = Object.values(selectedMap);
   const totalHarga = selectedList.reduce(
-    (acc, curr) => acc + (curr.jenis === 'klaim_paket' ? 0 : (curr.harga_asal ?? curr.harga)),
+    (acc, curr) => acc + (curr.jenis === 'klaim_paket' ? 0 : (curr.harga || 0)),
     0
   );
   const totalDurasi = selectedList.reduce((acc, curr) => acc + (curr.durasi_menit || 0), 0);
@@ -1265,7 +1265,7 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
           jenis_layanan: it.jenis,
           kode_layanan: it.kode_layanan,
           nama_layanan: it.nama,
-          harga: it.jenis === 'klaim_paket' ? 0 : (it.harga_asal ?? it.harga),
+          harga: it.jenis === 'klaim_paket' ? 0 : (it.harga || 0),
           durasi_menit: it.durasi_menit,
           kode_kepemilikan_paket_layanan: it.kode_kepemilikan_paket_layanan,
           kode_detail_kepemilikan_paket_layanan: it.kode_detail_kepemilikan_paket_layanan,
@@ -2652,7 +2652,7 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
                               {item.jenis === 'klaim_paket' ? (
                                 <span className="text-amber-700 font-bold">Rp 0 (Klaim)</span>
                               ) : (
-                                formatCurrency(item.harga_asal ?? item.harga)
+                                formatCurrency(item.harga)
                               )}
                             </div>
                           </div>

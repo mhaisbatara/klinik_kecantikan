@@ -16,19 +16,27 @@ export function checkPromoEligibility(promo, cart = []) {
   if (!promo) return { eligible: false, reason: "Promo tidak valid" };
 
   if (promo.kode_item) {
-    const target = cart.find((c) => c.kode === promo.kode_item && (c.qty || 0) > 0);
+    const target = cart.find((c) => c.kode === promo.kode_item && (c.qty || 0) > 0 && !c.is_from_pendaftaran);
     if (!target) {
+      const isAlreadyInCartFromPendaftaran = cart.some((c) => c.kode === promo.kode_item && c.is_from_pendaftaran);
+      if (isAlreadyInCartFromPendaftaran) {
+        return {
+          eligible: false,
+          reason: `Item "${promo.nama_item || promo.kode_item}" berasal dari pendaftaran/booking dan sudah mendapatkan harga promo final di awal`,
+        };
+      }
       return {
         eligible: false,
-        reason: `Tambahkan "${promo.nama_item || promo.kode_item}" ke keranjang untuk memakai promo ini`,
+        reason: `Tambahkan "${promo.nama_item || promo.kode_item}" ke keranjang kasir untuk memakai promo ini`,
       };
     }
     return { eligible: true, targetItem: target };
   }
 
-  // Promo global (tanpa target spesifik) memenuhi syarat jika keranjang tidak kosong
-  if (cart.length === 0) {
-    return { eligible: false, reason: "Keranjang masih kosong" };
+  // Promo global (tanpa target spesifik) memenuhi syarat jika keranjang kasir memiliki item tambahan non-pendaftaran
+  const nonPendaftaranItems = cart.filter((c) => !c.is_from_pendaftaran);
+  if (nonPendaftaranItems.length === 0) {
+    return { eligible: false, reason: "Keranjang kasir belum memiliki item tambahan di luar pendaftaran" };
   }
   return { eligible: true };
 }
@@ -116,7 +124,7 @@ export function filterValidPromosForCart(cart = [], selectedPromos = []) {
   const validPromos = [];
   const droppedPromos = [];
 
-  const cartItemKodes = new Set(cart.map((c) => c.kode));
+  const cartItemKodes = new Set(cart.filter((c) => !c.is_from_pendaftaran).map((c) => c.kode));
 
   for (const promo of selectedPromos) {
     if (promo.kode_item) {
@@ -127,7 +135,7 @@ export function filterValidPromosForCart(cart = [], selectedPromos = []) {
       }
     } else {
       // Global promo
-      if (cart.length > 0) validPromos.push(promo);
+      if (cart.some((c) => !c.is_from_pendaftaran)) validPromos.push(promo);
       else droppedPromos.push(promo);
     }
   }
@@ -168,6 +176,22 @@ export function calculateTransactionDiscounts(cart = [], selectedPromos = []) {
     const qty = parseInt(item.qty || 1, 10);
     const hargaSatuan = parseFloat(item.harga_satuan || 0);
     const subtotal = item.subtotal !== undefined ? parseFloat(item.subtotal) : qty * hargaSatuan;
+
+    // Item dari pendaftaran / booking / rujukan awal sudah memiliki harga final bersih
+    if (item.is_from_pendaftaran) {
+      return {
+        ...item,
+        qty,
+        harga_satuan: hargaSatuan,
+        subtotal,
+        kode_promo: null,
+        nama_promo: null,
+        jenis_diskon: null,
+        nilai_diskon: null,
+        diskon: 0,
+        subtotal_setelah_diskon: subtotal,
+      };
+    }
 
     const promo = promoMapByItem.get(item.kode) || null;
 

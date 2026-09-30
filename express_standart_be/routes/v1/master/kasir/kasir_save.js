@@ -60,12 +60,26 @@ router.post("/", async (req, res) => {
     let total_harga = 0;
     let total_diskon_from_items = 0;
     items.forEach((item) => {
-      const subtotalItem = parseFloat(item.harga_satuan || 0) * parseInt(item.qty || 1);
+      const qty = parseInt(item.qty || 1);
+      const subtotalItem = parseFloat(item.harga_satuan || 0) * qty;
       total_harga += subtotalItem;
-      total_diskon_from_items += parseFloat(item.diskon || 0);
+      const isLayanan = Boolean(item.is_from_pendaftaran) || item.jenis === "layanan" || item.jenis === "paket";
+      if (!isLayanan) {
+        let dVal = parseFloat(item.diskon || 0);
+        if (dVal === 0 && item.nilai_diskon && parseFloat(item.nilai_diskon) > 0) {
+          const nDisc = parseFloat(item.nilai_diskon);
+          dVal = item.jenis_diskon === "nominal" ? Math.min(nDisc * qty, subtotalItem) : (subtotalItem * nDisc) / 100;
+          item.diskon = dVal;
+          item.subtotal_setelah_diskon = Math.max(0, subtotalItem - dVal);
+        }
+        total_diskon_from_items += dVal;
+      } else {
+        item.diskon = 0;
+        item.subtotal_setelah_diskon = subtotalItem;
+      }
     });
 
-    // 2. Hitung diskon multi-promo jika item belum memiliki diskon snapshot
+    // 2. Hitung diskon multi-promo jika item belum memiliki diskon snapshot (hanya untuk item tambahan kasir)
     let total_diskon = total_diskon_from_items;
     const validPromoCodes = [];
     const promoNames = [];
@@ -76,7 +90,9 @@ router.post("/", async (req, res) => {
       ? kode_promo.split(",").map((s) => s.trim()).filter(Boolean)
       : [];
 
-    if (total_diskon === 0 && rawCodes.length > 0) {
+    const extraItems = items.filter((it) => !it.is_from_pendaftaran && it.jenis !== "layanan" && it.jenis !== "paket");
+
+    if (total_diskon === 0 && rawCodes.length > 0 && extraItems.length > 0) {
       const activePromos = await trx("mst_promo")
         .whereIn("kode_promo", rawCodes)
         .where("status", "aktif");
@@ -93,13 +109,14 @@ router.post("/", async (req, res) => {
 
         let diskonPromo = 0;
         if (detailPromo.length === 0) {
+          const extraTotal = extraItems.reduce((sum, it) => sum + (parseFloat(it.harga_satuan || 0) * parseInt(it.qty || 1)), 0);
           diskonPromo = promoData.jenis_diskon === "persen"
-            ? (total_harga * nilDiskon) / 100
+            ? (extraTotal * nilDiskon) / 100
             : nilDiskon;
         } else {
           const promoKodeSet = new Set(detailPromo.map((dp) => dp.kode_item));
           let baseDiskon = 0;
-          items.forEach((item) => {
+          extraItems.forEach((item) => {
             if (promoKodeSet.has(item.kode)) {
               const subtotalItem = parseFloat(item.harga_satuan || 0) * parseInt(item.qty || 1);
               baseDiskon += subtotalItem;
@@ -148,7 +165,7 @@ router.post("/", async (req, res) => {
         .select("b.dp_nominal", "b.dp_status", "b.metode_pembayaran_dp")
         .first();
 
-      if (bookingData && ["sudah_bayar", "dipotong_treatment"].includes(bookingData.dp_status)) {
+      if (bookingData && (["sudah_bayar", "lunas", "dipotong_treatment"].includes(bookingData.dp_status) || parseFloat(bookingData.dp_nominal || 0) > 0)) {
         dp_nominal = parseFloat(bookingData.dp_nominal || 0);
         metode_pembayaran_dp = dp_nominal > 0 ? bookingData.metode_pembayaran_dp : null;
       }
@@ -252,10 +269,11 @@ router.post("/", async (req, res) => {
       const qty = parseInt(item.qty || 1);
       const harga_satuan = parseFloat(item.harga_satuan || 0);
       const subtotal = qty * harga_satuan;
-      const itemDiskon = parseFloat(item.diskon || 0);
-      const subtotalSetelahDiskon = item.subtotal_setelah_diskon !== undefined
+      const isLayanan = Boolean(item.is_from_pendaftaran) || item.jenis === "layanan" || item.jenis === "paket";
+      const itemDiskon = isLayanan ? 0 : parseFloat(item.diskon || 0);
+      const subtotalSetelahDiskon = isLayanan ? subtotal : (item.subtotal_setelah_diskon !== undefined
         ? parseFloat(item.subtotal_setelah_diskon)
-        : Math.max(0, subtotal - itemDiskon);
+        : Math.max(0, subtotal - itemDiskon));
 
       const kode_detail = `DT-${today}-${String(dtSeq).padStart(3, "0")}`;
       dtSeq++;
@@ -269,7 +287,7 @@ router.post("/", async (req, res) => {
         qty,
         harga_satuan,
         subtotal,
-        is_from_pendaftaran: item.is_from_pendaftaran ? 1 : 0,
+        is_from_pendaftaran: isLayanan ? 1 : 0,
         tz,
         created_by: username,
         created_at: DB.fn.now(),

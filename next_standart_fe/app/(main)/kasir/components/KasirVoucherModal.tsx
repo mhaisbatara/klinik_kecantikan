@@ -33,6 +33,14 @@ interface ProcessedVoucher {
   reason?: string;
 }
 
+export const isSamePromo = (a?: PromoOption | null, b?: PromoOption | null): boolean => {
+  if (!a || !b) return false;
+  if (a.kode_detail_promo && b.kode_detail_promo && a.kode_detail_promo === b.kode_detail_promo) {
+    return true;
+  }
+  return a.kode_promo === b.kode_promo && a.kode_item === b.kode_item;
+};
+
 export const KasirVoucherModal: React.FC<KasirVoucherModalProps> = ({
   visible,
   onHide,
@@ -73,7 +81,7 @@ export const KasirVoucherModal: React.FC<KasirVoucherModalProps> = ({
     // Gabungkan promoList dengan selectedPromos (untuk transaksi tersimpan/lunas yang promo-nya mungkin tidak ada di daftar aktif)
     const combinedPromos = [...promoList];
     for (const sp of selectedPromos) {
-      if (!combinedPromos.some((p) => p.kode_detail_promo === sp.kode_detail_promo || (p.kode_promo === sp.kode_promo && p.kode_item === sp.kode_item))) {
+      if (!combinedPromos.some((p) => isSamePromo(p, sp))) {
         combinedPromos.push(sp);
       }
     }
@@ -82,9 +90,7 @@ export const KasirVoucherModal: React.FC<KasirVoucherModalProps> = ({
     const ineligibleItems: ProcessedVoucher[] = [];
 
     for (const p of combinedPromos) {
-      const isAlreadySelected = selectedPromos.some(
-        (sp) => sp.kode_detail_promo === p.kode_detail_promo || (sp.kode_promo === p.kode_promo && sp.kode_item === p.kode_item)
-      );
+      const isAlreadySelected = selectedPromos.some((sp) => isSamePromo(sp, p));
       const check = checkPromoEligibility(p, cart);
 
       if ((check.eligible && check.targetItem) || isAlreadySelected) {
@@ -128,11 +134,11 @@ export const KasirVoucherModal: React.FC<KasirVoucherModalProps> = ({
   // Handler toggle promo di draft
   const handleTogglePromo = (promo: PromoOption) => {
     if (readOnly) return;
-    const isChecked = draftSelected.some((p) => p.kode_detail_promo === promo.kode_detail_promo);
+    const isChecked = draftSelected.some((p) => isSamePromo(p, promo));
 
     if (isChecked) {
       // Lepas promo
-      setDraftSelected(draftSelected.filter((p) => p.kode_detail_promo !== promo.kode_detail_promo));
+      setDraftSelected(draftSelected.filter((p) => !isSamePromo(p, promo)));
       setConflictNotice(null);
     } else {
       // Pasang promo dengan penanganan konflik (1 promo per item)
@@ -307,11 +313,11 @@ export const KasirVoucherModal: React.FC<KasirVoucherModalProps> = ({
         ) : (
           <div className="flex flex-column w-full" style={{ gap: '12px', boxSizing: 'border-box' }}>
             {voucherList.map(({ promo, eligible, targetItem, savings, reason }) => {
-              const isChecked = eligible && draftSelected.some((p) => p.kode_detail_promo === promo.kode_detail_promo);
+              const isChecked = eligible && draftSelected.some((p) => isSamePromo(p, promo));
 
               const conflictingPromo = eligible
                 ? draftSelected.find(
-                    (p) => p.kode_item === promo.kode_item && p.kode_detail_promo !== promo.kode_detail_promo
+                    (p) => p.kode_item === promo.kode_item && !isSamePromo(p, promo)
                   )
                 : null;
 
