@@ -18,6 +18,7 @@ import { confirmDialog, ConfirmDialog } from 'primereact/confirmdialog';
 import { IconField } from 'primereact/iconfield';
 import { InputIcon } from 'primereact/inputicon';
 import { showError, showSuccess } from '@/lib/tools/generalTools';
+import KeteranganStatus from '@/app/components/KeteranganStatus';
 
 const Page = () => {
     const toast = useRef<Toast>(null);
@@ -651,52 +652,14 @@ const Page = () => {
                                         </div>
                                     </div>
 
-                                    {/* STATUS LEGEND BAR */}
-                                    <div className="flex flex-wrap align-items-center gap-3 px-2 py-2 border-round-md surface-100 text-xs font-medium text-color-secondary">
-                                        <span className="flex align-items-center gap-1 font-bold">
-                                            <i className="pi pi-info-circle" />
-                                            <span>KETERANGAN STATUS:</span>
-                                        </span>
-                                        <span className="flex align-items-center gap-1">
-                                            <span
-                                                style={{
-                                                    display: 'inline-block',
-                                                    width: '12px',
-                                                    height: '12px',
-                                                    borderRadius: '3px',
-                                                    backgroundColor: '#22c55e',
-                                                    boxShadow: '0 1px 3px #22c55e55',
-                                                }}
-                                            />
-                                            Stok Aman (&gt; Min)
-                                        </span>
-                                        <span className="flex align-items-center gap-1">
-                                            <span
-                                                style={{
-                                                    display: 'inline-block',
-                                                    width: '12px',
-                                                    height: '12px',
-                                                    borderRadius: '3px',
-                                                    backgroundColor: '#f97316',
-                                                    boxShadow: '0 1px 3px #f9731655',
-                                                }}
-                                            />
-                                            Stok Menipis (&le; Min)
-                                        </span>
-                                        <span className="flex align-items-center gap-1">
-                                            <span
-                                                style={{
-                                                    display: 'inline-block',
-                                                    width: '12px',
-                                                    height: '12px',
-                                                    borderRadius: '3px',
-                                                    backgroundColor: '#ef4444',
-                                                    boxShadow: '0 1px 3px #ef444455',
-                                                }}
-                                            />
-                                            Stok Habis (0)
-                                        </span>
-                                    </div>
+                                    <KeteranganStatus
+                                        className="mb-2"
+                                        items={[
+                                            { label: 'Stok Aman (> Min)', color: '#22c55e' },
+                                            { label: 'Stok Menipis (≤ Min)', color: '#f97316' },
+                                            { label: 'Stok Habis (0)', color: '#ef4444' }
+                                        ]}
+                                    />
                                 </div>
                             }
                         >

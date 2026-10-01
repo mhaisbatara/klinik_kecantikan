@@ -7,6 +7,7 @@ import postData from '@/lib/axios/postData';
 import { showError, showSuccess, showWarning } from '@/lib/tools/generalTools';
 import { apiEndpointPanggil, apiEndpointReset } from '../endpoints';
 import { getTzUser } from '@/lib/tools/dateTools';
+import KeteranganStatus from '@/app/components/KeteranganStatus';
 
 // ─── Audio: Chime 2 nada ────────────────────────────────────────────────────
 const playChime = () => {
@@ -291,31 +292,16 @@ const GridPanggil = ({ state, setState, toast, getGridData }: GridPanggilProps) 
             </div>
 
             {/* Legend */}
-            <div className="flex flex-wrap align-items-center gap-3 mb-4 px-2 py-2 border-round-md surface-100 text-xs font-medium text-color-secondary">
-                <span className="flex align-items-center gap-1">
-                    <i className="pi pi-info-circle" />
-                    <span className="font-semibold">KETERANGAN STATUS:</span>
-                </span>
-                {[
-                    { color: '#22c55e', label: 'Tersedia = klik tandai diambil'  },
+            <KeteranganStatus
+                className="mb-4"
+                items={[
+                    { color: '#22c55e', label: 'Tersedia = klik tandai diambil' },
                     { color: '#3b82f6', label: 'Diambil = klik panggil ke loket' },
-                    { color: '#f59e0b', label: 'Dipanggil = klik selesai'        },
-                    { color: '#94a3b8', label: 'Selesai = tidak dapat diklik'    },
-                    { color: '#ef4444', label: 'Nonaktif'                         },
-                ].map((s) => (
-                    <span key={s.label} className="flex align-items-center gap-1">
-                        <span style={{
-                            display: 'inline-block',
-                            width: '12px', height: '12px',
-                            borderRadius: '3px',
-                            backgroundColor: s.color,
-                            boxShadow: `0 1px 3px ${s.color}55`,
-                            flexShrink: 0,
-                        }} />
-                        {s.label}
-                    </span>
-                ))}
-            </div>
+                    { color: '#f59e0b', label: 'Dipanggil = klik selesai' },
+                    { color: '#94a3b8', label: 'Selesai = tidak dapat diklik' },
+                    { color: '#ef4444', label: 'Nonaktif' },
+                ]}
+            />
 
             {/* Grid Tombol */}
             {state.loadGrid ? (

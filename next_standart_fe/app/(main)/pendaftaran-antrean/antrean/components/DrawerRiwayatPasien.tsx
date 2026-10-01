@@ -14,6 +14,7 @@ import { IconField } from 'primereact/iconfield';
 import { InputIcon } from 'primereact/inputicon';
 import postData from '@/lib/axios/postData';
 import { showError } from '@/lib/tools/generalTools';
+import KeteranganStatus from '@/app/components/KeteranganStatus';
 import {
     ArrowLeft,
     Clock,
@@ -1398,25 +1399,13 @@ export const DrawerRiwayatPasien: React.FC<DrawerRiwayatPasienProps> = ({
         return (
             <div className="flex flex-column gap-3">
                 {/* Legend Box Keterangan Status Sesuai Desain Laporan */}
-                <div className="flex flex-wrap align-items-center gap-4 p-3 surface-50 border-round-xl border-1 surface-border">
-                    <span className="flex align-items-center text-xs font-bold text-500 uppercase tracking-wider mr-2">
-                        <i className="pi pi-info-circle mr-2" /> KETERANGAN STATUS:
-                    </span>
-                    <div className="flex align-items-center gap-2">
-                        <span
-                            className="block border-round-sm"
-                            style={{ width: '12px', height: '12px', backgroundColor: '#22c55e' }}
-                        />
-                        <span className="text-xs font-semibold text-700">Selesai</span>
-                    </div>
-                    <div className="flex align-items-center gap-2">
-                        <span
-                            className="block border-round-sm"
-                            style={{ width: '12px', height: '12px', backgroundColor: '#f59e0b' }}
-                        />
-                        <span className="text-xs font-semibold text-700">Sedang Berlangsung</span>
-                    </div>
-                </div>
+                <KeteranganStatus
+                    className="mb-2"
+                    items={[
+                        { label: 'Selesai', color: '#22c55e' },
+                        { label: 'Sedang Berlangsung', color: '#f59e0b' },
+                    ]}
+                />
 
                 {/* Card Container Tabel Sesuai Desain Laporan */}
                 <div className="card p-3 border-round-xl border-1 surface-border surface-card shadow-1">
