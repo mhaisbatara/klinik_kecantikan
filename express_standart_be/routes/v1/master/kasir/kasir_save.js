@@ -9,6 +9,7 @@ import { formatDateSystem } from "../../components/tools/date_tools.js";
 import { Logging } from "../../components/tools/servertool.js";
 import { status } from "../../components/tools/general.js";
 import { getBranchScope } from "../../components/tools/branch_scope.js";
+import { validateStockAvailability } from "../inventori/batch_helper.js";
 
 const router = express.Router();
 
@@ -52,6 +53,18 @@ router.post("/", async (req, res) => {
 
   if (!items || items.length === 0) {
     return res.status(400).json({ status: status.BAD_REQUEST, message: "Minimal 1 item transaksi", datetime: formatDateSystem() });
+  }
+
+  const currentBranch = getBranchScope(req, body.kode_cabang) || "CBG-001";
+
+  // Validasi ketersediaan stok fisik produk (Early Validation)
+  const stockCheck = await validateStockAvailability(items, currentBranch);
+  if (!stockCheck.valid) {
+    return res.status(400).json({
+      status: status.BAD_REQUEST,
+      message: stockCheck.message,
+      datetime: formatDateSystem(),
+    });
   }
 
   const trx = await DB.transaction();

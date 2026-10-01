@@ -5,6 +5,7 @@ import { formatDateSystem } from "../../components/tools/date_tools.js";
 import { Logging, ChangesLog, validatePayload } from "../../components/tools/servertool.js";
 import { status } from "../../components/tools/general.js";
 import { getBranchScope } from "../../components/tools/branch_scope.js";
+import { syncProdukBatch } from "./batch_helper.js";
 
 const router = express.Router();
 
@@ -24,8 +25,8 @@ router.post("/", async (req, res) => {
         harga_jual: Joi.number().min(0).required().label("Harga Jual Satuan"),
         stok_minimum: Joi.number().integer().min(0).optional().default(5).label("Stok Minimum"),
         qty_beli: Joi.number().integer().min(1).required().label("Jumlah Pembelian (Qty)"),
-        no_batch: Joi.string().max(50).allow(null, "").optional().label("No. Batch"),
-        tanggal_kadaluarsa: Joi.string().allow(null, "").optional().label("Tanggal Kadaluarsa"),
+        no_batch: Joi.string().max(50).required().label("No. Batch"),
+        tanggal_kadaluarsa: Joi.string().required().label("Tanggal Kadaluarsa"),
         tanggal: Joi.string().optional().label("Tanggal Pembelian"),
       },
       { "any.required": "{#label} wajib diisi", "string.empty": "{#label} tidak boleh kosong" },
@@ -65,8 +66,10 @@ router.post("/", async (req, res) => {
       const stokMin = parseInt(oPayload.stok_minimum ?? 5, 10);
       const totalPo = qtyBeli * hargaBeli;
       const tglPo = oPayload.tanggal || new Date().toISOString().slice(0, 10);
+      const tglExp = String(oPayload.tanggal_kadaluarsa).slice(0, 10);
+      const noBatch = oPayload.no_batch.trim();
 
-      // 3. Simpan produk baru ke mst_produk dengan stok_tersedia = qtyBeli
+      // 3. Simpan produk baru ke mst_produk
       const oProduk = {
         kode_cabang: branchCode,
         kode_produk: kodeProduk,
@@ -78,8 +81,8 @@ router.post("/", async (req, res) => {
         harga_jual: hargaJual,
         stok_minimum: stokMin,
         stok_tersedia: qtyBeli,
-        no_batch: oPayload.no_batch || null,
-        tanggal_kadaluarsa: oPayload.tanggal_kadaluarsa ? String(oPayload.tanggal_kadaluarsa).slice(0, 10) : null,
+        no_batch: noBatch,
+        tanggal_kadaluarsa: tglExp,
         status: "aktif",
         tz: oPayload.tz || "UTC",
         created_by: username,
@@ -91,8 +94,14 @@ router.post("/", async (req, res) => {
 
       // 4. Generate kode_po unik (PO-YYYYMMDD-XXXX)
       const todayStr = tglPo.replace(/-/g, "");
-      const countPo = await trx("trx_purchase_order").where("kode_po", "like", `PO-${todayStr}-%`).count("id as total").first();
-      const nextPoNum = (parseInt(countPo?.total || 0, 10) + 1);
+      const existingPos = await trx("trx_purchase_order").where("kode_po", "like", `PO-${todayStr}-%`).select("kode_po");
+      let maxPoNum = 0;
+      for (const p of existingPos) {
+        const parts = p.kode_po.split("-");
+        const n = parseInt(parts[parts.length - 1], 10);
+        if (!isNaN(n) && n > maxPoNum) maxPoNum = n;
+      }
+      const nextPoNum = maxPoNum + 1;
       const kodePo = `PO-${todayStr}-${String(nextPoNum).padStart(3, "0")}`;
 
       // 5. Simpan transaksi purchase order
@@ -111,12 +120,48 @@ router.post("/", async (req, res) => {
       };
       await trx("trx_purchase_order").insert(oPo);
 
-      // 6. Simpan detail purchase order
+      // 6. Generate kode_batch unik & Simpan ke mst_produk_batch
+      const existingBatches = await trx("mst_produk_batch").where("kode_batch", "like", `BTC-${todayStr}-%`).select("kode_batch");
+      let maxBatchNum = 0;
+      for (const b of existingBatches) {
+        const parts = b.kode_batch.split("-");
+        const n = parseInt(parts[parts.length - 1], 10);
+        if (!isNaN(n) && n > maxBatchNum) maxBatchNum = n;
+      }
+      const nextBatchNum = maxBatchNum + 1;
+      const kodeBatch = `BTC-${todayStr}-${String(nextBatchNum).padStart(3, "0")}`;
+
+      const oBatch = {
+        kode_batch: kodeBatch,
+        kode_produk: kodeProduk,
+        no_batch: noBatch,
+        tanggal_kadaluarsa: tglExp,
+        stok_masuk: qtyBeli,
+        stok_sisa: qtyBeli,
+        harga_beli_satuan: hargaBeli,
+        kode_supplier: oPayload.kode_supplier,
+        kode_po: kodePo,
+        is_legacy_estimate: 0,
+        status: "aktif",
+        catatan: `Batch pengadaan awal (${kodePo})`,
+        tz: oPayload.tz || "UTC",
+        created_by: username,
+        created_at: formatDateSystem(),
+        updated_by: username,
+        updated_at: formatDateSystem(),
+        kode_cabang: branchCode,
+      };
+      await trx("mst_produk_batch").insert(oBatch);
+
+      // 7. Simpan detail purchase order
       const kodeDetailPo = `DPO-${todayStr}-${String(nextPoNum).padStart(3, "0")}-1`;
       const oDetailPo = {
         kode_detail_po: kodeDetailPo,
         kode_po: kodePo,
         kode_produk: kodeProduk,
+        kode_batch: kodeBatch,
+        no_batch: noBatch,
+        tanggal_kadaluarsa: tglExp,
         qty: qtyBeli,
         harga_satuan: hargaBeli,
         subtotal: totalPo,
@@ -128,15 +173,22 @@ router.post("/", async (req, res) => {
       };
       await trx("trx_detail_purchase_order").insert(oDetailPo);
 
-      // 7. Simpan log mutasi stok masuk (trx_stok_movement)
-      const countMov = await trx("trx_stok_movement").where("kode_stok_movement", "like", `MOV-${todayStr}-%`).count("id as total").first();
-      const nextMovNum = (parseInt(countMov?.total || 0, 10) + 1);
+      // 8. Simpan log mutasi stok masuk (trx_stok_movement)
+      const existingMovs = await trx("trx_stok_movement").where("kode_stok_movement", "like", `MOV-${todayStr}-%`).select("kode_stok_movement");
+      let maxMovNum = 0;
+      for (const m of existingMovs) {
+        const parts = m.kode_stok_movement.split("-");
+        const n = parseInt(parts[parts.length - 1], 10);
+        if (!isNaN(n) && n > maxMovNum) maxMovNum = n;
+      }
+      const nextMovNum = maxMovNum + 1;
       const kodeMovement = `MOV-${todayStr}-${String(nextMovNum).padStart(3, "0")}`;
 
       const oMovement = {
         kode_cabang: branchCode,
         kode_stok_movement: kodeMovement,
         kode_produk: kodeProduk,
+        kode_batch: kodeBatch,
         jenis_movement: "masuk",
         referensi: kodePo,
         qty: qtyBeli,
@@ -151,15 +203,18 @@ router.post("/", async (req, res) => {
       };
       await trx("trx_stok_movement").insert(oMovement);
 
-      // 8. Catat ChangesLog
+      // 9. Sinkronisasi status & data master
+      await syncProdukBatch(kodeProduk, trx);
+
+      // 10. Catat ChangesLog
       await ChangesLog(
         {
-          description: `Pengadaan Produk Baru ${kodeProduk} dari Supplier ${oPayload.kode_supplier} (${kodePo})`,
+          description: `Pengadaan Produk Baru ${kodeProduk} dari Supplier ${oPayload.kode_supplier} (${kodePo} - Batch: ${noBatch})`,
           tableName: "mst_produk",
           referenceCode: kodeProduk,
           action: "CREATE",
           dataBefore: null,
-          dataAfter: { ...oProduk, po: oPo, detail: oDetailPo, movement: oMovement },
+          dataAfter: { ...oProduk, batch: oBatch, po: oPo, detail: oDetailPo, movement: oMovement },
           user: username,
           tz: oPayload.tz || "UTC",
         },
@@ -168,6 +223,9 @@ router.post("/", async (req, res) => {
 
       resultData = {
         kode_produk: kodeProduk,
+        kode_batch: kodeBatch,
+        no_batch: noBatch,
+        tanggal_kadaluarsa: tglExp,
         kode_po: kodePo,
         nama_produk: oPayload.nama,
         stok_tersedia: qtyBeli,
@@ -177,7 +235,7 @@ router.post("/", async (req, res) => {
 
     return res.status(200).json({
       status: status.SUKSES,
-      message: `Produk baru "${oPayload.nama}" berhasil dibeli dan stok masuk ke inventori.`,
+      message: `Produk baru "${oPayload.nama}" berhasil dibeli (Batch: ${resultData.no_batch}, Exp: ${resultData.tanggal_kadaluarsa}) dan masuk ke inventori.`,
       datetime: formatDateSystem(),
       data: resultData,
     });

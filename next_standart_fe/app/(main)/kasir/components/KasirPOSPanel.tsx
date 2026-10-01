@@ -33,6 +33,7 @@ interface ProdukItem {
   nama: string;
   harga_jual: number;
   satuan?: string;
+  stok_tersedia?: number;
   kode_kategori_produk?: string;
   nama_kategori?: string;
   foto?: string | null;
@@ -50,6 +51,7 @@ interface SelectedProduk {
   nama: string;
   harga_jual: number;
   satuan?: string;
+  stok_tersedia?: number;
   qty: number;
   is_rekomendasi_dokter?: boolean;
   foto?: string | null;
@@ -184,6 +186,7 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
           nama: p.nama,
           harga_jual: parseFloat(p.harga_jual || 0),
           satuan: p.satuan || 'pcs',
+          stok_tersedia: p.stok_tersedia != null ? parseInt(String(p.stok_tersedia), 10) : undefined,
           kode_kategori_produk: p.kode_kategori_produk,
           nama_kategori: p.nama_kategori || 'Produk',
           foto: p.foto || null,
@@ -223,6 +226,7 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
             nama: p.nama,
             harga_jual: parseFloat(p.harga_jual || 0),
             satuan: p.satuan || 'pcs',
+            stok_tersedia: p.stok_tersedia != null ? parseInt(String(p.stok_tersedia), 10) : undefined,
             kode_kategori_produk: p.kode_kategori_produk,
             nama_kategori: p.nama_kategori || 'Produk',
             foto: p.foto || null,
@@ -402,9 +406,18 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
   };
 
   const updateQty = (idx: number, newQty: number) => {
+    const item = cart[idx];
     if (newQty <= 0) {
       setCart(cart.filter((_, i) => i !== idx));
     } else {
+      if (item?.jenis === 'produk' && newQty > item.qty) {
+        const option = produkOptions.find((p) => p.kode_produk === item.kode);
+        const availStock = option?.stok_tersedia ?? 999999;
+        if (newQty > availStock) {
+          showWarning(toast, `Kuantitas "${item.nama}" melebihi stok yang tersedia (${availStock} ${item.satuan || 'pcs'})`);
+          return;
+        }
+      }
       setCart(cart.map((c, i) => i === idx ? { ...c, qty: newQty, subtotal: newQty * c.harga_satuan } : c));
     }
   };
@@ -549,6 +562,7 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
           nama: item.nama,
           harga_jual: item.harga_satuan,
           satuan: item.satuan || 'pcs',
+          stok_tersedia: option?.stok_tersedia,
           qty: item.qty,
           foto: option?.foto || null,
           is_promo: Boolean(option?.is_promo || item.kode_promo),
@@ -625,9 +639,20 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
     }
     lastAddRef.current = { kode: prod.kode_produk, time: now };
 
+    const availStock = prod.stok_tersedia ?? 999999;
+    if (availStock <= 0) {
+      showWarning(toast, `Stok "${prod.nama}" saat ini habis (0 ${prod.satuan || 'pcs'})!`);
+      return;
+    }
+
     setDraftProdukList((prev) => {
       const existingIndex = prev.findIndex((p) => p.kode_produk === prod.kode_produk);
       if (existingIndex > -1) {
+        const currentQty = prev[existingIndex].qty;
+        if (currentQty + 1 > availStock) {
+          showWarning(toast, `Kuantitas "${prod.nama}" tidak boleh melebihi stok yang tersedia (${availStock} ${prod.satuan || 'pcs'})!`);
+          return prev;
+        }
         return prev.map((p, idx) =>
           idx === existingIndex ? { ...p, qty: p.qty + 1 } : p
         );
@@ -639,6 +664,7 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
           nama: prod.nama,
           harga_jual: prod.harga_jual,
           satuan: prod.satuan || 'pcs',
+          stok_tersedia: prod.stok_tersedia,
           qty: 1,
           foto: prod.foto || null,
           is_promo: Boolean(prod.is_promo),
@@ -654,11 +680,18 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
   };
 
   const handleDraftUpdateQty = (kode_produk: string, delta: number) => {
+    const option = produkOptions.find((p) => p.kode_produk === kode_produk);
+    const availStock = option?.stok_tersedia ?? 999999;
+
     setDraftProdukList((prev) =>
       prev
         .map((p) => {
           if (p.kode_produk === kode_produk) {
             const newQty = p.qty + delta;
+            if (delta > 0 && newQty > availStock) {
+              showWarning(toast, `Maksimal stok tersedia adalah ${availStock} ${p.satuan || 'pcs'}`);
+              return p;
+            }
             return newQty > 0 ? { ...p, qty: newQty } : null;
           }
           return p;
@@ -1543,29 +1576,49 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
                               {prod.nama}
                             </div>
 
-                            {/* Baris 2: SKU & Kategori */}
-                            <div className="flex align-items-center justify-content-between gap-1 mt-1">
+                            {/* Baris 2: SKU, Kategori & Stok */}
+                            <div className="flex align-items-center justify-content-between gap-1 mt-1 flex-wrap">
                               <span style={{ fontSize: '11px', color: '#94a3b8' }}>
                                 {prod.kode_produk}
                               </span>
-                              {prod.nama_kategori && (
-                                <span
-                                  style={{
-                                    backgroundColor: '#ffffff',
-                                    border: `1px solid ${badgeStyle.borderColor}`,
-                                    color: badgeStyle.color,
-                                    fontSize: '9.5px',
-                                    fontWeight: 600,
-                                    padding: '1px 5px',
-                                    borderRadius: '4px',
-                                    whiteSpace: 'nowrap',
-                                    flexShrink: 0,
-                                    lineHeight: 1.2,
-                                  }}
-                                >
-                                  {prod.nama_kategori}
-                                </span>
-                              )}
+                              <div className="flex align-items-center gap-1">
+                                {prod.stok_tersedia !== undefined && (
+                                  <span
+                                    style={{
+                                      backgroundColor: prod.stok_tersedia <= 0 ? '#fef2f2' : '#f0fdf4',
+                                      border: prod.stok_tersedia <= 0 ? '1px solid #fecaca' : '1px solid #bbf7d0',
+                                      color: prod.stok_tersedia <= 0 ? '#dc2626' : '#15803d',
+                                      fontSize: '9.5px',
+                                      fontWeight: 700,
+                                      padding: '1px 5px',
+                                      borderRadius: '4px',
+                                      whiteSpace: 'nowrap',
+                                      flexShrink: 0,
+                                      lineHeight: 1.2,
+                                    }}
+                                  >
+                                    {prod.stok_tersedia <= 0 ? 'Habis' : `Stok: ${prod.stok_tersedia}`}
+                                  </span>
+                                )}
+                                {prod.nama_kategori && (
+                                  <span
+                                    style={{
+                                      backgroundColor: '#ffffff',
+                                      border: `1px solid ${badgeStyle.borderColor}`,
+                                      color: badgeStyle.color,
+                                      fontSize: '9.5px',
+                                      fontWeight: 600,
+                                      padding: '1px 5px',
+                                      borderRadius: '4px',
+                                      whiteSpace: 'nowrap',
+                                      flexShrink: 0,
+                                      lineHeight: 1.2,
+                                    }}
+                                  >
+                                    {prod.nama_kategori}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
 
@@ -1589,21 +1642,26 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
 
                             <button
                               type="button"
+                              disabled={prod.stok_tersedia !== undefined && prod.stok_tersedia <= 0}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleDraftAddProduk(prod);
                               }}
-                              className="flex align-items-center justify-content-center cursor-pointer transition-transform active:scale-95 flex-shrink-0"
+                              className={`flex align-items-center justify-content-center transition-transform flex-shrink-0 ${
+                                prod.stok_tersedia !== undefined && prod.stok_tersedia <= 0
+                                  ? 'cursor-not-allowed opacity-40'
+                                  : 'cursor-pointer active:scale-95'
+                              }`}
                               style={{
                                 width: '26px',
                                 height: '26px',
                                 borderRadius: '50%',
-                                backgroundColor: '#0C8F62',
+                                backgroundColor: prod.stok_tersedia !== undefined && prod.stok_tersedia <= 0 ? '#94a3b8' : '#0C8F62',
                                 border: 'none',
                                 color: '#ffffff',
-                                boxShadow: '0 1px 3px rgba(12,143,98,0.3)',
+                                boxShadow: prod.stok_tersedia !== undefined && prod.stok_tersedia <= 0 ? 'none' : '0 1px 3px rgba(12,143,98,0.3)',
                               }}
-                              title="Tambah ke produk terpilih"
+                              title={prod.stok_tersedia !== undefined && prod.stok_tersedia <= 0 ? 'Stok produk habis' : 'Tambah ke produk terpilih'}
                             >
                               <Plus size={14} strokeWidth={2.5} />
                             </button>

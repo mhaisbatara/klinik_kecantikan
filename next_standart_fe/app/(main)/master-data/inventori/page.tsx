@@ -83,6 +83,25 @@ const Page = () => {
     const [loadingProductMutasi, setLoadingProductMutasi] = useState<boolean>(false);
     const [dialogProductMutasiVisible, setDialogProductMutasiVisible] = useState<boolean>(false);
 
+    // Expandable Rows state
+    const [expandedRows, setExpandedRows] = useState<any>(null);
+
+    // ==========================================
+    // MODAL DIALOG: VERIFIKASI / EDIT BATCH
+    // ==========================================
+    const [dialogEditBatchVisible, setDialogEditBatchVisible] = useState<boolean>(false);
+    const [formEditBatch, setFormEditBatch] = useState<any>({
+        kode_batch: '',
+        kode_produk: '',
+        nama_produk: '',
+        no_batch: '',
+        tanggal_kadaluarsa: '',
+        catatan: '',
+        status: 'aktif',
+        is_legacy_estimate: 0,
+    });
+    const [savingEditBatch, setSavingEditBatch] = useState<boolean>(false);
+
     // ==========================================
     // MODAL DIALOG: BELI PRODUK BARU
     // ==========================================
@@ -223,6 +242,46 @@ const Page = () => {
     }, [activeIndex, pagePo, rowsPo, keywordPo, pageMutasi, rowsMutasi, keywordMutasi, filterJenisMutasi]);
 
     // ==========================================
+    // HANDLERS: VERIFIKASI / EDIT BATCH
+    // ==========================================
+    const handleOpenEditBatch = (batch: any, produk: any) => {
+        setFormEditBatch({
+            kode_batch: batch.kode_batch,
+            kode_produk: batch.kode_produk || produk.kode_produk,
+            nama_produk: produk.nama || batch.nama_produk,
+            no_batch: batch.no_batch || '',
+            tanggal_kadaluarsa: batch.tanggal_kadaluarsa ? String(batch.tanggal_kadaluarsa).slice(0, 10) : '',
+            catatan: batch.catatan || '',
+            status: batch.status || 'aktif',
+            is_legacy_estimate: batch.is_legacy_estimate || 0,
+        });
+        setDialogEditBatchVisible(true);
+    };
+
+    const handleSaveEditBatch = async () => {
+        if (!formEditBatch.no_batch?.trim()) {
+            showError(toast, 'Nomor Batch wajib diisi!');
+            return;
+        }
+        if (!formEditBatch.tanggal_kadaluarsa) {
+            showError(toast, 'Tanggal Kadaluarsa wajib diisi!');
+            return;
+        }
+
+        setSavingEditBatch(true);
+        try {
+            const res = await postData('/master/inventori-batch-update', formEditBatch);
+            showSuccess(toast, res.data.message || 'Data batch berhasil diverifikasi & diperbarui!');
+            setDialogEditBatchVisible(false);
+            loadInventoriData();
+        } catch (error: any) {
+            showError(toast, error?.response?.data?.message || 'Gagal memperbarui batch');
+        } finally {
+            setSavingEditBatch(false);
+        }
+    };
+
+    // ==========================================
     // HANDLERS: BELI PRODUK BARU
     // ==========================================
     const handleOpenBeliBaru = () => {
@@ -267,6 +326,14 @@ const Page = () => {
             showError(toast, 'Jumlah pembelian minimal 1 unit!');
             return;
         }
+        if (!formBeliBaru.no_batch?.trim()) {
+            showError(toast, 'Nomor Batch pengadaan wajib diisi untuk pelacakan FEFO!');
+            return;
+        }
+        if (!formBeliBaru.tanggal_kadaluarsa) {
+            showError(toast, 'Tanggal Kadaluarsa batch wajib diisi!');
+            return;
+        }
 
         setSavingBeliBaru(true);
         try {
@@ -293,8 +360,8 @@ const Page = () => {
                 kode_produk: targetRow.kode_produk,
                 qty_masuk: 1,
                 harga_beli: Number(targetRow.harga_beli) || 0,
-                no_batch: targetRow.no_batch || '',
-                tanggal_kadaluarsa: targetRow.tanggal_kadaluarsa ? String(targetRow.tanggal_kadaluarsa).slice(0, 10) : '',
+                no_batch: '',
+                tanggal_kadaluarsa: '',
                 update_harga_beli_master: true,
                 tanggal: new Date().toISOString().slice(0, 10),
             });
@@ -306,8 +373,8 @@ const Page = () => {
                 kode_produk: first?.kode_produk || '',
                 qty_masuk: 1,
                 harga_beli: Number(first?.harga_beli) || 0,
-                no_batch: first?.no_batch || '',
-                tanggal_kadaluarsa: first?.tanggal_kadaluarsa ? String(first.tanggal_kadaluarsa).slice(0, 10) : '',
+                no_batch: '',
+                tanggal_kadaluarsa: '',
                 update_harga_beli_master: true,
                 tanggal: new Date().toISOString().slice(0, 10),
             });
@@ -323,8 +390,8 @@ const Page = () => {
             kode_produk: kodeProduk,
             kode_supplier: found?.kode_supplier || prev.kode_supplier || supplierList[0]?.value || '',
             harga_beli: Number(found?.harga_beli) || 0,
-            no_batch: found?.no_batch || '',
-            tanggal_kadaluarsa: found?.tanggal_kadaluarsa ? String(found.tanggal_kadaluarsa).slice(0, 10) : '',
+            no_batch: '',
+            tanggal_kadaluarsa: '',
         }));
     };
 
@@ -339,6 +406,14 @@ const Page = () => {
         }
         if (Number(formRestock.qty_masuk) < 1) {
             showError(toast, 'Jumlah unit restock minimal 1!');
+            return;
+        }
+        if (!formRestock.no_batch?.trim()) {
+            showError(toast, 'Nomor Batch restock baru wajib diisi untuk pelacakan FEFO!');
+            return;
+        }
+        if (!formRestock.tanggal_kadaluarsa) {
+            showError(toast, 'Tanggal Kadaluarsa batch restock wajib diisi!');
             return;
         }
 
@@ -404,20 +479,190 @@ const Page = () => {
         }
     };
 
-    const formatDateTimeIndo = (dStr: string) => {
-        if (!dStr) return '-';
-        try {
-            const d = new Date(dStr);
-            return d.toLocaleDateString('id-ID', {
-                day: '2-digit',
-                month: 'short',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-            });
-        } catch (_) {
-            return dStr;
-        }
+    const rowExpansionTemplate = (data: any) => {
+        const batches = data.batches || [];
+        const totalStokBatch = batches.reduce((acc: number, b: any) => acc + (Number(b.stok_sisa) || 0), 0);
+        const totalAsetBatch = batches.reduce((acc: number, b: any) => acc + (Number(b.nilai_aset_batch) || 0), 0);
+
+        return (
+            <div className="p-3 surface-50 border-round-xl m-2 border-1 border-purple-200 shadow-1">
+                {/* SUB-TABLE HEADER */}
+                <div className="flex flex-wrap align-items-center justify-content-between gap-2 mb-3 pb-2 border-bottom-1 border-200">
+                    <div className="flex align-items-center gap-2 flex-wrap">
+                        <span className="w-2rem h-2rem border-round-lg bg-purple-100 text-purple-700 flex align-items-center justify-content-center font-bold">
+                            <i className="pi pi-box text-sm" />
+                        </span>
+                        <div>
+                            <span className="font-bold text-900 text-sm mr-2">
+                                Rincian Batch Fisik: {data.nama}
+                            </span>
+                            <span className="font-mono text-xs text-purple-700 bg-purple-50 px-2 py-0.5 border-round font-semibold">
+                                {data.kode_produk}
+                            </span>
+                        </div>
+                        <Tag value={`${batches.length} Batch`} severity="info" className="text-xs py-0 px-2" />
+                    </div>
+                    <div className="flex align-items-center gap-3 text-xs">
+                        <span className="text-700 font-semibold">
+                            Total Stok: <strong className="text-green-700">{totalStokBatch} {data.satuan}</strong>
+                        </span>
+                        <span className="text-700 font-semibold">
+                            Total Valuasi: <strong className="text-900">{formatRupiah(totalAsetBatch)}</strong>
+                        </span>
+                        <span className="text-500 font-medium italic hidden md:inline">
+                            *Urutan FEFO (First Expired First Out)
+                        </span>
+                    </div>
+                </div>
+
+                {batches.length === 0 ? (
+                    <div className="p-4 text-center text-500 text-xs surface-card border-round-lg border-1 border-200">
+                        <i className="pi pi-inbox text-2xl text-400 block mb-2" />
+                        Belum ada data batch fisik untuk produk ini.
+                    </div>
+                ) : (
+                    <DataTable
+                        value={batches}
+                        size="small"
+                        className="p-datatable-sm surface-card border-round-lg border-1 border-200 overflow-hidden"
+                        responsiveLayout="scroll"
+                    >
+                        <Column
+                            header="No. Batch"
+                            field="no_batch"
+                            body={(b) => (
+                                <div className="flex flex-column gap-1">
+                                    <span className="font-mono font-bold text-xs text-900 bg-gray-100 px-2 py-0.5 border-round w-max">
+                                        {b.no_batch}
+                                    </span>
+                                    <span className="text-[11px] text-400 font-mono">
+                                        {b.kode_batch}
+                                    </span>
+                                </div>
+                            )}
+                            style={{ minWidth: '11rem' }}
+                        />
+                        <Column
+                            header="Tanggal Kadaluarsa"
+                            body={(b) => {
+                                let badgeBg = 'bg-green-100 text-green-800 border-green-300';
+                                if (b.status_expired === 'kadaluarsa') badgeBg = 'bg-red-500 text-white font-bold';
+                                else if (b.status_expired === 'kritis') badgeBg = 'bg-red-100 text-red-800 font-bold border-red-300';
+                                else if (b.status_expired === 'perhatian') badgeBg = 'bg-orange-100 text-orange-800 font-semibold border-orange-300';
+
+                                return (
+                                    <div className="flex flex-column gap-1">
+                                        <div className="flex align-items-center gap-1.5 flex-wrap">
+                                            <span className={`px-2 py-0.5 border-round text-xs font-semibold border-1 ${badgeBg}`}>
+                                                {b.tanggal_kadaluarsa ? formatDateIndo(b.tanggal_kadaluarsa) : '-'}
+                                            </span>
+                                            {b.sisa_hari !== null && (
+                                                <span
+                                                    className={`text-xs font-semibold ${
+                                                        b.sisa_hari < 0
+                                                            ? 'text-red-600'
+                                                            : b.sisa_hari <= 30
+                                                            ? 'text-red-600 font-bold'
+                                                            : b.sisa_hari <= 90
+                                                            ? 'text-orange-600'
+                                                            : 'text-green-600'
+                                                    }`}
+                                                >
+                                                    {b.sisa_hari < 0
+                                                        ? `(Lewat ${Math.abs(b.sisa_hari)} hr)`
+                                                        : `(${b.sisa_hari} hr)`}
+                                                </span>
+                                            )}
+                                        </div>
+                                        {b.is_legacy_estimate === 1 && (
+                                            <Tag
+                                                value="⚠️ Perkiraan Default (+1 Thn)"
+                                                severity="warning"
+                                                className="text-[10px] py-0 px-1 border-round w-max cursor-pointer"
+                                                title="Klik verifikasi untuk mengubah ke tanggal kemasan asli"
+                                                onClick={() => handleOpenEditBatch(b, data)}
+                                            />
+                                        )}
+                                    </div>
+                                );
+                            }}
+                            style={{ minWidth: '15rem' }}
+                        />
+                        <Column
+                            header="Kuantitas Stok"
+                            body={(b) => (
+                                <div className="text-xs">
+                                    <div className="flex align-items-center gap-1">
+                                        <span className="text-500">Sisa:</span>
+                                        <strong className={b.stok_sisa > 0 ? 'text-green-700 text-sm font-bold' : 'text-500'}>
+                                            {b.stok_sisa} {data.satuan}
+                                        </strong>
+                                    </div>
+                                    <div className="text-500 text-[11px]">
+                                        Masuk: {b.stok_masuk} {data.satuan}
+                                    </div>
+                                </div>
+                            )}
+                            style={{ minWidth: '9rem' }}
+                        />
+                        <Column
+                            header="Harga & Nilai Aset"
+                            body={(b) => (
+                                <div className="text-xs">
+                                    <div className="font-bold text-900">
+                                        {formatRupiah(b.nilai_aset_batch)}
+                                    </div>
+                                    <div className="text-500 text-[11px]">
+                                        @ {formatRupiah(b.harga_beli_satuan)}
+                                    </div>
+                                </div>
+                            )}
+                            style={{ minWidth: '10rem' }}
+                        />
+                        <Column
+                            header="Supplier / PO"
+                            body={(b) => (
+                                <div className="text-xs">
+                                    <span className="font-medium text-800 block">{b.nama_supplier || '-'}</span>
+                                    {b.kode_po && <span className="font-mono text-500 text-[11px]">{b.kode_po}</span>}
+                                </div>
+                            )}
+                            style={{ minWidth: '11rem' }}
+                        />
+                        <Column
+                            field="status"
+                            header="Status"
+                            align="center"
+                            body={(b) => {
+                                let sev: 'success' | 'warning' | 'danger' | 'info' = 'success';
+                                if (b.status === 'habis') sev = 'info';
+                                else if (b.status === 'kadaluarsa') sev = 'danger';
+                                return <Tag value={b.status.toUpperCase()} severity={sev} className="text-xs py-0 px-2" />;
+                            }}
+                            style={{ minWidth: '7rem' }}
+                        />
+                        <Column
+                            header="Aksi"
+                            align="center"
+                            body={(b) => (
+                                <Button
+                                    icon="pi pi-pencil"
+                                    size="small"
+                                    outlined
+                                    severity={b.is_legacy_estimate === 1 ? 'warning' : 'info'}
+                                    label={b.is_legacy_estimate === 1 ? 'Verifikasi' : 'Edit'}
+                                    className="p-button-xs text-xs px-2.5 py-1 border-round-md font-bold"
+                                    onClick={() => handleOpenEditBatch(b, data)}
+                                    tooltip={b.is_legacy_estimate === 1 ? 'Verifikasi nomor batch & tanggal asli dari kemasan fisik' : 'Ubah data batch'}
+                                    tooltipOptions={{ position: 'left' }}
+                                />
+                            )}
+                            style={{ minWidth: '8rem' }}
+                        />
+                    </DataTable>
+                )}
+            </div>
+        );
     };
 
     return (
@@ -579,6 +824,9 @@ const Page = () => {
                             }}
                             selection={selectedRows}
                             onSelectionChange={(e) => setSelectedRows(e.value as any[])}
+                            expandedRows={expandedRows}
+                            onRowToggle={(e) => setExpandedRows(e.data)}
+                            rowExpansionTemplate={rowExpansionTemplate}
                             dataKey="kode_produk"
                             className="p-datatable-sm"
                             emptyMessage="Tidak ada data stok produk yang sesuai filter."
@@ -659,72 +907,85 @@ const Page = () => {
                                             { label: 'Stok Menipis (≤ Min)', color: '#f97316' },
                                             { label: 'Stok Habis (0)', color: '#ef4444' }
                                         ]}
-                                    />
+                                    >
+                                        <span className="ml-auto flex align-items-center gap-1 text-purple-700 font-semibold text-xs">
+                                            <i className="pi pi-chevron-circle-right text-xs" />
+                                            Klik tombol panah di kiri baris untuk melihat rincian batch & tanggal kadaluarsa
+                                        </span>
+                                    </KeteranganStatus>
                                 </div>
                             }
                         >
+                            <Column expander style={{ width: '3rem' }} />
                             <Column selectionMode="multiple" headerStyle={{ width: '3rem' }} />
 
-                            {/* Status Indicator Square */}
+                            {/* 1. Status Indicator */}
                             <Column
-                                header="Status"
-                                headerStyle={{ width: '4rem', textAlign: 'center' }}
+                                header=""
+                                headerStyle={{ width: '3rem', textAlign: 'center' }}
                                 bodyStyle={{ textAlign: 'center' }}
                                 body={(r) => {
                                     let dotColor = '#22c55e';
                                     let dotTitle = 'Stok Aman';
                                     if (r.status_stok === 'habis') {
                                         dotColor = '#ef4444';
-                                        dotTitle = 'Stok Habis';
+                                        dotTitle = 'Stok Habis (0 Unit)';
                                     } else if (r.status_stok === 'menipis') {
                                         dotColor = '#f97316';
-                                        dotTitle = 'Stok Menipis';
+                                        dotTitle = 'Stok Menipis (≤ Buffer Min)';
                                     }
                                     return (
-                                        <div className="flex justify-content-center">
+                                        <div className="flex justify-content-center" title={dotTitle}>
                                             <span
                                                 style={{
                                                     display: 'inline-block',
-                                                    width: '14px',
-                                                    height: '14px',
+                                                    width: '13px',
+                                                    height: '13px',
                                                     borderRadius: '3px',
                                                     backgroundColor: dotColor,
                                                     boxShadow: `0 1px 3px ${dotColor}66`,
                                                 }}
-                                                title={dotTitle}
                                             />
                                         </div>
                                     );
                                 }}
                             />
 
+                            {/* 2. Produk (Nama, Kode, Kategori) */}
                             <Column
-                                field="kode_produk"
-                                header="Kode"
+                                header="Produk & Kategori"
                                 sortable
-                                headerStyle={{ fontWeight: 'bold', width: '7rem' }}
-                                body={(r) => (
-                                    <span className="font-mono font-bold text-purple-700 bg-purple-50 px-2 py-1 border-round text-xs">
-                                        {r.kode_produk}
-                                    </span>
-                                )}
-                            />
-                            <Column
                                 field="nama"
-                                header="Nama Produk"
-                                sortable
-                                headerStyle={{ fontWeight: 'bold' }}
+                                headerStyle={{ minWidth: '14rem', fontWeight: 'bold' }}
                                 body={(r) => (
-                                    <div>
-                                        <span className="font-bold text-900 text-sm block">{r.nama}</span>
-                                        <span className="text-xs text-500">{r.nama_kategori || 'Tanpa Kategori'}</span>
+                                    <div className="flex flex-column gap-1">
+                                        <span
+                                            className="font-bold text-900 text-sm hover:text-purple-700 cursor-pointer"
+                                            onClick={() => {
+                                                const newExpanded = { ...expandedRows, [r.kode_produk]: !expandedRows[r.kode_produk] };
+                                                setExpandedRows(newExpanded);
+                                            }}
+                                            title="Klik untuk melihat rincian batch"
+                                        >
+                                            {r.nama}
+                                        </span>
+                                        <div className="flex align-items-center gap-1.5 flex-wrap">
+                                            <span className="font-mono font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 border-round text-[11px]">
+                                                {r.kode_produk}
+                                            </span>
+                                            <span className="text-xs text-500">
+                                                {r.nama_kategori || 'Tanpa Kategori'}
+                                            </span>
+                                        </div>
                                     </div>
                                 )}
                             />
 
+                            {/* 3. Supplier Rekanan */}
                             <Column
                                 field="nama_supplier"
                                 header="Supplier Rekanan"
+                                headerStyle={{ minWidth: '10rem', fontWeight: 'bold' }}
                                 body={(r) =>
                                     r.nama_supplier ? (
                                         <div>
@@ -737,24 +998,22 @@ const Page = () => {
                                 }
                             />
 
-                            <Column field="satuan" header="Satuan" className="text-xs" />
+                            {/* 4. Harga (Jual / Beli) */}
                             <Column
-                                field="harga_beli"
-                                header="Harga Beli"
-                                body={(r) => <span className="text-xs font-medium text-700">{formatRupiah(r.harga_beli)}</span>}
-                            />
-                            <Column
-                                field="harga_jual"
-                                header="Harga Jual"
-                                body={(r) => <span className="text-xs font-semibold text-green-700">{formatRupiah(r.harga_jual)}</span>}
+                                header="Harga (Jual / Beli)"
+                                headerStyle={{ minWidth: '9.5rem', fontWeight: 'bold' }}
+                                body={(r) => (
+                                    <div className="flex flex-column">
+                                        <span className="text-sm font-bold text-green-700">{formatRupiah(r.harga_jual)}</span>
+                                        <span className="text-xs text-500">Beli: {formatRupiah(r.harga_beli)}</span>
+                                    </div>
+                                )}
                             />
 
-                            {/* Stok Tersedia Badge */}
+                            {/* 5. Stok Fisik & Buffer Minimum */}
                             <Column
-                                field="stok_tersedia"
-                                header="Stok Tersedia"
-                                headerStyle={{ textAlign: 'center' }}
-                                bodyStyle={{ textAlign: 'center' }}
+                                header="Stok Fisik"
+                                headerStyle={{ minWidth: '8.5rem', fontWeight: 'bold' }}
                                 body={(r) => {
                                     let badgeBg = 'bg-green-100 text-green-800 border-green-300';
                                     if (r.status_stok === 'habis') {
@@ -763,40 +1022,94 @@ const Page = () => {
                                         badgeBg = 'bg-orange-100 text-orange-900 border-orange-300';
                                     }
                                     return (
-                                        <span
-                                            className={`px-2.5 py-1 border-round-md text-xs font-bold inline-flex align-items-center gap-1 ${badgeBg}`}
-                                        >
-                                            {r.status_stok === 'habis' && <i className="pi pi-times-circle text-xs" />}
-                                            {r.status_stok === 'menipis' && <i className="pi pi-exclamation-triangle text-xs" />}
-                                            {r.stok_tersedia} {r.satuan}
-                                        </span>
+                                        <div className="flex flex-column gap-1">
+                                            <span
+                                                className={`px-2 py-0.5 border-round-md text-xs font-bold inline-flex align-items-center gap-1 w-max ${badgeBg}`}
+                                            >
+                                                {r.status_stok === 'habis' && <i className="pi pi-times-circle text-xs" />}
+                                                {r.status_stok === 'menipis' && <i className="pi pi-exclamation-triangle text-xs" />}
+                                                {r.stok_tersedia} {r.satuan}
+                                            </span>
+                                            <span className="text-[11px] text-500 font-medium">
+                                                Buffer Min: {r.stok_minimum} {r.satuan}
+                                            </span>
+                                        </div>
                                     );
                                 }}
                             />
 
+                            {/* 6. Batch Terdekat & Kadaluarsa (FEFO) */}
                             <Column
-                                field="stok_minimum"
-                                header="Buffer Min."
-                                headerStyle={{ textAlign: 'center' }}
-                                bodyStyle={{ textAlign: 'center' }}
-                                body={(r) => <Tag value={`${r.stok_minimum} ${r.satuan}`} severity="warning" className="text-xs" />}
+                                header="Batch Terdekat (FEFO)"
+                                headerStyle={{ minWidth: '13rem', fontWeight: 'bold' }}
+                                body={(r) => {
+                                    const batches = r.batches || [];
+                                    const activeBatches = batches.filter((b: any) => b.status === 'aktif' && b.stok_sisa > 0);
+                                    const nearest = activeBatches[0] || batches[0];
+
+                                    if (!nearest) {
+                                        return <span className="text-xs text-400 italic">Belum ada batch</span>;
+                                    }
+
+                                    let badgeColor = 'bg-green-100 text-green-800 border-green-300';
+                                    if (nearest.status_expired === 'kadaluarsa') badgeColor = 'bg-red-500 text-white font-bold';
+                                    else if (nearest.status_expired === 'kritis') badgeColor = 'bg-red-100 text-red-800 font-bold border-red-300';
+                                    else if (nearest.status_expired === 'perhatian') badgeColor = 'bg-orange-100 text-orange-800 font-semibold border-orange-300';
+
+                                    return (
+                                        <div className="flex flex-column gap-1">
+                                            <div className="flex align-items-center gap-1.5 flex-wrap">
+                                                <span className="font-mono font-bold text-xs text-900 bg-gray-100 px-1.5 py-0.5 border-round">
+                                                    {nearest.no_batch}
+                                                </span>
+                                                <span className={`px-2 py-0.5 border-round text-xs border-1 ${badgeColor}`} title="Tanggal Kadaluarsa Terdekat">
+                                                    {nearest.tanggal_kadaluarsa ? formatDateIndo(nearest.tanggal_kadaluarsa) : '-'}
+                                                </span>
+                                            </div>
+                                            <div className="flex align-items-center gap-1 flex-wrap">
+                                                {activeBatches.length > 1 && (
+                                                    <Tag
+                                                        value={`+${activeBatches.length - 1} Batch Lain`}
+                                                        severity="info"
+                                                        className="text-xs cursor-pointer py-0 px-1.5"
+                                                        onClick={() => {
+                                                            const newExpanded = { ...expandedRows, [r.kode_produk]: true };
+                                                            setExpandedRows(newExpanded);
+                                                        }}
+                                                        title="Klik untuk expand & lihat semua batch produk ini"
+                                                    />
+                                                )}
+                                                {r.has_legacy_estimate && (
+                                                    <Tag
+                                                        value="⚠️ Verifikasi Tanggal"
+                                                        severity="warning"
+                                                        className="text-xs cursor-pointer py-0 px-1.5"
+                                                        onClick={() => handleOpenEditBatch(nearest, r)}
+                                                        title="Batch awal warisan sistem. Klik untuk memverifikasi nomor batch dan tanggal kadaluarsa sebenarnya."
+                                                    />
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                }}
                             />
 
+                            {/* 7. Nilai Aset */}
                             <Column
                                 field="nilai_aset"
                                 header="Nilai Aset"
-                                headerStyle={{ textAlign: 'right' }}
+                                headerStyle={{ textAlign: 'right', minWidth: '8.5rem', fontWeight: 'bold' }}
                                 bodyStyle={{ textAlign: 'right' }}
                                 body={(r) => (
                                     <span className="text-xs font-bold text-900">{formatRupiah(r.nilai_aset)}</span>
                                 )}
                             />
 
-                            {/* Aksi Restock Cepat & Mutasi */}
+                            {/* 8. Aksi Restock Cepat & Mutasi */}
                             <Column
                                 header="Aksi"
                                 align="center"
-                                headerStyle={{ width: '8rem', textAlign: 'center' }}
+                                headerStyle={{ width: '7rem', textAlign: 'center', fontWeight: 'bold' }}
                                 body={(r) => (
                                     <div className="flex align-items-center justify-content-center gap-1">
                                         <Button
@@ -1081,9 +1394,12 @@ const Page = () => {
                 onHide={() => setDialogBeliBaruVisible(false)}
             >
                 <div className="flex flex-column gap-3 pt-2">
-                    <div className="p-2 border-round surface-100 text-xs text-color-secondary flex align-items-center gap-2">
-                        <i className="pi pi-info-circle text-primary text-sm" />
-                        <span>Form ini akan menambahkan produk baru ke katalog dan otomatis mencatat pembelian stok awal ke supplier.</span>
+                    <div className="p-3 border-round-lg bg-purple-50 border-1 border-purple-200 text-xs text-purple-900 flex align-items-start gap-2">
+                        <i className="pi pi-info-circle text-purple-700 text-base mt-0.5" />
+                        <div>
+                            <span className="font-bold block mb-0.5">Sistem Multi-Batch & FEFO:</span>
+                            Produk baru yang didaftarkan akan langsung dibuatkan batch fisik pertamanya beserta nomor batch &amp; tanggal kadaluarsa untuk pelacakan stok.
+                        </div>
                     </div>
 
                     {/* Pilih Supplier */}
@@ -1194,16 +1510,16 @@ const Page = () => {
                     {/* No. Batch & Tanggal Kadaluarsa */}
                     <div className="grid">
                         <div className="col-12 md:col-6">
-                            <label className="block text-sm font-semibold mb-1">No. Batch</label>
+                            <label className="block text-sm font-semibold mb-1">No. Batch Pabrik / Kemasan *</label>
                             <InputText
                                 value={formBeliBaru.no_batch}
                                 onChange={(e) => setFormBeliBaru({ ...formBeliBaru, no_batch: e.target.value })}
-                                placeholder="misal: BTH-2026-001"
+                                placeholder="Contoh: BTH-2026-001 / LOT-982"
                                 className="w-full text-sm"
                             />
                         </div>
                         <div className="col-12 md:col-6">
-                            <label className="block text-sm font-semibold mb-1">Tanggal Kadaluarsa</label>
+                            <label className="block text-sm font-semibold mb-1">Tanggal Kadaluarsa (Expired Date) *</label>
                             <InputText
                                 type="date"
                                 value={formBeliBaru.tanggal_kadaluarsa}
@@ -1240,23 +1556,31 @@ const Page = () => {
             </Dialog>
 
             {/* =========================================================
-                MODAL 2: RESTOCK PRODUK LAMA DARI SUPPLIER
+                MODAL 2: RESTOCK PRODUK LAMA DARI SUPPLIER (BATCH BARU)
                 ========================================================= */}
             <Dialog
-                header="Restock Stok Produk dari Supplier"
+                header="Restock Stok Produk dari Supplier (Penerimaan Batch Baru)"
                 visible={dialogRestockVisible}
-                style={{ width: '560px' }}
+                style={{ width: '580px' }}
                 modal
                 onHide={() => setDialogRestockVisible(false)}
             >
                 <div className="flex flex-column gap-3 pt-2">
+                    <div className="p-3 border-round-lg bg-blue-50 border-1 border-blue-200 text-xs text-blue-900 flex align-items-start gap-2">
+                        <i className="pi pi-info-circle text-blue-700 text-base mt-0.5" />
+                        <div>
+                            <span className="font-bold block mb-0.5">Pencatatan Multi-Batch:</span>
+                            Setiap penerimaan restock akan membentuk batch baru dengan tanggal kadaluarsa masing-masing untuk mendukung sistem FEFO.
+                        </div>
+                    </div>
+
                     {/* Pilih Produk */}
                     <div>
                         <label className="block text-sm font-semibold mb-1">Pilih Produk *</label>
                         <Dropdown
                             value={formRestock.kode_produk}
                             options={(allProdukList.length > 0 ? allProdukList : dataProduk).map((p) => ({
-                                label: `${p.nama} (${p.kode_produk}) - Sisa: ${p.stok_tersedia} ${p.satuan}`,
+                                label: `${p.nama} (${p.kode_produk}) - Total Stok: ${p.stok_tersedia} ${p.satuan}`,
                                 value: p.kode_produk,
                             }))}
                             onChange={(e) => handleSelectRestockProdukChange(e.value)}
@@ -1270,19 +1594,19 @@ const Page = () => {
                     {selectedRestockProduk && (
                         <div className="surface-100 border-round-lg p-3 grid m-0 text-xs">
                             <div className="col-4">
-                                <span className="text-500 block">Sisa Stok Fisik:</span>
+                                <span className="text-500 block">Total Stok Saat Ini:</span>
                                 <span className="font-bold text-900 text-sm">
                                     {selectedRestockProduk.stok_tersedia} {selectedRestockProduk.satuan}
                                 </span>
                             </div>
                             <div className="col-4">
-                                <span className="text-500 block">Harga Beli Lama:</span>
+                                <span className="text-500 block">Harga Beli Terakhir:</span>
                                 <span className="font-bold text-700">
                                     {formatRupiah(selectedRestockProduk.harga_beli)}
                                 </span>
                             </div>
                             <div className="col-4">
-                                <span className="text-500 block">Supplier Default:</span>
+                                <span className="text-500 block">Supplier Terdaftar:</span>
                                 <span className="font-bold text-primary">
                                     {selectedRestockProduk.nama_supplier || 'Belum ada'}
                                 </span>
@@ -1306,7 +1630,7 @@ const Page = () => {
                     {/* Input Jumlah Restock & Harga Beli */}
                     <div className="grid">
                         <div className="col-6">
-                            <label className="block text-sm font-semibold mb-1">Jumlah Unit Restock *</label>
+                            <label className="block text-sm font-semibold mb-1">Jumlah Unit Restock (Qty) *</label>
                             <InputNumber
                                 value={formRestock.qty_masuk}
                                 onValueChange={(e) => setFormRestock({ ...formRestock, qty_masuk: e.value ?? 1 })}
@@ -1335,23 +1659,23 @@ const Page = () => {
                             onChange={(e) => setFormRestock({ ...formRestock, update_harga_beli_master: e.checked ?? true })}
                         />
                         <label htmlFor="chkUpdateHarga" className="text-xs text-700 cursor-pointer">
-                            Perbarui harga beli master produk dengan harga restock ini
+                            Perbarui harga beli acuan master produk dengan harga restock ini
                         </label>
                     </div>
 
                     {/* No. Batch & Tanggal Kadaluarsa Restock */}
                     <div className="grid">
                         <div className="col-12 md:col-6">
-                            <label className="block text-sm font-semibold mb-1">No. Batch (Opsional)</label>
+                            <label className="block text-sm font-semibold mb-1">No. Batch Baru dari Kemasan *</label>
                             <InputText
                                 value={formRestock.no_batch}
                                 onChange={(e) => setFormRestock({ ...formRestock, no_batch: e.target.value })}
-                                placeholder="misal: BTH-2026-002"
+                                placeholder="misal: LOT-2026-B02"
                                 className="w-full text-sm"
                             />
                         </div>
                         <div className="col-12 md:col-6">
-                            <label className="block text-sm font-semibold mb-1">Tanggal Kadaluarsa (Opsional)</label>
+                            <label className="block text-sm font-semibold mb-1">Tanggal Kadaluarsa Baru *</label>
                             <InputText
                                 type="date"
                                 value={formRestock.tanggal_kadaluarsa}
@@ -1375,7 +1699,7 @@ const Page = () => {
                     {/* Kalkulasi Restock */}
                     <div className="border-1 border-blue-200 bg-blue-50 border-round-lg p-3">
                         <div className="flex justify-content-between align-items-center mb-2">
-                            <span className="text-xs text-blue-700 font-bold uppercase">Stok Baru Setelah Restock</span>
+                            <span className="text-xs text-blue-700 font-bold uppercase">Total Stok Baru Setelah Restock</span>
                             <span className="text-base font-black text-blue-900">
                                 {(Number(selectedRestockProduk?.stok_tersedia) || 0) + (Number(formRestock.qty_masuk) || 0)}{' '}
                                 {selectedRestockProduk?.satuan || 'unit'}
@@ -1394,10 +1718,93 @@ const Page = () => {
                 <div className="flex justify-content-end gap-2 mt-4">
                     <Button label="Batal" icon="pi pi-times" text onClick={() => setDialogRestockVisible(false)} />
                     <Button
-                        label="Konfirmasi Restock"
+                        label="Konfirmasi Penerimaan Batch"
                         icon="pi pi-check"
                         loading={savingRestock}
                         onClick={handleSaveRestock}
+                        className="bg-primary border-none"
+                    />
+                </div>
+            </Dialog>
+
+            {/* =========================================================
+                MODAL 4: VERIFIKASI & EDIT BATCH FISIK
+                ========================================================= */}
+            <Dialog
+                header={`Verifikasi / Edit Batch Fisik - ${formEditBatch.nama_produk}`}
+                visible={dialogEditBatchVisible}
+                style={{ width: '500px' }}
+                modal
+                onHide={() => setDialogEditBatchVisible(false)}
+            >
+                <div className="flex flex-column gap-3 pt-2">
+                    {formEditBatch.is_legacy_estimate === 1 && (
+                        <div className="p-3 bg-amber-50 border-1 border-amber-300 border-round-lg flex align-items-start gap-2 text-xs text-amber-900">
+                            <i className="pi pi-exclamation-triangle text-amber-600 text-base mt-0.5" />
+                            <div>
+                                <span className="font-bold block">Batch Warisan Sistem:</span>
+                                Tanggal kadaluarsa batch ini sebelumnya diset default perkiraan (+1 tahun). Silakan periksa kemasan fisik produk dan masukkan nomor batch serta tanggal kadaluarsa yang sebenarnya.
+                            </div>
+                        </div>
+                    )}
+
+                    <div>
+                        <label className="block text-sm font-semibold mb-1">Kode Batch Sistem</label>
+                        <InputText value={formEditBatch.kode_batch} disabled className="w-full text-sm bg-100 font-mono" />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-semibold mb-1">Nomor Batch (dari Kemasan) *</label>
+                        <InputText
+                            value={formEditBatch.no_batch}
+                            onChange={(e) => setFormEditBatch({ ...formEditBatch, no_batch: e.target.value })}
+                            placeholder="Contoh: LOT-2026-X01"
+                            className="w-full text-sm font-mono"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-semibold mb-1">Tanggal Kadaluarsa (Expired Date) *</label>
+                        <InputText
+                            type="date"
+                            value={formEditBatch.tanggal_kadaluarsa}
+                            onChange={(e) => setFormEditBatch({ ...formEditBatch, tanggal_kadaluarsa: e.target.value })}
+                            className="w-full text-sm"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-semibold mb-1">Status Batch</label>
+                        <Dropdown
+                            value={formEditBatch.status}
+                            options={[
+                                { label: 'Aktif (Dapat Dijual / Prioritas FEFO)', value: 'aktif' },
+                                { label: 'Habis (Stok 0)', value: 'habis' },
+                                { label: 'Kadaluarsa (Karantina / Tidak Dijual)', value: 'kadaluarsa' },
+                            ]}
+                            onChange={(e) => setFormEditBatch({ ...formEditBatch, status: e.value })}
+                            className="w-full text-sm"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-semibold mb-1">Catatan Verifikasi</label>
+                        <InputText
+                            value={formEditBatch.catatan}
+                            onChange={(e) => setFormEditBatch({ ...formEditBatch, catatan: e.target.value })}
+                            placeholder="misal: Telah diverifikasi fisik oleh staf farmasi"
+                            className="w-full text-sm"
+                        />
+                    </div>
+                </div>
+
+                <div className="flex justify-content-end gap-2 mt-4">
+                    <Button label="Batal" icon="pi pi-times" text onClick={() => setDialogEditBatchVisible(false)} />
+                    <Button
+                        label="Simpan Verifikasi"
+                        icon="pi pi-check"
+                        loading={savingEditBatch}
+                        onClick={handleSaveEditBatch}
                         className="bg-primary border-none"
                     />
                 </div>

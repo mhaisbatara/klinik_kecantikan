@@ -533,8 +533,8 @@ const Page = () => {
 
                     {/* Status Column */}
                     <Column
-                        header="Status"
-                        headerStyle={{ width: '4rem', textAlign: 'center' }}
+                        header=""
+                        headerStyle={{ width: '3rem', textAlign: 'center' }}
                         bodyStyle={{ textAlign: 'center' }}
                         body={(r) => {
                             const sisa = r.sisa_hari !== undefined ? parseInt(r.sisa_hari, 10) : 0;

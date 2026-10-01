@@ -38,6 +38,7 @@ const handleProdukDropdown = async (req, res) => {
         "pr.foto",
         "pr.harga_jual",
         "pr.satuan",
+        "pr.stok_tersedia",
         "pr.kode_kategori_produk",
         "kp.nama as nama_kategori"
       )

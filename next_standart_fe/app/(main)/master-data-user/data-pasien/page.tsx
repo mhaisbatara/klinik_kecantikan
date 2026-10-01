@@ -408,8 +408,8 @@ export default function DataPasienPage() {
 
                     {/* Kolom Indikator Status */}
                     <Column
-                        header="Status"
-                        headerStyle={{ width: '4rem', textAlign: 'center' }}
+                        header=""
+                        headerStyle={{ width: '3rem', textAlign: 'center' }}
                         bodyStyle={{ textAlign: 'center' }}
                         body={(rowData) => {
                             const isAktif = rowData.status === 'aktif';

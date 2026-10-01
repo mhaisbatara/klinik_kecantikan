@@ -134,8 +134,11 @@ const AppMenu = () => {
 
     const userRole = (session?.user?.role || '').toLowerCase();
     const isOwnerOrManagerRole = userRole === 'owner' || userRole === 'manager';
+    const isSuperAdminUser = userRole === 'superadmin' || userRole === 'admin_pusat';
 
     const getRoleAllowedReports = () => {
+        if (isOwnerOrManagerRole || isSuperAdminUser) return LAPORAN_MENU_ITEMS;
+
         if (state.allowedPaths.size > 0) {
             const hasAnyTab = LAPORAN_MENU_ITEMS.some((it) =>
                 state.allowedPaths.has('/riwayat/rekam-medis?tab=' + it.id)
@@ -148,11 +151,9 @@ const AppMenu = () => {
             if (!state.allowedPaths.has('/riwayat/rekam-medis')) {
                 return [];
             }
-            // Jika memiliki /riwayat/rekam-medis tanpa query ?tab (data legacy), berikan akses sesuai role default atau semua jika owner/manager/superadmin
-            if (isOwnerOrManagerRole || userRole === 'superadmin') return LAPORAN_MENU_ITEMS;
+            return LAPORAN_MENU_ITEMS;
         }
 
-        if (isOwnerOrManagerRole || userRole === 'superadmin') return LAPORAN_MENU_ITEMS;
         if (userRole === 'dokter') {
             return LAPORAN_MENU_ITEMS.filter((it) => ['dokter', 'rekam_medis', 'pasien', 'kunjungan'].includes(it.id));
         }
@@ -262,147 +263,33 @@ const AppMenu = () => {
                     if (groupLabel === 'home' || groupLabel.includes('dashboard') || groupLabel === 'beranda') {
                         const currentRole = (session?.user?.role || '').toLowerCase();
                         const isSuperAdminRole = currentRole === 'superadmin';
-                        const isOwnerOrManager = currentRole === 'owner' || currentRole === 'manager';
 
-                        // Dashboard Utama (/dashboard)
-                        const canAccessDashboardUtama =
-                            isSuperAdminRole ||
-                            (userAllowedPaths.size > 0
-                                ? hasPathInAllowed('/dashboard', userAllowedPaths)
-                                : true);
-
-                        if (!canAccessDashboardUtama) {
-                            subItems = subItems.filter(
-                                (it) =>
-                                    it.to !== '/' &&
-                                    it.to !== '/dashboard' &&
-                                    (it.label || '').toLowerCase() !== 'dashboard' &&
-                                    (it.label || '').toLowerCase() !== 'dashboard utama'
-                            );
-                        }
-
-                        // Dashboard Ruangan (/pendaftaran-antrean/antrean)
-                        const canAccessDashboardRuangan =
-                            !isSuperAdminRole &&
-                            (userAllowedPaths.size > 0
-                                ? hasPathInAllowed('/pendaftaran-antrean/antrean', userAllowedPaths)
-                                : (isOwnerOrManager || ['beautician', 'dokter'].includes(currentRole)));
-
-                        if (!canAccessDashboardRuangan) {
-                            subItems = subItems.filter(
-                                (it) =>
-                                    it.to !== '/pendaftaran-antrean/antrean' &&
-                                    !(it.label || '').toLowerCase().includes('dashboard ruangan') &&
-                                    !(it.label || '').toLowerCase().includes('antrean ruangan')
-                            );
-                        } else {
-                            const dashboardRuanganItem: AppMenuItem = {
-                                label: 'Dashboard Ruangan',
-                                to: '/pendaftaran-antrean/antrean',
-                                icon: 'pi pi-fw pi-home',
-                            };
-                            const hasDashboardRuangan = subItems.some(
-                                (it) =>
-                                    it.to === '/pendaftaran-antrean/antrean' ||
-                                    (it.label || '').toLowerCase().includes('dashboard ruangan') ||
-                                    (it.label || '').toLowerCase().includes('antrean ruangan')
-                            );
-
-                            if (!hasDashboardRuangan) {
-                                const dashIdx = subItems.findIndex(
-                                    (it) => it.to === '/dashboard' || (it.label || '').toLowerCase() === 'dashboard'
-                                );
-                                if (dashIdx !== -1) {
-                                    subItems.splice(dashIdx + 1, 0, dashboardRuanganItem);
-                                } else {
-                                    subItems.push(dashboardRuanganItem);
+                        if (isSuperAdminRole) {
+                            subItems = [
+                                {
+                                    label: 'Dashboard',
+                                    to: '/dashboard',
+                                    icon: 'pi pi-fw pi-home',
                                 }
-                            } else {
-                                subItems = subItems.map((it) => {
-                                    if (
-                                        it.to === '/pendaftaran-antrean/antrean' ||
-                                        (it.label || '').toLowerCase().includes('dashboard ruangan') ||
-                                        (it.label || '').toLowerCase().includes('antrean ruangan')
-                                    ) {
-                                        return {
-                                            ...it,
-                                            label: 'Dashboard Ruangan',
-                                            to: '/pendaftaran-antrean/antrean',
-                                            icon: 'pi pi-fw pi-home',
-                                        };
-                                    }
-                                    return it;
-                                });
-                            }
-                        }
-
-                        // Dashboard Jadwal (Di bawah Dashboard Ruangan)
-                        const canAccessCekJadwal =
-                            !isSuperAdminRole &&
-                            (userAllowedPaths.size > 0
-                                ? hasPathInAllowed('/dashboard/jadwal-ruangan', userAllowedPaths)
-                                : (isOwnerOrManager || true));
-
-                        if (!canAccessCekJadwal) {
-                            subItems = subItems.filter(
-                                (it) =>
-                                    it.to !== '/dashboard/jadwal-ruangan' &&
-                                    !(it.label || '').toLowerCase().includes('cek jadwal') &&
-                                    !(it.label || '').toLowerCase().includes('jadwal ruangan') &&
-                                    !(it.label || '').toLowerCase().includes('dashboard jadwal')
-                            );
+                            ];
                         } else {
-                            const cekJadwalItem: AppMenuItem = {
-                                label: 'Dashboard Jadwal',
-                                to: '/dashboard/jadwal-ruangan',
-                                icon: 'pi pi-fw pi-home',
-                            };
-                            const hasCekJadwal = subItems.some(
-                                (it) =>
-                                    it.to === '/dashboard/jadwal-ruangan' ||
-                                    (it.label || '').toLowerCase().includes('cek jadwal') ||
-                                    (it.label || '').toLowerCase().includes('jadwal ruangan') ||
-                                    (it.label || '').toLowerCase().includes('dashboard jadwal') ||
-                                    (it.label || '').toLowerCase().includes('jadwal karyawan')
-                            );
-
-                            if (!hasCekJadwal) {
-                                const dashRuangIdx = subItems.findIndex(
-                                    (it) =>
-                                        it.to === '/pendaftaran-antrean/antrean' ||
-                                        (it.label || '').toLowerCase().includes('dashboard ruangan')
-                                );
-                                if (dashRuangIdx !== -1) {
-                                    subItems.splice(dashRuangIdx + 1, 0, cekJadwalItem);
-                                } else {
-                                    const dashIdx = subItems.findIndex(
-                                        (it) => it.to === '/dashboard' || (it.label || '').toLowerCase() === 'dashboard'
-                                    );
-                                    if (dashIdx !== -1) {
-                                        subItems.splice(dashIdx + 1, 0, cekJadwalItem);
-                                    } else {
-                                        subItems.push(cekJadwalItem);
-                                    }
+                            subItems = [
+                                {
+                                    label: 'Dashboard Utama',
+                                    to: '/dashboard',
+                                    icon: 'pi pi-fw pi-home',
+                                },
+                                {
+                                    label: 'Dashboard Ruangan',
+                                    to: '/pendaftaran-antrean/antrean',
+                                    icon: 'pi pi-fw pi-home',
+                                },
+                                {
+                                    label: 'Dashboard Jadwal',
+                                    to: '/dashboard/jadwal-ruangan',
+                                    icon: 'pi pi-fw pi-calendar',
                                 }
-                            } else {
-                                subItems = subItems.map((it) => {
-                                    if (
-                                        it.to === '/dashboard/jadwal-ruangan' ||
-                                        (it.label || '').toLowerCase().includes('cek jadwal') ||
-                                        (it.label || '').toLowerCase().includes('jadwal ruangan') ||
-                                        (it.label || '').toLowerCase().includes('dashboard jadwal') ||
-                                        (it.label || '').toLowerCase().includes('jadwal karyawan')
-                                    ) {
-                                        return {
-                                            ...it,
-                                            label: 'Dashboard Jadwal',
-                                            to: '/dashboard/jadwal-ruangan',
-                                            icon: 'pi pi-fw pi-home',
-                                        };
-                                    }
-                                    return it;
-                                });
-                            }
+                            ];
                         }
                     }
 
@@ -896,6 +783,7 @@ const AppMenu = () => {
 
                         // Hak Akses Operasional Berdasarkan Role & Permission Navigasi yang Diberikan
                         const hasAllowedPath = (target: string) => {
+                            if (isSuperAdminRole || isOwnerOrManager) return true;
                             if (state.allowedPaths.has(target)) return true;
                             for (const p of state.allowedPaths) {
                                 if (target.includes('?') && p.startsWith(target)) return true;
@@ -905,42 +793,39 @@ const AppMenu = () => {
                         };
 
                         const canAccessTindakan =
-                            !isSuperAdminRole &&
+                            isSuperAdminRole ||
+                            isOwnerOrManager ||
                             (state.allowedPaths.size > 0
                                 ? hasAllowedPath('/pendaftaran-antrean/antrean?type=layanan')
-                                : (isOwnerOrManager || ['dokter', 'beautician'].includes(currentRole)));
+                                : ['dokter', 'beautician'].includes(currentRole));
 
                         const canAccessKonsul =
-                            !isSuperAdminRole &&
+                            isSuperAdminRole ||
+                            isOwnerOrManager ||
                             (state.allowedPaths.size > 0
                                 ? hasAllowedPath('/pendaftaran-antrean/antrean?type=konsul')
-                                : (isOwnerOrManager || currentRole === 'dokter'));
+                                : currentRole === 'dokter');
 
-                        const canAccessJadwalKaryawan =
-                            !isSuperAdminRole &&
-                            (state.allowedPaths.size > 0
-                                ? hasAllowedPath('/pendaftaran-antrean/jadwal-karyawan')
-                                : (isOwnerOrManager || ['admin', 'beautician', 'dokter'].includes(currentRole)));
-
-                        const canAccessLayanan = canAccessTindakan || canAccessKonsul || canAccessJadwalKaryawan;
+                        const canAccessLayanan = canAccessTindakan || canAccessKonsul;
 
                         const canAccessKasir =
-                            !isSuperAdminRole &&
+                            isSuperAdminRole ||
+                            isOwnerOrManager ||
                             (state.allowedPaths.size > 0
                                 ? hasAllowedPath('/kasir')
-                                : (isOwnerOrManager || currentRole === 'kasir'));
+                                : currentRole === 'kasir');
 
                         const canAccessLaporan =
-                            !isSuperAdminRole &&
+                            isSuperAdminRole ||
+                            isOwnerOrManager ||
                             (state.allowedPaths.size > 0
                                 ? (hasAllowedPath('/riwayat/rekam-medis') && roleReports.length > 0)
-                                : (isOwnerOrManager || ['owner', 'manager', 'dokter', 'kasir', 'warehouse', 'admin'].includes(currentRole)));
+                                : ['owner', 'manager', 'dokter', 'kasir', 'warehouse', 'admin'].includes(currentRole));
 
                         const searchLower = state.searchVal.trim().toLowerCase();
                         const matchesTindakan = canAccessTindakan && (!searchLower || 'tindakan'.includes(searchLower) || 'layanan'.includes(searchLower));
                         const matchesKonsul = canAccessKonsul && (!searchLower || 'konsultasi'.includes(searchLower) || 'medis'.includes(searchLower));
-                        const matchesJadwalKaryawan = canAccessJadwalKaryawan && (!searchLower || 'jadwal'.includes(searchLower) || 'jadwal karyawan'.includes(searchLower) || 'tugas'.includes(searchLower) || 'dokter'.includes(searchLower) || 'terapis'.includes(searchLower));
-                        const showLayananSection = canAccessLayanan && (matchesTindakan || matchesKonsul || matchesJadwalKaryawan);
+                        const showLayananSection = canAccessLayanan && (matchesTindakan || matchesKonsul);
                         const matchesKasir = canAccessKasir && (!searchLower || 'kasir'.includes(searchLower) || 'pembayaran'.includes(searchLower));
 
                         let idx = 0;
@@ -958,15 +843,13 @@ const AppMenu = () => {
                                 {/* Item Tambahan Lainnya (jika ada) */}
                                 {extraItems.map((item) => renderItem(item, idx++))}
 
-                                {/* 4. LAYANAN (Tindakan, Konsultasi, Jadwal Karyawan) */}
+                                {/* 4. LAYANAN (Tindakan, Konsultasi) */}
                                 {showLayananSection && (
                                     <li className="layout-root-menuitem" key="layanan-ruangan-section">
                                         <div className="layout-menuitem-root-text">LAYANAN</div>
                                         <ul>
                                             {(() => {
                                                 const typeParam = searchParams.get('type') || '';
-                                                const isJadwalKaryawanActive =
-                                                    pathname === '/pendaftaran-antrean/jadwal-karyawan';
                                                 const isLayananActive =
                                                     pathname === '/pendaftaran-antrean/antrean' &&
                                                     typeParam === 'layanan';
@@ -1021,30 +904,6 @@ const AppMenu = () => {
                                                                         }}
                                                                     >
                                                                         Konsultasi
-                                                                    </span>
-                                                                </Link>
-                                                            </li>
-                                                        )}
-                                                        {/* Sidebar Jadwal Karyawan (Jadwal Tugas Dokter, Terapis, dll - Read Only) */}
-                                                        {matchesJadwalKaryawan && (
-                                                            <li className={isJadwalKaryawanActive ? 'active-menuitem' : ''}>
-                                                                <Link
-                                                                    href="/pendaftaran-antrean/jadwal-karyawan"
-                                                                    className={`p-ripple flex align-items-center gap-2${isJadwalKaryawanActive ? ' active-route' : ''}`}
-                                                                    style={{ padding: '0.75rem 1.25rem', borderRadius: '6px', transition: 'background 0.2s' }}
-                                                                >
-                                                                    <i
-                                                                        className="layout-menuitem-icon pi pi-calendar"
-                                                                        style={{ color: isJadwalKaryawanActive ? 'var(--primary-color)' : undefined }}
-                                                                    />
-                                                                    <span
-                                                                        className="layout-menuitem-text"
-                                                                        style={{
-                                                                            fontWeight: isJadwalKaryawanActive ? 700 : undefined,
-                                                                            color: isJadwalKaryawanActive ? 'var(--primary-color)' : undefined,
-                                                                        }}
-                                                                    >
-                                                                        Jadwal Karyawan
                                                                     </span>
                                                                 </Link>
                                                             </li>

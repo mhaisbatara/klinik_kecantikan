@@ -87,6 +87,7 @@ router.post("/", async (req, res) => {
       "s.no_hp as no_hp_supplier",
       "p.nama",
       "p.satuan",
+      "p.foto",
       "p.harga_beli",
       "p.harga_jual",
       "p.stok_minimum",
@@ -111,6 +112,72 @@ router.post("/", async (req, res) => {
     } else {
       vaData = await baseQuery.clone().select(selectFields).orderBy("p.stok_tersedia", "asc");
       totalRecords = vaData.length;
+    }
+
+    // Ambil daftar batch aktif untuk setiap produk yang tampil
+    if (vaData.length > 0) {
+      const prodCodes = vaData.map((p) => p.kode_produk);
+      const allBatches = await DB("mst_produk_batch as b")
+        .leftJoin("mst_supplier as s", "b.kode_supplier", "s.kode_supplier")
+        .whereIn("b.kode_produk", prodCodes)
+        .select(
+          "b.id",
+          "b.kode_batch",
+          "b.kode_produk",
+          "b.no_batch",
+          "b.tanggal_kadaluarsa",
+          "b.stok_masuk",
+          "b.stok_sisa",
+          "b.harga_beli_satuan",
+          "b.kode_supplier",
+          "s.nama as nama_supplier",
+          "b.kode_po",
+          "b.is_legacy_estimate",
+          "b.status",
+          "b.catatan",
+          "b.created_at"
+        )
+        .orderBy("b.tanggal_kadaluarsa", "asc")
+        .orderBy("b.created_at", "desc");
+
+      const now = new Date();
+      const batchMap = {};
+      for (const b of allBatches) {
+        if (!batchMap[b.kode_produk]) batchMap[b.kode_produk] = [];
+
+        let sisaHari = null;
+        let statusExp = "aman";
+        if (b.tanggal_kadaluarsa) {
+          const expDate = new Date(b.tanggal_kadaluarsa);
+          sisaHari = Math.ceil((expDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          if (sisaHari < 0) statusExp = "kadaluarsa";
+          else if (sisaHari <= 30) statusExp = "kritis";
+          else if (sisaHari <= 90) statusExp = "perhatian";
+          else statusExp = "aman";
+        }
+
+        batchMap[b.kode_produk].push({
+          ...b,
+          sisa_hari: sisaHari,
+          status_expired: statusExp,
+          nilai_aset_batch: (b.stok_sisa || 0) * parseFloat(b.harga_beli_satuan || 0),
+        });
+      }
+
+      vaData = vaData.map((p) => {
+        const pBatches = batchMap[p.kode_produk] || [];
+        const hasEstimate = pBatches.some((b) => b.is_legacy_estimate === 1 && b.stok_sisa > 0);
+        const nearestExpBatch = pBatches.find((b) => b.status === "aktif" && b.stok_sisa > 0) || pBatches[0] || null;
+
+        return {
+          ...p,
+          batches: pBatches,
+          total_batch: pBatches.length,
+          total_batch_aktif: pBatches.filter((b) => b.status === "aktif" && b.stok_sisa > 0).length,
+          has_legacy_estimate: hasEstimate,
+          nearest_batch: nearestExpBatch,
+        };
+      });
     }
 
     return res.status(200).json({

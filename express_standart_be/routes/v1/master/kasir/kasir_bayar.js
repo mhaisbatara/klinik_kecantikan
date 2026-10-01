@@ -1,7 +1,7 @@
 /**
  * @project Sistem Klinik Kecantikan
  * @file kasir_bayar.js
- * @description Endpoint proses bayar - ubah status draft menjadi lunas
+ * @description Endpoint proses bayar - ubah status draft menjadi lunas dan eksekusi pemotongan stok FEFO
  */
 import express from "express";
 import DB from "../../../../core/config/knex.js";
@@ -9,6 +9,7 @@ import { formatDateSystem } from "../../components/tools/date_tools.js";
 import { Logging } from "../../components/tools/servertool.js";
 import { status } from "../../components/tools/general.js";
 import { getBranchScope } from "../../components/tools/branch_scope.js";
+import { deductStockFEFO } from "../inventori/batch_helper.js";
 
 const router = express.Router();
 
@@ -28,19 +29,24 @@ router.post("/", async (req, res) => {
     return res.status(400).json({ status: status.BAD_REQUEST, message: "Metode bayar tidak valid", datetime: formatDateSystem() });
   }
 
+  const trx = await DB.transaction();
+
   try {
-    let qExisting = DB("trx_transaksi").where("kode_transaksi", kode_transaksi);
+    let qExisting = trx("trx_transaksi").where("kode_transaksi", kode_transaksi);
     if (branchCode) {
       qExisting = qExisting.andWhere("kode_cabang", branchCode);
     }
-    const existing = await qExisting.first();
+    const existing = await qExisting.forUpdate().first();
     if (!existing) {
+      await trx.rollback();
       return res.status(404).json({ status: status.BAD_REQUEST, message: "Transaksi tidak ditemukan", datetime: formatDateSystem() });
     }
     if (existing.status === "lunas") {
+      await trx.rollback();
       return res.status(400).json({ status: status.BAD_REQUEST, message: "Transaksi sudah lunas", datetime: formatDateSystem() });
     }
     if (existing.status === "batal") {
+      await trx.rollback();
       return res.status(400).json({ status: status.BAD_REQUEST, message: "Transaksi sudah dibatalkan", datetime: formatDateSystem() });
     }
 
@@ -53,12 +59,34 @@ router.post("/", async (req, res) => {
     const nominalBayar = parseFloat(nominal_bayar !== undefined && nominal_bayar !== null ? nominal_bayar : tagihanPelunasan);
 
     if (metode_bayar === "tunai" && nominalBayar < tagihanPelunasan) {
+      await trx.rollback();
       return res.status(400).json({ status: status.BAD_REQUEST, message: `Nominal bayar kurang. Diperlukan: Rp ${tagihanPelunasan.toLocaleString("id-ID")}`, datetime: formatDateSystem() });
     }
 
     const kembalian = metode_bayar === "tunai" ? Math.max(0, nominalBayar - tagihanPelunasan) : 0;
+    const trxBranch = existing.kode_cabang || branchCode || "CBG-001";
 
-    await DB("trx_transaksi").where("kode_transaksi", kode_transaksi).update({
+    // 1. Eksekusi pemotongan stok FEFO untuk semua item produk fisik pada transaksi
+    const detailItems = await trx("trx_detail_transaksi")
+      .where("kode_transaksi", kode_transaksi)
+      .whereNotNull("kode_produk");
+
+    for (const item of detailItems) {
+      if (item.kode_produk && !item.kode_produk.startsWith("CUSTOM-") && !item.kode_produk.startsWith("CST-")) {
+        await deductStockFEFO({
+          kode_produk: item.kode_produk,
+          qty: parseInt(item.qty || 1, 10),
+          kode_transaksi: kode_transaksi,
+          username: username,
+          branchCode: trxBranch,
+          tz: existing.tz || "UTC",
+          trx: trx,
+        });
+      }
+    }
+
+    // 2. Update status transaksi menjadi lunas
+    await trx("trx_transaksi").where("kode_transaksi", kode_transaksi).update({
       metode_bayar,
       sisa_bayar: tagihanPelunasan,
       status: "lunas",
@@ -66,17 +94,20 @@ router.post("/", async (req, res) => {
       updated_at: DB.fn.now(),
     });
 
+    // 3. Update kunjungan pasien menjadi selesai jika ada
     if (existing.kode_kunjungan) {
-      await DB("trx_kunjungan").where("kode_kunjungan", existing.kode_kunjungan).update({
+      await trx("trx_kunjungan").where("kode_kunjungan", existing.kode_kunjungan).update({
         status: "selesai",
         updated_by: username,
         updated_at: DB.fn.now(),
       });
     }
 
+    await trx.commit();
+
     return res.status(200).json({
       status: status.SUKSES,
-      message: "Pembayaran berhasil",
+      message: "Pembayaran berhasil dan stok produk telah dipotong (FEFO)",
       datetime: formatDateSystem(),
       data: {
         kode_transaksi,
@@ -94,9 +125,10 @@ router.post("/", async (req, res) => {
       },
     });
   } catch (error) {
+    await trx.rollback();
     const oResult = {
       status: status.BAD_REQUEST,
-      message: "Sistem sedang maintenance harap tunggu sebentar",
+      message: error.message || "Sistem sedang maintenance harap tunggu sebentar",
       datetime: formatDateSystem(),
     };
     Logging(error, { file: "/master/kasir/kasir_bayar.js", user: username });

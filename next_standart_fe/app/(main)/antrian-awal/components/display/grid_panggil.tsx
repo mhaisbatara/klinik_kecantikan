@@ -5,7 +5,7 @@ import { confirmDialog, ConfirmDialog } from 'primereact/confirmdialog';
 import { GridPanggilProps, TableData } from '../interfaces';
 import postData from '@/lib/axios/postData';
 import { showError, showSuccess, showWarning } from '@/lib/tools/generalTools';
-import { apiEndpointPanggil, apiEndpointReset } from '../endpoints';
+import { apiEndpointCreate, apiEndpointPanggil, apiEndpointReset } from '../endpoints';
 import { getTzUser } from '@/lib/tools/dateTools';
 import KeteranganStatus from '@/app/components/KeteranganStatus';
 
@@ -252,6 +252,27 @@ const GridPanggil = ({ state, setState, toast, getGridData }: GridPanggilProps) 
         });
     };
 
+    const handleQuickGenerate = async () => {
+        setState((p) => ({ ...p, loadGrid: true }));
+        try {
+            const body = {
+                mode: 'bulk',
+                dari: '01',
+                sampai: '30',
+                status: 'tersedia',
+                tz: getTzUser(),
+            };
+            const res = await postData(apiEndpointCreate, body, { 'X-Level': '1' });
+            showSuccess(toast, res.data?.message || 'Berhasil meng-generate 30 nomor antrean.');
+            await getGridData();
+        } catch (error: any) {
+            const e = error?.response?.data || error;
+            showError(toast, e?.message || 'Terjadi Kesalahan');
+        } finally {
+            setState((p) => ({ ...p, loadGrid: false }));
+        }
+    };
+
     return (
         <div className="card">
             <ConfirmDialog style={{ width: '420px', maxWidth: '92vw' }} />
@@ -289,6 +310,18 @@ const GridPanggil = ({ state, setState, toast, getGridData }: GridPanggilProps) 
                     loading={state.loadGrid}
                     className="font-bold text-xs"
                 />
+                {aktif.length === 0 && (
+                    <Button
+                        label="⚡ Generate 30 Nomor (01 - 30)"
+                        icon="pi pi-bolt"
+                        severity="success"
+                        outlined
+                        size="small"
+                        onClick={handleQuickGenerate}
+                        loading={state.loadGrid}
+                        className="font-bold text-xs"
+                    />
+                )}
             </div>
 
             {/* Legend */}
@@ -307,6 +340,32 @@ const GridPanggil = ({ state, setState, toast, getGridData }: GridPanggilProps) 
             {state.loadGrid ? (
                 <div className="flex justify-content-center align-items-center py-6">
                     <i className="pi pi-spinner pi-spin text-4xl text-blue-500" />
+                </div>
+            ) : aktif.length === 0 ? (
+                <div className="flex flex-column align-items-center justify-content-center p-6 surface-50 border-round-xl border-1 surface-border text-center my-3">
+                    <div className="w-4rem h-4rem border-round-circle bg-blue-100 flex align-items-center justify-content-center mb-3">
+                        <i className="pi pi-ticket text-blue-600 text-3xl" />
+                    </div>
+                    <h4 className="text-xl font-bold text-900 mb-2">Belum Ada Nomor Antrean Terdaftar</h4>
+                    <p className="text-500 text-sm mb-4" style={{ maxWidth: '400px' }}>
+                        Nomor kartu antrean fisik belum terdaftar di sistem. Silakan klik tombol di bawah untuk membuat 30 nomor antrean awal atau buka tab Kelola Master.
+                    </p>
+                    <div className="flex align-items-center gap-2">
+                        <Button
+                            label="Generate Cepat (01 - 30)"
+                            icon="pi pi-bolt"
+                            severity="success"
+                            className="font-bold text-sm"
+                            onClick={handleQuickGenerate}
+                        />
+                        <Button
+                            label="Buka Kelola Master"
+                            icon="pi pi-list"
+                            outlined
+                            className="font-semibold text-sm"
+                            onClick={() => setState((p) => ({ ...p, activeTab: 2 }))}
+                        />
+                    </div>
                 </div>
             ) : (
                 <div
