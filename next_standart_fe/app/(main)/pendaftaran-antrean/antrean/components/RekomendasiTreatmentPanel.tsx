@@ -7,6 +7,7 @@ import { Toast } from 'primereact/toast';
 import { Tag } from 'primereact/tag';
 import { Checkbox } from 'primereact/checkbox';
 import { OverlayPanel } from 'primereact/overlaypanel';
+import { Dialog } from 'primereact/dialog';
 import postData from '@/lib/axios/postData';
 import { showError, showWarning } from '@/lib/tools/generalTools';
 
@@ -53,6 +54,15 @@ export interface RekomendasiItem {
   badge_color?: 'green' | 'yellow' | 'red';
   slack_menit?: number | null;
   keterangan_status?: string | null;
+  stok_layak_jual?: number;
+  stok_total_fisik?: number;
+  is_expired?: boolean;
+  tanggal_kadaluarsa?: string | null;
+  tanggal_kadaluarsa_terdekat?: string | null;
+  alasan_expired?: string | null;
+  produk_expired_override?: boolean;
+  is_expired_override?: boolean;
+  catatan_override?: string | null;
   jam_booking_terdekat?: string | null;
   nama_pasien_booking_terdekat?: string | null;
   antrean_aktif_count?: number;
@@ -467,6 +477,15 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
         return;
       }
       onChangeSelectedItems(selectedItems.filter((s) => !(s.jenis === item.jenis && s.kode === item.kode)));
+      return;
+    }
+
+    // ─── VALIDASI EXPIRED PRODUK ───
+    if (['produk', 'paket_produk'].includes(item.jenis) && item.is_expired) {
+      showWarning(
+        toast,
+        `Produk "${item.nama}" sudah kadaluarsa (${item.tanggal_kadaluarsa_terdekat || item.tanggal_kadaluarsa || '-'}) dan tidak dapat dipilih.`
+      );
       return;
     }
 
@@ -942,7 +961,8 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
               const isProduk = ['produk', 'paket_produk'].includes(item.jenis);
               const isCapacityLocked = isService && (item.status_kapasitas === 'berisiko' || currentRoomObj?.status_kapasitas === 'berisiko');
               const isUnavailable = isService && (item.is_petugas_available === false || Boolean(item.is_not_started_today) || Boolean(item.is_past_today) || isCapacityLocked);
-              const effectiveDisabled = isUnavailable || isRuangDisabled || disabled;
+              const isExpiredProduct = isProduk && Boolean(item.is_expired);
+              const effectiveDisabled = isUnavailable || isRuangDisabled || disabled || isExpiredProduct;
 
               return (
                 <div key={`${item.jenis}_${item.kode}`} className="col-12 sm:col-6 md:col-4 lg:col-3 xl:col-3 p-2">
@@ -962,6 +982,13 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                       boxShadow: isSelected ? '0 4px 14px 0 rgba(37, 99, 235, 0.15)' : undefined,
                     }}
                     onClick={() => {
+                      if (isExpiredProduct) {
+                        showWarning(
+                          toast,
+                          `Produk "${item.nama}" sudah kadaluarsa (${item.tanggal_kadaluarsa_terdekat || item.tanggal_kadaluarsa || '-'}) dan tidak dapat dipilih.`
+                        );
+                        return;
+                      }
                       if (isPendaftaranLocked) {
                         showError(
                           toast,
@@ -1109,6 +1136,38 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                           >
                             {item.nama_kategori || (isProduk ? 'Produk' : 'Layanan')}
                           </span>
+
+                          {isProduk && item.is_expired && (
+                            <span
+                              className="inline-flex align-items-center font-bold text-white shadow-1"
+                              style={{
+                                fontSize: '9.5px',
+                                padding: '3px 8px',
+                                borderRadius: '9999px',
+                                backgroundColor: '#dc2626',
+                                lineHeight: '1.2',
+                                letterSpacing: '0.01em',
+                                gap: '4px',
+                              }}
+                              title={item.alasan_expired || 'Batch produk ini sudah kadaluarsa'}
+                            >
+                              <i className="pi pi-exclamation-triangle" style={{ fontSize: '9px' }} />
+                              Kadaluarsa — Tidak Dapat Dijual
+                            </span>
+                          )}
+
+                          {isSelected && (item.produk_expired_override || item.is_expired) && (
+                            <Tag
+                              rounded
+                              value="⚠️ Override Kadaluarsa"
+                              severity="danger"
+                              style={{
+                                fontSize: '9.5px',
+                                padding: '2px 6px',
+                                fontWeight: 700,
+                              }}
+                            />
+                          )}
 
                           {isPaket && (
                             <Tag
@@ -1306,6 +1365,14 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                         <i className="pi pi-sparkles text-primary text-xs flex-shrink-0" />
                       )}
                       <span className="white-space-nowrap">{item.nama}</span>
+                      {(item.produk_expired_override || item.is_expired) && (
+                        <span
+                          className="px-2 py-0.5 border-round font-extrabold text-white text-[10px] ml-1 shadow-1"
+                          style={{ backgroundColor: '#dc2626' }}
+                        >
+                          ⚠️ Override Kadaluarsa
+                        </span>
+                      )}
                       {item.qty && item.qty > 1 && (
                         <span
                           className="px-2 py-0.5 border-round font-extrabold text-white text-xs ml-1 shadow-1"

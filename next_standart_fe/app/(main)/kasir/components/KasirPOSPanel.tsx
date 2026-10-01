@@ -44,6 +44,8 @@ interface ProdukItem {
   nilai_diskon?: number | null;
   harga_asal?: number | null;
   harga_promo?: number | null;
+  is_expired?: boolean;
+  tanggal_kadaluarsa?: string | null;
 }
 
 interface SelectedProduk {
@@ -638,6 +640,11 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
       return;
     }
     lastAddRef.current = { kode: prod.kode_produk, time: now };
+
+    if (prod.is_expired) {
+      showWarning(toast, `Produk "${prod.nama}" sudah kadaluarsa (${prod.tanggal_kadaluarsa || '-'}) dan tidak dapat dipilih.`);
+      return;
+    }
 
     const availStock = prod.stok_tersedia ?? 999999;
     if (availStock <= 0) {

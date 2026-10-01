@@ -423,12 +423,17 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
         }
         const subtotalSetelahDiskon = Math.max(0, subtotal - itemDiskon);
 
+        const isOverride = Boolean(prd.is_expired_override || prd.produk_expired_override) ? 1 : 0;
+        const catatanOverride = prd.catatan_override || (isOverride ? "Disetujui dokter/petugas" : null);
+
         const existPrd = freshDetails.find((d) => d.kode_produk === kdProduk);
         if (existPrd) {
           const updatePayload = {
             qty: qty,
             harga_satuan: rawHarga,
             subtotal: subtotal,
+            is_expired_override: isOverride,
+            catatan_override: catatanOverride,
             updated_by: username,
             updated_at: formatDateSystem(),
           };
@@ -457,6 +462,8 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
             harga_satuan: rawHarga,
             subtotal: subtotal,
             is_from_pendaftaran: 0,
+            is_expired_override: isOverride,
+            catatan_override: catatanOverride,
             tz: tz || "Asia/Jakarta",
             created_by: username,
             created_at: formatDateSystem(),

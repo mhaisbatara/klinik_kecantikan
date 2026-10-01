@@ -134,6 +134,8 @@ router.post("/", async (req, res) => {
         "pl.harga_paket as master_harga_paket",
         "prod.harga_jual as master_harga_produk",
         DB.raw("COALESCE(dt.is_from_pendaftaran, 0) as is_from_pendaftaran"),
+        DB.raw("COALESCE(dt.is_expired_override, 0) as is_expired_override"),
+        "dt.catatan_override",
         ...promoSelectCols
       )
       .orderBy("dt.is_from_pendaftaran", "desc")
@@ -170,6 +172,8 @@ router.post("/", async (req, res) => {
         subtotal_setelah_diskon: subtotal_setelah_diskon,
         nilai_diskon: d.nilai_diskon != null ? parseFloat(d.nilai_diskon) : null,
         is_from_pendaftaran: isPendaftaran,
+        is_expired_override: Boolean(d.is_expired_override),
+        catatan_override: d.catatan_override || null,
       };
     });
 

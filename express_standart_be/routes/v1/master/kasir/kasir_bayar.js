@@ -80,6 +80,8 @@ router.post("/", async (req, res) => {
           username: username,
           branchCode: trxBranch,
           tz: existing.tz || "UTC",
+          allowExpiredOverride: Boolean(item.is_expired_override),
+          catatanOverride: item.catatan_override || null,
           trx: trx,
         });
       }

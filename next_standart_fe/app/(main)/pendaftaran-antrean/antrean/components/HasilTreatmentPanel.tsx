@@ -12,7 +12,7 @@ import { Tag } from 'primereact/tag';
 import { IconField } from 'primereact/iconfield';
 import { InputIcon } from 'primereact/inputicon';
 import postData from '@/lib/axios/postData';
-import { showError, showSuccess } from '@/lib/tools/generalTools';
+import { showError, showSuccess, showWarning } from '@/lib/tools/generalTools';
 import { AntrianLayananData } from './interfaces';
 import {
     CheckCircle2,
@@ -47,6 +47,14 @@ interface ProdukItem {
     nilai_diskon?: number | null;
     harga_asal?: number | null;
     harga_promo?: number | null;
+    stok_layak_jual?: number;
+    stok_total_fisik?: number;
+    is_expired?: boolean;
+    tanggal_kadaluarsa?: string | null;
+    alasan_expired?: string | null;
+    produk_expired_override?: boolean;
+    is_expired_override?: boolean;
+    catatan_override?: string | null;
 }
 
 interface SelectedProduk {
@@ -64,6 +72,14 @@ interface SelectedProduk {
     nilai_diskon?: number | null;
     harga_asal?: number | null;
     harga_promo?: number | null;
+    stok_layak_jual?: number;
+    stok_total_fisik?: number;
+    is_expired?: boolean;
+    tanggal_kadaluarsa?: string | null;
+    alasan_expired?: string | null;
+    produk_expired_override?: boolean;
+    is_expired_override?: boolean;
+    catatan_override?: string | null;
 }
 
 interface HasilTreatmentPanelProps {
@@ -354,6 +370,11 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                     nilai_diskon: p.nilai_diskon != null ? parseFloat(p.nilai_diskon) : null,
                     harga_asal: p.harga_asal != null ? parseFloat(p.harga_asal) : parseFloat(p.harga_jual || 0),
                     harga_promo: p.harga_promo != null ? parseFloat(p.harga_promo) : null,
+                    stok_layak_jual: p.stok_layak_jual != null ? parseInt(p.stok_layak_jual, 10) : 0,
+                    stok_total_fisik: p.stok_total_fisik != null ? parseInt(p.stok_total_fisik, 10) : 0,
+                    is_expired: Boolean(p.is_expired),
+                    tanggal_kadaluarsa: p.tanggal_kadaluarsa || null,
+                    alasan_expired: p.alasan_expired || null,
                 }));
             setProdukOptions(list);
         } catch (_) {
@@ -442,6 +463,14 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
 
     // Tambahkan produk ke daftar draft di modal
     const handleDraftAddProduk = (prod: ProdukItem) => {
+        if (prod.is_expired) {
+            showWarning(toast, `Produk "${prod.nama}" sudah kadaluarsa (${prod.tanggal_kadaluarsa || '-'}) dan tidak dapat dipilih.`);
+            return;
+        }
+        executeAddDraftProduk(prod, false);
+    };
+
+    const executeAddDraftProduk = (prod: ProdukItem, isOverride = false) => {
         const now = Date.now();
         if (lastAddRef.current.kode === prod.kode_produk && now - lastAddRef.current.time < 250) {
             return;
@@ -469,6 +498,10 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                 nilai_diskon: prod.nilai_diskon != null ? prod.nilai_diskon : null,
                 harga_asal: prod.harga_asal || prod.harga_jual,
                 harga_promo: prod.harga_promo != null ? prod.harga_promo : null,
+                is_expired: Boolean(prod.is_expired),
+                produk_expired_override: isOverride,
+                is_expired_override: isOverride,
+                catatan_override: null,
             }];
         });
     };
@@ -611,6 +644,9 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                     nama_promo: p.nama_promo || null,
                     jenis_diskon: p.jenis_diskon || null,
                     nilai_diskon: p.nilai_diskon != null ? p.nilai_diskon : null,
+                    is_expired: Boolean(p.is_expired),
+                    produk_expired_override: Boolean(p.produk_expired_override || p.is_expired_override),
+                    catatan_override: p.catatan_override || null,
                 })),
             };
 
@@ -1241,6 +1277,23 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                                 >
                                                                     <i className="pi pi-check text-[9px] font-bold" />
                                                                     Resep Dokter
+                                                                </span>
+                                                            )}
+                                                            {(item.produk_expired_override || item.is_expired) && (
+                                                                <span
+                                                                    className="text-[10px] font-bold inline-flex align-items-center"
+                                                                    style={{
+                                                                        backgroundColor: '#fee2e2',
+                                                                        color: '#991b1b',
+                                                                        border: '1px solid #fca5a5',
+                                                                        borderRadius: '4px',
+                                                                        padding: '1.5px 6px',
+                                                                        gap: '3px',
+                                                                        lineHeight: 1
+                                                                    }}
+                                                                >
+                                                                    <i className="pi pi-exclamation-triangle text-[9px] font-bold" />
+                                                                    Override Kadaluarsa
                                                                 </span>
                                                             )}
                                                         </div>
@@ -2018,11 +2071,17 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                         return (
                                             <div
                                                 key={prod.kode_produk}
-                                                onClick={() => handleDraftAddProduk(prod)}
-                                                className="cursor-pointer transition-all"
+                                                onClick={() => {
+                                                    if (prod.is_expired) {
+                                                        showWarning(toast, `Produk "${prod.nama}" sudah kadaluarsa (${prod.tanggal_kadaluarsa || '-'}) dan tidak dapat dipilih.`);
+                                                        return;
+                                                    }
+                                                    handleDraftAddProduk(prod);
+                                                }}
+                                                className={`transition-all ${prod.is_expired ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
                                                 style={{
-                                                    backgroundColor: '#ffffff',
-                                                    border: isSelected ? '1.5px solid #0C8F62' : '1px solid #e2e8f0',
+                                                    backgroundColor: prod.is_expired ? '#f8fafc' : '#ffffff',
+                                                    border: prod.is_expired ? '1px dashed #cbd5e1' : (isSelected ? '1.5px solid #0C8F62' : '1px solid #e2e8f0'),
                                                     borderRadius: '10px',
                                                     overflow: 'hidden',
                                                     boxShadow: isSelected ? '0 0 0 1px #0C8F62, 0 2px 8px rgba(12, 143, 98, 0.12)' : '0 1px 3px rgba(0,0,0,0.03)',
@@ -2137,28 +2196,49 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                         </div>
 
                                                         {/* Baris 2: SKU & Kategori rapat dengan nama */}
-                                                        <div className="flex align-items-center justify-content-between gap-1 mt-1">
+                                                        <div className="flex align-items-center justify-content-between gap-1 mt-1 flex-wrap">
                                                             <span style={{ fontSize: '11px', color: '#94a3b8' }}>
                                                                 {prod.kode_produk}
                                                             </span>
-                                                            {prod.nama_kategori && (
-                                                                <span
-                                                                    style={{
-                                                                        backgroundColor: '#ffffff',
-                                                                        border: `1px solid ${badgeStyle.borderColor}`,
-                                                                        color: badgeStyle.color,
-                                                                        fontSize: '9.5px',
-                                                                        fontWeight: 600,
-                                                                        padding: '1px 5px',
-                                                                        borderRadius: '4px',
-                                                                        whiteSpace: 'nowrap',
-                                                                        flexShrink: 0,
-                                                                        lineHeight: 1.2
-                                                                    }}
-                                                                >
-                                                                    {prod.nama_kategori}
-                                                                </span>
-                                                            )}
+                                                            <div className="flex align-items-center gap-1">
+                                                                {prod.is_expired && (
+                                                                    <span
+                                                                        style={{
+                                                                            backgroundColor: '#fee2e2',
+                                                                            border: '1px solid #ef4444',
+                                                                            color: '#991b1b',
+                                                                            fontSize: '9px',
+                                                                            fontWeight: 700,
+                                                                            padding: '1px 5px',
+                                                                            borderRadius: '4px',
+                                                                            whiteSpace: 'nowrap',
+                                                                            flexShrink: 0,
+                                                                            lineHeight: 1.2
+                                                                        }}
+                                                                        title={prod.alasan_expired || 'Batch kadaluarsa'}
+                                                                    >
+                                                                        Kadaluarsa — Tidak Dapat Dijual
+                                                                    </span>
+                                                                )}
+                                                                {prod.nama_kategori && (
+                                                                    <span
+                                                                        style={{
+                                                                            backgroundColor: '#ffffff',
+                                                                            border: `1px solid ${badgeStyle.borderColor}`,
+                                                                            color: badgeStyle.color,
+                                                                            fontSize: '9.5px',
+                                                                            fontWeight: 600,
+                                                                            padding: '1px 5px',
+                                                                            borderRadius: '4px',
+                                                                            whiteSpace: 'nowrap',
+                                                                            flexShrink: 0,
+                                                                            lineHeight: 1.2
+                                                                        }}
+                                                                    >
+                                                                        {prod.nama_kategori}
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </div>
 
@@ -2182,23 +2262,29 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
 
                                                         <button
                                                             type="button"
+                                                            disabled={Boolean(prod.is_expired)}
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                handleDraftAddProduk(prod);
+                                                                if (!prod.is_expired) {
+                                                                    handleDraftAddProduk(prod);
+                                                                } else {
+                                                                    showWarning(toast, `Produk "${prod.nama}" sudah kadaluarsa (${prod.tanggal_kadaluarsa || '-'}) dan tidak dapat dipilih.`);
+                                                                }
                                                             }}
-                                                            className="flex align-items-center justify-content-center cursor-pointer transition-transform active:scale-95 flex-shrink-0"
+                                                            className="flex align-items-center justify-content-center transition-transform active:scale-95 flex-shrink-0"
                                                             style={{
                                                                 width: '26px',
                                                                 height: '26px',
                                                                 borderRadius: '50%',
-                                                                backgroundColor: '#0C8F62',
+                                                                backgroundColor: prod.is_expired ? '#e2e8f0' : '#0C8F62',
                                                                 border: 'none',
-                                                                color: '#ffffff',
-                                                                boxShadow: '0 1px 3px rgba(12,143,98,0.3)'
+                                                                color: prod.is_expired ? '#94a3b8' : '#ffffff',
+                                                                cursor: prod.is_expired ? 'not-allowed' : 'pointer',
+                                                                boxShadow: prod.is_expired ? 'none' : '0 1px 3px rgba(12,143,98,0.3)'
                                                             }}
-                                                            title="Tambah ke produk terpilih"
+                                                            title={prod.is_expired ? `Produk kadaluarsa (${prod.tanggal_kadaluarsa || '-'}) - Tidak dapat dipilih` : "Tambah ke produk terpilih"}
                                                         >
-                                                            <Plus size={14} strokeWidth={2.5} />
+                                                            {prod.is_expired ? <i className="pi pi-ban" style={{ fontSize: '11px', color: '#94a3b8' }} /> : <Plus size={14} strokeWidth={2.5} />}
                                                         </button>
                                                     </div>
                                                 </div>
@@ -2353,6 +2439,22 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                                     }}
                                                                 >
                                                                     Resep
+                                                                </span>
+                                                            )}
+                                                            {(item.is_expired || item.produk_expired_override) && (
+                                                                <span
+                                                                    style={{
+                                                                        fontSize: '9px',
+                                                                        fontWeight: 700,
+                                                                        padding: '1px 4px',
+                                                                        borderRadius: '3px',
+                                                                        backgroundColor: '#fee2e2',
+                                                                        color: '#991b1b',
+                                                                        border: '1px solid #fca5a5',
+                                                                        flexShrink: 0
+                                                                    }}
+                                                                >
+                                                                    ⚠️ Override
                                                                 </span>
                                                             )}
                                                         </div>

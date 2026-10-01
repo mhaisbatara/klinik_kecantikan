@@ -14,6 +14,7 @@ import { formatDateSystem } from "../components/tools/date_tools.js";
 import { Logging } from "../components/tools/servertool.js";
 import { status } from "../components/tools/general.js";
 import { getBranchScope } from "../components/tools/branch_scope.js";
+import { getProdukBatchStockInfo } from "./inventori/batch_helper.js";
 
 const router = express.Router();
 
@@ -39,6 +40,7 @@ const handleProdukDropdown = async (req, res) => {
         "pr.harga_jual",
         "pr.satuan",
         "pr.stok_tersedia",
+        "pr.tanggal_kadaluarsa",
         "pr.kode_kategori_produk",
         "kp.nama as nama_kategori"
       )
@@ -53,6 +55,8 @@ const handleProdukDropdown = async (req, res) => {
     }
 
     const vaData = await query;
+    const productCodes = vaData.map((p) => p.kode_produk);
+    const batchStockMap = await getProdukBatchStockInfo(productCodes, branchCode);
 
     // Ambil promo aktif produk untuk hari ini
     const todayYmd = new Date().toISOString().slice(0, 10);
@@ -106,6 +110,33 @@ const handleProdukDropdown = async (req, res) => {
 
       const rawHarga = parseFloat(item.harga_jual || 0);
       const promo = promoMap[item.kode_produk];
+      const batchInfo = batchStockMap[item.kode_produk] || {
+        stok_layak_jual: item.stok_tersedia || 0,
+        stok_total_fisik: item.stok_tersedia || 0,
+        is_expired: false,
+        tanggal_kadaluarsa: item.tanggal_kadaluarsa || null,
+        tanggal_kadaluarsa_terdekat: item.tanggal_kadaluarsa || null,
+        total_batch_kadaluarsa: 0,
+      };
+
+      const stokLayakJual = batchInfo.stok_layak_jual;
+      const isExpired = Boolean(batchInfo.is_expired);
+      const expDate = batchInfo.tanggal_kadaluarsa || (item.tanggal_kadaluarsa ? String(item.tanggal_kadaluarsa).slice(0, 10) : null);
+      const alasanExpired = isExpired
+        ? `Batch kadaluarsa sejak ${batchInfo.tanggal_kadaluarsa_terdekat || expDate || 'beberapa hari lalu'}`
+        : null;
+
+      const baseItem = {
+        ...item,
+        foto: fotoUrl,
+        stok_tersedia: stokLayakJual,
+        stok_layak_jual: stokLayakJual,
+        stok_total_fisik: batchInfo.stok_total_fisik,
+        is_expired: isExpired,
+        tanggal_kadaluarsa: expDate,
+        tanggal_kadaluarsa_terdekat: batchInfo.tanggal_kadaluarsa_terdekat,
+        alasan_expired: alasanExpired,
+      };
 
       if (promo) {
         const diskonNilai = parseFloat(promo.nilai_diskon || 0);
@@ -117,8 +148,7 @@ const handleProdukDropdown = async (req, res) => {
         }
 
         return {
-          ...item,
-          foto: fotoUrl,
+          ...baseItem,
           is_promo: true,
           kode_promo: promo.kode_promo,
           nama_promo: promo.nama_promo,
@@ -130,8 +160,7 @@ const handleProdukDropdown = async (req, res) => {
       }
 
       return {
-        ...item,
-        foto: fotoUrl,
+        ...baseItem,
         is_promo: false,
         harga_asal: rawHarga,
         harga_promo: null,

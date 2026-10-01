@@ -63,6 +63,7 @@ const Page = () => {
     const [pagePo, setPagePo] = useState<number>(1);
     const [rowsPo, setRowsPo] = useState<number>(10);
     const [keywordPo, setKeywordPo] = useState<string>('');
+    const [filterStatusPo, setFilterStatusPo] = useState<string>('');
     const [selectedPoDetail, setSelectedPoDetail] = useState<any>(null);
     const [dialogPoDetailVisible, setDialogPoDetailVisible] = useState<boolean>(false);
 
@@ -171,6 +172,7 @@ const Page = () => {
                 page: pagePo,
                 perPage: rowsPo,
                 keyword: keywordPo,
+                status: filterStatusPo || null,
             });
             setDataPo(res.data.data || []);
             setTotalPoRecords(res.data.total_data || 0);
@@ -239,7 +241,7 @@ const Page = () => {
         } else if (activeIndex === 2) {
             loadMutasiData();
         }
-    }, [activeIndex, pagePo, rowsPo, keywordPo, pageMutasi, rowsMutasi, keywordMutasi, filterJenisMutasi]);
+    }, [activeIndex, pagePo, rowsPo, keywordPo, filterStatusPo, pageMutasi, rowsMutasi, keywordMutasi, filterJenisMutasi]);
 
     // ==========================================
     // HANDLERS: VERIFIKASI / EDIT BATCH
@@ -479,40 +481,46 @@ const Page = () => {
         }
     };
 
+    const formatDateTimeIndo = (dStr: string) => {
+        if (!dStr) return '-';
+        try {
+            const d = new Date(dStr);
+            return `${d.toLocaleDateString('id-ID', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+            })} ${d.toLocaleTimeString('id-ID', {
+                hour: '2-digit',
+                minute: '2-digit',
+            })}`;
+        } catch (_) {
+            return dStr;
+        }
+    };
+
     const rowExpansionTemplate = (data: any) => {
         const batches = data.batches || [];
-        const totalStokBatch = batches.reduce((acc: number, b: any) => acc + (Number(b.stok_sisa) || 0), 0);
+        const stokLayak = Number(data.stok_layak_jual !== undefined ? data.stok_layak_jual : (data.stok_tersedia ?? 0));
+        const stokTotal = Number(data.stok_total_fisik !== undefined ? data.stok_total_fisik : (data.stok_tersedia ?? batches.reduce((acc: number, b: any) => acc + (Number(b.stok_sisa) || 0), 0)));
+        const stokExp = Number(data.stok_expired !== undefined ? data.stok_expired : Math.max(0, stokTotal - stokLayak));
         const totalAsetBatch = batches.reduce((acc: number, b: any) => acc + (Number(b.nilai_aset_batch) || 0), 0);
 
         return (
             <div className="p-3 surface-50 border-round-xl m-2 border-1 border-purple-200 shadow-1">
                 {/* SUB-TABLE HEADER */}
-                <div className="flex flex-wrap align-items-center justify-content-between gap-2 mb-3 pb-2 border-bottom-1 border-200">
-                    <div className="flex align-items-center gap-2 flex-wrap">
-                        <span className="w-2rem h-2rem border-round-lg bg-purple-100 text-purple-700 flex align-items-center justify-content-center font-bold">
-                            <i className="pi pi-box text-sm" />
+                <div className="flex align-items-center gap-2 flex-wrap mb-3 pb-2 border-bottom-1 border-200">
+                    <span className="w-2rem h-2rem border-round-lg bg-purple-100 text-purple-700 flex align-items-center justify-content-center font-bold">
+                        <i className="pi pi-box text-sm" />
+                    </span>
+                    <div>
+                        <span className="font-bold text-900 text-sm mr-2">
+                            Rincian Batch Fisik: {data.nama}
                         </span>
-                        <div>
-                            <span className="font-bold text-900 text-sm mr-2">
-                                Rincian Batch Fisik: {data.nama}
-                            </span>
-                            <span className="font-mono text-xs text-purple-700 bg-purple-50 px-2 py-0.5 border-round font-semibold">
-                                {data.kode_produk}
-                            </span>
-                        </div>
-                        <Tag value={`${batches.length} Batch`} severity="info" className="text-xs py-0 px-2" />
-                    </div>
-                    <div className="flex align-items-center gap-3 text-xs">
-                        <span className="text-700 font-semibold">
-                            Total Stok: <strong className="text-green-700">{totalStokBatch} {data.satuan}</strong>
-                        </span>
-                        <span className="text-700 font-semibold">
-                            Total Valuasi: <strong className="text-900">{formatRupiah(totalAsetBatch)}</strong>
-                        </span>
-                        <span className="text-500 font-medium italic hidden md:inline">
-                            *Urutan FEFO (First Expired First Out)
+                        <span className="font-mono text-xs text-purple-700 bg-purple-50 px-2 py-0.5 border-round font-semibold">
+                            {data.kode_produk}
                         </span>
                     </div>
+                    <Tag value={`${batches.length} Batch`} severity="info" className="text-xs py-0 px-2" />
                 </div>
 
                 {batches.length === 0 ? (
@@ -527,23 +535,69 @@ const Page = () => {
                         className="p-datatable-sm surface-card border-round-lg border-1 border-200 overflow-hidden"
                         responsiveLayout="scroll"
                     >
+                        {/* Status Indicator Dot */}
+                        <Column
+                            header=""
+                            headerStyle={{ width: '2.5rem', textAlign: 'center', whiteSpace: 'nowrap' }}
+                            bodyStyle={{ textAlign: 'center' }}
+                            body={(b) => {
+                                const isHabis = b.status === 'habis' || Number(b.stok_sisa) <= 0;
+                                const isKadaluarsa = b.status_expired === 'kadaluarsa' || (b.sisa_hari !== null && b.sisa_hari < 0);
+                                const isMenipisOrExpSoon = b.status_expired === 'kritis' || b.status_expired === 'perhatian' || (b.sisa_hari !== null && b.sisa_hari <= 30);
+
+                                let dotColor = '#22c55e';
+                                let dotTitle = 'Batch Aktif & Layak Jual';
+
+                                if (isHabis) {
+                                    dotColor = '#64748b';
+                                    dotTitle = 'Batch Habis (0 Pcs)';
+                                } else if (isKadaluarsa) {
+                                    dotColor = '#dc2626';
+                                    dotTitle = `Batch Kadaluarsa (${b.tanggal_kadaluarsa ? formatDateIndo(b.tanggal_kadaluarsa) : '-'})`;
+                                } else if (isMenipisOrExpSoon) {
+                                    dotColor = '#f97316';
+                                    dotTitle = `Mendekati Kadaluarsa (${b.sisa_hari} hari lagi)`;
+                                }
+
+                                return (
+                                    <div className="flex justify-content-center" title={dotTitle}>
+                                        <span
+                                            style={{
+                                                display: 'inline-block',
+                                                width: '12px',
+                                                height: '12px',
+                                                borderRadius: '3px',
+                                                backgroundColor: dotColor,
+                                                boxShadow: `0 1px 3px ${dotColor}66`,
+                                            }}
+                                        />
+                                    </div>
+                                );
+                            }}
+                        />
+                        <Column
+                            header="Kode Batch"
+                            field="kode_batch"
+                            headerStyle={{ minWidth: '9rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}
+                            body={(b) => (
+                                <span className="font-mono font-semibold text-xs text-purple-700 bg-purple-50 px-2 py-0.5 border-round">
+                                    {b.kode_batch}
+                                </span>
+                            )}
+                        />
                         <Column
                             header="No. Batch"
                             field="no_batch"
+                            headerStyle={{ minWidth: '9rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}
                             body={(b) => (
-                                <div className="flex flex-column gap-1">
-                                    <span className="font-mono font-bold text-xs text-900 bg-gray-100 px-2 py-0.5 border-round w-max">
-                                        {b.no_batch}
-                                    </span>
-                                    <span className="text-[11px] text-400 font-mono">
-                                        {b.kode_batch}
-                                    </span>
-                                </div>
+                                <span className="font-mono font-bold text-xs text-900 bg-gray-100 px-2 py-0.5 border-round">
+                                    {b.no_batch}
+                                </span>
                             )}
-                            style={{ minWidth: '11rem' }}
                         />
                         <Column
                             header="Tanggal Kadaluarsa"
+                            headerStyle={{ minWidth: '10.5rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}
                             body={(b) => {
                                 let badgeBg = 'bg-green-100 text-green-800 border-green-300';
                                 if (b.status_expired === 'kadaluarsa') badgeBg = 'bg-red-500 text-white font-bold';
@@ -552,28 +606,9 @@ const Page = () => {
 
                                 return (
                                     <div className="flex flex-column gap-1">
-                                        <div className="flex align-items-center gap-1.5 flex-wrap">
-                                            <span className={`px-2 py-0.5 border-round text-xs font-semibold border-1 ${badgeBg}`}>
-                                                {b.tanggal_kadaluarsa ? formatDateIndo(b.tanggal_kadaluarsa) : '-'}
-                                            </span>
-                                            {b.sisa_hari !== null && (
-                                                <span
-                                                    className={`text-xs font-semibold ${
-                                                        b.sisa_hari < 0
-                                                            ? 'text-red-600'
-                                                            : b.sisa_hari <= 30
-                                                            ? 'text-red-600 font-bold'
-                                                            : b.sisa_hari <= 90
-                                                            ? 'text-orange-600'
-                                                            : 'text-green-600'
-                                                    }`}
-                                                >
-                                                    {b.sisa_hari < 0
-                                                        ? `(Lewat ${Math.abs(b.sisa_hari)} hr)`
-                                                        : `(${b.sisa_hari} hr)`}
-                                                </span>
-                                            )}
-                                        </div>
+                                        <span className={`px-2 py-0.5 border-round text-xs font-semibold border-1 w-max ${badgeBg}`}>
+                                            {b.tanggal_kadaluarsa ? formatDateIndo(b.tanggal_kadaluarsa) : '-'}
+                                        </span>
                                         {b.is_legacy_estimate === 1 && (
                                             <Tag
                                                 value="⚠️ Perkiraan Default (+1 Thn)"
@@ -586,7 +621,7 @@ const Page = () => {
                                     </div>
                                 );
                             }}
-                            style={{ minWidth: '15rem' }}
+                            style={{ minWidth: '10.5rem' }}
                         />
                         <Column
                             header="Kuantitas Stok"
@@ -629,18 +664,7 @@ const Page = () => {
                             )}
                             style={{ minWidth: '11rem' }}
                         />
-                        <Column
-                            field="status"
-                            header="Status"
-                            align="center"
-                            body={(b) => {
-                                let sev: 'success' | 'warning' | 'danger' | 'info' = 'success';
-                                if (b.status === 'habis') sev = 'info';
-                                else if (b.status === 'kadaluarsa') sev = 'danger';
-                                return <Tag value={b.status.toUpperCase()} severity={sev} className="text-xs py-0 px-2" />;
-                            }}
-                            style={{ minWidth: '7rem' }}
-                        />
+
                         <Column
                             header="Aksi"
                             align="center"
@@ -836,9 +860,14 @@ const Page = () => {
                             currentPageReportTemplate="Menampilkan {first} - {last} dari {totalRecords} data"
                             header={
                                 <div className="flex flex-column gap-3">
+                                    <div>
+                                        <span className="text-xl font-bold text-900 block">Data Stok Produk Klinik</span>
+                                        <span className="text-xs text-500">Monitoring ketersediaan stok fisik dan masa kadaluarsa produk</span>
+                                    </div>
+
+                                    {/* Baris Filter (Kiri) & Search + Reset (Kanan Mentok) */}
                                     <div className="flex flex-wrap align-items-center justify-content-between gap-2">
-                                        <span className="text-xl font-bold text-900">Data Stok Produk Klinik</span>
-                                        <div className="flex flex-wrap align-items-center gap-2 ml-auto w-full md:w-auto">
+                                        <div className="flex flex-wrap align-items-center gap-2">
                                             {/* Filter Status Stok */}
                                             <Dropdown
                                                 value={filterStatusStok}
@@ -847,6 +876,7 @@ const Page = () => {
                                                     { label: 'Stok Aman', value: 'aman' },
                                                     { label: 'Stok Menipis', value: 'menipis' },
                                                     { label: 'Stok Habis', value: 'habis' },
+                                                    { label: 'Ada Kadaluarsa', value: 'kadaluarsa' },
                                                 ]}
                                                 onChange={(e) => setFilterStatusStok(e.value)}
                                                 placeholder="Status Stok"
@@ -870,9 +900,11 @@ const Page = () => {
                                                 placeholder="Supplier"
                                                 className="p-inputtext-sm text-sm border-round-md w-full md:w-12rem"
                                             />
+                                        </div>
 
-                                            {/* Search Field */}
-                                            <IconField iconPosition="left" className="w-full md:w-16rem">
+                                        {/* Search Field & Reset Filter di Kanan Mentok */}
+                                        <div className="flex align-items-center gap-2 ml-auto w-full md:w-auto">
+                                            <IconField iconPosition="left" className="w-full md:w-18rem">
                                                 <InputIcon className="pi pi-search" />
                                                 <InputText
                                                     value={keyword}
@@ -905,14 +937,10 @@ const Page = () => {
                                         items={[
                                             { label: 'Stok Aman (> Min)', color: '#22c55e' },
                                             { label: 'Stok Menipis (≤ Min)', color: '#f97316' },
-                                            { label: 'Stok Habis (0)', color: '#ef4444' }
+                                            { label: 'Stok Habis (0)', color: '#64748b' },
+                                            { label: 'Produk Kadaluarsa (0 Layak Jual)', color: '#dc2626' },
                                         ]}
-                                    >
-                                        <span className="ml-auto flex align-items-center gap-1 text-purple-700 font-semibold text-xs">
-                                            <i className="pi pi-chevron-circle-right text-xs" />
-                                            Klik tombol panah di kiri baris untuk melihat rincian batch & tanggal kadaluarsa
-                                        </span>
-                                    </KeteranganStatus>
+                                    />
                                 </div>
                             }
                         >
@@ -922,18 +950,27 @@ const Page = () => {
                             {/* 1. Status Indicator */}
                             <Column
                                 header=""
-                                headerStyle={{ width: '3rem', textAlign: 'center' }}
+                                headerStyle={{ width: '3rem', textAlign: 'center', whiteSpace: 'nowrap' }}
                                 bodyStyle={{ textAlign: 'center' }}
                                 body={(r) => {
+                                    const stokLayak = Number(r.stok_layak_jual !== undefined ? r.stok_layak_jual : (r.stok_tersedia ?? 0));
+                                    const stokTotal = Number(r.stok_total_fisik !== undefined ? r.stok_total_fisik : (r.stok_tersedia ?? 0));
+                                    const isAllExpired = Boolean(r.is_expired || (stokLayak === 0 && stokTotal > 0));
+
                                     let dotColor = '#22c55e';
                                     let dotTitle = 'Stok Aman';
-                                    if (r.status_stok === 'habis') {
-                                        dotColor = '#ef4444';
+
+                                    if (stokTotal <= 0 || r.status_stok === 'habis') {
+                                        dotColor = '#64748b';
                                         dotTitle = 'Stok Habis (0 Unit)';
-                                    } else if (r.status_stok === 'menipis') {
+                                    } else if (isAllExpired || stokLayak <= 0) {
+                                        dotColor = '#dc2626';
+                                        dotTitle = `Produk Kadaluarsa (${stokTotal} unit fisik, 0 layak jual)`;
+                                    } else if (stokLayak <= (r.stok_minimum || 0)) {
                                         dotColor = '#f97316';
-                                        dotTitle = 'Stok Menipis (≤ Buffer Min)';
+                                        dotTitle = `Stok Menipis (≤ Buffer Min: ${r.stok_minimum} ${r.satuan})`;
                                     }
+
                                     return (
                                         <div className="flex justify-content-center" title={dotTitle}>
                                             <span
@@ -951,41 +988,44 @@ const Page = () => {
                                 }}
                             />
 
-                            {/* 2. Produk (Nama, Kode, Kategori) */}
+                            {/* 2. Kode Produk */}
                             <Column
-                                header="Produk & Kategori"
+                                header="Kode Produk"
                                 sortable
-                                field="nama"
-                                headerStyle={{ minWidth: '14rem', fontWeight: 'bold' }}
+                                field="kode_produk"
+                                headerStyle={{ minWidth: '8.5rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}
                                 body={(r) => (
-                                    <div className="flex flex-column gap-1">
-                                        <span
-                                            className="font-bold text-900 text-sm hover:text-purple-700 cursor-pointer"
-                                            onClick={() => {
-                                                const newExpanded = { ...expandedRows, [r.kode_produk]: !expandedRows[r.kode_produk] };
-                                                setExpandedRows(newExpanded);
-                                            }}
-                                            title="Klik untuk melihat rincian batch"
-                                        >
-                                            {r.nama}
-                                        </span>
-                                        <div className="flex align-items-center gap-1.5 flex-wrap">
-                                            <span className="font-mono font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 border-round text-[11px]">
-                                                {r.kode_produk}
-                                            </span>
-                                            <span className="text-xs text-500">
-                                                {r.nama_kategori || 'Tanpa Kategori'}
-                                            </span>
-                                        </div>
-                                    </div>
+                                    <span className="font-mono font-bold text-purple-700 bg-purple-50 px-2 py-1 border-round text-xs inline-block">
+                                        {r.kode_produk}
+                                    </span>
                                 )}
                             />
 
-                            {/* 3. Supplier Rekanan */}
+                            {/* 3. Nama Produk */}
+                            <Column
+                                header="Nama Produk"
+                                sortable
+                                field="nama"
+                                headerStyle={{ minWidth: '13rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}
+                                body={(r) => (
+                                    <span
+                                        className="font-bold text-900 text-sm hover:text-purple-700 cursor-pointer block"
+                                        onClick={() => {
+                                            const newExpanded = { ...expandedRows, [r.kode_produk]: !expandedRows[r.kode_produk] };
+                                            setExpandedRows(newExpanded);
+                                        }}
+                                        title="Klik untuk melihat rincian batch"
+                                    >
+                                        {r.nama}
+                                    </span>
+                                )}
+                            />
+
+                            {/* 4. Supplier Rekanan */}
                             <Column
                                 field="nama_supplier"
                                 header="Supplier Rekanan"
-                                headerStyle={{ minWidth: '10rem', fontWeight: 'bold' }}
+                                headerStyle={{ minWidth: '10.5rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}
                                 body={(r) =>
                                     r.nama_supplier ? (
                                         <div>
@@ -998,118 +1038,120 @@ const Page = () => {
                                 }
                             />
 
-                            {/* 4. Harga (Jual / Beli) */}
+                            {/* 5. Harga Jual */}
                             <Column
-                                header="Harga (Jual / Beli)"
-                                headerStyle={{ minWidth: '9.5rem', fontWeight: 'bold' }}
+                                header="Harga Jual"
+                                field="harga_jual"
+                                sortable
+                                headerStyle={{ minWidth: '8.5rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}
                                 body={(r) => (
-                                    <div className="flex flex-column">
-                                        <span className="text-sm font-bold text-green-700">{formatRupiah(r.harga_jual)}</span>
-                                        <span className="text-xs text-500">Beli: {formatRupiah(r.harga_beli)}</span>
-                                    </div>
+                                    <span className="text-sm font-bold text-green-700">
+                                        {formatRupiah(r.harga_jual)}
+                                    </span>
                                 )}
                             />
 
-                            {/* 5. Stok Fisik & Buffer Minimum */}
+                            {/* 6. Harga Beli */}
                             <Column
-                                header="Stok Fisik"
-                                headerStyle={{ minWidth: '8.5rem', fontWeight: 'bold' }}
+                                header="Harga Beli"
+                                field="harga_beli"
+                                sortable
+                                headerStyle={{ minWidth: '8.5rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}
+                                body={(r) => (
+                                    <span className="text-xs text-700 font-medium">
+                                        {formatRupiah(r.harga_beli)}
+                                    </span>
+                                )}
+                            />
+
+                            {/* 7. Stok Layak Jual */}
+                            <Column
+                                header="Stok Layak Jual"
+                                headerStyle={{ minWidth: '9.5rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}
                                 body={(r) => {
+                                    const stokLayak = Number(r.stok_layak_jual !== undefined ? r.stok_layak_jual : (r.stok_tersedia ?? 0));
+                                    const stokMin = Number(r.stok_minimum || 0);
+
                                     let badgeBg = 'bg-green-100 text-green-800 border-green-300';
-                                    if (r.status_stok === 'habis') {
+                                    let statusIcon = null;
+
+                                    if (stokLayak <= 0) {
                                         badgeBg = 'bg-red-500 text-white shadow-1';
-                                    } else if (r.status_stok === 'menipis') {
+                                        statusIcon = <i className="pi pi-times-circle text-xs" />;
+                                    } else if (stokLayak <= stokMin) {
                                         badgeBg = 'bg-orange-100 text-orange-900 border-orange-300';
+                                        statusIcon = <i className="pi pi-exclamation-triangle text-xs" />;
                                     }
+
                                     return (
-                                        <div className="flex flex-column gap-1">
-                                            <span
-                                                className={`px-2 py-0.5 border-round-md text-xs font-bold inline-flex align-items-center gap-1 w-max ${badgeBg}`}
-                                            >
-                                                {r.status_stok === 'habis' && <i className="pi pi-times-circle text-xs" />}
-                                                {r.status_stok === 'menipis' && <i className="pi pi-exclamation-triangle text-xs" />}
-                                                {r.stok_tersedia} {r.satuan}
-                                            </span>
-                                            <span className="text-[11px] text-500 font-medium">
-                                                Buffer Min: {r.stok_minimum} {r.satuan}
-                                            </span>
-                                        </div>
+                                        <span
+                                            className={`px-2.5 py-1 border-round-md text-xs font-bold inline-flex align-items-center gap-1 w-max ${badgeBg}`}
+                                            title={`Stok Layak Jual: ${stokLayak} ${r.satuan} (Belum Kadaluarsa)`}
+                                        >
+                                            {statusIcon}
+                                            {stokLayak} {r.satuan}
+                                        </span>
                                     );
                                 }}
                             />
 
-                            {/* 6. Batch Terdekat & Kadaluarsa (FEFO) */}
+                            {/* 8. Stok Keseluruhan */}
+                            <Column
+                                header="Stok Keseluruhan"
+                                headerStyle={{ minWidth: '9.5rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}
+                                body={(r) => {
+                                    const stokTotal = Number(r.stok_total_fisik !== undefined ? r.stok_total_fisik : (r.stok_tersedia ?? 0));
+
+                                    return (
+                                        <span
+                                            className="px-2.5 py-1 border-round-md text-xs font-bold text-gray-800 bg-gray-100 border-1 border-gray-300 inline-flex align-items-center w-max"
+                                            title={`Total Stok Fisik: ${stokTotal} ${r.satuan}`}
+                                        >
+                                            {stokTotal} {r.satuan}
+                                        </span>
+                                    );
+                                }}
+                            />
+
+                            {/* 9. Batch Terdekat (FEFO) */}
                             <Column
                                 header="Batch Terdekat (FEFO)"
-                                headerStyle={{ minWidth: '13rem', fontWeight: 'bold' }}
+                                headerStyle={{ minWidth: '10rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}
                                 body={(r) => {
                                     const batches = r.batches || [];
-                                    const activeBatches = batches.filter((b: any) => b.status === 'aktif' && b.stok_sisa > 0);
-                                    const nearest = activeBatches[0] || batches[0];
+                                    const validActiveBatches = batches.filter(
+                                        (b: any) => b.status === 'aktif' && b.stok_sisa > 0 && b.status_expired !== 'kadaluarsa' && (b.sisa_hari === null || b.sisa_hari >= 0)
+                                    );
+                                    const allActiveBatches = batches.filter((b: any) => b.status === 'aktif' && b.stok_sisa > 0);
+                                    const nearest = validActiveBatches[0] || allActiveBatches[0] || batches[0];
 
-                                    if (!nearest) {
-                                        return <span className="text-xs text-400 italic">Belum ada batch</span>;
+                                    if (!nearest || !nearest.no_batch) {
+                                        return <span className="text-xs text-400 italic">-</span>;
                                     }
 
-                                    let badgeColor = 'bg-green-100 text-green-800 border-green-300';
-                                    if (nearest.status_expired === 'kadaluarsa') badgeColor = 'bg-red-500 text-white font-bold';
-                                    else if (nearest.status_expired === 'kritis') badgeColor = 'bg-red-100 text-red-800 font-bold border-red-300';
-                                    else if (nearest.status_expired === 'perhatian') badgeColor = 'bg-orange-100 text-orange-800 font-semibold border-orange-300';
-
                                     return (
-                                        <div className="flex flex-column gap-1">
-                                            <div className="flex align-items-center gap-1.5 flex-wrap">
-                                                <span className="font-mono font-bold text-xs text-900 bg-gray-100 px-1.5 py-0.5 border-round">
-                                                    {nearest.no_batch}
-                                                </span>
-                                                <span className={`px-2 py-0.5 border-round text-xs border-1 ${badgeColor}`} title="Tanggal Kadaluarsa Terdekat">
-                                                    {nearest.tanggal_kadaluarsa ? formatDateIndo(nearest.tanggal_kadaluarsa) : '-'}
-                                                </span>
-                                            </div>
-                                            <div className="flex align-items-center gap-1 flex-wrap">
-                                                {activeBatches.length > 1 && (
-                                                    <Tag
-                                                        value={`+${activeBatches.length - 1} Batch Lain`}
-                                                        severity="info"
-                                                        className="text-xs cursor-pointer py-0 px-1.5"
-                                                        onClick={() => {
-                                                            const newExpanded = { ...expandedRows, [r.kode_produk]: true };
-                                                            setExpandedRows(newExpanded);
-                                                        }}
-                                                        title="Klik untuk expand & lihat semua batch produk ini"
-                                                    />
-                                                )}
-                                                {r.has_legacy_estimate && (
-                                                    <Tag
-                                                        value="⚠️ Verifikasi Tanggal"
-                                                        severity="warning"
-                                                        className="text-xs cursor-pointer py-0 px-1.5"
-                                                        onClick={() => handleOpenEditBatch(nearest, r)}
-                                                        title="Batch awal warisan sistem. Klik untuk memverifikasi nomor batch dan tanggal kadaluarsa sebenarnya."
-                                                    />
-                                                )}
-                                            </div>
-                                        </div>
+                                        <span className="font-mono font-bold text-xs text-900 bg-gray-100 px-2 py-1 border-round border-1 border-gray-200 inline-block">
+                                            {nearest.no_batch}
+                                        </span>
                                     );
                                 }}
                             />
 
-                            {/* 7. Nilai Aset */}
+                            {/* 10. Nilai Aset */}
                             <Column
                                 field="nilai_aset"
                                 header="Nilai Aset"
-                                headerStyle={{ textAlign: 'right', minWidth: '8.5rem', fontWeight: 'bold' }}
-                                bodyStyle={{ textAlign: 'right' }}
+                                headerStyle={{ minWidth: '9rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}
                                 body={(r) => (
                                     <span className="text-xs font-bold text-900">{formatRupiah(r.nilai_aset)}</span>
                                 )}
                             />
 
-                            {/* 8. Aksi Restock Cepat & Mutasi */}
+                            {/* 10. Aksi Restock Cepat & Mutasi */}
                             <Column
                                 header="Aksi"
                                 align="center"
-                                headerStyle={{ width: '7rem', textAlign: 'center', fontWeight: 'bold' }}
+                                headerStyle={{ width: '7rem', textAlign: 'center', fontWeight: 'bold', whiteSpace: 'nowrap' }}
                                 body={(r) => (
                                     <div className="flex align-items-center justify-content-center gap-1">
                                         <Button
@@ -1158,38 +1200,103 @@ const Page = () => {
                             paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
                             currentPageReportTemplate="Menampilkan {first} - {last} dari {totalPoRecords} data"
                             header={
-                                <div className="flex flex-wrap align-items-center justify-content-between gap-2">
-                                    <div>
-                                        <span className="text-xl font-bold text-900 block">Riwayat Faktur & Purchase Order</span>
-                                        <span className="text-xs text-500">Penerimaan pasokan produk dari rekanan supplier</span>
-                                    </div>
-                                    <div className="flex align-items-center gap-2 ml-auto w-full md:w-auto">
-                                        <IconField iconPosition="left" className="w-full md:w-20rem">
-                                            <InputIcon className="pi pi-search" />
-                                            <InputText
-                                                value={keywordPo}
-                                                onChange={(e) => setKeywordPo(e.target.value)}
-                                                placeholder="Cari Kode PO / Supplier..."
-                                                className="w-full text-sm"
+                                <div className="flex flex-column gap-3">
+                                    <div className="flex flex-wrap align-items-center justify-content-between gap-2">
+                                        <div>
+                                            <span className="text-xl font-bold text-900 block">Riwayat Faktur & Purchase Order</span>
+                                            <span className="text-xs text-500">Penerimaan pasokan produk dari rekanan supplier</span>
+                                        </div>
+                                        <div className="flex flex-wrap align-items-center gap-2 ml-auto w-full md:w-auto">
+                                            {/* Filter Status PO */}
+                                            <Dropdown
+                                                value={filterStatusPo}
+                                                options={[
+                                                    { label: 'Semua Status', value: '' },
+                                                    { label: 'Diterima', value: 'diterima' },
+                                                    { label: 'Dikirim', value: 'dikirim' },
+                                                    { label: 'Draft', value: 'draft' },
+                                                    { label: 'Dibatalkan', value: 'batal' },
+                                                ]}
+                                                onChange={(e) => setFilterStatusPo(e.value)}
+                                                placeholder="Status PO"
+                                                className="p-inputtext-sm text-sm border-round-md w-full md:w-11rem"
                                             />
-                                        </IconField>
-                                        <Button
-                                            icon="pi pi-refresh"
-                                            outlined
-                                            severity="success"
-                                            tooltip="Refresh Data"
-                                            tooltipOptions={{ position: 'bottom' }}
-                                            loading={loadingPo}
-                                            onClick={loadPoData}
-                                        />
+
+                                            <IconField iconPosition="left" className="w-full md:w-18rem">
+                                                <InputIcon className="pi pi-search" />
+                                                <InputText
+                                                    value={keywordPo}
+                                                    onChange={(e) => setKeywordPo(e.target.value)}
+                                                    placeholder="Cari Kode PO / Supplier..."
+                                                    className="w-full text-sm"
+                                                />
+                                            </IconField>
+                                            <Button
+                                                icon="pi pi-refresh"
+                                                outlined
+                                                severity="success"
+                                                tooltip="Refresh Data"
+                                                tooltipOptions={{ position: 'bottom' }}
+                                                loading={loadingPo}
+                                                onClick={loadPoData}
+                                            />
+                                        </div>
                                     </div>
+
+                                    <KeteranganStatus
+                                        className="mb-2"
+                                        items={[
+                                            { label: 'Diterima (Selesai)', color: '#22c55e' },
+                                            { label: 'Dikirim (Dalam Pengiriman)', color: '#0284c7' },
+                                            { label: 'Draft (Menunggu)', color: '#f97316' },
+                                            { label: 'Dibatalkan', color: '#ef4444' },
+                                        ]}
+                                    />
                                 </div>
                             }
                         >
+                            {/* 1. Status Indicator Dot */}
+                            <Column
+                                header=""
+                                headerStyle={{ width: '3rem', textAlign: 'center', whiteSpace: 'nowrap' }}
+                                bodyStyle={{ textAlign: 'center' }}
+                                body={(r) => {
+                                    const st = String(r.status || 'diterima').toLowerCase();
+                                    let dotColor = '#22c55e';
+                                    let dotTitle = 'PO Diterima (Selesai)';
+
+                                    if (st === 'dikirim') {
+                                        dotColor = '#0284c7';
+                                        dotTitle = 'PO Dikirim (Dalam Pengiriman)';
+                                    } else if (st === 'draft' || st === 'menunggu') {
+                                        dotColor = '#f97316';
+                                        dotTitle = 'PO Draft (Menunggu)';
+                                    } else if (st === 'batal' || st === 'dibatalkan') {
+                                        dotColor = '#ef4444';
+                                        dotTitle = 'PO Dibatalkan';
+                                    }
+
+                                    return (
+                                        <div className="flex justify-content-center" title={dotTitle}>
+                                            <span
+                                                style={{
+                                                    display: 'inline-block',
+                                                    width: '13px',
+                                                    height: '13px',
+                                                    borderRadius: '3px',
+                                                    backgroundColor: dotColor,
+                                                    boxShadow: `0 1px 3px ${dotColor}66`,
+                                                }}
+                                            />
+                                        </div>
+                                    );
+                                }}
+                            />
                             <Column
                                 field="kode_po"
                                 header="Nomor PO"
                                 sortable
+                                headerStyle={{ minWidth: '10rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}
                                 body={(r) => (
                                     <span className="font-mono font-bold text-purple-700 bg-purple-50 px-2 py-1 border-round text-xs">
                                         {r.kode_po}
@@ -1199,12 +1306,14 @@ const Page = () => {
                             <Column
                                 field="tanggal_po"
                                 header="Tanggal PO"
+                                headerStyle={{ minWidth: '9rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}
                                 body={(r) => formatDateIndo(r.tanggal_po)}
                                 className="text-xs text-600"
                             />
                             <Column
                                 field="nama_supplier"
                                 header="Supplier Rekanan"
+                                headerStyle={{ minWidth: '12rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}
                                 body={(r) => (
                                     <div>
                                         <span className="font-semibold text-900 text-sm block">{r.nama_supplier}</span>
@@ -1215,6 +1324,7 @@ const Page = () => {
                             <Column
                                 field="item_count"
                                 header="Item Dibeli"
+                                headerStyle={{ minWidth: '9rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}
                                 body={(r) => (
                                     <span className="text-xs text-700 font-medium">
                                         {r.items?.length || 0} macam barang
@@ -1224,23 +1334,15 @@ const Page = () => {
                             <Column
                                 field="total_po"
                                 header="Total Nominal"
+                                headerStyle={{ minWidth: '10rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}
                                 body={(r) => <span className="font-bold text-green-700 text-sm">{formatRupiah(r.total_po)}</span>}
                             />
-                            <Column
-                                field="status"
-                                header="Status"
-                                body={(r) => (
-                                    <Tag
-                                        value={String(r.status || 'DITERIMA').toUpperCase()}
-                                        severity="success"
-                                        className="text-xs font-bold uppercase"
-                                    />
-                                )}
-                            />
-                            <Column field="created_by" header="Operator" className="text-xs text-500" />
+
+                            <Column field="created_by" header="Operator" headerStyle={{ minWidth: '8rem', fontWeight: 'bold', whiteSpace: 'nowrap' }} className="text-xs text-500" />
                             <Column
                                 header="Rincian"
                                 align="center"
+                                headerStyle={{ width: '7rem', textAlign: 'center', fontWeight: 'bold', whiteSpace: 'nowrap' }}
                                 body={(r) => (
                                     <Button
                                         label="Rincian"
@@ -1278,85 +1380,145 @@ const Page = () => {
                             paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
                             currentPageReportTemplate="Menampilkan {first} - {last} dari {totalMutasiRecords} data"
                             header={
-                                <div className="flex flex-wrap align-items-center justify-content-between gap-2">
+                                <div className="flex flex-column gap-3">
                                     <div>
                                         <span className="text-xl font-bold text-900 block">Kartu Audit Mutasi Stok Fisik</span>
                                         <span className="text-xs text-500">Pencatatan riwayat penambahan, pengurangan, dan penyesuaian stok</span>
                                     </div>
-                                    <div className="flex flex-wrap align-items-center gap-2 ml-auto w-full md:w-auto">
-                                        <Dropdown
-                                            value={filterJenisMutasi}
-                                            options={[
-                                                { label: 'Semua Mutasi', value: '' },
-                                                { label: 'Stok Masuk', value: 'masuk' },
-                                                { label: 'Stok Keluar', value: 'keluar' },
-                                                { label: 'Penyesuaian', value: 'penyesuaian' },
-                                            ]}
-                                            onChange={(e) => setFilterJenisMutasi(e.value)}
-                                            placeholder="Jenis Mutasi"
-                                            className="p-inputtext-sm text-sm border-round-md w-full md:w-11rem"
-                                        />
-                                        <IconField iconPosition="left" className="w-full md:w-16rem">
-                                            <InputIcon className="pi pi-search" />
-                                            <InputText
-                                                value={keywordMutasi}
-                                                onChange={(e) => setKeywordMutasi(e.target.value)}
-                                                placeholder="Cari Kode / Produk / Ref..."
-                                                className="w-full text-sm"
+
+                                    {/* Baris Filter (Kiri) & Search + Refresh (Kanan Mentok) */}
+                                    <div className="flex flex-wrap align-items-center justify-content-between gap-2">
+                                        <div className="flex flex-wrap align-items-center gap-2">
+                                            <Dropdown
+                                                value={filterJenisMutasi}
+                                                options={[
+                                                    { label: 'Semua Mutasi', value: '' },
+                                                    { label: 'Stok Masuk', value: 'masuk' },
+                                                    { label: 'Stok Keluar', value: 'keluar' },
+                                                    { label: 'Penyesuaian', value: 'penyesuaian' },
+                                                ]}
+                                                onChange={(e) => setFilterJenisMutasi(e.value)}
+                                                placeholder="Jenis Mutasi"
+                                                className="p-inputtext-sm text-sm border-round-md w-full md:w-12rem"
                                             />
-                                        </IconField>
-                                        <Button
-                                            icon="pi pi-refresh"
-                                            outlined
-                                            severity="success"
-                                            tooltip="Refresh Data"
-                                            tooltipOptions={{ position: 'bottom' }}
-                                            loading={loadingMutasi}
-                                            onClick={loadMutasiData}
-                                        />
+                                        </div>
+
+                                        <div className="flex align-items-center gap-2 ml-auto w-full md:w-auto">
+                                            <IconField iconPosition="left" className="w-full md:w-18rem">
+                                                <InputIcon className="pi pi-search" />
+                                                <InputText
+                                                    value={keywordMutasi}
+                                                    onChange={(e) => setKeywordMutasi(e.target.value)}
+                                                    placeholder="Cari Kode / Produk / Ref..."
+                                                    className="w-full text-sm"
+                                                />
+                                            </IconField>
+                                            <Button
+                                                icon="pi pi-refresh"
+                                                outlined
+                                                severity="success"
+                                                tooltip="Refresh Data"
+                                                tooltipOptions={{ position: 'bottom' }}
+                                                loading={loadingMutasi}
+                                                onClick={loadMutasiData}
+                                            />
+                                        </div>
                                     </div>
+
+                                    <KeteranganStatus
+                                        className="mb-2"
+                                        items={[
+                                            { label: 'Stok Masuk (Restock / Penambahan)', color: '#22c55e' },
+                                            { label: 'Stok Keluar (Penjualan / Treatment)', color: '#ef4444' },
+                                            { label: 'Penyesuaian (Koreksi / Opname)', color: '#f97316' },
+                                        ]}
+                                    />
                                 </div>
                             }
                         >
+                            {/* 1. Status Indicator Dot */}
                             <Column
-                                field="created_at"
-                                header="Waktu & Tanggal"
-                                body={(r) => formatDateTimeIndo(r.created_at || r.tanggal)}
-                                className="text-xs text-500 font-medium"
-                            />
-                            <Column field="kode_stok_movement" header="Kode Mutasi" className="text-xs font-bold text-700" />
-                            <Column
-                                header="Produk"
-                                body={(r) => (
-                                    <div>
-                                        <span className="font-semibold text-900 text-xs block">{r.nama_produk || r.kode_produk}</span>
-                                        <span className="text-[11px] text-500">{r.kode_produk}</span>
-                                    </div>
-                                )}
-                            />
-                            <Column
-                                field="jenis_movement"
-                                header="Jenis"
+                                header=""
+                                headerStyle={{ width: '3rem', textAlign: 'center', whiteSpace: 'nowrap' }}
+                                bodyStyle={{ textAlign: 'center', paddingTop: '0.75rem', paddingBottom: '0.75rem' }}
                                 body={(r) => {
-                                    let sev: 'success' | 'danger' | 'warning' = 'info' as any;
-                                    if (r.jenis_movement === 'masuk') sev = 'success';
-                                    else if (r.jenis_movement === 'keluar') sev = 'danger';
-                                    else if (r.jenis_movement === 'penyesuaian') sev = 'warning';
+                                    const jn = String(r.jenis_movement || 'masuk').toLowerCase();
+                                    let dotColor = '#22c55e';
+                                    let dotTitle = 'Stok Masuk (Restock / Penambahan)';
+
+                                    if (jn === 'keluar') {
+                                        dotColor = '#ef4444';
+                                        dotTitle = 'Stok Keluar (Penjualan / Treatment)';
+                                    } else if (jn === 'penyesuaian') {
+                                        dotColor = '#f97316';
+                                        dotTitle = 'Penyesuaian (Koreksi / Opname)';
+                                    }
+
                                     return (
-                                        <Tag
-                                            value={String(r.jenis_movement || 'MASUK').toUpperCase()}
-                                            severity={sev}
-                                            className="text-[10px] font-bold"
-                                        />
+                                        <div className="flex justify-content-center" title={dotTitle}>
+                                            <span
+                                                style={{
+                                                    display: 'inline-block',
+                                                    width: '13px',
+                                                    height: '13px',
+                                                    borderRadius: '3px',
+                                                    backgroundColor: dotColor,
+                                                    boxShadow: `0 1px 3px ${dotColor}66`,
+                                                }}
+                                            />
+                                        </div>
                                     );
                                 }}
                             />
                             <Column
+                                field="created_at"
+                                header="Waktu & Tanggal"
+                                headerStyle={{ minWidth: '11rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}
+                                bodyStyle={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}
+                                body={(r) => formatDateTimeIndo(r.created_at || r.tanggal)}
+                                className="text-xs text-600"
+                            />
+                            <Column
+                                field="kode_stok_movement"
+                                header="Kode Mutasi"
+                                headerStyle={{ minWidth: '11rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}
+                                bodyStyle={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}
+                                body={(r) => (
+                                    <span className="font-mono font-bold text-700 text-xs">
+                                        {r.kode_stok_movement}
+                                    </span>
+                                )}
+                            />
+                            <Column
+                                field="kode_produk"
+                                header="Kode Produk"
+                                headerStyle={{ minWidth: '8rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}
+                                bodyStyle={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}
+                                body={(r) => (
+                                    <span className="font-mono font-bold text-purple-700 bg-purple-50 px-2 py-1 border-round text-xs">
+                                        {r.kode_produk}
+                                    </span>
+                                )}
+                            />
+                            <Column
+                                field="nama_produk"
+                                header="Nama Produk"
+                                headerStyle={{ minWidth: '13rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}
+                                bodyStyle={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}
+                                body={(r) => (
+                                    <span className="font-semibold text-900 text-sm block">
+                                        {r.nama_produk || r.kode_produk}
+                                    </span>
+                                )}
+                            />
+                            <Column
                                 field="qty"
                                 header="Perubahan"
+                                headerStyle={{ minWidth: '8rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}
+                                bodyStyle={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}
                                 body={(r) => (
                                     <span
-                                        className={`font-bold text-xs ${
+                                        className={`font-bold text-sm ${
                                             r.jenis_movement === 'masuk'
                                                 ? 'text-green-700'
                                                 : r.jenis_movement === 'keluar'
@@ -1370,14 +1532,34 @@ const Page = () => {
                             />
                             <Column
                                 header="Sebelum"
-                                body={(r) => <span className="text-xs text-500">{r.stok_sebelum} {r.satuan || ''}</span>}
+                                headerStyle={{ minWidth: '7rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}
+                                bodyStyle={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}
+                                body={(r) => <span className="text-sm text-600 font-medium">{r.stok_sebelum} {r.satuan || ''}</span>}
                             />
                             <Column
                                 header="Sesudah"
-                                body={(r) => <span className="text-xs font-bold text-800">{r.stok_sesudah} {r.satuan || ''}</span>}
+                                headerStyle={{ minWidth: '7rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}
+                                bodyStyle={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}
+                                body={(r) => <span className="text-sm font-bold text-900">{r.stok_sesudah} {r.satuan || ''}</span>}
                             />
-                            <Column field="referensi" header="No. Referensi / PO" className="text-xs font-mono text-primary font-bold" />
-                            <Column field="created_by" header="Operator" className="text-xs text-500" />
+                            <Column
+                                field="referensi"
+                                header="No. Referensi / PO"
+                                headerStyle={{ minWidth: '11rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}
+                                bodyStyle={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}
+                                body={(r) => (
+                                    <span className="font-mono font-bold text-primary text-xs bg-teal-50 px-2 py-1 border-round">
+                                        {r.referensi || '-'}
+                                    </span>
+                                )}
+                            />
+                            <Column
+                                field="created_by"
+                                header="Operator"
+                                headerStyle={{ minWidth: '8rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}
+                                bodyStyle={{ paddingTop: '0.75rem', paddingBottom: '0.75rem' }}
+                                className="text-xs text-500"
+                            />
                         </DataTable>
                     </TabPanel>
                 </TabView>

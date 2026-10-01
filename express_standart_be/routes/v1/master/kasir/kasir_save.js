@@ -56,6 +56,31 @@ router.post("/", async (req, res) => {
   }
 
   const currentBranch = getBranchScope(req, body.kode_cabang) || "CBG-001";
+  const userRole = (req?.auth?.role || "").toLowerCase();
+  const AUTHORIZED_OVERRIDE_ROLES = [
+    "owner",
+    "manager",
+    "superadmin",
+    "admin",
+    "dokter",
+    "kasir",
+    "supervisor",
+    "apoteker",
+    "dev",
+  ];
+
+  // Validasi otorisasi jika ada item yang meminta override kadaluarsa
+  const hasOverrideRequest = items.some((it) => it.is_expired_override || it.produk_expired_override);
+  if (hasOverrideRequest) {
+    const isAuthorized = userRole && AUTHORIZED_OVERRIDE_ROLES.includes(userRole);
+    if (!isAuthorized) {
+      return res.status(403).json({
+        status: status.GAGAL || "01",
+        message: "Akses ditolak: Anda tidak memiliki otorisasi (role) untuk melakukan override produk kadaluarsa.",
+        datetime: formatDateSystem(),
+      });
+    }
+  }
 
   // Validasi ketersediaan stok fisik produk (Early Validation)
   const stockCheck = await validateStockAvailability(items, currentBranch);
@@ -291,6 +316,9 @@ router.post("/", async (req, res) => {
       const kode_detail = `DT-${today}-${String(dtSeq).padStart(3, "0")}`;
       dtSeq++;
 
+      const isOverride = Boolean(item.is_expired_override || item.produk_expired_override) ? 1 : 0;
+      const catatanOverride = item.catatan_override || (isOverride ? (item.catatan || "Disetujui kasir/petugas") : null);
+
       const detailRow = {
         kode_cabang: currentTrxCabang,
         kode_detail_transaksi: kode_detail,
@@ -301,6 +329,8 @@ router.post("/", async (req, res) => {
         harga_satuan,
         subtotal,
         is_from_pendaftaran: isLayanan ? 1 : 0,
+        is_expired_override: isOverride,
+        catatan_override: catatanOverride,
         tz,
         created_by: username,
         created_at: DB.fn.now(),

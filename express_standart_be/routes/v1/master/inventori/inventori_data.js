@@ -4,6 +4,7 @@ import { formatDateSystem } from "../../components/tools/date_tools.js";
 import { Logging } from "../../components/tools/servertool.js";
 import { status } from "../../components/tools/general.js";
 import { getBranchScope } from "../../components/tools/branch_scope.js";
+import { getProdukBatchStockInfo } from "./batch_helper.js";
 
 const router = express.Router();
 
@@ -49,6 +50,15 @@ router.post("/", async (req, res) => {
           qb.where("p.stok_tersedia", ">", 0).andWhereRaw("p.stok_tersedia <= p.stok_minimum");
         } else if (filterStatusStok === "aman") {
           qb.whereRaw("p.stok_tersedia > p.stok_minimum");
+        } else if (filterStatusStok === "kadaluarsa") {
+          qb.whereExists(function () {
+            this.select("id")
+              .from("mst_produk_batch as b")
+              .whereRaw("b.kode_produk = p.kode_produk")
+              .where("b.status", "aktif")
+              .where("b.stok_sisa", ">", 0)
+              .whereRaw("b.tanggal_kadaluarsa < CURDATE()");
+          });
         }
       });
 
@@ -164,13 +174,32 @@ router.post("/", async (req, res) => {
         });
       }
 
+      const batchStockMap = await getProdukBatchStockInfo(prodCodes, branchCode);
+
       vaData = vaData.map((p) => {
         const pBatches = batchMap[p.kode_produk] || [];
         const hasEstimate = pBatches.some((b) => b.is_legacy_estimate === 1 && b.stok_sisa > 0);
-        const nearestExpBatch = pBatches.find((b) => b.status === "aktif" && b.stok_sisa > 0) || pBatches[0] || null;
+        // Prioritaskan batch aktif yang masih valid (FEFO layak jual), fallback ke batch aktif manapun, fallback ke batch[0]
+        const nearestExpBatch =
+          pBatches.find((b) => b.status === "aktif" && b.stok_sisa > 0 && b.status_expired !== "kadaluarsa" && (b.sisa_hari === null || b.sisa_hari >= 0)) ||
+          pBatches.find((b) => b.status === "aktif" && b.stok_sisa > 0) ||
+          pBatches[0] ||
+          null;
+
+        const stockInfo = batchStockMap[p.kode_produk] || null;
+        const stokLayak = stockInfo ? stockInfo.stok_layak_jual : (pBatches.length > 0 ? 0 : p.stok_tersedia || 0);
+        const stokFisik = stockInfo ? stockInfo.stok_total_fisik : (pBatches.length > 0 ? 0 : p.stok_tersedia || 0);
+        const stokExpired = Math.max(0, stokFisik - stokLayak);
+        const isExpired = stockInfo ? stockInfo.is_expired : (stokLayak === 0 && stokFisik > 0);
 
         return {
           ...p,
+          stok_layak_jual: stokLayak,
+          stok_total_fisik: stokFisik,
+          stok_expired: stokExpired,
+          is_expired: isExpired,
+          tanggal_kadaluarsa_terdekat: stockInfo?.tanggal_kadaluarsa_terdekat || p.tanggal_kadaluarsa || null,
+          total_batch_kadaluarsa: stockInfo?.total_batch_kadaluarsa || 0,
           batches: pBatches,
           total_batch: pBatches.length,
           total_batch_aktif: pBatches.filter((b) => b.status === "aktif" && b.stok_sisa > 0).length,

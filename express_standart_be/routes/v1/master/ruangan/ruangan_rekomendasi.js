@@ -17,6 +17,7 @@ import { getBranchScope } from "../../components/tools/branch_scope.js";
 import { syncRekamMedisPerAntrian } from "./rekam_medis_service.js";
 import { terbitkanAntreanLanjutanRuangan } from "./antrian_lanjutan_service.js";
 import { syncCompletedItemsToKasirDraft } from "../kasir/kasir_sync_service.js";
+import { getProdukBatchStockInfo } from "../inventori/batch_helper.js";
 
 const router = express.Router();
 
@@ -114,7 +115,9 @@ const handleGetRekomendasiOptions = async (req, res) => {
         "pr.satuan",
         "pr.foto",
         "pr.harga_jual as harga",
-        "pr.stok_minimum"
+        "pr.stok_minimum",
+        "pr.stok_tersedia",
+        "pr.tanggal_kadaluarsa"
       )
       .orderBy("pr.nama", "asc");
 
@@ -737,9 +740,29 @@ const handleGetRekomendasiOptions = async (req, res) => {
       });
     });
 
+    const prodCodes = vaProduk.map((p) => p.kode_produk);
+    const batchStockMap = await getProdukBatchStockInfo(prodCodes, branchCode);
+
     const listProduk = vaProduk.map((item) => {
       const fotoUrl = item.foto
         ? (item.foto.startsWith("http") ? item.foto : `${assetsBase}/uploads/produk/${item.foto}`)
+        : null;
+
+      const batchInfo = batchStockMap[item.kode_produk] || {
+        stok_layak_jual: item.stok_tersedia || 0,
+        stok_total_fisik: item.stok_tersedia || 0,
+        is_expired: false,
+        tanggal_kadaluarsa: item.tanggal_kadaluarsa || null,
+        tanggal_kadaluarsa_terdekat: item.tanggal_kadaluarsa || null,
+        total_batch_kadaluarsa: 0,
+      };
+
+      const stokLayakJual = batchInfo.stok_layak_jual;
+      const isExpired = Boolean(batchInfo.is_expired);
+      const expDate = batchInfo.tanggal_kadaluarsa || (item.tanggal_kadaluarsa ? String(item.tanggal_kadaluarsa).slice(0, 10) : null);
+      const expDateTerdekat = batchInfo.tanggal_kadaluarsa_terdekat || expDate;
+      const alasanExpired = isExpired
+        ? `Batch kadaluarsa sejak ${expDateTerdekat || 'beberapa hari lalu'}`
         : null;
 
       return applyPromo({
@@ -753,6 +776,13 @@ const handleGetRekomendasiOptions = async (req, res) => {
         harga: parseFloat(item.harga || 0),
         kode_kategori: item.kode_kategori_produk,
         nama_kategori: item.nama_kategori || "Produk",
+        stok_tersedia: stokLayakJual,
+        stok_layak_jual: stokLayakJual,
+        stok_total_fisik: batchInfo.stok_total_fisik,
+        is_expired: isExpired,
+        tanggal_kadaluarsa: expDate,
+        tanggal_kadaluarsa_terdekat: expDateTerdekat,
+        alasan_expired: alasanExpired,
         is_petugas_available: true,
       });
     });
@@ -877,6 +907,33 @@ router.post("/antrian-layanan-simpan-rekomendasi", async (req, res) => {
     rekomendasi_items = [],
   } = oPayload;
   const username = req?.auth?.username || "system";
+  const userRole = (req?.auth?.role || "").toLowerCase();
+  const AUTHORIZED_OVERRIDE_ROLES = [
+    "owner",
+    "manager",
+    "superadmin",
+    "admin",
+    "dokter",
+    "kasir",
+    "supervisor",
+    "apoteker",
+    "dev",
+  ];
+
+  const items = Array.isArray(rekomendasi_items) ? rekomendasi_items : [];
+
+  // Validasi otorisasi jika ada item rekomendasi yang meminta override kadaluarsa
+  const hasOverrideRequest = items.some((p) => p.produk_expired_override || p.is_expired_override);
+  if (hasOverrideRequest) {
+    const isAuthorized = userRole && AUTHORIZED_OVERRIDE_ROLES.includes(userRole);
+    if (!isAuthorized) {
+      return res.status(403).json({
+        status: status.GAGAL || "01",
+        message: "Akses ditolak: Anda tidak memiliki otorisasi (role) untuk melakukan override produk kadaluarsa.",
+        datetime: formatDateSystem(),
+      });
+    }
+  }
 
   try {
     if (!kode_antrian_layanan) {
@@ -950,6 +1007,23 @@ router.post("/antrian-layanan-simpan-rekomendasi", async (req, res) => {
           action: "UPDATE",
           dataBefore: { kode_karyawan: oPayload.no_sip_asal_booking, nama: oPayload.petugas_asal_booking },
           dataAfter: { kode_karyawan: oPayload.kode_karyawan, nama: oPayload.petugas_pengganti, catatan: oPayload.catatan_perubahan_petugas },
+          user: username,
+          tz: oPayload.tz || "Asia/Jakarta"
+        }, trx);
+      }
+
+      // ─── AUDIT TRAIL: OVERRIDE PRODUK KADALUARSA JIKA ADA ───
+      const expiredOverrideList = (Array.isArray(rekomendasi_items) ? rekomendasi_items : []).filter(
+        (p) => p.produk_expired_override || p.is_expired_override
+      );
+      if (expiredOverrideList.length > 0) {
+        await ChangesLog({
+          description: `Override Produk Kadaluarsa Rekomendasi Konsultasi: ${expiredOverrideList.map((p) => `${p.nama || p.kode || p.kode_produk} (${p.catatan_override || 'Disetujui dokter'})`).join(", ")} pada antrean ${kode_antrian_layanan}`,
+          tableName: "trx_antrian_layanan",
+          referenceCode: kode_antrian_layanan,
+          action: "UPDATE",
+          dataBefore: null,
+          dataAfter: { expired_overrides: expiredOverrideList },
           user: username,
           tz: oPayload.tz || "Asia/Jakarta"
         }, trx);
