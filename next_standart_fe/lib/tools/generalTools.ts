@@ -131,4 +131,45 @@ export const formatReceiptCurrency = (value: number | string | null | undefined)
         minimumFractionDigits: 0,
         maximumFractionDigits: 0
     }).format(Number(value));
-};
+};
+
+export const openWhatsAppChat = (noHp?: string) => {
+    if (!noHp) return;
+    const digits = String(noHp).replace(/\D/g, '');
+    let formattedPhone = digits;
+    if (digits.startsWith('0')) {
+        formattedPhone = '62' + digits.slice(1);
+    } else if (digits.startsWith('8')) {
+        formattedPhone = '62' + digits;
+    }
+    if (!formattedPhone) return;
+
+    const appUri = `whatsapp://send?phone=${formattedPhone}`;
+    const webUri = `https://web.whatsapp.com/send?phone=${formattedPhone}`;
+
+    if (typeof window === 'undefined') return;
+
+    let appOpened = false;
+    const handleBlur = () => {
+        appOpened = true;
+    };
+
+    window.addEventListener('blur', handleBlur);
+
+    // Coba buka aplikasi WhatsApp terlebih dahulu
+    const hiddenLink = document.createElement('a');
+    hiddenLink.href = appUri;
+    hiddenLink.style.display = 'none';
+    document.body.appendChild(hiddenLink);
+    hiddenLink.click();
+    document.body.removeChild(hiddenLink);
+
+    // Fallback otomatis ke WhatsApp Web jika aplikasi WhatsApp tidak terpasang
+    setTimeout(() => {
+        window.removeEventListener('blur', handleBlur);
+        if (!appOpened && document.hasFocus()) {
+            window.open(webUri, '_blank', 'noopener,noreferrer');
+        }
+    }, 1200);
+};
+

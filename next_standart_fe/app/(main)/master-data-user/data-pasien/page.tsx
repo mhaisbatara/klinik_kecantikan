@@ -14,7 +14,7 @@ import { Divider } from 'primereact/divider';
 import { confirmDialog, ConfirmDialog } from 'primereact/confirmdialog';
 import { IconField } from 'primereact/iconfield';
 import { InputIcon } from 'primereact/inputicon';
-import { showError, showSuccess } from '@/lib/tools/generalTools';
+import { showError, showSuccess, openWhatsAppChat } from '@/lib/tools/generalTools';
 import { PasienFormDialog } from '@/app/(main)/pendaftaran-antrean/pendaftaran-pasien/components/dialogs/PasienFormDialog';
 import { useRouter } from 'next/navigation';
 import KeteranganStatus from '@/app/components/KeteranganStatus';
@@ -487,29 +487,24 @@ export default function DataPasienPage() {
                         header="No. HP"
                         style={{ minWidth: '10rem' }}
                         body={(rowData) => {
-                            const rawPhone = rowData.no_hp || '';
-                            const digits = rawPhone.replace(/\D/g, '');
-                            let formattedPhone = digits;
-                            if (digits.startsWith('0')) {
-                                formattedPhone = '62' + digits.slice(1);
-                            } else if (digits.startsWith('8')) {
-                                formattedPhone = '62' + digits;
-                            }
-                            const waUrl = formattedPhone ? `https://web.whatsapp.com/send?phone=${formattedPhone}` : null;
+                            const hasPhone = Boolean(rowData.no_hp && rowData.no_hp.trim() !== '-');
 
                             return (
                                 <div className="flex flex-column">
-                                    {waUrl ? (
-                                        <a
-                                            href={waUrl}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="font-semibold text-green-700 text-xs flex align-items-center gap-1 hover:underline cursor-pointer"
-                                            title="Chat WhatsApp"
+                                    {hasPhone ? (
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                openWhatsAppChat(rowData.no_hp);
+                                            }}
+                                            className="p-0 m-0 bg-transparent border-none text-left font-semibold text-green-700 text-xs flex align-items-center gap-1 hover:underline cursor-pointer"
+                                            title="Buka Chat WhatsApp (Aplikasi / Web)"
                                         >
                                             <i className="pi pi-whatsapp text-green-600" />
                                             {rowData.no_hp}
-                                        </a>
+                                        </button>
                                     ) : (
                                         <span className="text-500 text-xs">-</span>
                                     )}
