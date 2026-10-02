@@ -221,7 +221,6 @@ export default function DataPasienPage() {
                 submitLabel="Simpan Perubahan"
                 toast={toast}
                 onSuccess={() => {
-                    showSuccess(toast, 'Data pasien berhasil diperbarui');
                     loadData();
                 }}
             />

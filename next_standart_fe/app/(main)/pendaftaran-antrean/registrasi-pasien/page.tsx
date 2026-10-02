@@ -159,7 +159,6 @@ const RegistrasiPasienPage = () => {
     setDialogEditPasienVisible(false);
     setEditingPasien(null);
     setRefreshTrigger((prev) => prev + 1);
-    showSuccess(toast, 'Data pasien berhasil diperbarui');
   };
 
   // DataTable Template
