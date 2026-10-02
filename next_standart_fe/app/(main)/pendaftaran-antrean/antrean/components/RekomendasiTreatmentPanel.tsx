@@ -55,6 +55,7 @@ export interface RekomendasiItem {
   slack_menit?: number | null;
   keterangan_status?: string | null;
   stok_layak_jual?: number;
+  stok_tersedia?: number;
   stok_total_fisik?: number;
   is_expired?: boolean;
   tanggal_kadaluarsa?: string | null;
@@ -173,6 +174,7 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
     fetchOptions();
   }, [kodeCabang]);
 
+  const userSelectedTabRef = useRef<boolean>(false);
   const lastNavigatedKeyRef = useRef<string>('');
 
   useEffect(() => {
@@ -184,6 +186,7 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
         const itemKey = `${targetTreatment.jenis}_${targetTreatment.kode}`;
         if (lastNavigatedKeyRef.current !== itemKey) {
           lastNavigatedKeyRef.current = itemKey;
+          userSelectedTabRef.current = true;
           setActiveTabKey(targetTreatment.kode_ruangan);
         }
       }
@@ -438,9 +441,17 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
 
   useEffect(() => {
     if (allTabs.length > 0) {
-      const firstRoomTab = allTabs.find((t) => !t.isProduct) || allTabs[0];
-      if (!activeTabKey || !allTabs.some((t) => t.key === activeTabKey)) {
-        setActiveTabKey(firstRoomTab.key);
+      const firstRoomTab = allTabs.find((t) => !t.isProduct);
+      if (!userSelectedTabRef.current) {
+        if (firstRoomTab && activeTabKey !== firstRoomTab.key) {
+          setActiveTabKey(firstRoomTab.key);
+        } else if (!activeTabKey || !allTabs.some((t) => t.key === activeTabKey)) {
+          setActiveTabKey(allTabs[0].key);
+        }
+      } else {
+        if (!activeTabKey || !allTabs.some((t) => t.key === activeTabKey)) {
+          setActiveTabKey((firstRoomTab || allTabs[0]).key);
+        }
       }
     }
   }, [allTabs, activeTabKey]);
@@ -487,6 +498,18 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
         `Produk "${item.nama}" sudah kadaluarsa (${item.tanggal_kadaluarsa_terdekat || item.tanggal_kadaluarsa || '-'}) dan tidak dapat dipilih.`
       );
       return;
+    }
+
+    // ─── VALIDASI STOK LAYAK JUAL PRODUK ───
+    if (item.jenis === 'produk') {
+      const maxStok = item.stok_layak_jual !== undefined ? item.stok_layak_jual : (item.stok_tersedia ?? 0);
+      if (maxStok <= 0) {
+        showWarning(
+          toast,
+          `Stok produk "${item.nama}" yang layak jual tidak tersedia (stok: 0).`
+        );
+        return;
+      }
     }
 
     if (isService) {
@@ -538,6 +561,18 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
 
   const handleQtyChange = (item: RekomendasiItem, newQty: number) => {
     if (disabled) return;
+
+    if (item.jenis === 'produk') {
+      const maxStok = item.stok_layak_jual !== undefined ? item.stok_layak_jual : (item.stok_tersedia ?? Infinity);
+      if (newQty > maxStok) {
+        showWarning(
+          toast,
+          `Jumlah pembelian untuk "${item.nama}" tidak boleh melebihi stok yang layak jual (${maxStok} ${item.satuan || 'pcs'}).`
+        );
+        return;
+      }
+    }
+
     const validQty = Math.max(1, newQty || 1);
     onChangeSelectedItems(
       selectedItems.map((s) => (s.jenis === item.jenis && s.kode === item.kode ? { ...s, qty: validQty } : s))
@@ -771,7 +806,10 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
               <button
                 key={tab.key}
                 type="button"
-                onClick={() => setActiveTabKey(tab.key)}
+                onClick={() => {
+                  userSelectedTabRef.current = true;
+                  setActiveTabKey(tab.key);
+                }}
                 className={`px-3 py-2 font-semibold text-xs border-none bg-transparent cursor-pointer flex align-items-center transition-colors relative white-space-nowrap ${
                   isActive ? 'text-primary font-bold' : 'text-600 hover:text-900'
                 }`}
@@ -962,7 +1000,9 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
               const isCapacityLocked = isService && (item.status_kapasitas === 'berisiko' || currentRoomObj?.status_kapasitas === 'berisiko');
               const isUnavailable = isService && (item.is_petugas_available === false || Boolean(item.is_not_started_today) || Boolean(item.is_past_today) || isCapacityLocked);
               const isExpiredProduct = isProduk && Boolean(item.is_expired);
-              const effectiveDisabled = isUnavailable || isRuangDisabled || disabled || isExpiredProduct;
+              const maxStockProduct = item.stok_layak_jual !== undefined ? item.stok_layak_jual : (item.stok_tersedia ?? 0);
+              const isOutOfStockProduct = isProduk && !item.is_expired && maxStockProduct <= 0;
+              const effectiveDisabled = isUnavailable || isRuangDisabled || disabled || isExpiredProduct || isOutOfStockProduct;
 
               return (
                 <div key={`${item.jenis}_${item.kode}`} className="col-12 sm:col-6 md:col-4 lg:col-3 xl:col-3 p-2">
@@ -986,6 +1026,13 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                         showWarning(
                           toast,
                           `Produk "${item.nama}" sudah kadaluarsa (${item.tanggal_kadaluarsa_terdekat || item.tanggal_kadaluarsa || '-'}) dan tidak dapat dipilih.`
+                        );
+                        return;
+                      }
+                      if (isOutOfStockProduct) {
+                        showWarning(
+                          toast,
+                          `Stok produk "${item.nama}" yang layak jual tidak tersedia (stok: 0).`
                         );
                         return;
                       }
@@ -1156,6 +1203,24 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                             </span>
                           )}
 
+                          {isProduk && !item.is_expired && isOutOfStockProduct && (
+                            <span
+                              className="inline-flex align-items-center font-bold text-white shadow-1"
+                              style={{
+                                fontSize: '9.5px',
+                                padding: '3px 8px',
+                                borderRadius: '9999px',
+                                backgroundColor: '#ef4444',
+                                lineHeight: '1.2',
+                                letterSpacing: '0.01em',
+                                gap: '4px',
+                              }}
+                            >
+                              <i className="pi pi-ban" style={{ fontSize: '9px' }} />
+                              Stok Habis
+                            </span>
+                          )}
+
                           {isSelected && (item.produk_expired_override || item.is_expired) && (
                             <Tag
                               rounded
@@ -1249,11 +1314,28 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                       <div className="pt-2 mt-2 border-top-1 surface-border flex align-items-center justify-content-between gap-2">
                         {isProduk ? (
                           <div
-                            className="inline-flex align-items-center text-xs text-600 font-medium"
-                            style={{ gap: '5px' }}
+                            className="inline-flex align-items-center text-xs text-600 font-medium white-space-nowrap"
+                            style={{ gap: '4px' }}
                           >
                             <i className="pi pi-box text-xs text-500 flex-shrink-0" />
-                            <span className="white-space-nowrap">{item.satuan || 'pcs'}</span>
+                            <span>
+                              Stok:{' '}
+                              <strong
+                                className={
+                                  (item.stok_layak_jual !== undefined
+                                    ? item.stok_layak_jual
+                                    : (item.stok_tersedia ?? 0)) <= 0
+                                    ? 'text-red-500 font-bold'
+                                    : 'text-800 font-bold'
+                                }
+                              >
+                                {item.stok_layak_jual !== undefined
+                                  ? item.stok_layak_jual
+                                  : item.stok_tersedia !== undefined
+                                  ? item.stok_tersedia
+                                  : '-'}
+                              </strong>
+                            </span>
                           </div>
                         ) : (
                           <div className="inline-flex align-items-center gap-1 text-xs text-600 font-medium min-w-0">
@@ -1265,21 +1347,21 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                         )}
 
                         {isProduk && isSelected ? (
-                          <div className="flex align-items-center" style={{ gap: '10px' }} onClick={(e) => e.stopPropagation()}>
+                          <div className="flex align-items-center flex-shrink-0" style={{ gap: '8px' }} onClick={(e) => e.stopPropagation()}>
                             <button
                               type="button"
                               onClick={() => handleQtyChange(item, (selectedObj?.qty || 1) - 1)}
-                              className="w-2rem h-2rem border-round-lg border-1 border-300 surface-50 cursor-pointer font-black text-base flex align-items-center justify-content-center text-700 hover:surface-200 transition-colors shadow-1 flex-shrink-0"
+                              className="border-round-lg border-1 border-300 surface-50 cursor-pointer font-black text-base flex align-items-center justify-content-center text-700 hover:surface-200 transition-colors shadow-1 flex-shrink-0"
                               title="Kurangi Jumlah"
-                              style={{ minWidth: '32px', minHeight: '32px' }}
+                              style={{ width: '28px', height: '28px' }}
                             >
                               −
                             </button>
                             <span
                               className="text-center font-bold text-amber-900 select-none"
                               style={{
-                                fontSize: '15px',
-                                minWidth: '22px',
+                                fontSize: '14.5px',
+                                minWidth: '18px',
                                 display: 'inline-block',
                               }}
                             >
@@ -1287,14 +1369,15 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                             </span>
                             <button
                               type="button"
+                              disabled={(selectedObj?.qty || 1) >= maxStockProduct}
                               onClick={() => handleQtyChange(item, (selectedObj?.qty || 1) + 1)}
-                              className="w-2rem h-2rem border-round-lg border-none text-white cursor-pointer font-black text-base flex align-items-center justify-content-center shadow-2 hover:opacity-90 transition-opacity flex-shrink-0"
+                              className={`border-round-lg border-none text-white font-black text-base flex align-items-center justify-content-center shadow-2 flex-shrink-0 transition-opacity ${(selectedObj?.qty || 1) >= maxStockProduct ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:opacity-90'}`}
                               style={{
                                 background: '#d97706',
-                                minWidth: '32px',
-                                minHeight: '32px',
+                                width: '28px',
+                                height: '28px',
                               }}
-                              title="Tambah Jumlah"
+                              title={(selectedObj?.qty || 1) >= maxStockProduct ? `Maksimal stok tercapai (${maxStockProduct})` : 'Tambah Jumlah'}
                             >
                               +
                             </button>

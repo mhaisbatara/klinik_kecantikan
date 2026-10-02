@@ -58,7 +58,6 @@ const DEFAULT_MASTER_DATA_ITEMS: AppMenuItem[] = [
     { label: 'Kategori Produk', icon: 'pi pi-fw pi-tags', to: '/master-data/kategori-produk' },
     { label: 'Data Produk', icon: 'pi pi-fw pi-box', to: '/master-data/produk' },
     { label: 'Paket Produk', icon: 'pi pi-fw pi-inbox', to: '/master-data/paket-produk' },
-    { label: 'Inventori', icon: 'pi pi-fw pi-box', to: '/master-data/inventori' },
     { label: 'Supplier', icon: 'pi pi-fw pi-truck', to: '/master-data/supplier' },
     { label: 'Karyawan', icon: 'pi pi-fw pi-users', to: '/master-data/karyawan' },
     { label: 'Jadwal Karyawan', icon: 'pi pi-fw pi-calendar-times', to: '/master-data/jadwal-karyawan' },
@@ -397,6 +396,9 @@ const AppMenu = () => {
                     const currentRole = (session?.user?.role || '').toLowerCase();
                     const isOwnerOrManagerCurrent = currentRole === 'owner' || currentRole === 'manager';
                     if (groupLabel.includes('master data') && !groupLabel.includes('pengaturan')) {
+                        subItems = subItems.filter(
+                            (it) => it.to !== '/master-data/inventori' && (it.label || '').toLowerCase() !== 'inventori'
+                        );
                         if (userAllowedPaths.size > 0) {
                             subItems = subItems.filter((it) => !it.to || hasPathInAllowed(it.to, userAllowedPaths));
                         } else if (isOwnerOrManagerCurrent) {
@@ -815,6 +817,13 @@ const AppMenu = () => {
                                 ? hasAllowedPath('/kasir')
                                 : currentRole === 'kasir');
 
+                        const canAccessInventori =
+                            isSuperAdminRole ||
+                            isOwnerOrManager ||
+                            (state.allowedPaths.size > 0
+                                ? hasAllowedPath('/master-data/inventori')
+                                : ['owner', 'manager', 'warehouse', 'admin'].includes(currentRole));
+
                         const canAccessLaporan =
                             isSuperAdminRole ||
                             isOwnerOrManager ||
@@ -827,6 +836,7 @@ const AppMenu = () => {
                         const matchesKonsul = canAccessKonsul && (!searchLower || 'konsultasi'.includes(searchLower) || 'medis'.includes(searchLower));
                         const showLayananSection = canAccessLayanan && (matchesTindakan || matchesKonsul);
                         const matchesKasir = canAccessKasir && (!searchLower || 'kasir'.includes(searchLower) || 'pembayaran'.includes(searchLower));
+                        const matchesInventori = canAccessInventori && (!searchLower || 'inventori'.includes(searchLower) || 'stok'.includes(searchLower) || 'gudang'.includes(searchLower) || 'inventory'.includes(searchLower));
 
                         let idx = 0;
                         return (
@@ -915,32 +925,58 @@ const AppMenu = () => {
                                     </li>
                                 )}
 
-                                {/* 5. KASIR */}
-                                {matchesKasir && (
-                                    <li className="layout-root-menuitem" key="kasir-section">
-                                        <div className="layout-menuitem-root-text">KASIR</div>
+                                {/* 5. TRANSAKSI (Kasir, Inventori) */}
+                                {(matchesKasir || matchesInventori) && (
+                                    <li className="layout-root-menuitem" key="transaksi-section">
+                                        <div className="layout-menuitem-root-text">TRANSAKSI</div>
                                         <ul>
-                                            <li className={pathname === '/kasir' ? 'active-menuitem' : ''}>
-                                                <Link
-                                                    href="/kasir"
-                                                    className={`p-ripple flex align-items-center gap-2${pathname === '/kasir' ? ' active-route' : ''}`}
-                                                    style={{ padding: '0.75rem 1.25rem', borderRadius: '6px', transition: 'background 0.2s' }}
-                                                >
-                                                    <i
-                                                        className="layout-menuitem-icon pi pi-calculator"
-                                                        style={{ color: pathname === '/kasir' ? 'var(--primary-color)' : undefined }}
-                                                    />
-                                                    <span
-                                                        className="layout-menuitem-text"
-                                                        style={{
-                                                            fontWeight: pathname === '/kasir' ? 700 : undefined,
-                                                            color: pathname === '/kasir' ? 'var(--primary-color)' : undefined,
-                                                        }}
+                                            {matchesKasir && (
+                                                <li className={pathname === '/kasir' ? 'active-menuitem' : ''}>
+                                                    <Link
+                                                        href="/kasir"
+                                                        className={`p-ripple flex align-items-center gap-2${pathname === '/kasir' ? ' active-route' : ''}`}
+                                                        style={{ padding: '0.75rem 1.25rem', borderRadius: '6px', transition: 'background 0.2s' }}
                                                     >
-                                                        Kasir
-                                                    </span>
-                                                </Link>
-                                            </li>
+                                                        <i
+                                                            className="layout-menuitem-icon pi pi-calculator"
+                                                            style={{ color: pathname === '/kasir' ? 'var(--primary-color)' : undefined }}
+                                                        />
+                                                        <span
+                                                            className="layout-menuitem-text"
+                                                            style={{
+                                                                fontWeight: pathname === '/kasir' ? 700 : undefined,
+                                                                color: pathname === '/kasir' ? 'var(--primary-color)' : undefined,
+                                                            }}
+                                                        >
+                                                            Kasir
+                                                        </span>
+                                                    </Link>
+                                                </li>
+                                            )}
+
+                                            {matchesInventori && (
+                                                <li className={pathname.startsWith('/master-data/inventori') ? 'active-menuitem' : ''}>
+                                                    <Link
+                                                        href="/master-data/inventori"
+                                                        className={`p-ripple flex align-items-center gap-2${pathname.startsWith('/master-data/inventori') ? ' active-route' : ''}`}
+                                                        style={{ padding: '0.75rem 1.25rem', borderRadius: '6px', transition: 'background 0.2s' }}
+                                                    >
+                                                        <i
+                                                            className="layout-menuitem-icon pi pi-box"
+                                                            style={{ color: pathname.startsWith('/master-data/inventori') ? 'var(--primary-color)' : undefined }}
+                                                        />
+                                                        <span
+                                                            className="layout-menuitem-text"
+                                                            style={{
+                                                                fontWeight: pathname.startsWith('/master-data/inventori') ? 700 : undefined,
+                                                                color: pathname.startsWith('/master-data/inventori') ? 'var(--primary-color)' : undefined,
+                                                            }}
+                                                        >
+                                                            Inventori
+                                                        </span>
+                                                    </Link>
+                                                </li>
+                                            )}
                                         </ul>
                                     </li>
                                 )}

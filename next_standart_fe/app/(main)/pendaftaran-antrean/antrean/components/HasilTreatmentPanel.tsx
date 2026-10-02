@@ -102,6 +102,9 @@ const formatRupiah = (val: number) =>
 
 const getCategoryBadgeStyle = (catName?: string) => {
     const lower = (catName || '').toLowerCase();
+    if (lower.includes('paket')) {
+        return { color: '#7c3aed', borderColor: '#7c3aed' };
+    }
     if (lower.includes('rambut') || lower.includes('hair')) {
         return { color: '#2563EB', borderColor: '#2563EB' };
     }
@@ -477,6 +480,18 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
         }
         lastAddRef.current = { kode: prod.kode_produk, time: now };
 
+        const maxStok = prod.stok_layak_jual !== undefined ? prod.stok_layak_jual : Infinity;
+        if (maxStok <= 0) {
+            showWarning(toast, `Stok produk "${prod.nama}" yang layak jual tidak tersedia (stok: 0).`);
+            return;
+        }
+
+        const existing = draftProdukList.find((p) => p.kode_produk === prod.kode_produk);
+        if (existing && existing.qty + 1 > maxStok) {
+            showWarning(toast, `Jumlah produk "${prod.nama}" tidak boleh melebihi stok yang layak jual (${maxStok} ${prod.satuan || 'pcs'}).`);
+            return;
+        }
+
         setDraftProdukList((prev) => {
             const existingIndex = prev.findIndex((p) => p.kode_produk === prod.kode_produk);
             if (existingIndex > -1) {
@@ -498,6 +513,7 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                 nilai_diskon: prod.nilai_diskon != null ? prod.nilai_diskon : null,
                 harga_asal: prod.harga_asal || prod.harga_jual,
                 harga_promo: prod.harga_promo != null ? prod.harga_promo : null,
+                stok_layak_jual: prod.stok_layak_jual,
                 is_expired: Boolean(prod.is_expired),
                 produk_expired_override: isOverride,
                 is_expired_override: isOverride,
@@ -513,6 +529,11 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                 .map((p) => {
                     if (p.kode_produk === kode_produk) {
                         const newQty = p.qty + delta;
+                        const maxStok = p.stok_layak_jual !== undefined ? p.stok_layak_jual : Infinity;
+                        if (delta > 0 && newQty > maxStok) {
+                            showWarning(toast, `Jumlah produk "${p.nama}" tidak boleh melebihi stok yang layak jual (${maxStok} ${p.satuan || 'pcs'}).`);
+                            return p;
+                        }
                         return newQty > 0 ? { ...p, qty: newQty } : null;
                     }
                     return p;
@@ -2067,6 +2088,8 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                         const selectedQty = draftSelectedMap.get(prod.kode_produk) || 0;
                                         const isSelected = selectedQty > 0;
                                         const badgeStyle = getCategoryBadgeStyle(prod.nama_kategori);
+                                        const isOutOfStock = prod.stok_layak_jual !== undefined && prod.stok_layak_jual <= 0;
+                                        const isCardDisabled = prod.is_expired || isOutOfStock;
 
                                         return (
                                             <div
@@ -2076,12 +2099,16 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                         showWarning(toast, `Produk "${prod.nama}" sudah kadaluarsa (${prod.tanggal_kadaluarsa || '-'}) dan tidak dapat dipilih.`);
                                                         return;
                                                     }
+                                                    if (isOutOfStock) {
+                                                        showWarning(toast, `Stok produk "${prod.nama}" tidak tersedia (stok: 0).`);
+                                                        return;
+                                                    }
                                                     handleDraftAddProduk(prod);
                                                 }}
-                                                className={`transition-all ${prod.is_expired ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+                                                className={`transition-all ${isCardDisabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
                                                 style={{
-                                                    backgroundColor: prod.is_expired ? '#f8fafc' : '#ffffff',
-                                                    border: prod.is_expired ? '1px dashed #cbd5e1' : (isSelected ? '1.5px solid #0C8F62' : '1px solid #e2e8f0'),
+                                                    backgroundColor: isCardDisabled ? '#f8fafc' : '#ffffff',
+                                                    border: isCardDisabled ? '1px dashed #cbd5e1' : (isSelected ? '1.5px solid #0C8F62' : '1px solid #e2e8f0'),
                                                     borderRadius: '10px',
                                                     overflow: 'hidden',
                                                     boxShadow: isSelected ? '0 0 0 1px #0C8F62, 0 2px 8px rgba(12, 143, 98, 0.12)' : '0 1px 3px rgba(0,0,0,0.03)',
@@ -2201,7 +2228,7 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                                 {prod.kode_produk}
                                                             </span>
                                                             <div className="flex align-items-center gap-1">
-                                                                {prod.is_expired && (
+                                                                {prod.is_expired ? (
                                                                     <span
                                                                         style={{
                                                                             backgroundColor: '#fee2e2',
@@ -2219,7 +2246,24 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                                     >
                                                                         Kadaluarsa
                                                                     </span>
-                                                                )}
+                                                                ) : isOutOfStock ? (
+                                                                    <span
+                                                                        style={{
+                                                                            backgroundColor: '#fef2f2',
+                                                                            border: '1px solid #f87171',
+                                                                            color: '#b91c1c',
+                                                                            fontSize: '9px',
+                                                                            fontWeight: 700,
+                                                                            padding: '1px 5px',
+                                                                            borderRadius: '4px',
+                                                                            whiteSpace: 'nowrap',
+                                                                            flexShrink: 0,
+                                                                            lineHeight: 1.2
+                                                                        }}
+                                                                    >
+                                                                        Stok Habis
+                                                                    </span>
+                                                                ) : null}
                                                                 {prod.nama_kategori && (
                                                                     <span
                                                                         style={{
@@ -2262,13 +2306,15 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
 
                                                         <button
                                                             type="button"
-                                                            disabled={Boolean(prod.is_expired)}
+                                                            disabled={isCardDisabled}
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                if (!prod.is_expired) {
-                                                                    handleDraftAddProduk(prod);
-                                                                } else {
+                                                                if (prod.is_expired) {
                                                                     showWarning(toast, `Produk "${prod.nama}" sudah kadaluarsa (${prod.tanggal_kadaluarsa || '-'}) dan tidak dapat dipilih.`);
+                                                                } else if (isOutOfStock) {
+                                                                    showWarning(toast, `Stok produk "${prod.nama}" tidak tersedia (stok: 0).`);
+                                                                } else {
+                                                                    handleDraftAddProduk(prod);
                                                                 }
                                                             }}
                                                             className="flex align-items-center justify-content-center transition-transform active:scale-95 flex-shrink-0"
@@ -2276,15 +2322,25 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                                 width: '26px',
                                                                 height: '26px',
                                                                 borderRadius: '50%',
-                                                                backgroundColor: prod.is_expired ? '#e2e8f0' : '#0C8F62',
+                                                                backgroundColor: isCardDisabled ? '#e2e8f0' : '#0C8F62',
                                                                 border: 'none',
-                                                                color: prod.is_expired ? '#94a3b8' : '#ffffff',
-                                                                cursor: prod.is_expired ? 'not-allowed' : 'pointer',
-                                                                boxShadow: prod.is_expired ? 'none' : '0 1px 3px rgba(12,143,98,0.3)'
+                                                                color: isCardDisabled ? '#94a3b8' : '#ffffff',
+                                                                cursor: isCardDisabled ? 'not-allowed' : 'pointer',
+                                                                boxShadow: isCardDisabled ? 'none' : '0 1px 3px rgba(12,143,98,0.3)'
                                                             }}
-                                                            title={prod.is_expired ? `Produk kadaluarsa (${prod.tanggal_kadaluarsa || '-'}) - Tidak dapat dipilih` : "Tambah ke produk terpilih"}
+                                                            title={
+                                                                prod.is_expired
+                                                                    ? `Produk kadaluarsa (${prod.tanggal_kadaluarsa || '-'}) - Tidak dapat dipilih`
+                                                                    : isOutOfStock
+                                                                    ? `Stok tidak tersedia (stok: 0) - Tidak dapat dipilih`
+                                                                    : "Tambah ke produk terpilih"
+                                                            }
                                                         >
-                                                            {prod.is_expired ? <i className="pi pi-ban" style={{ fontSize: '11px', color: '#94a3b8' }} /> : <Plus size={14} strokeWidth={2.5} />}
+                                                            {isCardDisabled ? (
+                                                                <i className="pi pi-ban" style={{ fontSize: '11px', color: '#94a3b8' }} />
+                                                            ) : (
+                                                                <Plus size={14} strokeWidth={2.5} />
+                                                            )}
                                                         </button>
                                                     </div>
                                                 </div>
@@ -2504,8 +2560,9 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                         </span>
                                                         <button
                                                             type="button"
+                                                            disabled={item.stok_layak_jual !== undefined && item.qty >= item.stok_layak_jual}
                                                             onClick={() => handleDraftUpdateQty(item.kode_produk, 1)}
-                                                            className="flex align-items-center justify-content-center cursor-pointer transition-colors"
+                                                            className={`flex align-items-center justify-content-center transition-colors ${item.stok_layak_jual !== undefined && item.qty >= item.stok_layak_jual ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
                                                             style={{
                                                                 width: '20px',
                                                                 height: '20px',
@@ -2516,7 +2573,7 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                                 fontSize: '11px',
                                                                 fontWeight: 700
                                                             }}
-                                                            title="Tambah kuantitas"
+                                                            title={item.stok_layak_jual !== undefined && item.qty >= item.stok_layak_jual ? `Maksimal stok tercapai (${item.stok_layak_jual})` : 'Tambah kuantitas'}
                                                         >
                                                             +
                                                         </button>

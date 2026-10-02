@@ -740,8 +740,18 @@ const handleGetRekomendasiOptions = async (req, res) => {
       });
     });
 
-    const prodCodes = vaProduk.map((p) => p.kode_produk);
-    const batchStockMap = await getProdukBatchStockInfo(prodCodes, branchCode);
+    const paketCodes = vaPaketProduk.map((p) => p.kode_paket_produk);
+    let paketDetails = [];
+    if (paketCodes.length > 0) {
+      paketDetails = await DB("mst_detail_paket_produk as dp")
+        .whereIn("dp.kode_paket_produk", paketCodes)
+        .select("dp.kode_paket_produk", "dp.kode_produk", "dp.jumlah");
+    }
+
+    const allProdCodes = new Set(vaProduk.map((p) => p.kode_produk));
+    paketDetails.forEach((d) => allProdCodes.add(d.kode_produk));
+
+    const batchStockMap = await getProdukBatchStockInfo(Array.from(allProdCodes), branchCode);
 
     const listProduk = vaProduk.map((item) => {
       const fotoUrl = item.foto
@@ -792,6 +802,45 @@ const handleGetRekomendasiOptions = async (req, res) => {
         ? (item.foto.startsWith("http") ? item.foto : `${assetsBase}/uploads/paket_produk/${item.foto}`)
         : null;
 
+      const details = paketDetails.filter((d) => d.kode_paket_produk === item.kode_paket_produk);
+      let stokLayakJual = 999999;
+      let stokTotalFisik = 999999;
+      let isExpired = false;
+      let expDate = null;
+      let expDateTerdekat = null;
+      let alasanExpired = null;
+
+      if (details.length === 0) {
+        stokLayakJual = 0;
+        stokTotalFisik = 0;
+      } else {
+        for (const d of details) {
+          const bInfo = batchStockMap[d.kode_produk] || {
+            stok_layak_jual: 0,
+            stok_total_fisik: 0,
+            is_expired: false,
+            tanggal_kadaluarsa: null,
+            tanggal_kadaluarsa_terdekat: null,
+          };
+          const reqQty = Math.max(1, parseInt(d.jumlah || 1, 10));
+          const availableUnits = Math.floor((bInfo.stok_layak_jual || 0) / reqQty);
+          const physicalUnits = Math.floor((bInfo.stok_total_fisik || 0) / reqQty);
+
+          if (availableUnits < stokLayakJual) stokLayakJual = availableUnits;
+          if (physicalUnits < stokTotalFisik) stokTotalFisik = physicalUnits;
+
+          if (bInfo.is_expired) {
+            isExpired = true;
+            expDate = bInfo.tanggal_kadaluarsa;
+            expDateTerdekat = bInfo.tanggal_kadaluarsa_terdekat || expDate;
+            alasanExpired = `Item dalam paket kadaluarsa (${expDateTerdekat || 'expired'})`;
+          }
+        }
+      }
+
+      if (stokLayakJual === 999999) stokLayakJual = 0;
+      if (stokTotalFisik === 999999) stokTotalFisik = 0;
+
       return applyPromo({
         jenis: "paket_produk",
         tipe: "paket_produk",
@@ -803,6 +852,13 @@ const handleGetRekomendasiOptions = async (req, res) => {
         harga: parseFloat(item.harga || 0),
         kode_kategori: "PAKET_PRODUK",
         nama_kategori: "Paket Produk",
+        stok_tersedia: stokLayakJual,
+        stok_layak_jual: stokLayakJual,
+        stok_total_fisik: stokTotalFisik,
+        is_expired: isExpired,
+        tanggal_kadaluarsa: expDate,
+        tanggal_kadaluarsa_terdekat: expDateTerdekat,
+        alasan_expired: alasanExpired,
         masa_berlaku_hari: item.masa_berlaku_hari,
         is_petugas_available: true,
       });
@@ -961,6 +1017,8 @@ router.post("/antrian-layanan-simpan-rekomendasi", async (req, res) => {
     if (kodeKunjungan) {
       kunjungan = await DB("trx_kunjungan").where("kode_kunjungan", kodeKunjungan).first();
     }
+
+    const branchCode = oPayload.kode_cabang || currentAntrian?.kode_cabang || kunjungan?.kode_cabang || req?.auth?.kode_cabang || "CBG-001";
 
     const createdAntrianLayanan = [];
     let createdTransaksi = null;
@@ -1185,6 +1243,32 @@ router.post("/antrian-layanan-simpan-rekomendasi", async (req, res) => {
           .del();
 
         if (produkItems.length > 0) {
+          // Validasi stok layak jual produk sebelum insert
+          const productCodesToCheck = produkItems
+            .filter((p) => (p.jenis || "").toLowerCase() === "produk")
+            .map((p) => p.kode || p.kode_produk || p.kode_layanan)
+            .filter(Boolean);
+
+          if (productCodesToCheck.length > 0) {
+            const batchStockMap = await getProdukBatchStockInfo(productCodesToCheck, branchCode);
+            for (const prd of produkItems) {
+              if ((prd.jenis || "").toLowerCase() === "produk") {
+                const kdPrd = prd.kode || prd.kode_produk || prd.kode_layanan;
+                const nmPrd = prd.nama || prd.nama_produk || prd.nama_layanan || "Produk";
+                const qty = Math.max(1, parseInt(prd.qty || 1, 10));
+                const bInfo = batchStockMap[kdPrd];
+                if (bInfo && bInfo.stok_layak_jual < qty) {
+                  await trx.rollback();
+                  return res.status(422).json({
+                    status: status.BAD_REQUEST,
+                    message: `Jumlah produk "${nmPrd}" (${qty}) melebihi stok yang layak jual (${bInfo.stok_layak_jual} tersisa).`,
+                    datetime: formatDateSystem(),
+                  });
+                }
+              }
+            }
+          }
+
           const todayStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
           const alParts = kode_antrian_layanan.split("-");
           const seqPadded = alParts.length >= 3 ? alParts[2] : "001";
