@@ -4406,24 +4406,6 @@ export const LaporanExpiredView: React.FC = () => {
     { label: 'Stok Aman', value: `${summary.aman} Batch`, icon: 'pi pi-shield', color: 'green' },
   ];
 
-  const renderStatusTag = (r: any) => {
-    switch (r.status_expired) {
-      case 'kritis':
-        return (
-          <Tag
-            value={r.sisa_hari !== null && r.sisa_hari <= 0 ? 'EXPIRED' : `KRITIS (${r.sisa_hari ?? '<30'} HARI)`}
-            severity="danger"
-            className="text-xs font-bold"
-          />
-        );
-      case 'perhatian':
-        return <Tag value={`PERHATIAN (${r.sisa_hari ?? '<90'} HARI)`} severity="warning" className="text-xs font-semibold" />;
-      case 'aman':
-        return <Tag value="AMAN" severity="success" className="text-xs" />;
-      default:
-        return <Tag value="BELUM DIISI" severity="secondary" className="text-xs" />;
-    }
-  };
 
   return (
     <>
@@ -4571,12 +4553,7 @@ export const LaporanExpiredView: React.FC = () => {
             body={(r) => <span className="font-bold text-gray-700">{r.stok_tersedia} {r.satuan || ''}</span>}
             style={{ minWidth: '9rem' }}
           />
-          <Column
-            header="Status"
-            align="center"
-            body={(r) => renderStatusTag(r)}
-            style={{ minWidth: '10rem' }}
-          />
+
         </DataTable>
       </div>
     </>

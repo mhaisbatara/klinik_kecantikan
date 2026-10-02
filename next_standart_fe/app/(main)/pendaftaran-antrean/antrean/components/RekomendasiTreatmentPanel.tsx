@@ -177,17 +177,14 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
 
   useEffect(() => {
     if (selectedItems && selectedItems.length > 0) {
-      const targetItem = selectedItems.find((s) => s.is_locked || s.is_pendaftaran);
-      if (targetItem) {
-        const itemKey = `${targetItem.jenis}_${targetItem.kode}`;
+      const targetTreatment = selectedItems.find(
+        (s) => (s.is_locked || s.is_pendaftaran) && !s.jenis.toLowerCase().includes('produk') && s.kode_ruangan
+      );
+      if (targetTreatment && targetTreatment.kode_ruangan) {
+        const itemKey = `${targetTreatment.jenis}_${targetTreatment.kode}`;
         if (lastNavigatedKeyRef.current !== itemKey) {
           lastNavigatedKeyRef.current = itemKey;
-          const j = (targetItem.jenis || '').toLowerCase();
-          if (j.includes('produk')) {
-            setActiveTabKey('TAB_PRODUK');
-          } else if (targetItem.kode_ruangan) {
-            setActiveTabKey(targetItem.kode_ruangan);
-          }
+          setActiveTabKey(targetTreatment.kode_ruangan);
         }
       }
     } else {
@@ -440,8 +437,11 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
   }, [roomList, cleanSelectedItems]);
 
   useEffect(() => {
-    if (allTabs.length > 0 && (!activeTabKey || !allTabs.some((t) => t.key === activeTabKey))) {
-      setActiveTabKey(allTabs[0].key);
+    if (allTabs.length > 0) {
+      const firstRoomTab = allTabs.find((t) => !t.isProduct) || allTabs[0];
+      if (!activeTabKey || !allTabs.some((t) => t.key === activeTabKey)) {
+        setActiveTabKey(firstRoomTab.key);
+      }
     }
   }, [allTabs, activeTabKey]);
 
@@ -1149,10 +1149,10 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                                 letterSpacing: '0.01em',
                                 gap: '4px',
                               }}
-                              title={item.alasan_expired || 'Batch produk ini sudah kadaluarsa'}
+                              title={item.alasan_expired || 'Batch produk ini sudah kadaluarsa — Tidak dapat dijual'}
                             >
                               <i className="pi pi-exclamation-triangle" style={{ fontSize: '9px' }} />
-                              Kadaluarsa — Tidak Dapat Dijual
+                              Kadaluarsa
                             </span>
                           )}
 

@@ -2215,9 +2215,9 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                                             flexShrink: 0,
                                                                             lineHeight: 1.2
                                                                         }}
-                                                                        title={prod.alasan_expired || 'Batch kadaluarsa'}
+                                                                        title={prod.alasan_expired || 'Batch kadaluarsa — Tidak dapat dijual'}
                                                                     >
-                                                                        Kadaluarsa — Tidak Dapat Dijual
+                                                                        Kadaluarsa
                                                                     </span>
                                                                 )}
                                                                 {prod.nama_kategori && (
