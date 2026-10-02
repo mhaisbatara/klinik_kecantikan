@@ -486,24 +486,41 @@ export default function DataPasienPage() {
                         field="no_hp"
                         header="No. HP"
                         style={{ minWidth: '10rem' }}
-                        body={(rowData) => (
-                            <div className="flex flex-column">
-                                <a
-                                    href={`https://wa.me/${rowData.no_hp?.replace(/^0/, '62')}`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="font-semibold text-green-700 text-xs flex align-items-center gap-1 hover:underline"
-                                >
-                                    <i className="pi pi-whatsapp text-green-600" />
-                                    {rowData.no_hp || '-'}
-                                </a>
-                                {rowData.email && (
-                                    <span className="text-500 text-xs mt-1 truncate" style={{ maxWidth: '140px' }} title={rowData.email}>
-                                        {rowData.email}
-                                    </span>
-                                )}
-                            </div>
-                        )}
+                        body={(rowData) => {
+                            const rawPhone = rowData.no_hp || '';
+                            const digits = rawPhone.replace(/\D/g, '');
+                            let formattedPhone = digits;
+                            if (digits.startsWith('0')) {
+                                formattedPhone = '62' + digits.slice(1);
+                            } else if (digits.startsWith('8')) {
+                                formattedPhone = '62' + digits;
+                            }
+                            const waUrl = formattedPhone ? `https://web.whatsapp.com/send?phone=${formattedPhone}` : null;
+
+                            return (
+                                <div className="flex flex-column">
+                                    {waUrl ? (
+                                        <a
+                                            href={waUrl}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="font-semibold text-green-700 text-xs flex align-items-center gap-1 hover:underline cursor-pointer"
+                                            title="Chat WhatsApp"
+                                        >
+                                            <i className="pi pi-whatsapp text-green-600" />
+                                            {rowData.no_hp}
+                                        </a>
+                                    ) : (
+                                        <span className="text-500 text-xs">-</span>
+                                    )}
+                                    {rowData.email && (
+                                        <span className="text-500 text-xs mt-1 truncate" style={{ maxWidth: '140px' }} title={rowData.email}>
+                                            {rowData.email}
+                                        </span>
+                                    )}
+                                </div>
+                            );
+                        }}
                     />
 
                     {/* Kolom Wilayah / Alamat */}
