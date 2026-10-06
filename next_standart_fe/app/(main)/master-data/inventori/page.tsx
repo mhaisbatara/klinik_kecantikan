@@ -13,6 +13,7 @@ import { Tag } from 'primereact/tag';
 import { Dropdown } from 'primereact/dropdown';
 import { Divider } from 'primereact/divider';
 import { Checkbox } from 'primereact/checkbox';
+import { RadioButton } from 'primereact/radiobutton';
 import { TabView, TabPanel } from 'primereact/tabview';
 import { confirmDialog, ConfirmDialog } from 'primereact/confirmdialog';
 import { IconField } from 'primereact/iconfield';
@@ -104,40 +105,60 @@ const Page = () => {
     const [savingEditBatch, setSavingEditBatch] = useState<boolean>(false);
 
     // ==========================================
-    // MODAL DIALOG: BELI PRODUK BARU
+    // MODAL DIALOG: PENGADAAN DARI SUPPLIER (GABUNGAN RESTOCK & BELI BARU)
     // ==========================================
-    const [dialogBeliBaruVisible, setDialogBeliBaruVisible] = useState<boolean>(false);
-    const [formBeliBaru, setFormBeliBaru] = useState<any>({
+    const [dialogPengadaanVisible, setDialogPengadaanVisible] = useState<boolean>(false);
+    const [formPengadaan, setFormPengadaan] = useState<{
+        kode_supplier: string;
+        tanggal: string;
+        items: Array<{
+            id: string;
+            tipe_item: 'existing' | 'baru';
+            kode_produk: string;
+            update_harga_beli_master: boolean;
+            kode_kategori_produk: string;
+            satuan: string;
+            nama_produk_baru: string;
+            harga_beli: number;
+            harga_jual: number;
+            buffer_min: number;
+            batches: Array<{
+                id: string;
+                qty: number;
+                no_batch: string;
+                tanggal_kadaluarsa: string;
+            }>;
+        }>;
+    }>({
         kode_supplier: '',
-        kode_kategori_produk: '',
-        nama: '',
-        satuan: 'Pcs',
-        harga_beli: 0,
-        harga_jual: 0,
-        stok_minimum: 5,
-        qty_beli: 1,
-        no_batch: '',
-        tanggal_kadaluarsa: '',
         tanggal: new Date().toISOString().slice(0, 10),
+        items: [],
     });
-    const [savingBeliBaru, setSavingBeliBaru] = useState<boolean>(false);
+    const [savingPengadaan, setSavingPengadaan] = useState<boolean>(false);
 
-    // ==========================================
-    // MODAL DIALOG: RESTOCK PRODUK LAMA
-    // ==========================================
-    const [dialogRestockVisible, setDialogRestockVisible] = useState<boolean>(false);
-    const [selectedRestockProduk, setSelectedRestockProduk] = useState<any>(null);
-    const [formRestock, setFormRestock] = useState<any>({
-        kode_supplier: '',
-        kode_produk: '',
-        qty_masuk: 1,
-        harga_beli: 0,
+    const createEmptyPengadaanBatch = () => ({
+        id: 'batch_p_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+        qty: 1,
         no_batch: '',
         tanggal_kadaluarsa: '',
-        update_harga_beli_master: true,
-        tanggal: new Date().toISOString().slice(0, 10),
     });
-    const [savingRestock, setSavingRestock] = useState<boolean>(false);
+
+    const createEmptyPengadaanItem = (tipe: 'existing' | 'baru' = 'existing', defaultProd?: any) => {
+        const prod = defaultProd || (allProdukList.length > 0 ? allProdukList : dataProduk)[0];
+        return {
+            id: 'item_p_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+            tipe_item: tipe,
+            kode_produk: tipe === 'existing' ? prod?.kode_produk || '' : '',
+            update_harga_beli_master: true,
+            kode_kategori_produk: tipe === 'existing' ? prod?.kode_kategori_produk || kategoriList[0]?.value || '' : kategoriList[0]?.value || '',
+            satuan: tipe === 'existing' ? prod?.satuan || 'Pcs' : 'Pcs',
+            nama_produk_baru: '',
+            harga_beli: tipe === 'existing' && prod ? Number(prod.harga_beli) || 0 : 0,
+            harga_jual: tipe === 'existing' && prod ? Number(prod.harga_jual) || 0 : 0,
+            buffer_min: tipe === 'existing' && prod ? Number(prod.stok_minimum) || 5 : 5,
+            batches: [createEmptyPengadaanBatch()],
+        };
+    };
 
     // ==========================================
     // DATA LOADERS
@@ -284,152 +305,223 @@ const Page = () => {
     };
 
     // ==========================================
-    // HANDLERS: BELI PRODUK BARU
+    // HANDLERS: PENGADAAN (GABUNGAN RESTOCK & BELI BARU DENGAN NESTED BATCH)
     // ==========================================
-    const handleOpenBeliBaru = () => {
-        setFormBeliBaru({
-            kode_supplier: supplierList[0]?.value || '',
-            kode_kategori_produk: kategoriList[0]?.value || '',
-            nama: '',
-            satuan: 'Pcs',
-            harga_beli: 0,
-            harga_jual: 0,
-            stok_minimum: 5,
-            qty_beli: 1,
-            no_batch: '',
-            tanggal_kadaluarsa: '',
-            tanggal: new Date().toISOString().slice(0, 10),
-        });
-        setDialogBeliBaruVisible(true);
-    };
-
-    const handleSaveBeliBaru = async () => {
-        if (!formBeliBaru.kode_supplier) {
-            showError(toast, 'Silakan pilih rekanan Supplier!');
-            return;
-        }
-        if (!formBeliBaru.kode_kategori_produk) {
-            showError(toast, 'Silakan pilih Kategori Produk!');
-            return;
-        }
-        if (!formBeliBaru.nama?.trim()) {
-            showError(toast, 'Nama Produk baru wajib diisi!');
-            return;
-        }
-        if (!formBeliBaru.satuan?.trim()) {
-            showError(toast, 'Satuan Produk wajib diisi!');
-            return;
-        }
-        if (Number(formBeliBaru.harga_beli) < 0) {
-            showError(toast, 'Harga Beli tidak valid!');
-            return;
-        }
-        if (Number(formBeliBaru.qty_beli) < 1) {
-            showError(toast, 'Jumlah pembelian minimal 1 unit!');
-            return;
-        }
-        if (!formBeliBaru.no_batch?.trim()) {
-            showError(toast, 'Nomor Batch pengadaan wajib diisi untuk pelacakan FEFO!');
-            return;
-        }
-        if (!formBeliBaru.tanggal_kadaluarsa) {
-            showError(toast, 'Tanggal Kadaluarsa batch wajib diisi!');
-            return;
-        }
-
-        setSavingBeliBaru(true);
-        try {
-            const res = await postData('/master/inventori-beli-baru', formBeliBaru);
-            showSuccess(toast, res.data.message || 'Produk baru berhasil dibeli dan masuk stok!');
-            setDialogBeliBaruVisible(false);
-            loadInventoriData();
-            loadDropdowns();
-        } catch (error: any) {
-            showError(toast, error?.response?.data?.message || 'Gagal menyimpan pengadaan produk');
-        } finally {
-            setSavingBeliBaru(false);
-        }
-    };
-
-    // ==========================================
-    // HANDLERS: RESTOCK PRODUK LAMA
-    // ==========================================
-    const handleOpenRestock = (targetRow?: any) => {
+    const handleOpenPengadaan = (targetRow?: any) => {
+        const today = new Date().toISOString().slice(0, 10);
         if (targetRow) {
-            setSelectedRestockProduk(targetRow);
-            setFormRestock({
+            const item = createEmptyPengadaanItem('existing', targetRow);
+            setFormPengadaan({
                 kode_supplier: targetRow.kode_supplier || supplierList[0]?.value || '',
-                kode_produk: targetRow.kode_produk,
-                qty_masuk: 1,
-                harga_beli: Number(targetRow.harga_beli) || 0,
-                no_batch: '',
-                tanggal_kadaluarsa: '',
-                update_harga_beli_master: true,
-                tanggal: new Date().toISOString().slice(0, 10),
+                tanggal: today,
+                items: [item],
             });
         } else {
-            const first = dataProduk[0] || allProdukList[0];
-            setSelectedRestockProduk(first || null);
-            setFormRestock({
-                kode_supplier: first?.kode_supplier || supplierList[0]?.value || '',
-                kode_produk: first?.kode_produk || '',
-                qty_masuk: 1,
-                harga_beli: Number(first?.harga_beli) || 0,
-                no_batch: '',
-                tanggal_kadaluarsa: '',
-                update_harga_beli_master: true,
-                tanggal: new Date().toISOString().slice(0, 10),
+            const firstProd = (allProdukList.length > 0 ? allProdukList : dataProduk)[0];
+            const firstSup = firstProd?.kode_supplier || supplierList[0]?.value || '';
+            const item = createEmptyPengadaanItem('existing', firstProd);
+            setFormPengadaan({
+                kode_supplier: firstSup,
+                tanggal: today,
+                items: [item],
             });
         }
-        setDialogRestockVisible(true);
+        setDialogPengadaanVisible(true);
     };
 
-    const handleSelectRestockProdukChange = (kodeProduk: string) => {
-        const found = allProdukList.find((p) => p.kode_produk === kodeProduk) || dataProduk.find((p) => p.kode_produk === kodeProduk);
-        setSelectedRestockProduk(found || null);
-        setFormRestock((prev: any) => ({
+    const handleAddPengadaanItem = (tipe: 'existing' | 'baru' = 'existing') => {
+        setFormPengadaan((prev) => ({
             ...prev,
-            kode_produk: kodeProduk,
-            kode_supplier: found?.kode_supplier || prev.kode_supplier || supplierList[0]?.value || '',
-            harga_beli: Number(found?.harga_beli) || 0,
-            no_batch: '',
-            tanggal_kadaluarsa: '',
+            items: [...prev.items, createEmptyPengadaanItem(tipe)],
         }));
     };
 
-    const handleSaveRestock = async () => {
-        if (!formRestock.kode_supplier) {
-            showError(toast, 'Silakan pilih rekanan Supplier!');
+    const handleRemovePengadaanItem = (index: number) => {
+        if (formPengadaan.items.length <= 1) {
+            showError(toast, 'Minimal harus ada 1 produk dalam pengadaan!');
             return;
         }
-        if (!formRestock.kode_produk) {
-            showError(toast, 'Silakan pilih Produk yang akan direstock!');
+        setFormPengadaan((prev) => ({
+            ...prev,
+            items: prev.items.filter((_, i) => i !== index),
+        }));
+    };
+
+    const handleUpdatePengadaanItem = (index: number, field: string, value: any) => {
+        setFormPengadaan((prev) => {
+            const updated = [...prev.items];
+            const item = { ...updated[index], [field]: value };
+
+            if (field === 'tipe_item') {
+                if (value === 'existing') {
+                    const firstProd = (allProdukList.length > 0 ? allProdukList : dataProduk)[0];
+                    item.kode_produk = firstProd?.kode_produk || '';
+                    item.satuan = firstProd?.satuan || 'Pcs';
+                    item.harga_beli = Number(firstProd?.harga_beli) || 0;
+                } else {
+                    item.kode_produk = '';
+                    item.kode_kategori_produk = kategoriList[0]?.value || '';
+                    item.satuan = 'Pcs';
+                    item.nama_produk_baru = '';
+                    item.harga_beli = 0;
+                    item.harga_jual = 0;
+                    item.buffer_min = 5;
+                }
+            }
+
+            if (field === 'kode_produk') {
+                const found = (allProdukList.length > 0 ? allProdukList : dataProduk).find((p: any) => p.kode_produk === value);
+                if (found) {
+                    item.satuan = found.satuan || 'Pcs';
+                    item.harga_beli = Number(found.harga_beli) || 0;
+                }
+            }
+
+            updated[index] = item;
+            return { ...prev, items: updated };
+        });
+    };
+
+    const handleAddPengadaanBatch = (prodIndex: number) => {
+        setFormPengadaan((prev) => {
+            const items = [...prev.items];
+            items[prodIndex] = {
+                ...items[prodIndex],
+                batches: [...items[prodIndex].batches, createEmptyPengadaanBatch()],
+            };
+            return { ...prev, items };
+        });
+    };
+
+    const handleRemovePengadaanBatch = (prodIndex: number, batchIndex: number) => {
+        setFormPengadaan((prev) => {
+            const items = [...prev.items];
+            const currentBatches = items[prodIndex].batches;
+            if (currentBatches.length <= 1) {
+                showError(toast, 'Minimal harus ada 1 batch untuk setiap produk!');
+                return prev;
+            }
+            items[prodIndex] = {
+                ...items[prodIndex],
+                batches: currentBatches.filter((_, bIdx) => bIdx !== batchIndex),
+            };
+            return { ...prev, items };
+        });
+    };
+
+    const handleUpdatePengadaanBatch = (prodIndex: number, batchIndex: number, field: string, value: any) => {
+        setFormPengadaan((prev) => {
+            const items = [...prev.items];
+            const batches = [...items[prodIndex].batches];
+            batches[batchIndex] = { ...batches[batchIndex], [field]: value };
+            items[prodIndex] = { ...items[prodIndex], batches };
+            return { ...prev, items };
+        });
+    };
+
+    const handleSavePengadaan = async () => {
+        if (!formPengadaan.kode_supplier) {
+            showError(toast, 'Silakan pilih rekanan Supplier pengirim!');
             return;
         }
-        if (Number(formRestock.qty_masuk) < 1) {
-            showError(toast, 'Jumlah unit restock minimal 1!');
-            return;
-        }
-        if (!formRestock.no_batch?.trim()) {
-            showError(toast, 'Nomor Batch restock baru wajib diisi untuk pelacakan FEFO!');
-            return;
-        }
-        if (!formRestock.tanggal_kadaluarsa) {
-            showError(toast, 'Tanggal Kadaluarsa batch restock wajib diisi!');
+        if (!formPengadaan.items || formPengadaan.items.length === 0) {
+            showError(toast, 'Daftar item pengadaan produk tidak boleh kosong!');
             return;
         }
 
-        setSavingRestock(true);
+        // Validasi tiap produk dan batch
+        for (let i = 0; i < formPengadaan.items.length; i++) {
+            const prod = formPengadaan.items[i];
+            const no = i + 1;
+
+            if (prod.tipe_item === 'existing') {
+                if (!prod.kode_produk) {
+                    showError(toast, `Produk #${no}: Silakan pilih Produk yang terdaftar!`);
+                    return;
+                }
+                if (Number(prod.harga_beli) < 0) {
+                    showError(toast, `Produk #${no}: Harga Beli satuan tidak boleh negatif!`);
+                    return;
+                }
+            } else {
+                if (!prod.kode_kategori_produk) {
+                    showError(toast, `Produk #${no}: Kategori Produk baru wajib dipilih!`);
+                    return;
+                }
+                if (!prod.nama_produk_baru?.trim()) {
+                    showError(toast, `Produk #${no}: Nama Produk baru wajib diisi!`);
+                    return;
+                }
+                if (!prod.satuan?.trim()) {
+                    showError(toast, `Produk #${no}: Satuan Produk baru wajib diisi!`);
+                    return;
+                }
+                if (Number(prod.harga_beli) < 0) {
+                    showError(toast, `Produk #${no}: Harga Beli satuan tidak boleh negatif!`);
+                    return;
+                }
+                if (Number(prod.harga_jual) < 0) {
+                    showError(toast, `Produk #${no}: Harga Jual satuan tidak boleh negatif!`);
+                    return;
+                }
+            }
+
+            if (!prod.batches || prod.batches.length === 0) {
+                showError(toast, `Produk #${no}: Minimal harus ada 1 batch fisik!`);
+                return;
+            }
+
+            for (let j = 0; j < prod.batches.length; j++) {
+                const b = prod.batches[j];
+                const bNo = j + 1;
+                if (Number(b.qty) < 1) {
+                    showError(toast, `Produk #${no} (Batch #${bNo}): Jumlah beli (Qty) minimal 1 unit!`);
+                    return;
+                }
+                if (!b.no_batch?.trim()) {
+                    showError(toast, `Produk #${no} (Batch #${bNo}): Nomor Batch kemasan wajib diisi untuk pelacakan FEFO!`);
+                    return;
+                }
+                if (!b.tanggal_kadaluarsa) {
+                    showError(toast, `Produk #${no} (Batch #${bNo}): Tanggal Kadaluarsa (Expired Date) wajib diisi!`);
+                    return;
+                }
+            }
+        }
+
+        setSavingPengadaan(true);
         try {
-            const res = await postData('/master/inventori-restock', formRestock);
-            showSuccess(toast, res.data.message || 'Restock produk berhasil disimpan!');
-            setDialogRestockVisible(false);
+            const payload = {
+                kode_supplier: formPengadaan.kode_supplier,
+                tanggal: formPengadaan.tanggal,
+                items: formPengadaan.items.map((it) => ({
+                    tipe_item: it.tipe_item,
+                    kode_produk: it.tipe_item === 'existing' ? it.kode_produk : undefined,
+                    update_harga_beli_master: it.tipe_item === 'existing' ? Boolean(it.update_harga_beli_master) : undefined,
+                    kode_kategori_produk: it.tipe_item === 'baru' ? it.kode_kategori_produk : undefined,
+                    satuan: it.tipe_item === 'baru' ? it.satuan.trim() : undefined,
+                    nama_produk_baru: it.tipe_item === 'baru' ? it.nama_produk_baru.trim() : undefined,
+                    harga_beli: Number(it.harga_beli) || 0,
+                    harga_jual: it.tipe_item === 'baru' ? Number(it.harga_jual) || 0 : undefined,
+                    buffer_min: it.tipe_item === 'baru' ? Number(it.buffer_min) || 5 : undefined,
+                    batches: it.batches.map((b) => ({
+                        qty: Number(b.qty) || 1,
+                        no_batch: b.no_batch.trim(),
+                        tanggal_kadaluarsa: b.tanggal_kadaluarsa,
+                    })),
+                })),
+            };
+
+            const res = await postData('/master/inventori-pengadaan', payload);
+            showSuccess(toast, res.data.message || 'Transaksi pengadaan berhasil disimpan!');
+            setDialogPengadaanVisible(false);
             loadInventoriData();
             loadDropdowns();
+            loadPoData();
         } catch (error: any) {
-            showError(toast, error?.response?.data?.message || 'Gagal memproses restock');
+            showError(toast, error?.response?.data?.message || 'Gagal menyimpan transaksi pengadaan');
         } finally {
-            setSavingRestock(false);
+            setSavingPengadaan(false);
         }
     };
 
@@ -794,22 +886,10 @@ const Page = () => {
                         <div className="flex flex-row flex-wrap align-items-center gap-2 pt-2 mb-4">
                             <Button
                                 size="small"
-                                label="Beli Produk Baru"
-                                icon="pi pi-plus"
-                                outlined
-                                severity="success"
-                                className="border-round-md font-medium px-3"
-                                onClick={handleOpenBeliBaru}
-                            />
-                            <Divider layout="vertical" className="m-0 h-2rem" />
-                            <Button
-                                size="small"
-                                label="Restock Produk"
+                                label="Pengadaan dari Supplier"
                                 icon="pi pi-cart-plus"
-                                outlined
-                                severity="info"
-                                className="border-round-md font-medium px-3"
-                                onClick={() => handleOpenRestock()}
+                                className="border-round-md font-bold px-3 bg-green-600 hover:bg-green-700 border-none text-white shadow-1"
+                                onClick={() => handleOpenPengadaan()}
                             />
                             <Divider layout="vertical" className="m-0 h-2rem" />
                             <Button
@@ -1159,8 +1239,8 @@ const Page = () => {
                                             outlined
                                             severity="info"
                                             className="p-button-sm border-round-md"
-                                            onClick={() => handleOpenRestock(r)}
-                                            tooltip="Restock dari Supplier"
+                                            onClick={() => handleOpenPengadaan(r)}
+                                            tooltip="Pengadaan / Restock dari Supplier"
                                             tooltipOptions={{ position: 'top' }}
                                         />
                                         <Button
@@ -1566,345 +1646,444 @@ const Page = () => {
             </div>
 
             {/* =========================================================
-                MODAL 1: BELI PRODUK BARU DARI SUPPLIER
-                ========================================================= */}
+            MODAL PENGADAAN DARI SUPPLIER (MULTI-ITEM & MULTI-BATCH)
+            ========================================================= */}
             <Dialog
-                header="Pengadaan / Beli Produk Baru dari Supplier"
-                visible={dialogBeliBaruVisible}
-                style={{ width: '600px' }}
+                header="Pengadaan Produk dari Supplier (Penerimaan Multi-Item & Multi-Batch)"
+                visible={dialogPengadaanVisible}
+                style={{ width: '920px', maxWidth: '95vw' }}
                 modal
-                onHide={() => setDialogBeliBaruVisible(false)}
+                onHide={() => setDialogPengadaanVisible(false)}
             >
                 <div className="flex flex-column gap-3 pt-2">
-                    <div className="p-3 border-round-lg bg-purple-50 border-1 border-purple-200 text-xs text-purple-900 flex align-items-start gap-2">
-                        <i className="pi pi-info-circle text-purple-700 text-base mt-0.5" />
+                    <div className="p-3 border-round-lg bg-green-50 border-1 border-green-200 text-xs text-green-900 flex align-items-start gap-2">
+                        <i className="pi pi-info-circle text-green-700 text-base mt-0.5" />
                         <div>
-                            <span className="font-bold block mb-0.5">Sistem Multi-Batch & FEFO:</span>
-                            Produk baru yang didaftarkan akan langsung dibuatkan batch fisik pertamanya beserta nomor batch &amp; tanggal kadaluarsa untuk pelacakan stok.
+                            <span className="font-bold block mb-0.5">Sistem Pengadaan Terpadu (Restock &amp; Produk Baru):</span>
+                            Pilih rekanan Supplier dan tanggal nota sekali di atas, lalu daftarkan produk lama (restock) maupun produk baru dalam 1 faktur pengadaan. Setiap produk dapat memiliki beberapa nomor batch fisik yang berbeda.
                         </div>
                     </div>
 
-                    {/* Pilih Supplier */}
-                    <div>
-                        <label className="block text-sm font-semibold mb-1">Supplier Rekanan *</label>
-                        <Dropdown
-                            value={formBeliBaru.kode_supplier}
-                            options={supplierList}
-                            onChange={(e) => setFormBeliBaru({ ...formBeliBaru, kode_supplier: e.value })}
-                            placeholder="Pilih Supplier"
-                            className="w-full text-sm"
-                            filter
-                        />
-                    </div>
-
-                    {/* Kategori & Nama Produk */}
-                    <div className="grid">
-                        <div className="col-12 md:col-6">
-                            <label className="block text-sm font-semibold mb-1">Kategori Produk *</label>
-                            <Dropdown
-                                value={formBeliBaru.kode_kategori_produk}
-                                options={kategoriList}
-                                onChange={(e) => setFormBeliBaru({ ...formBeliBaru, kode_kategori_produk: e.value })}
-                                placeholder="Pilih Kategori"
-                                className="w-full text-sm"
-                            />
+                    {/* ZONA HEADER (Diisi Sekali) */}
+                    <div className="surface-50 p-3 border-round-xl border-1 border-200">
+                        <div className="text-xs font-bold text-700 uppercase mb-2 flex align-items-center gap-2">
+                            <i className="pi pi-building text-green-600" />
+                            Informasi Header Faktur / PO
                         </div>
-                        <div className="col-12 md:col-6">
-                            <label className="block text-sm font-semibold mb-1">Satuan Produk *</label>
-                            <InputText
-                                value={formBeliBaru.satuan}
-                                onChange={(e) => setFormBeliBaru({ ...formBeliBaru, satuan: e.target.value })}
-                                placeholder="Pcs, Botol, Tube, Box"
-                                className="w-full text-sm"
-                            />
+                        <div className="grid">
+                            <div className="col-12 md:col-6">
+                                <label className="block text-xs font-bold text-700 mb-1">Supplier Rekanan *</label>
+                                <Dropdown
+                                    value={formPengadaan.kode_supplier}
+                                    options={supplierList}
+                                    onChange={(e) => setFormPengadaan({ ...formPengadaan, kode_supplier: e.value })}
+                                    placeholder="Pilih Supplier"
+                                    className="w-full p-inputtext-sm"
+                                    filter
+                                />
+                            </div>
+                            <div className="col-12 md:col-6">
+                                <label className="block text-xs font-bold text-700 mb-1">Tanggal Pembelian *</label>
+                                <InputText
+                                    type="date"
+                                    value={formPengadaan.tanggal}
+                                    onChange={(e) => setFormPengadaan({ ...formPengadaan, tanggal: e.target.value })}
+                                    className="w-full p-inputtext-sm"
+                                />
+                            </div>
                         </div>
                     </div>
 
-                    <div>
-                        <label className="block text-sm font-semibold mb-1">Nama Produk Baru *</label>
-                        <InputText
-                            value={formBeliBaru.nama}
-                            onChange={(e) => setFormBeliBaru({ ...formBeliBaru, nama: e.target.value })}
-                            placeholder="Contoh: Serum Vitamin C Glowing 30ml"
-                            className="w-full text-sm"
-                        />
-                    </div>
-
-                    {/* Harga Beli & Harga Jual */}
-                    <div className="grid">
-                        <div className="col-12 md:col-6">
-                            <label className="block text-sm font-semibold mb-1">Harga Beli Satuan (Modal) *</label>
-                            <InputNumber
-                                value={formBeliBaru.harga_beli}
-                                onValueChange={(e) => setFormBeliBaru({ ...formBeliBaru, harga_beli: e.value ?? 0 })}
-                                mode="currency"
-                                currency="IDR"
-                                locale="id-ID"
-                                className="w-full text-sm"
-                                min={0}
-                            />
-                        </div>
-                        <div className="col-12 md:col-6">
-                            <label className="block text-sm font-semibold mb-1">Harga Jual ke Pasien *</label>
-                            <InputNumber
-                                value={formBeliBaru.harga_jual}
-                                onValueChange={(e) => setFormBeliBaru({ ...formBeliBaru, harga_jual: e.value ?? 0 })}
-                                mode="currency"
-                                currency="IDR"
-                                locale="id-ID"
-                                className="w-full text-sm"
-                                min={0}
-                            />
-                        </div>
-                    </div>
-
-                    {/* Qty Beli & Stok Min */}
-                    <div className="grid">
-                        <div className="col-12 md:col-4">
-                            <label className="block text-sm font-semibold mb-1">Jumlah Beli (Qty) *</label>
-                            <InputNumber
-                                value={formBeliBaru.qty_beli}
-                                onValueChange={(e) => setFormBeliBaru({ ...formBeliBaru, qty_beli: e.value ?? 1 })}
-                                className="w-full text-sm"
-                                min={1}
-                            />
-                        </div>
-                        <div className="col-12 md:col-4">
-                            <label className="block text-sm font-semibold mb-1">Batas Buffer Min. *</label>
-                            <InputNumber
-                                value={formBeliBaru.stok_minimum}
-                                onValueChange={(e) => setFormBeliBaru({ ...formBeliBaru, stok_minimum: e.value ?? 5 })}
-                                className="w-full text-sm"
-                                min={0}
-                            />
-                        </div>
-                        <div className="col-12 md:col-4">
-                            <label className="block text-sm font-semibold mb-1">Tanggal Pembelian</label>
-                            <InputText
-                                type="date"
-                                value={formBeliBaru.tanggal}
-                                onChange={(e) => setFormBeliBaru({ ...formBeliBaru, tanggal: e.target.value })}
-                                className="w-full text-sm"
-                            />
-                        </div>
-                    </div>
-
-                    {/* No. Batch & Tanggal Kadaluarsa */}
-                    <div className="grid">
-                        <div className="col-12 md:col-6">
-                            <label className="block text-sm font-semibold mb-1">No. Batch Pabrik / Kemasan *</label>
-                            <InputText
-                                value={formBeliBaru.no_batch}
-                                onChange={(e) => setFormBeliBaru({ ...formBeliBaru, no_batch: e.target.value })}
-                                placeholder="Contoh: BTH-2026-001 / LOT-982"
-                                className="w-full text-sm"
-                            />
-                        </div>
-                        <div className="col-12 md:col-6">
-                            <label className="block text-sm font-semibold mb-1">Tanggal Kadaluarsa (Expired Date) *</label>
-                            <InputText
-                                type="date"
-                                value={formBeliBaru.tanggal_kadaluarsa}
-                                onChange={(e) => setFormBeliBaru({ ...formBeliBaru, tanggal_kadaluarsa: e.target.value })}
-                                className="w-full text-sm"
-                            />
-                        </div>
-                    </div>
-
-                    {/* Banner Total Transaksi PO */}
-                    <div className="border-1 border-green-300 bg-green-50 border-round-lg p-3 flex justify-content-between align-items-center">
-                        <div>
-                            <span className="text-xs text-green-700 font-bold block uppercase">Total Nilai Pembelian (PO)</span>
-                            <span className="text-xs text-green-600">
-                                {formBeliBaru.qty_beli} {formBeliBaru.satuan} &times; {formatRupiah(formBeliBaru.harga_beli)}
+                    {/* ZONA DAFTAR PRODUK (KARTU-KARTU PRODUK) */}
+                    <div className="flex flex-column gap-3">
+                        <div className="flex align-items-center justify-content-between">
+                            <span className="text-sm font-bold text-800 flex align-items-center gap-2">
+                                <i className="pi pi-box text-green-600" />
+                                Daftar Produk yang Diadakan
+                            </span>
+                            <span className="text-xs text-500 font-medium">
+                                Total {formPengadaan.items.length} Macam Produk
                             </span>
                         </div>
-                        <div className="text-xl font-black text-green-900">
-                            {formatRupiah((formBeliBaru.qty_beli || 0) * (formBeliBaru.harga_beli || 0))}
-                        </div>
+
+                        {formPengadaan.items.map((prod: any, prodIdx: number) => {
+                            const isExisting = prod.tipe_item === 'existing';
+                            const selectedProdObj = (allProdukList.length > 0 ? allProdukList : dataProduk).find(
+                                (p: any) => p.kode_produk === prod.kode_produk
+                            );
+                            const prodTitle = isExisting
+                                ? (selectedProdObj?.nama || selectedProdObj?.nama_produk || `Produk #${prodIdx + 1}`)
+                                : (prod.nama_produk_baru || `Produk Baru #${prodIdx + 1}`);
+
+                            const totalBatchQty = prod.batches?.reduce((acc: number, b: any) => acc + (Number(b.qty) || 0), 0) || 0;
+                            const subtotalHarga = totalBatchQty * (Number(prod.harga_beli) || 0);
+
+                            return (
+                                <div
+                                    key={prodIdx}
+                                    className="border-1 border-300 border-round-xl surface-card shadow-1 overflow-hidden"
+                                >
+                                    {/* Header Kartu Produk: Nomor Urut, Toggle Tipe, & Hapus */}
+                                    <div className="p-3 bg-gray-50 border-bottom-1 border-200 flex flex-wrap align-items-center justify-content-between gap-2">
+                                        <div className="flex align-items-center gap-3">
+                                            <div className="flex align-items-center gap-2">
+                                                <span
+                                                    style={{
+                                                        width: '24px',
+                                                        height: '24px',
+                                                        minWidth: '24px',
+                                                        borderRadius: '50%',
+                                                        backgroundColor: '#10b981',
+                                                        color: '#ffffff',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        fontSize: '12px',
+                                                        fontWeight: 'bold',
+                                                    }}
+                                                >
+                                                    {prodIdx + 1}
+                                                </span>
+                                                <span className="font-bold text-sm text-800">
+                                                    {isExisting ? 'Produk Sudah Ada (Restock)' : 'Produk Baru'} #{prodIdx + 1}
+                                                </span>
+                                            </div>
+
+                                            {/* Toggle Tipe Produk */}
+                                            <div className="flex align-items-center gap-3 ml-2 pl-3 border-left-1 border-300">
+                                                <div className="flex align-items-center">
+                                                    <RadioButton
+                                                        inputId={`tipe_exist_${prodIdx}`}
+                                                        name={`tipe_item_${prodIdx}`}
+                                                        value="existing"
+                                                        onChange={() => handleUpdatePengadaanItem(prodIdx, 'tipe_item', 'existing')}
+                                                        checked={prod.tipe_item === 'existing'}
+                                                    />
+                                                    <label htmlFor={`tipe_exist_${prodIdx}`} className="ml-2 text-xs font-semibold text-700 cursor-pointer">
+                                                        Produk Sudah Ada
+                                                    </label>
+                                                </div>
+                                                <div className="flex align-items-center">
+                                                    <RadioButton
+                                                        inputId={`tipe_baru_${prodIdx}`}
+                                                        name={`tipe_item_${prodIdx}`}
+                                                        value="baru"
+                                                        onChange={() => handleUpdatePengadaanItem(prodIdx, 'tipe_item', 'baru')}
+                                                        checked={prod.tipe_item === 'baru'}
+                                                    />
+                                                    <label htmlFor={`tipe_baru_${prodIdx}`} className="ml-2 text-xs font-semibold text-700 cursor-pointer">
+                                                        Produk Baru
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {formPengadaan.items.length > 1 && (
+                                            <Button
+                                                type="button"
+                                                icon="pi pi-trash"
+                                                label="Hapus"
+                                                severity="danger"
+                                                text
+                                                size="small"
+                                                onClick={() => handleRemovePengadaanItem(prodIdx)}
+                                                className="p-0 text-red-600 text-xs hover:bg-red-50"
+                                            />
+                                        )}
+                                    </div>
+
+                                    {/* Body Kartu Produk */}
+                                    <div className="p-3 flex flex-column gap-3">
+                                        {isExisting ? (
+                                            /* Tipe Existing */
+                                            <div className="grid">
+                                                <div className="col-12 md:col-6">
+                                                    <label className="block text-xs font-bold text-700 mb-1">Pilih Produk *</label>
+                                                    <Dropdown
+                                                        value={prod.kode_produk}
+                                                        options={(allProdukList.length > 0 ? allProdukList : dataProduk).map((p: any) => ({
+                                                            label: `${p.nama || p.nama_produk || '-'} (${p.kode_produk}) - Stok Saat Ini: ${p.stok_total_fisik ?? p.stok_tersedia ?? p.stok_total ?? 0} ${p.satuan || 'Pcs'}`,
+                                                            value: p.kode_produk,
+                                                        }))}
+                                                        onChange={(e) => handleUpdatePengadaanItem(prodIdx, 'kode_produk', e.value)}
+                                                        placeholder="Cari & Pilih Produk"
+                                                        className="w-full p-inputtext-sm"
+                                                        filter
+                                                    />
+                                                </div>
+                                                <div className="col-12 md:col-3">
+                                                    <label className="block text-xs font-bold text-700 mb-1">Harga Beli Satuan (Rp) *</label>
+                                                    <InputNumber
+                                                        value={prod.harga_beli}
+                                                        onValueChange={(e) => handleUpdatePengadaanItem(prodIdx, 'harga_beli', e.value || 0)}
+                                                        mode="currency"
+                                                        currency="IDR"
+                                                        locale="id-ID"
+                                                        className="w-full p-inputtext-sm"
+                                                    />
+                                                </div>
+                                                <div className="col-12 md:col-3 flex align-items-center pt-3">
+                                                    <div className="flex align-items-center">
+                                                        <Checkbox
+                                                            inputId={`update_hb_${prodIdx}`}
+                                                            checked={prod.update_harga_beli_master !== false}
+                                                            onChange={(e) => handleUpdatePengadaanItem(prodIdx, 'update_harga_beli_master', e.checked)}
+                                                        />
+                                                        <label htmlFor={`update_hb_${prodIdx}`} className="ml-2 text-xs text-700 cursor-pointer">
+                                                            Perbarui Harga Beli Master
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            /* Tipe Baru */
+                                            <>
+                                                <div className="grid">
+                                                    <div className="col-12 md:col-4">
+                                                        <label className="block text-xs font-bold text-700 mb-1">Kategori Produk *</label>
+                                                        <Dropdown
+                                                            value={prod.kode_kategori_produk}
+                                                            options={kategoriList}
+                                                            onChange={(e) => handleUpdatePengadaanItem(prodIdx, 'kode_kategori_produk', e.value)}
+                                                            placeholder="Pilih Kategori"
+                                                            className="w-full p-inputtext-sm"
+                                                        />
+                                                    </div>
+                                                    <div className="col-12 md:col-5">
+                                                        <label className="block text-xs font-bold text-700 mb-1">Nama Produk Baru *</label>
+                                                        <InputText
+                                                            value={prod.nama_produk_baru}
+                                                            onChange={(e) => handleUpdatePengadaanItem(prodIdx, 'nama_produk_baru', e.target.value)}
+                                                            placeholder="Contoh: Glowing Sunscreen SPF 50"
+                                                            className="w-full p-inputtext-sm"
+                                                        />
+                                                    </div>
+                                                    <div className="col-12 md:col-3">
+                                                        <label className="block text-xs font-bold text-700 mb-1">Satuan *</label>
+                                                        <InputText
+                                                            value={prod.satuan}
+                                                            onChange={(e) => handleUpdatePengadaanItem(prodIdx, 'satuan', e.target.value)}
+                                                            placeholder="Pcs, Botol, Tube, Box"
+                                                            className="w-full p-inputtext-sm"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid">
+                                                    <div className="col-12 md:col-4">
+                                                        <label className="block text-xs font-bold text-700 mb-1">Harga Beli Satuan (Rp) *</label>
+                                                        <InputNumber
+                                                            value={prod.harga_beli}
+                                                            onValueChange={(e) => handleUpdatePengadaanItem(prodIdx, 'harga_beli', e.value || 0)}
+                                                            mode="currency"
+                                                            currency="IDR"
+                                                            locale="id-ID"
+                                                            className="w-full p-inputtext-sm"
+                                                        />
+                                                    </div>
+                                                    <div className="col-12 md:col-4">
+                                                        <label className="block text-xs font-bold text-700 mb-1">Harga Jual Satuan (Rp) *</label>
+                                                        <InputNumber
+                                                            value={prod.harga_jual}
+                                                            onValueChange={(e) => handleUpdatePengadaanItem(prodIdx, 'harga_jual', e.value || 0)}
+                                                            mode="currency"
+                                                            currency="IDR"
+                                                            locale="id-ID"
+                                                            className="w-full p-inputtext-sm"
+                                                        />
+                                                    </div>
+                                                    <div className="col-12 md:col-4">
+                                                        <label className="block text-xs font-bold text-700 mb-1">Batas Buffer Stok Min.</label>
+                                                        <InputNumber
+                                                            value={prod.buffer_min}
+                                                            onValueChange={(e) => handleUpdatePengadaanItem(prodIdx, 'buffer_min', e.value || 0)}
+                                                            className="w-full p-inputtext-sm"
+                                                            min={0}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
+
+                                        {/* Sub-Daftar Batch Fisik (SAMA UNTUK KEDUA TIPE) */}
+                                        <div className="border-1 border-dashed border-300 border-round-lg p-3 bg-gray-50 flex flex-column gap-2">
+                                            <div className="flex align-items-center justify-content-between">
+                                                <span className="text-xs font-bold text-700 uppercase flex align-items-center gap-2">
+                                                    <i className="pi pi-tags text-green-600" />
+                                                    Rincian Batch Fisik untuk "{prodTitle}"
+                                                </span>
+                                                <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 border-round font-semibold">
+                                                    {prod.batches.length} Batch Terdaftar
+                                                </span>
+                                            </div>
+
+                                            <div className="flex flex-column gap-2 mt-1">
+                                                {prod.batches.map((batch: any, bIdx: number) => (
+                                                    <div
+                                                        key={bIdx}
+                                                        className="p-2 border-round-lg surface-card border-1 border-200 grid align-items-center m-0"
+                                                    >
+                                                        <div className="col-12 md:col-2 p-1">
+                                                            <div className="flex align-items-center gap-2">
+                                                                <span
+                                                                    style={{
+                                                                        width: '22px',
+                                                                        height: '22px',
+                                                                        minWidth: '22px',
+                                                                        borderRadius: '50%',
+                                                                        backgroundColor: '#10b981',
+                                                                        color: '#ffffff',
+                                                                        display: 'flex',
+                                                                        alignItems: 'center',
+                                                                        justifyContent: 'center',
+                                                                        fontSize: '11px',
+                                                                        fontWeight: 'bold',
+                                                                    }}
+                                                                >
+                                                                    {bIdx + 1}
+                                                                </span>
+                                                                <span className="text-xs font-bold text-700">
+                                                                    Batch {bIdx + 1}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="col-12 md:col-3 p-1">
+                                                            <label className="block text-xs font-medium text-600 mb-1">
+                                                                Qty ({prod.satuan || 'Pcs'}) *
+                                                            </label>
+                                                            <InputNumber
+                                                                value={batch.qty}
+                                                                onValueChange={(e) => handleUpdatePengadaanBatch(prodIdx, bIdx, 'qty', e.value || 1)}
+                                                                className="w-full p-inputtext-sm"
+                                                                min={1}
+                                                            />
+                                                        </div>
+                                                        <div className="col-12 md:col-3 p-1">
+                                                            <label className="block text-xs font-medium text-600 mb-1">
+                                                                No. Batch Pabrik *
+                                                            </label>
+                                                            <InputText
+                                                                value={batch.no_batch}
+                                                                onChange={(e) => handleUpdatePengadaanBatch(prodIdx, bIdx, 'no_batch', e.target.value)}
+                                                                placeholder="Misal: LOT-2026-A"
+                                                                className="w-full p-inputtext-sm font-monospace"
+                                                            />
+                                                        </div>
+                                                        <div className="col-12 md:col-3 p-1">
+                                                            <label className="block text-xs font-medium text-600 mb-1">
+                                                                Tgl Kadaluarsa (Exp) *
+                                                            </label>
+                                                            <InputText
+                                                                type="date"
+                                                                value={batch.tanggal_kadaluarsa}
+                                                                onChange={(e) => handleUpdatePengadaanBatch(prodIdx, bIdx, 'tanggal_kadaluarsa', e.target.value)}
+                                                                className="w-full p-inputtext-sm"
+                                                            />
+                                                        </div>
+                                                        <div className="col-12 md:col-1 p-1 flex justify-content-center">
+                                                            {prod.batches.length > 1 && (
+                                                                <Button
+                                                                    type="button"
+                                                                    icon="pi pi-times"
+                                                                    severity="danger"
+                                                                    text
+                                                                    rounded
+                                                                    size="small"
+                                                                    tooltip="Hapus batch ini"
+                                                                    onClick={() => handleRemovePengadaanBatch(prodIdx, bIdx)}
+                                                                    className="p-1 h-2rem w-2rem text-red-500"
+                                                                />
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                            <div className="mt-1">
+                                                <Button
+                                                    type="button"
+                                                    label="Tambah Batch Lain untuk Produk Ini"
+                                                    icon="pi pi-plus"
+                                                    size="small"
+                                                    onClick={() => handleAddPengadaanBatch(prodIdx)}
+                                                    className="w-full py-2 text-xs font-bold bg-green-600 hover:bg-green-700 text-white border-none shadow-1"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Subtotal ringkasan per produk */}
+                                        <div className="flex align-items-center justify-content-between text-xs text-600 px-1">
+                                            <span>
+                                                Total Batch Fisik: <strong>{totalBatchQty} {prod.satuan || 'Pcs'}</strong> ({prod.batches.length} batch)
+                                            </span>
+                                            <span className="font-semibold text-800">
+                                                Subtotal Nilai: {formatRupiah(subtotalHarga)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+
+                        {/* Tombol Tambah Produk Lainnya */}
+                        <Button
+                            type="button"
+                            label="+ Tambah Produk Lainnya (PO Campuran / Multi-Produk)"
+                            icon="pi pi-plus"
+                            outlined
+                            onClick={() => handleAddPengadaanItem()}
+                            className="w-full py-2.5 font-bold border-2 text-green-700 border-green-600 hover:bg-green-50"
+                        />
                     </div>
+
+                    {/* RINGKASAN TOTAL NILAI TRANSAKSI */}
+                    {(() => {
+                        const totalMacam = formPengadaan.items.length;
+                        const totalBatch = formPengadaan.items.reduce(
+                            (acc: number, item: any) => acc + (item.batches?.length || 0),
+                            0
+                        );
+                        const totalPcs = formPengadaan.items.reduce(
+                            (acc: number, item: any) =>
+                                acc + (item.batches?.reduce((bAcc: number, b: any) => bAcc + (Number(b.qty) || 0), 0) || 0),
+                            0
+                        );
+                        const totalNilai = formPengadaan.items.reduce((acc: number, item: any) => {
+                            const itemQty = item.batches?.reduce((bAcc: number, b: any) => bAcc + (Number(b.qty) || 0), 0) || 0;
+                            return acc + itemQty * (Number(item.harga_beli) || 0);
+                        }, 0);
+
+                        return (
+                            <div className="surface-900 text-white p-3 border-round-xl flex align-items-center justify-content-between mt-2">
+                                <div>
+                                    <span className="text-xs uppercase font-bold text-400 block mb-1">
+                                        TOTAL NILAI PENGADAAN (PO)
+                                    </span>
+                                    <span className="text-sm font-semibold text-200">
+                                        {totalMacam} macam produk · {totalBatch} batch fisik · {totalPcs} total unit
+                                    </span>
+                                </div>
+                                <div className="text-right">
+                                    <span className="text-xs uppercase font-bold text-400 block mb-1">
+                                        Total Tagihan Supplier
+                                    </span>
+                                    <span className="text-xl font-bold text-green-400">
+                                        {formatRupiah(totalNilai)}
+                                    </span>
+                                </div>
+                            </div>
+                        );
+                    })()}
                 </div>
 
                 <div className="flex justify-content-end gap-2 mt-4">
-                    <Button label="Batal" icon="pi pi-times" text onClick={() => setDialogBeliBaruVisible(false)} />
+                    <Button label="Batal" icon="pi pi-times" text onClick={() => setDialogPengadaanVisible(false)} />
                     <Button
-                        label="Simpan Pengadaan"
+                        label={`Simpan Pengadaan (${formPengadaan.items.length} Produk)`}
                         icon="pi pi-check"
-                        loading={savingBeliBaru}
-                        onClick={handleSaveBeliBaru}
-                        className="bg-primary border-none"
-                    />
-                </div>
-            </Dialog>
-
-            {/* =========================================================
-                MODAL 2: RESTOCK PRODUK LAMA DARI SUPPLIER (BATCH BARU)
-                ========================================================= */}
-            <Dialog
-                header="Restock Stok Produk dari Supplier (Penerimaan Batch Baru)"
-                visible={dialogRestockVisible}
-                style={{ width: '580px' }}
-                modal
-                onHide={() => setDialogRestockVisible(false)}
-            >
-                <div className="flex flex-column gap-3 pt-2">
-                    <div className="p-3 border-round-lg bg-blue-50 border-1 border-blue-200 text-xs text-blue-900 flex align-items-start gap-2">
-                        <i className="pi pi-info-circle text-blue-700 text-base mt-0.5" />
-                        <div>
-                            <span className="font-bold block mb-0.5">Pencatatan Multi-Batch:</span>
-                            Setiap penerimaan restock akan membentuk batch baru dengan tanggal kadaluarsa masing-masing untuk mendukung sistem FEFO.
-                        </div>
-                    </div>
-
-                    {/* Pilih Produk */}
-                    <div>
-                        <label className="block text-sm font-semibold mb-1">Pilih Produk *</label>
-                        <Dropdown
-                            value={formRestock.kode_produk}
-                            options={(allProdukList.length > 0 ? allProdukList : dataProduk).map((p) => ({
-                                label: `${p.nama} (${p.kode_produk}) - Total Stok: ${p.stok_tersedia} ${p.satuan}`,
-                                value: p.kode_produk,
-                            }))}
-                            onChange={(e) => handleSelectRestockProdukChange(e.value)}
-                            placeholder="Cari & Pilih Produk"
-                            className="w-full text-sm"
-                            filter
-                        />
-                    </div>
-
-                    {/* Preview Info Produk Terpilih */}
-                    {selectedRestockProduk && (
-                        <div className="surface-100 border-round-lg p-3 grid m-0 text-xs">
-                            <div className="col-4">
-                                <span className="text-500 block">Total Stok Saat Ini:</span>
-                                <span className="font-bold text-900 text-sm">
-                                    {selectedRestockProduk.stok_tersedia} {selectedRestockProduk.satuan}
-                                </span>
-                            </div>
-                            <div className="col-4">
-                                <span className="text-500 block">Harga Beli Terakhir:</span>
-                                <span className="font-bold text-700">
-                                    {formatRupiah(selectedRestockProduk.harga_beli)}
-                                </span>
-                            </div>
-                            <div className="col-4">
-                                <span className="text-500 block">Supplier Terdaftar:</span>
-                                <span className="font-bold text-primary">
-                                    {selectedRestockProduk.nama_supplier || 'Belum ada'}
-                                </span>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Pilih Supplier Rekanan */}
-                    <div>
-                        <label className="block text-sm font-semibold mb-1">Supplier Rekanan *</label>
-                        <Dropdown
-                            value={formRestock.kode_supplier}
-                            options={supplierList}
-                            onChange={(e) => setFormRestock({ ...formRestock, kode_supplier: e.value })}
-                            placeholder="Pilih Supplier"
-                            className="w-full text-sm"
-                            filter
-                        />
-                    </div>
-
-                    {/* Input Jumlah Restock & Harga Beli */}
-                    <div className="grid">
-                        <div className="col-6">
-                            <label className="block text-sm font-semibold mb-1">Jumlah Unit Restock (Qty) *</label>
-                            <InputNumber
-                                value={formRestock.qty_masuk}
-                                onValueChange={(e) => setFormRestock({ ...formRestock, qty_masuk: e.value ?? 1 })}
-                                className="w-full text-sm"
-                                min={1}
-                            />
-                        </div>
-                        <div className="col-6">
-                            <label className="block text-sm font-semibold mb-1">Harga Beli Satuan (Rp) *</label>
-                            <InputNumber
-                                value={formRestock.harga_beli}
-                                onValueChange={(e) => setFormRestock({ ...formRestock, harga_beli: e.value ?? 0 })}
-                                mode="currency"
-                                currency="IDR"
-                                locale="id-ID"
-                                className="w-full text-sm"
-                                min={0}
-                            />
-                        </div>
-                    </div>
-
-                    <div className="flex align-items-center gap-2 mt-1">
-                        <Checkbox
-                            inputId="chkUpdateHarga"
-                            checked={formRestock.update_harga_beli_master}
-                            onChange={(e) => setFormRestock({ ...formRestock, update_harga_beli_master: e.checked ?? true })}
-                        />
-                        <label htmlFor="chkUpdateHarga" className="text-xs text-700 cursor-pointer">
-                            Perbarui harga beli acuan master produk dengan harga restock ini
-                        </label>
-                    </div>
-
-                    {/* No. Batch & Tanggal Kadaluarsa Restock */}
-                    <div className="grid">
-                        <div className="col-12 md:col-6">
-                            <label className="block text-sm font-semibold mb-1">No. Batch Baru dari Kemasan *</label>
-                            <InputText
-                                value={formRestock.no_batch}
-                                onChange={(e) => setFormRestock({ ...formRestock, no_batch: e.target.value })}
-                                placeholder="misal: LOT-2026-B02"
-                                className="w-full text-sm"
-                            />
-                        </div>
-                        <div className="col-12 md:col-6">
-                            <label className="block text-sm font-semibold mb-1">Tanggal Kadaluarsa Baru *</label>
-                            <InputText
-                                type="date"
-                                value={formRestock.tanggal_kadaluarsa}
-                                onChange={(e) => setFormRestock({ ...formRestock, tanggal_kadaluarsa: e.target.value })}
-                                className="w-full text-sm"
-                            />
-                        </div>
-                    </div>
-
-                    {/* Tanggal Restock */}
-                    <div>
-                        <label className="block text-sm font-semibold mb-1">Tanggal Transaksi Restock</label>
-                        <InputText
-                            type="date"
-                            value={formRestock.tanggal}
-                            onChange={(e) => setFormRestock({ ...formRestock, tanggal: e.target.value })}
-                            className="w-full text-sm"
-                        />
-                    </div>
-
-                    {/* Kalkulasi Restock */}
-                    <div className="border-1 border-blue-200 bg-blue-50 border-round-lg p-3">
-                        <div className="flex justify-content-between align-items-center mb-2">
-                            <span className="text-xs text-blue-700 font-bold uppercase">Total Stok Baru Setelah Restock</span>
-                            <span className="text-base font-black text-blue-900">
-                                {(Number(selectedRestockProduk?.stok_tersedia) || 0) + (Number(formRestock.qty_masuk) || 0)}{' '}
-                                {selectedRestockProduk?.satuan || 'unit'}
-                            </span>
-                        </div>
-                        <Divider className="my-2" />
-                        <div className="flex justify-content-between align-items-center">
-                            <span className="text-xs text-blue-700 font-bold uppercase">Total Tagihan PO Restock</span>
-                            <span className="text-lg font-black text-blue-900">
-                                {formatRupiah((formRestock.qty_masuk || 0) * (formRestock.harga_beli || 0))}
-                            </span>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="flex justify-content-end gap-2 mt-4">
-                    <Button label="Batal" icon="pi pi-times" text onClick={() => setDialogRestockVisible(false)} />
-                    <Button
-                        label="Konfirmasi Penerimaan Batch"
-                        icon="pi pi-check"
-                        loading={savingRestock}
-                        onClick={handleSaveRestock}
-                        className="bg-primary border-none"
+                        loading={savingPengadaan}
+                        onClick={handleSavePengadaan}
+                        className="bg-green-600 hover:bg-green-700 border-none font-bold px-4"
                     />
                 </div>
             </Dialog>

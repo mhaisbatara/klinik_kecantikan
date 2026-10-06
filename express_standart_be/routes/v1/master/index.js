@@ -41,6 +41,7 @@ import supplierUpdate from "./supplier/supplier_update.js";
 import supplierDelete from "./supplier/supplier_delete.js";
 
 import inventoriData from "./inventori/inventori_data.js";
+import inventoriPengadaan from "./inventori/inventori_pengadaan.js";
 import inventoriBeliBaru from "./inventori/inventori_beli_baru.js";
 import inventoriRestock from "./inventori/inventori_restock.js";
 import inventoriPoData from "./inventori/inventori_po_data.js";
@@ -167,6 +168,7 @@ router.use("/supplier-delete", supplierDelete);
 
 // Inventori
 router.use("/inventori-data", inventoriData);
+router.use("/inventori-pengadaan", inventoriPengadaan);
 router.use("/inventori-beli-baru", inventoriBeliBaru);
 router.use("/inventori-restock", inventoriRestock);
 router.use("/inventori-po-data", inventoriPoData);
