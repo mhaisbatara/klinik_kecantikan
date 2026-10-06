@@ -105,6 +105,7 @@ const AVAILABLE_MODULE_CATEGORIES: PermissionCategory[] = [
     icon: 'pi pi-calculator',
     items: [
       { id: 'kasir', label: 'Kasir Pembayaran', to: '/kasir', icon: 'pi pi-calculator', desc: 'Transaksi pembayaran kasir, invoice, mutasi kas, dan pelunasan' },
+      { id: 'tracking_kasir', label: 'Tracking Kas Kasir', to: '/transaksi/tracking-kasir', icon: 'pi pi-wallet', desc: 'Monitoring kas keluar-masuk, modal awal & rekonsiliasi shift setiap kasir' },
     ]
   },
   {
@@ -198,6 +199,7 @@ const ROLE_PRESET_PATHS: Record<string, string[]> = {
     '/riwayat/rekam-medis?tab=kunjungan',
     '/riwayat/rekam-medis?tab=appointment',
     '/riwayat/rekam-medis?tab=membership',
+    '/transaksi/tracking-kasir',
   ],
   beautician: [
     '/dashboard',
@@ -370,7 +372,7 @@ const buildMenuFromSelectedPaths = (
   const kasirMatches = (kasirCat?.items || []).filter((it) => selectedPaths.has(it.to));
   if (kasirMatches.length > 0) {
     resultMenu.push({
-      label: 'KASIR',
+      label: 'TRANSAKSI & KASIR',
       icon: 'pi pi-fw pi-calculator',
       items: kasirMatches.map((it) => ({
         label: it.label,

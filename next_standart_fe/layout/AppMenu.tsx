@@ -413,6 +413,20 @@ const AppMenu = () => {
                         }
                     }
 
+                    if (groupLabel.includes('transaksi') || groupLabel.includes('kasir')) {
+                        const canSeeTracking = isOwnerOrManagerCurrent || currentRole === 'admin';
+                        if (canSeeTracking) {
+                            const hasTracking = subItems.some((it) => it.to === '/transaksi/tracking-kasir');
+                            if (!hasTracking) {
+                                subItems.push({
+                                    label: 'Tracking Kas Kasir',
+                                    to: '/transaksi/tracking-kasir',
+                                    icon: 'pi pi-fw pi-wallet',
+                                });
+                            }
+                        }
+                    }
+
                     if (groupLabel.includes('pengaturan') || groupLabel.includes('master data & user') || groupLabel.includes('setup')) {
                         const isSuperAdminRole = currentRole === 'superadmin';
                         const configItem: AppMenuItem = {
@@ -542,6 +556,85 @@ const AppMenu = () => {
                     const lbl = (it.label || '').toLowerCase();
                     return lbl === 'home' || lbl === 'beranda' || lbl.includes('dashboard') || lbl.includes('pengaturan') || lbl.includes('setup');
                 });
+            }
+
+            // Garansi Tracking Kas Kasir selalu dapat diakses dan muncul untuk Owner, Manager, dan Admin
+            const canAccessTrackingKasir = isOwnerOrManager || currentRole === 'admin';
+            if (canAccessTrackingKasir) {
+                userAllowedPaths.add('/transaksi/tracking-kasir');
+
+                // 1. Cek apakah ada grup TRANSAKSI atau KASIR yang sudah ada di menu
+                const existingTrxGroup = transformedMenu.find((g) => {
+                    const lbl = (g.label || '').toLowerCase();
+                    return lbl.includes('transaksi') || lbl.includes('kasir');
+                });
+
+                if (existingTrxGroup) {
+                    if (!existingTrxGroup.items) existingTrxGroup.items = [];
+                    const hasTracking = existingTrxGroup.items.some((it) => it.to === '/transaksi/tracking-kasir');
+                    if (!hasTracking) {
+                        const kasirIdx = existingTrxGroup.items.findIndex((it) => it.to === '/kasir');
+                        const trackingItem: AppMenuItem = {
+                            label: 'Tracking Kas Kasir',
+                            to: '/transaksi/tracking-kasir',
+                            icon: 'pi pi-fw pi-wallet',
+                        };
+                        if (kasirIdx !== -1) {
+                            existingTrxGroup.items.splice(kasirIdx + 1, 0, transformItem(trackingItem));
+                        } else {
+                            existingTrxGroup.items.push(transformItem(trackingItem));
+                        }
+                    }
+                } else {
+                    // Jika belum ada grup sama sekali, buat grup TRANSAKSI baru
+                    const trackingItemGroup: AppMenuItem = {
+                        label: 'TRANSAKSI',
+                        icon: 'pi pi-fw pi-wallet',
+                        items: [
+                            { label: 'Kasir', icon: 'pi pi-fw pi-calculator', to: '/kasir' },
+                            { label: 'Tracking Kas Kasir', icon: 'pi pi-fw pi-wallet', to: '/transaksi/tracking-kasir' },
+                        ],
+                    };
+                    const targetIdx = transformedMenu.findIndex((it) => {
+                        const lbl = (it.label || '').toLowerCase();
+                        return lbl.includes('laporan') || lbl.includes('pengaturan') || lbl.includes('setup');
+                    });
+                    if (targetIdx !== -1) {
+                        transformedMenu.splice(targetIdx, 0, transformItem(trackingItemGroup));
+                    } else {
+                        transformedMenu.push(transformItem(trackingItemGroup));
+                    }
+                }
+
+                // 2. DEDUP: Jika terdapat lebih dari 1 grup TRANSAKSI, lebur menjadi 1 grup saja tanpa duplikasi!
+                const trxIndices: number[] = [];
+                transformedMenu.forEach((g, idx) => {
+                    const lbl = (g.label || '').toLowerCase();
+                    if (lbl === 'transaksi' || lbl === 'transaksi & kasir' || lbl === 'kasir & transaksi' || lbl === 'kasir') {
+                        trxIndices.push(idx);
+                    }
+                });
+
+                if (trxIndices.length > 1) {
+                    const primaryGroup = transformedMenu[trxIndices[0]];
+                    primaryGroup.label = 'TRANSAKSI';
+                    const mergedItems: AppMenuItem[] = [...(primaryGroup.items || [])];
+
+                    for (let i = 1; i < trxIndices.length; i++) {
+                        const duplicateGroup = transformedMenu[trxIndices[i]];
+                        (duplicateGroup.items || []).forEach((it) => {
+                            if (!mergedItems.some((m) => m.to === it.to || m.label === it.label)) {
+                                mergedItems.push(it);
+                            }
+                        });
+                    }
+                    primaryGroup.items = mergedItems;
+
+                    // Hapus grup duplikat dari belakang
+                    for (let i = trxIndices.length - 1; i >= 1; i--) {
+                        transformedMenu.splice(trxIndices[i], 1);
+                    }
+                }
             }
 
             const menu2: AppMenuItem[] = JSON.parse(JSON.stringify(transformedMenu));
