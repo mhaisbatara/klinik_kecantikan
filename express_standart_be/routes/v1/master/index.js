@@ -95,6 +95,8 @@ import kasirList from "./kasir/kasir_list.js";
 import kasirDetail from "./kasir/kasir_detail.js";
 import kasirSave from "./kasir/kasir_save.js";
 import kasirBayar from "./kasir/kasir_bayar.js";
+import kasirShift from "./kasir/kasir_shift.js";
+import kasirTrackingKas from "./kasir/kasir_tracking_kas.js";
 
 import rekamMedisPasien from "./rekam_medis/rekam_medis_pasien.js";
 import transaksiPasien from "./rekam_medis/transaksi_pasien.js";
@@ -218,6 +220,8 @@ router.use("/kasir-list", kasirList);
 router.use("/kasir-detail", kasirDetail);
 router.use("/kasir-save", kasirSave);
 router.use("/kasir-bayar", kasirBayar);
+router.use("/kasir-shift", kasirShift);
+router.use("/kasir-tracking-kas", kasirTrackingKas);
 
 // Rekam Medis Pasien & Laporan Transaksi
 router.use("/pasien-rekam-medis", rekamMedisPasien);

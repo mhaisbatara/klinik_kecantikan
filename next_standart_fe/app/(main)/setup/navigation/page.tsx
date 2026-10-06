@@ -97,6 +97,7 @@ const DEFAULT_MASTER_MENU: MenuGroup[] = [
         icon: 'pi pi-fw pi-calculator',
         items: [
             { label: 'Kasir', icon: 'pi pi-fw pi-calculator', to: '/kasir' },
+            { label: 'Tracking Kas Kasir', icon: 'pi pi-fw pi-wallet', to: '/transaksi/tracking-kasir' },
             { label: 'Inventori', icon: 'pi pi-fw pi-box', to: '/master-data/inventori' }
         ]
     },
@@ -167,6 +168,7 @@ const DEFAULT_ROLES: RoleItem[] = [
             '/pendaftaran-antrean/antrean?type=konsul',
             '/pendaftaran-antrean/jadwal-karyawan',
             '/kasir',
+            '/transaksi/tracking-kasir',
             '/riwayat/rekam-medis',
             '/setup/config',
             '/setup/users',
@@ -289,6 +291,7 @@ const DEFAULT_ROLES: RoleItem[] = [
             '/pendaftaran-antrean/pendaftaran-pasien',
             '/master-data-user/data-pasien',
             '/pendaftaran-antrean/jadwal-karyawan',
+            '/transaksi/tracking-kasir',
         ],
         is_custom: false,
     },
