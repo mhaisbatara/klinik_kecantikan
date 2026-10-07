@@ -8,7 +8,7 @@ import { Dialog } from 'primereact/dialog';
 import { InputSwitch } from 'primereact/inputswitch';
 import { Dropdown } from 'primereact/dropdown';
 import { InputText } from 'primereact/inputtext';
-import { TabCetakAntreanProps, AmbilResult } from '../interfaces';
+import { TabCetakAntreanProps, AmbilResult, TableData } from '../interfaces';
 import postData from '@/lib/axios/postData';
 import { apiEndpointAmbil, apiEndpointPanggil, apiEndpointReset } from '../endpoints';
 import { confirmDialog, ConfirmDialog } from 'primereact/confirmdialog';

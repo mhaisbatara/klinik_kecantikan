@@ -151,6 +151,7 @@ export interface LayananCardProps {
   formatPrice?: (val: number) => string;
   gridClassName?: string;
   isClaimedElsewhere?: boolean;
+  isRuanganKonsultasi?: boolean;
 }
 
 export const LayananCard: React.FC<LayananCardProps> = ({
@@ -161,10 +162,19 @@ export const LayananCard: React.FC<LayananCardProps> = ({
   formatPrice = formatRupiah,
   gridClassName,
   isClaimedElsewhere = false,
+  isRuanganKonsultasi = false,
 }) => {
   const isPaket = item.jenis === 'paket';
   const isKlaim = item.jenis === 'klaim_paket';
   const { isWajib, isService, isOpsional } = getItemConsultType(item);
+
+  const isRuangKonsul = Boolean(
+    isRuanganKonsultasi ||
+    Number(item.is_konsultasi) === 1 ||
+    (item.nama_ruangan && item.nama_ruangan.toLowerCase().includes('konsultasi')) ||
+    (item.nama_kategori && item.nama_kategori.toLowerCase().includes('konsultasi')) ||
+    (item.nama && item.nama.toLowerCase().includes('konsultasi'))
+  );
 
   const isFullBooked = isKlaim && item.sesi_tersedia !== undefined && item.sesi_tersedia <= 0;
   const isCapacityLocked = item.status_kapasitas === 'berisiko';
@@ -329,7 +339,7 @@ export const LayananCard: React.FC<LayananCardProps> = ({
                 <Tag rounded value="Ruangan Penuh" severity="danger" style={{ fontSize: '10px', padding: '3px 8px', fontWeight: 700, lineHeight: 1.2, borderRadius: '9999px' }} />
               )}
 
-              {isWajib && (
+              {!isRuangKonsul && isWajib && (
                 <span
                   className="inline-flex align-items-center font-bold text-white shadow-1"
                   style={{
@@ -344,7 +354,7 @@ export const LayananCard: React.FC<LayananCardProps> = ({
                   Wajib Konsul
                 </span>
               )}
-              {isService && (
+              {!isRuangKonsul && isService && (
                 <span
                   className="inline-flex align-items-center font-bold text-white shadow-1"
                   style={{
@@ -359,7 +369,7 @@ export const LayananCard: React.FC<LayananCardProps> = ({
                   Tanpa Konsul
                 </span>
               )}
-              {isOpsional && (
+              {!isRuangKonsul && isOpsional && (
                 <span
                   className="inline-flex align-items-center font-bold text-white shadow-1"
                   style={{

@@ -1488,6 +1488,11 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
                             nama_pasien_booking_terdekat: item.nama_pasien_booking_terdekat || ruang.nama_pasien_booking_terdekat,
                           };
 
+                          const isRuanganKonsultasi = Boolean(
+                            ruang.is_konsultasi === 1 ||
+                            ruang.nama_ruangan?.toLowerCase().includes('konsultasi')
+                          );
+
                           return (
                             <LayananCard
                               key={itemKey}
@@ -1495,6 +1500,7 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
                               isSelected={!!selectedMap[itemKey]}
                               isDisabled={isRuangDisabled || isClaimedElsewhere || isCapacityLocked}
                               isClaimedElsewhere={isClaimedElsewhere}
+                              isRuanganKonsultasi={isRuanganKonsultasi}
                               onToggle={handleToggleItem}
                               formatPrice={formatCurrency}
                             />
