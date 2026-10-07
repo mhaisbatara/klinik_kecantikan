@@ -856,11 +856,11 @@ const AppMenu = () => {
                         // 7. Pengaturan (HANYA untuk Superadmin, Owner/Manager, atau user yang memiliki hak akses)
                         const pengaturanItems = (isSuperAdminRole || isOwnerOrManager || hasPengaturanAllowed) ? state.filteredMenu.filter(isPengaturanItem) : [];
 
-                        // Item tambahan lainnya di luar kategori utama dan bukan kasir/laporan/layanan operasional
+                        // Item tambahan lainnya di luar kategori utama dan bukan kasir/transaksi/laporan/layanan operasional
                         const extraItems = state.filteredMenu.filter((item) => {
                             if (isHomeItem(item) || isMasterDataItem(item) || isPendaftaranItem(item) || isPengaturanItem(item)) return false;
                             const lbl = (item.label || '').toLowerCase();
-                            return !lbl.includes('kasir') && !lbl.includes('laporan') && !lbl.includes('riwayat') && lbl !== 'layanan' && lbl !== 'layanan & tindakan';
+                            return !lbl.includes('kasir') && !lbl.includes('transaksi') && !lbl.includes('laporan') && !lbl.includes('riwayat') && lbl !== 'layanan' && lbl !== 'layanan & tindakan';
                         });
 
                         const renderItem = (item: AppMenuItem, i: number) =>
@@ -910,6 +910,13 @@ const AppMenu = () => {
                                 ? hasAllowedPath('/kasir')
                                 : currentRole === 'kasir');
 
+                        const canAccessTrackingKasir =
+                            isSuperAdminRole ||
+                            isOwnerOrManager ||
+                            (state.allowedPaths.size > 0
+                                ? hasAllowedPath('/transaksi/tracking-kasir')
+                                : ['owner', 'manager', 'admin'].includes(currentRole));
+
                         const canAccessInventori =
                             isSuperAdminRole ||
                             isOwnerOrManager ||
@@ -929,6 +936,7 @@ const AppMenu = () => {
                         const matchesKonsul = canAccessKonsul && (!searchLower || 'konsultasi'.includes(searchLower) || 'medis'.includes(searchLower));
                         const showLayananSection = canAccessLayanan && (matchesTindakan || matchesKonsul);
                         const matchesKasir = canAccessKasir && (!searchLower || 'kasir'.includes(searchLower) || 'pembayaran'.includes(searchLower));
+                        const matchesTrackingKasir = canAccessTrackingKasir && (!searchLower || 'tracking kas kasir'.includes(searchLower) || 'tracking'.includes(searchLower) || 'kas'.includes(searchLower));
                         const matchesInventori = canAccessInventori && (!searchLower || 'inventori'.includes(searchLower) || 'stok'.includes(searchLower) || 'gudang'.includes(searchLower) || 'inventory'.includes(searchLower));
 
                         let idx = 0;
@@ -1018,8 +1026,8 @@ const AppMenu = () => {
                                     </li>
                                 )}
 
-                                {/* 5. TRANSAKSI (Kasir, Inventori) */}
-                                {(matchesKasir || matchesInventori) && (
+                                {/* 5. TRANSAKSI (Kasir, Tracking Kas Kasir, Inventori) */}
+                                {(matchesKasir || matchesTrackingKasir || matchesInventori) && (
                                     <li className="layout-root-menuitem" key="transaksi-section">
                                         <div className="layout-menuitem-root-text">TRANSAKSI</div>
                                         <ul>
@@ -1042,6 +1050,30 @@ const AppMenu = () => {
                                                             }}
                                                         >
                                                             Kasir
+                                                        </span>
+                                                    </Link>
+                                                </li>
+                                            )}
+
+                                            {matchesTrackingKasir && (
+                                                <li className={pathname === '/transaksi/tracking-kasir' ? 'active-menuitem' : ''}>
+                                                    <Link
+                                                        href="/transaksi/tracking-kasir"
+                                                        className={`p-ripple flex align-items-center gap-2${pathname === '/transaksi/tracking-kasir' ? ' active-route' : ''}`}
+                                                        style={{ padding: '0.75rem 1.25rem', borderRadius: '6px', transition: 'background 0.2s' }}
+                                                    >
+                                                        <i
+                                                            className="layout-menuitem-icon pi pi-wallet"
+                                                            style={{ color: pathname === '/transaksi/tracking-kasir' ? 'var(--primary-color)' : undefined }}
+                                                        />
+                                                        <span
+                                                            className="layout-menuitem-text"
+                                                            style={{
+                                                                fontWeight: pathname === '/transaksi/tracking-kasir' ? 700 : undefined,
+                                                                color: pathname === '/transaksi/tracking-kasir' ? 'var(--primary-color)' : undefined,
+                                                            }}
+                                                        >
+                                                            Tracking Kas Kasir
                                                         </span>
                                                     </Link>
                                                 </li>
