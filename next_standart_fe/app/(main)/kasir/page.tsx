@@ -120,23 +120,32 @@ export default function KasirPage() {
     setListRefreshKey((k) => k + 1);
   }, []);
 
-  const handleSelectTrx = (kode: string) => {
+  const handleShiftStateChange = useCallback((allowed: boolean, isOpen: boolean) => {
+    setIsAccessAllowed((prev) => (prev !== allowed ? allowed : prev));
+    setIsShiftOpen((prev) => (prev !== isOpen ? isOpen : prev));
+  }, []);
+
+  const handleSelectTrx = useCallback((kode: string) => {
     setSelectedKodeTrx(kode);
-  };
+  }, []);
 
-  const handleNewTrx = () => {
+  const handleNewTrx = useCallback(() => {
     setSelectedKodeTrx(null);
-  };
+  }, []);
 
-  const handleDraftSaved = (kode_transaksi: string) => {
+  const handleDraftSaved = useCallback((kode_transaksi: string) => {
     setSelectedKodeTrx(kode_transaksi);
     refreshList();
-  };
+  }, [refreshList]);
 
-  const handleOpenBayar = (payload: typeof pendingBayarPayload) => {
+  const handleOpenBayar = useCallback((payload: typeof pendingBayarPayload) => {
     setPendingBayarPayload(payload);
     setShowBayarModal(true);
-  };
+  }, []);
+
+  const handleListChange = useCallback((list: TransaksiListItem[]) => {
+    setTransaksiList(list);
+  }, []);
 
   const handleBayarConfirm = async (metode: string, nominal: number) => {
     if (!pendingBayarPayload) return;
@@ -179,10 +188,7 @@ export default function KasirPage() {
       <KasirShiftHeader
         toast={toast}
         refreshKey={shiftRefreshKey}
-        onShiftStateChange={(allowed, isOpen) => {
-          setIsAccessAllowed(allowed);
-          setIsShiftOpen(isOpen);
-        }}
+        onShiftStateChange={handleShiftStateChange}
       />
 
       <div
@@ -225,7 +231,7 @@ export default function KasirPage() {
             refreshKey={listRefreshKey}
             onSelectTrx={handleSelectTrx}
             onNewTrx={handleNewTrx}
-            onListChange={setTransaksiList}
+            onListChange={handleListChange}
           />
         </div>
 
