@@ -96,6 +96,78 @@ export default function TrackingKasKasirPage() {
   // Dropdown Options
   const [kasirOptions, setKasirOptions] = useState<any[]>([]);
 
+  const statusOptions = [
+    { label: 'Semua Status', value: '' },
+    { label: 'Sedang Buka (Open)', value: 'open' },
+    { label: 'Selesai (Closed)', value: 'closed' },
+  ];
+
+  // Custom Dropdown Templates
+  const kasirValueTemplate = (option: any, props: any) => {
+    if (option && option.value) {
+      return (
+        <span className="flex align-items-center gap-1.5 text-xs text-900 font-medium">
+          <i className="pi pi-user text-teal-600 text-xs" />
+          <span className="white-space-nowrap overflow-hidden text-overflow-ellipsis">
+            {option.nama || option.label}
+          </span>
+        </span>
+      );
+    }
+    return <span className="text-xs text-700">{option?.label || props.placeholder || 'Semua Kasir'}</span>;
+  };
+
+  const kasirItemTemplate = (option: any) => {
+    if (!option.value) {
+      return <div className="text-xs font-medium py-1">{option.label}</div>;
+    }
+    return (
+      <div className="flex align-items-center justify-content-between gap-3 text-xs py-1 w-full">
+        <div className="flex align-items-center gap-2">
+          <i className="pi pi-user text-teal-600 text-xs" />
+          <span className="font-semibold text-900">{option.nama || option.label}</span>
+        </div>
+        {option.kode && (
+          <span className="text-500 font-mono text-[10px] bg-gray-100 px-1.5 py-0.5 border-round">
+            {option.kode}
+          </span>
+        )}
+      </div>
+    );
+  };
+
+  const statusValueTemplate = (option: any, props: any) => {
+    if (option && option.value) {
+      const isOpen = option.value === 'open';
+      return (
+        <span className="flex align-items-center gap-2 text-xs font-medium">
+          <span
+            className="border-circle flex-shrink-0"
+            style={{ width: '8px', height: '8px', backgroundColor: isOpen ? '#16a34a' : '#64748b' }}
+          />
+          <span className={isOpen ? 'text-green-700 font-semibold' : 'text-700'}>{option.label}</span>
+        </span>
+      );
+    }
+    return <span className="text-xs text-700">{option?.label || props.placeholder || 'Semua Status'}</span>;
+  };
+
+  const statusItemTemplate = (option: any) => {
+    if (!option.value) {
+      return <div className="text-xs font-medium py-1">{option.label}</div>;
+    }
+    const isOpen = option.value === 'open';
+    return (
+      <div className="flex align-items-center gap-2 text-xs py-1">
+        <span
+          className="border-circle flex-shrink-0"
+          style={{ width: '8px', height: '8px', backgroundColor: isOpen ? '#16a34a' : '#64748b' }}
+        />
+        <span className={isOpen ? 'text-green-700 font-semibold' : 'text-700'}>{option.label}</span>
+      </div>
+    );
+  };
+
   // Modal Detail Mutasi
   const [detailVisible, setDetailVisible] = useState<boolean>(false);
   const [selectedShift, setSelectedShift] = useState<ShiftRecord | null>(null);
@@ -126,8 +198,10 @@ export default function TrackingKasKasirPage() {
       const list = (res.data?.data || []).map((k: any) => ({
         label: `${k.nama} (${k.kode_karyawan || k.kode_user || '-'})`,
         value: k.kode_user || k.no_sip,
+        nama: k.nama,
+        kode: k.kode_karyawan || k.kode_user || '-',
       }));
-      setKasirOptions([{ label: 'Semua Kasir', value: '' }, ...list]);
+      setKasirOptions([{ label: 'Semua Kasir', value: '', nama: 'Semua Kasir', kode: '' }, ...list]);
     } catch (error) {
       console.error('Gagal memuat opsi kasir:', error);
     }
@@ -495,32 +569,32 @@ export default function TrackingKasKasirPage() {
               options={kasirOptions}
               optionLabel="label"
               optionValue="value"
+              valueTemplate={kasirValueTemplate}
+              itemTemplate={kasirItemTemplate}
               onChange={(e) => {
                 const val = typeof e.value === 'object' && e.value !== null ? (e.value.value ?? '') : (e.value ?? '');
                 setSelectedKasir(val);
               }}
-              placeholder="Pilih Kasir"
-              className="text-xs w-12rem"
-              showClear
+              placeholder="Semua Kasir"
+              className="p-inputtext-sm text-xs w-14rem border-round-md"
+              showClear={Boolean(selectedKasir)}
             />
 
             {/* Filter Status Shift */}
             <Dropdown
               value={selectedStatus}
-              options={[
-                { label: 'Semua Status Sesi', value: '' },
-                { label: '🟢 Sedang Buka (Open)', value: 'open' },
-                { label: '⚪ Selesai / Ditutup (Closed)', value: 'closed' },
-              ]}
+              options={statusOptions}
               optionLabel="label"
               optionValue="value"
+              valueTemplate={statusValueTemplate}
+              itemTemplate={statusItemTemplate}
               onChange={(e) => {
                 const val = typeof e.value === 'object' && e.value !== null ? (e.value.value ?? '') : (e.value ?? '');
                 setSelectedStatus(val);
               }}
-              placeholder="Status Sesi"
-              className="text-xs w-12rem"
-              showClear
+              placeholder="Semua Status"
+              className="p-inputtext-sm text-xs w-13rem border-round-md"
+              showClear={Boolean(selectedStatus)}
             />
 
             {/* Rentang Tanggal */}

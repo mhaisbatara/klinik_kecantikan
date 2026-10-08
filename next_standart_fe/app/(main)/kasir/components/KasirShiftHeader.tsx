@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from 'primereact/button';
 import { Dialog } from 'primereact/dialog';
 import { InputNumber } from 'primereact/inputnumber';
@@ -62,6 +62,12 @@ export function KasirShiftHeader({ toast, onShiftStateChange, refreshKey = 0 }: 
   // Riwayat Mutasi List
   const [mutasiList, setMutasiList] = useState<any[]>([]);
 
+  // Ref untuk callback agar tidak memicu re-fetch berulang (memutus loop dependency)
+  const onShiftStateChangeRef = useRef(onShiftStateChange);
+  useEffect(() => {
+    onShiftStateChangeRef.current = onShiftStateChange;
+  }, [onShiftStateChange]);
+
   const formatRupiah = (val: number | string | null | undefined) => {
     const num = parseFloat(String(val || 0));
     return `Rp ${num.toLocaleString('id-ID')}`;
@@ -86,8 +92,8 @@ export function KasirShiftHeader({ toast, onShiftStateChange, refreshKey = 0 }: 
           setShowScheduleLockModal(false);
         }
 
-        if (onShiftStateChange) {
-          onShiftStateChange(data.allowed, Boolean(data.active_shift));
+        if (onShiftStateChangeRef.current) {
+          onShiftStateChangeRef.current(data.allowed, Boolean(data.active_shift));
         }
       }
     } catch (error) {
@@ -95,7 +101,7 @@ export function KasirShiftHeader({ toast, onShiftStateChange, refreshKey = 0 }: 
     } finally {
       setLoadingSchedule(false);
     }
-  }, [onShiftStateChange]);
+  }, []);
 
   // 2. Ambil Info Shift Aktif
   const loadActiveShift = useCallback(async () => {
@@ -106,17 +112,18 @@ export function KasirShiftHeader({ toast, onShiftStateChange, refreshKey = 0 }: 
       if (data?.mutasi) {
         setMutasiList(data.mutasi);
       }
-      if (onShiftStateChange) {
-        onShiftStateChange(scheduleAllowed, Boolean(data));
+      if (onShiftStateChangeRef.current) {
+        onShiftStateChangeRef.current(scheduleAllowed, Boolean(data));
       }
     } catch (error) {
       console.warn('Gagal memuat shift aktif:', error);
     }
-  }, [scheduleAllowed, onShiftStateChange]);
+  }, [scheduleAllowed]);
 
+  // Cek jadwal kerja hanya pada mount atau saat refreshKey berubah
   useEffect(() => {
     checkSchedule();
-  }, [checkSchedule]);
+  }, [refreshKey, checkSchedule]);
 
   useEffect(() => {
     if (scheduleAllowed) {

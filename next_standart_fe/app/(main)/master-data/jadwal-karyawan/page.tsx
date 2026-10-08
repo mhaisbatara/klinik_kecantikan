@@ -17,6 +17,7 @@ import { confirmDialog, ConfirmDialog } from 'primereact/confirmdialog';
 import { IconField } from 'primereact/iconfield';
 import { InputIcon } from 'primereact/inputicon';
 import { ProgressSpinner } from 'primereact/progressspinner';
+import { TabView, TabPanel } from 'primereact/tabview';
 import { showError, showSuccess } from '@/lib/tools/generalTools';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import KeteranganStatus from '@/app/components/KeteranganStatus';
@@ -697,45 +698,24 @@ const JadwalKaryawanContent = () => {
             <Toast ref={toast} />
             <ConfirmDialog />
 
-            <div className="card border-round-xl p-4 shadow-1 surface-card mb-4">
-                {/* ── Tab Switcher: Ruangan vs Kasir ── */}
-                <div className="flex align-items-center gap-2 mb-4 p-1 border-round-xl bg-slate-100 surface-border border-1" style={{ width: 'fit-content' }}>
-                    <button
-                        type="button"
-                        onClick={() => setMainTab('ruangan')}
-                        className={`flex align-items-center gap-2 px-3 py-2 border-round-lg text-sm font-bold transition-all border-none cursor-pointer ${
-                            mainTab === 'ruangan'
-                                ? 'bg-white text-emerald-700 shadow-1'
-                                : 'bg-transparent text-slate-600 hover:text-slate-900'
-                        }`}
-                    >
-                        <i className="pi pi-building text-base" />
-                        <span>Jadwal Ruangan (Dokter &amp; Terapis)</span>
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => {
+            <div className="card border-round-xl p-0 shadow-1 surface-card mb-4 overflow-hidden">
+                <TabView
+                    activeIndex={mainTab === 'ruangan' ? 0 : 1}
+                    onTabChange={(e) => {
+                        if (e.index === 0) {
+                            setMainTab('ruangan');
+                        } else {
                             setMainTab('kasir');
                             setSelectedRuangan('');
-                        }}
-                        className={`flex align-items-center gap-2 px-3 py-2 border-round-lg text-sm font-bold transition-all border-none cursor-pointer ${
-                            mainTab === 'kasir'
-                                ? 'bg-white text-emerald-700 shadow-1'
-                                : 'bg-transparent text-slate-600 hover:text-slate-900'
-                        }`}
+                        }
+                    }}
+                >
+                    {/* ── TAB 1: JADWAL RUANGAN (DOKTER & TERAPIS) ── */}
+                    <TabPanel
+                        header="Jadwal Ruangan (Dokter & Terapis)"
+                        leftIcon="pi pi-building mr-2"
                     >
-                        <i className="pi pi-calculator text-base" />
-                        <span>Jadwal Kasir</span>
-                        {kasirJadwalList.length > 0 && (
-                            <span className="text-[10px] px-1.5 py-0.5 border-round-full bg-emerald-100 text-emerald-800 font-bold">
-                                {kasirJadwalList.length}
-                            </span>
-                        )}
-                    </button>
-                </div>
-
-                {mainTab === 'ruangan' && (
-                    <>
+                        <div className="pt-2">
                 {/* ═══════════════════════════════════════════════════════════════ */}
                 {/* TAHAP 1: DAFTAR RUANGAN (CARD GRID)                         */}
                 {/* ═══════════════════════════════════════════════════════════════ */}
@@ -1534,14 +1514,28 @@ const JadwalKaryawanContent = () => {
                         </DataTable>
                     </div>
                 )}
-                    </>
-                )}
+                        </div>
+                    </TabPanel>
 
-                {/* ═══════════════════════════════════════════════════════════════ */}
-                {/* TAB 2: JADWAL KASIR                                          */}
-                {/* ═══════════════════════════════════════════════════════════════ */}
-                {mainTab === 'kasir' && (
-                    <div>
+                    {/* ═══════════════════════════════════════════════════════════════ */}
+                    {/* TAB 2: JADWAL KASIR                                          */}
+                    {/* ═══════════════════════════════════════════════════════════════ */}
+                    <TabPanel
+                        header={
+                            kasirJadwalList.length > 0 ? (
+                                <span className="flex align-items-center gap-2">
+                                    <span>Jadwal Kasir</span>
+                                    <span className="text-xs px-2 py-0.5 border-round-full bg-emerald-100 text-emerald-800 font-bold">
+                                        {kasirJadwalList.length}
+                                    </span>
+                                </span>
+                            ) : (
+                                'Jadwal Kasir'
+                            )
+                        }
+                        leftIcon="pi pi-calculator mr-2"
+                    >
+                        <div className="pt-2">
                         {/* Page Header */}
                         <div className="mb-4">
                             <h3 className="text-2xl font-bold text-900 flex align-items-center gap-2 mb-1">
@@ -1782,8 +1776,9 @@ const JadwalKaryawanContent = () => {
                                 )}
                             />
                         </DataTable>
-                    </div>
-                )}
+                        </div>
+                    </TabPanel>
+                </TabView>
             </div>
 
             {/* ═══════════════════════════════════════════════════════════════ */}
