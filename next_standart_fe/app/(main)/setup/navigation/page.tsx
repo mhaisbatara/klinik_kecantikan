@@ -97,8 +97,8 @@ const DEFAULT_MASTER_MENU: MenuGroup[] = [
         icon: 'pi pi-fw pi-calculator',
         items: [
             { label: 'Kasir', icon: 'pi pi-fw pi-calculator', to: '/kasir' },
-            { label: 'Tracking Kas Kasir', icon: 'pi pi-fw pi-wallet', to: '/transaksi/tracking-kasir' },
-            { label: 'Inventori', icon: 'pi pi-fw pi-box', to: '/master-data/inventori' }
+            { label: 'Inventori', icon: 'pi pi-fw pi-box', to: '/master-data/inventori' },
+            { label: 'Tracking Kas Kasir', icon: 'pi pi-fw pi-wallet', to: '/transaksi/tracking-kasir' }
         ]
     },
     {

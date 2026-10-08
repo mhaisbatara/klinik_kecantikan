@@ -558,82 +558,62 @@ const AppMenu = () => {
                 });
             }
 
-            // Garansi Tracking Kas Kasir selalu dapat diakses dan muncul untuk Owner, Manager, dan Admin
+            // Garansi hak akses transaksi (Kasir, Inventori, Tracking Kas Kasir)
             const canAccessTrackingKasir = isOwnerOrManager || currentRole === 'admin';
-            if (canAccessTrackingKasir) {
+            if (isOwnerOrManager || currentRole === 'admin') {
+                userAllowedPaths.add('/kasir');
+                userAllowedPaths.add('/master-data/inventori');
                 userAllowedPaths.add('/transaksi/tracking-kasir');
+            } else if (canAccessTrackingKasir) {
+                userAllowedPaths.add('/transaksi/tracking-kasir');
+            }
 
-                // 1. Cek apakah ada grup TRANSAKSI atau KASIR yang sudah ada di menu
-                const existingTrxGroup = transformedMenu.find((g) => {
-                    const lbl = (g.label || '').toLowerCase();
-                    return lbl.includes('transaksi') || lbl.includes('kasir');
-                });
+            // Standarisasi grup TRANSAKSI di transformedMenu:
+            // Pastikan hanya ada 1 grup TRANSAKSI yang berisi [Kasir, Inventori, Tracking Kas Kasir]
+            const defaultTrxSubItems: AppMenuItem[] = [];
+            if (isOwnerOrManager || currentRole === 'kasir' || currentRole === 'admin' || userAllowedPaths.has('/kasir')) {
+                defaultTrxSubItems.push({ label: 'Kasir', icon: 'pi pi-fw pi-calculator', to: '/kasir' });
+            }
+            if (isOwnerOrManager || currentRole === 'warehouse' || currentRole === 'admin' || userAllowedPaths.has('/master-data/inventori')) {
+                defaultTrxSubItems.push({ label: 'Inventori', icon: 'pi pi-fw pi-box', to: '/master-data/inventori' });
+            }
+            if (canAccessTrackingKasir || userAllowedPaths.has('/transaksi/tracking-kasir')) {
+                defaultTrxSubItems.push({ label: 'Tracking Kas Kasir', icon: 'pi pi-fw pi-wallet', to: '/transaksi/tracking-kasir' });
+            }
 
-                if (existingTrxGroup) {
-                    if (!existingTrxGroup.items) existingTrxGroup.items = [];
-                    const hasTracking = existingTrxGroup.items.some((it) => it.to === '/transaksi/tracking-kasir');
-                    if (!hasTracking) {
-                        const kasirIdx = existingTrxGroup.items.findIndex((it) => it.to === '/kasir');
-                        const trackingItem: AppMenuItem = {
-                            label: 'Tracking Kas Kasir',
-                            to: '/transaksi/tracking-kasir',
-                            icon: 'pi pi-fw pi-wallet',
-                        };
-                        if (kasirIdx !== -1) {
-                            existingTrxGroup.items.splice(kasirIdx + 1, 0, transformItem(trackingItem));
-                        } else {
-                            existingTrxGroup.items.push(transformItem(trackingItem));
-                        }
-                    }
-                } else {
-                    // Jika belum ada grup sama sekali, buat grup TRANSAKSI baru
-                    const trackingItemGroup: AppMenuItem = {
-                        label: 'TRANSAKSI',
-                        icon: 'pi pi-fw pi-wallet',
-                        items: [
-                            { label: 'Kasir', icon: 'pi pi-fw pi-calculator', to: '/kasir' },
-                            { label: 'Tracking Kas Kasir', icon: 'pi pi-fw pi-wallet', to: '/transaksi/tracking-kasir' },
-                        ],
-                    };
-                    const targetIdx = transformedMenu.findIndex((it) => {
-                        const lbl = (it.label || '').toLowerCase();
-                        return lbl.includes('laporan') || lbl.includes('pengaturan') || lbl.includes('setup');
-                    });
-                    if (targetIdx !== -1) {
-                        transformedMenu.splice(targetIdx, 0, transformItem(trackingItemGroup));
-                    } else {
-                        transformedMenu.push(transformItem(trackingItemGroup));
-                    }
+            // Cari index grup TRANSAKSI atau KASIR di transformedMenu
+            const trxIndices: number[] = [];
+            transformedMenu.forEach((g, idx) => {
+                const lbl = (g.label || '').toLowerCase();
+                if (lbl === 'transaksi' || lbl.includes('transaksi') || lbl === 'kasir' || lbl.includes('kasir')) {
+                    trxIndices.push(idx);
                 }
+            });
 
-                // 2. DEDUP: Jika terdapat lebih dari 1 grup TRANSAKSI, lebur menjadi 1 grup saja tanpa duplikasi!
-                const trxIndices: number[] = [];
-                transformedMenu.forEach((g, idx) => {
-                    const lbl = (g.label || '').toLowerCase();
-                    if (lbl === 'transaksi' || lbl === 'transaksi & kasir' || lbl === 'kasir & transaksi' || lbl === 'kasir') {
-                        trxIndices.push(idx);
-                    }
+            if (trxIndices.length > 0) {
+                const primaryGroup = transformedMenu[trxIndices[0]];
+                primaryGroup.label = 'TRANSAKSI';
+                primaryGroup.icon = 'pi pi-fw pi-calculator';
+                primaryGroup.items = defaultTrxSubItems;
+
+                // Hapus duplikat dari belakang jika ada lebih dari 1 grup
+                for (let i = trxIndices.length - 1; i >= 1; i--) {
+                    transformedMenu.splice(trxIndices[i], 1);
+                }
+            } else if (defaultTrxSubItems.length > 0 && !isSuperAdminRole) {
+                const targetIdx = transformedMenu.findIndex((it) => {
+                    const lbl = (it.label || '').toLowerCase();
+                    return lbl.includes('laporan') || lbl.includes('pengaturan') || lbl.includes('setup');
                 });
-
-                if (trxIndices.length > 1) {
-                    const primaryGroup = transformedMenu[trxIndices[0]];
-                    primaryGroup.label = 'TRANSAKSI';
-                    const mergedItems: AppMenuItem[] = [...(primaryGroup.items || [])];
-
-                    for (let i = 1; i < trxIndices.length; i++) {
-                        const duplicateGroup = transformedMenu[trxIndices[i]];
-                        (duplicateGroup.items || []).forEach((it) => {
-                            if (!mergedItems.some((m) => m.to === it.to || m.label === it.label)) {
-                                mergedItems.push(it);
-                            }
-                        });
-                    }
-                    primaryGroup.items = mergedItems;
-
-                    // Hapus grup duplikat dari belakang
-                    for (let i = trxIndices.length - 1; i >= 1; i--) {
-                        transformedMenu.splice(trxIndices[i], 1);
-                    }
+                const trxGroup: AppMenuItem = {
+                    label: 'TRANSAKSI',
+                    icon: 'pi pi-fw pi-calculator',
+                    items: defaultTrxSubItems,
+                };
+                if (targetIdx !== -1) {
+                    transformedMenu.splice(targetIdx, 0, trxGroup);
+                } else {
+                    transformedMenu.push(trxGroup);
                 }
             }
 
@@ -836,6 +816,11 @@ const AppMenu = () => {
                             return lbl.includes('pengaturan') || lbl.includes('master data & user') || lbl.includes('setup');
                         };
 
+                        const isTransaksiItem = (item: AppMenuItem) => {
+                            const lbl = (item.label || '').toLowerCase();
+                            return lbl === 'transaksi' || lbl.includes('transaksi') || lbl === 'kasir' || lbl.includes('kasir');
+                        };
+
                         const currentRole = (session?.user?.role || '').toLowerCase();
                         const isSuperAdminRole = currentRole === 'superadmin';
                         const isOwnerOrManager = currentRole === 'owner' || currentRole === 'manager';
@@ -856,11 +841,24 @@ const AppMenu = () => {
                         // 7. Pengaturan (HANYA untuk Superadmin, Owner/Manager, atau user yang memiliki hak akses)
                         const pengaturanItems = (isSuperAdminRole || isOwnerOrManager || hasPengaturanAllowed) ? state.filteredMenu.filter(isPengaturanItem) : [];
 
-                        // Item tambahan lainnya di luar kategori utama dan bukan kasir/laporan/layanan operasional
+                        // Item tambahan lainnya di luar kategori utama dan bukan kasir/transaksi/laporan/layanan operasional
                         const extraItems = state.filteredMenu.filter((item) => {
-                            if (isHomeItem(item) || isMasterDataItem(item) || isPendaftaranItem(item) || isPengaturanItem(item)) return false;
+                            if (
+                                isHomeItem(item) ||
+                                isMasterDataItem(item) ||
+                                isPendaftaranItem(item) ||
+                                isPengaturanItem(item) ||
+                                isTransaksiItem(item)
+                            ) return false;
                             const lbl = (item.label || '').toLowerCase();
-                            return !lbl.includes('kasir') && !lbl.includes('laporan') && !lbl.includes('riwayat') && lbl !== 'layanan' && lbl !== 'layanan & tindakan';
+                            return (
+                                !lbl.includes('kasir') &&
+                                !lbl.includes('transaksi') &&
+                                !lbl.includes('laporan') &&
+                                !lbl.includes('riwayat') &&
+                                lbl !== 'layanan' &&
+                                lbl !== 'layanan & tindakan'
+                            );
                         });
 
                         const renderItem = (item: AppMenuItem, i: number) =>
@@ -917,6 +915,13 @@ const AppMenu = () => {
                                 ? hasAllowedPath('/master-data/inventori')
                                 : ['owner', 'manager', 'warehouse', 'admin'].includes(currentRole));
 
+                        const canAccessTrackingKasir =
+                            isSuperAdminRole ||
+                            isOwnerOrManager ||
+                            (state.allowedPaths.size > 0
+                                ? hasAllowedPath('/transaksi/tracking-kasir')
+                                : ['owner', 'manager', 'admin', 'kasir'].includes(currentRole));
+
                         const canAccessLaporan =
                             isSuperAdminRole ||
                             isOwnerOrManager ||
@@ -926,10 +931,12 @@ const AppMenu = () => {
 
                         const searchLower = state.searchVal.trim().toLowerCase();
                         const matchesTindakan = canAccessTindakan && (!searchLower || 'tindakan'.includes(searchLower) || 'layanan'.includes(searchLower));
-                        const matchesKonsul = canAccessKonsul && (!searchLower || 'konsultasi'.includes(searchLower) || 'medis'.includes(searchLower));
+                        const matchesKonsul = canAccessKonsul && (!searchLower || 'konsultasi'.includes(searchLower) || 'medis'.includes(searchLower) || 'layanan'.includes(searchLower));
                         const showLayananSection = canAccessLayanan && (matchesTindakan || matchesKonsul);
-                        const matchesKasir = canAccessKasir && (!searchLower || 'kasir'.includes(searchLower) || 'pembayaran'.includes(searchLower));
-                        const matchesInventori = canAccessInventori && (!searchLower || 'inventori'.includes(searchLower) || 'stok'.includes(searchLower) || 'gudang'.includes(searchLower) || 'inventory'.includes(searchLower));
+                        const matchesKasir = canAccessKasir && (!searchLower || 'kasir'.includes(searchLower) || 'pembayaran'.includes(searchLower) || 'transaksi'.includes(searchLower));
+                        const matchesInventori = canAccessInventori && (!searchLower || 'inventori'.includes(searchLower) || 'stok'.includes(searchLower) || 'gudang'.includes(searchLower) || 'inventory'.includes(searchLower) || 'transaksi'.includes(searchLower));
+                        const matchesTrackingKasir = canAccessTrackingKasir && (!searchLower || 'tracking kas kasir'.includes(searchLower) || 'tracking kasir'.includes(searchLower) || 'tracking'.includes(searchLower) || 'kas'.includes(searchLower) || 'kasir'.includes(searchLower) || 'transaksi'.includes(searchLower));
+                        const showTransaksiSection = matchesKasir || matchesInventori || matchesTrackingKasir;
 
                         let idx = 0;
                         return (
@@ -1018,11 +1025,12 @@ const AppMenu = () => {
                                     </li>
                                 )}
 
-                                {/* 5. TRANSAKSI (Kasir, Inventori) */}
-                                {(matchesKasir || matchesInventori) && (
+                                {/* 5. TRANSAKSI (Kasir, Inventori, Tracking Kas Kasir) */}
+                                {showTransaksiSection && (
                                     <li className="layout-root-menuitem" key="transaksi-section">
                                         <div className="layout-menuitem-root-text">TRANSAKSI</div>
                                         <ul>
+                                            {/* Kasir */}
                                             {matchesKasir && (
                                                 <li className={pathname === '/kasir' ? 'active-menuitem' : ''}>
                                                     <Link
@@ -1047,6 +1055,7 @@ const AppMenu = () => {
                                                 </li>
                                             )}
 
+                                            {/* Inventori */}
                                             {matchesInventori && (
                                                 <li className={pathname.startsWith('/master-data/inventori') ? 'active-menuitem' : ''}>
                                                     <Link
@@ -1066,6 +1075,31 @@ const AppMenu = () => {
                                                             }}
                                                         >
                                                             Inventori
+                                                        </span>
+                                                    </Link>
+                                                </li>
+                                            )}
+
+                                            {/* Tracking Kas Kasir */}
+                                            {matchesTrackingKasir && (
+                                                <li className={pathname.startsWith('/transaksi/tracking-kasir') ? 'active-menuitem' : ''}>
+                                                    <Link
+                                                        href="/transaksi/tracking-kasir"
+                                                        className={`p-ripple flex align-items-center gap-2${pathname.startsWith('/transaksi/tracking-kasir') ? ' active-route' : ''}`}
+                                                        style={{ padding: '0.75rem 1.25rem', borderRadius: '6px', transition: 'background 0.2s' }}
+                                                    >
+                                                        <i
+                                                            className="layout-menuitem-icon pi pi-wallet"
+                                                            style={{ color: pathname.startsWith('/transaksi/tracking-kasir') ? 'var(--primary-color)' : undefined }}
+                                                        />
+                                                        <span
+                                                            className="layout-menuitem-text"
+                                                            style={{
+                                                                fontWeight: pathname.startsWith('/transaksi/tracking-kasir') ? 700 : undefined,
+                                                                color: pathname.startsWith('/transaksi/tracking-kasir') ? 'var(--primary-color)' : undefined,
+                                                            }}
+                                                        >
+                                                            Tracking Kas Kasir
                                                         </span>
                                                     </Link>
                                                 </li>
