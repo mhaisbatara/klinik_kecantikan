@@ -148,16 +148,14 @@ router.post("/", async (req, res) => {
       const subtotal = parseFloat(d.subtotal || hrg * qty);
       const isPendaftaran = Boolean(d.is_from_pendaftaran);
 
-      let diskon = isPendaftaran ? 0 : parseFloat(d.diskon || 0);
-      if (!isPendaftaran && diskon === 0 && d.nilai_diskon && parseFloat(d.nilai_diskon) > 0) {
+      let diskon = parseFloat(d.diskon || 0);
+      if (diskon === 0 && d.nilai_diskon && parseFloat(d.nilai_diskon) > 0) {
         const nDisc = parseFloat(d.nilai_diskon);
         diskon = d.jenis_diskon === "nominal" ? Math.min(nDisc * qty, subtotal) : (subtotal * nDisc) / 100;
       }
-      const subtotal_setelah_diskon = isPendaftaran
-        ? subtotal
-        : (d.subtotal_setelah_diskon !== null && parseFloat(d.subtotal_setelah_diskon) > 0 && parseFloat(d.subtotal_setelah_diskon) < subtotal
-          ? parseFloat(d.subtotal_setelah_diskon)
-          : Math.max(0, subtotal - diskon));
+      const subtotal_setelah_diskon = d.subtotal_setelah_diskon !== null && parseFloat(d.subtotal_setelah_diskon) >= 0 && parseFloat(d.subtotal_setelah_diskon) <= subtotal
+        ? parseFloat(d.subtotal_setelah_diskon)
+        : Math.max(0, subtotal - diskon);
 
       return {
         ...d,

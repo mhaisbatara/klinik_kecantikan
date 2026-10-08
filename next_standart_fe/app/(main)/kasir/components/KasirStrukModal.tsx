@@ -453,9 +453,10 @@ export const KasirStrukModal: React.FC<KasirStrukModalProps> = ({ visible, resul
                           gridColumn: '1 / 4',
                           textAlign: 'left',
                           minWidth: 0,
+                          fontSize: '12px',
                         }}
                       >
-                        Diskon
+                        {item.nama_promo || (item.jenis_diskon === 'include_treatment' ? 'Gratis (Include Tindakan)' : 'Diskon')}
                       </div>
                       <div
                         style={{

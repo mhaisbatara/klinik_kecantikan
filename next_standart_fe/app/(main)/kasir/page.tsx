@@ -31,7 +31,7 @@ export interface CartItem {
   // Info promo per-item dari pendaftaran (diskon diterapkan di kasir)
   kode_promo?: string | null;
   nama_promo?: string | null;
-  jenis_diskon?: 'persen' | 'nominal' | null;
+  jenis_diskon?: 'persen' | 'nominal' | 'include_treatment' | string | null;
   nilai_diskon?: number | null;
   diskon?: number | null;
   subtotal_setelah_diskon?: number | null;

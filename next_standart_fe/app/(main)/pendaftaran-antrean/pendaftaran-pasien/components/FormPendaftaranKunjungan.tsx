@@ -176,7 +176,13 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
   // 6. Dialog Jadwal Mingguan Ruangan
   const [showJadwalRuanganDialog, setShowJadwalRuanganDialog] = useState(false);
   const [jadwalDialogRooms, setJadwalDialogRooms] = useState<RoomTabOption[]>([]);
-  const [consultRoomInfo, setConsultRoomInfo] = useState<{ kode_ruangan: string; nama_ruangan: string } | null>(null);
+  const [consultRoomInfo, setConsultRoomInfo] = useState<{
+    kode_ruangan: string;
+    nama_ruangan: string;
+    kode_layanan?: string;
+    nama_layanan?: string;
+    harga_konsultasi?: number;
+  } | null>(null);
 
   // 7. Popover Pendamping
   const companionOpRef = useRef<OverlayPanel>(null);
@@ -508,7 +514,6 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
   };
 
   const selectedList = Object.values(selectedMap);
-  const totalHarga = selectedList.reduce((acc, curr) => acc + (curr.jenis === 'klaim_paket' ? 0 : (curr.harga || 0)), 0);
   const totalDurasi = selectedList.reduce((acc, curr) => acc + (curr.durasi_menit || 0), 0);
 
   const activeRoomName = useMemo(() => {
@@ -537,6 +542,42 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
     if (hasOpsionalKonsul) return globalConsultChoice;
     return false;
   }, [hasWajibKonsul, hasOpsionalKonsul, globalConsultChoice]);
+
+  // Cek apakah tindakan yang butuh konsultasi bertipe INCLUDE KONSULTASI
+  const isActionIncludeKonsul = useMemo(() => {
+    const consultNeeding = selectedList.filter((item) => {
+      const { isWajib, isOpsional } = getItemConsultType(item);
+      return isWajib || (isOpsional && globalConsultChoice);
+    });
+    if (consultNeeding.length === 0) return false;
+    return consultNeeding.every((item) =>
+      Boolean(item.is_include_konsultasi === 1 || item.is_include_konsultasi === '1' || item.is_include_konsultasi === true)
+    );
+  }, [selectedList, globalConsultChoice]);
+
+  const effectiveHargaKonsulMaster = useMemo(() => {
+    const itemWithConsultPrice = selectedList.find(
+      (it) => typeof it.harga_konsultasi === 'number' && it.harga_konsultasi > 0
+    );
+    if (itemWithConsultPrice && itemWithConsultPrice.harga_konsultasi) {
+      return itemWithConsultPrice.harga_konsultasi;
+    }
+    if (consultRoomInfo?.harga_konsultasi) {
+      return parseFloat(String(consultRoomInfo.harga_konsultasi));
+    }
+    return 15000;
+  }, [selectedList, consultRoomInfo?.harga_konsultasi]);
+
+  const biayaKonsultasi = useMemo(() => {
+    if (!effectiveButuhKonsul) return 0;
+    if (isActionIncludeKonsul) return 0;
+    return effectiveHargaKonsulMaster;
+  }, [effectiveButuhKonsul, isActionIncludeKonsul, effectiveHargaKonsulMaster]);
+
+  const totalHarga = useMemo(() => {
+    const totalTindakan = selectedList.reduce((acc, curr) => acc + (curr.jenis === 'klaim_paket' ? 0 : (curr.harga || 0)), 0);
+    return totalTindakan + biayaKonsultasi;
+  }, [selectedList, biayaKonsultasi]);
 
   // Status Dokter Jaga di Ruang Konsultasi untuk Registrasi Walk-In Hari Ini
   const consultDoctorStatus = useMemo(() => {
@@ -1488,6 +1529,11 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
                             nama_pasien_booking_terdekat: item.nama_pasien_booking_terdekat || ruang.nama_pasien_booking_terdekat,
                           };
 
+                          const isRuanganKonsultasi = Boolean(
+                            ruang.is_konsultasi === 1 ||
+                            ruang.nama_ruangan?.toLowerCase().includes('konsultasi')
+                          );
+
                           return (
                             <LayananCard
                               key={itemKey}
@@ -1495,6 +1541,8 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
                               isSelected={!!selectedMap[itemKey]}
                               isDisabled={isRuangDisabled || isClaimedElsewhere || isCapacityLocked}
                               isClaimedElsewhere={isClaimedElsewhere}
+                              isRuanganKonsultasi={isRuanganKonsultasi}
+                              hargaKonsultasi={consultRoomInfo?.harga_konsultasi}
                               onToggle={handleToggleItem}
                               formatPrice={formatCurrency}
                             />
@@ -2089,9 +2137,20 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
                 <span className="text-500">Petugas:</span>
                 <strong className="text-900">{selectedSlot?.nama_petugas || '-'}</strong>
               </span>
+              {effectiveButuhKonsul && (
+                <>
+                  <span className="text-300 select-none">•</span>
+                  <span className="inline-flex align-items-center gap-1">
+                    <span className="text-500">Konsultasi Dokter:</span>
+                    <strong className={isActionIncludeKonsul ? "text-emerald-600 font-bold" : "text-amber-700 font-bold"}>
+                      {isActionIncludeKonsul ? 'Gratis (Include)' : formatCurrency(biayaKonsultasi)}
+                    </strong>
+                  </span>
+                </>
+              )}
               <span className="text-300 select-none">•</span>
               <span className="inline-flex align-items-center gap-1">
-                <span className="text-500">Total:</span>
+                <span className="text-500">Total Biaya:</span>
                 <strong className="text-emerald-700 font-bold">{formatCurrency(totalHarga)}</strong>
               </span>
             </div>
