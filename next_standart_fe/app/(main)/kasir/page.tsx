@@ -117,13 +117,13 @@ export default function KasirPage() {
     total_diskon?: number;
   } | null>(null);
 
-  const refreshList = useCallback(() => {
-    setListRefreshKey((k) => k + 1);
-  }, []);
-
   const handleShiftStateChange = useCallback((allowed: boolean, isOpen: boolean) => {
     setIsAccessAllowed((prev) => (prev !== allowed ? allowed : prev));
     setIsShiftOpen((prev) => (prev !== isOpen ? isOpen : prev));
+  }, []);
+
+  const refreshList = useCallback(() => {
+    setListRefreshKey((k) => k + 1);
   }, []);
 
   const handleSelectTrx = useCallback((kode: string) => {
@@ -148,7 +148,7 @@ export default function KasirPage() {
     setTransaksiList(list);
   }, []);
 
-  const handleBayarConfirm = async (metode: string, nominal: number) => {
+  const handleBayarConfirm = useCallback(async (metode: string, nominal: number) => {
     if (!pendingBayarPayload) return;
     try {
       const res = await postData('/master/kasir-bayar', {
@@ -179,7 +179,7 @@ export default function KasirPage() {
     } catch {
       showError(toast, 'Gagal terhubung ke server');
     }
-  };
+  }, [pendingBayarPayload, refreshList]);
 
   return (
     <div className="w-full h-full kasir-page-container flex flex-column" style={{ minHeight: 0, minWidth: 0 }}>

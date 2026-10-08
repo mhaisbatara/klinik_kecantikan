@@ -92,9 +92,7 @@ export function KasirShiftHeader({ toast, onShiftStateChange, refreshKey = 0 }: 
           setShowScheduleLockModal(false);
         }
 
-        if (onShiftStateChangeRef.current) {
-          onShiftStateChangeRef.current(data.allowed, Boolean(data.active_shift));
-        }
+        onShiftStateChangeRef.current?.(data.allowed, Boolean(data.active_shift));
       }
     } catch (error) {
       console.warn('Gagal memeriksa jadwal kasir:', error);
@@ -112,21 +110,20 @@ export function KasirShiftHeader({ toast, onShiftStateChange, refreshKey = 0 }: 
       if (data?.mutasi) {
         setMutasiList(data.mutasi);
       }
-      if (onShiftStateChangeRef.current) {
-        onShiftStateChangeRef.current(scheduleAllowed, Boolean(data));
-      }
+      onShiftStateChangeRef.current?.(scheduleAllowed, Boolean(data));
     } catch (error) {
       console.warn('Gagal memuat shift aktif:', error);
     }
   }, [scheduleAllowed]);
 
-  // Cek jadwal kerja hanya pada mount atau saat refreshKey berubah
+  // Cek jadwal kerja saat mount atau refreshKey berubah
   useEffect(() => {
     checkSchedule();
   }, [refreshKey, checkSchedule]);
 
+  // Refresh shift aktif saat refreshKey berubah (setelah mount)
   useEffect(() => {
-    if (scheduleAllowed) {
+    if (refreshKey > 0 && scheduleAllowed) {
       loadActiveShift();
     }
   }, [refreshKey, scheduleAllowed, loadActiveShift]);
