@@ -18,6 +18,7 @@ export interface RekomendasiItem {
   nama: string;
   foto?: string | null;
   wajib_konsultasi?: 'tidak' | 'opsional' | 'wajib' | string;
+  is_include_konsultasi?: boolean | number | string;
   durasi_menit?: number;
   harga: number;
   harga_asal?: number;
@@ -160,6 +161,12 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
     paket_layanan: RekomendasiItem[];
     produk: RekomendasiItem[];
     paket_produk: RekomendasiItem[];
+    harga_konsultasi?: number;
+    ruang_konsultasi?: {
+      kode_ruangan: string;
+      nama_ruangan: string;
+      harga_konsultasi: number;
+    };
   }>({
     ruangan: [],
     layanan: [],
@@ -224,6 +231,8 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
           paket_layanan: (res.data.data.paket_layanan || []).filter(isNotKonsul),
           produk: res.data.data.produk || [],
           paket_produk: res.data.data.paket_produk || [],
+          harga_konsultasi: res.data.data.harga_konsultasi,
+          ruang_konsultasi: res.data.data.ruang_konsultasi,
         });
       } else {
         showError(toast, res?.data?.message || 'Gagal memuat opsi rekomendasi');
@@ -579,7 +588,19 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
     );
   };
 
-  const totalHargaSelected = cleanSelectedItems.reduce((sum, i) => sum + (i.harga || 0) * (i.qty || 1), 0);
+  const consultFee = typeof options.harga_konsultasi === 'number' && options.harga_konsultasi > 0
+    ? options.harga_konsultasi
+    : 15000;
+
+  const selectedTreatments = cleanSelectedItems.filter((i) => ['layanan', 'paket_layanan'].includes(i.jenis));
+  const isAllIncludeKonsul = selectedTreatments.length > 0 && selectedTreatments.every((i) =>
+    Boolean(i.is_include_konsultasi === true || i.is_include_konsultasi === 1 || i.is_include_konsultasi === '1')
+  );
+  // Jika ada setidaknya 1 item yang Tidak Include (atau hanya memilih produk), konsultasi tetap dikenakan biaya tambahan
+  const isNonIncludeActive = cleanSelectedItems.length > 0 && !isAllIncludeKonsul;
+
+  const rawItemsTotal = cleanSelectedItems.reduce((sum, i) => sum + (i.harga || 0) * (i.qty || 1), 0);
+  const totalHargaSelected = isNonIncludeActive ? rawItemsTotal + consultFee : rawItemsTotal;
 
   return (
     <div
@@ -1249,6 +1270,44 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                             />
                           )}
 
+                          {!isProduk && (
+                            Boolean(item.is_include_konsultasi === true || item.is_include_konsultasi === 1 || item.is_include_konsultasi === '1') ? (
+                              <span
+                                className="inline-flex align-items-center font-bold text-white shadow-1"
+                                style={{
+                                  fontSize: '9.5px',
+                                  padding: '2px 8px',
+                                  borderRadius: '9999px',
+                                  backgroundColor: '#16a34a',
+                                  lineHeight: 1.2,
+                                  gap: '3px',
+                                }}
+                                title="Tindakan ini sudah include/gratis biaya konsultasi dokter di awal"
+                              >
+                                <i className="pi pi-check-circle" style={{ fontSize: '9px' }} />
+                                <span>Include Konsul</span>
+                              </span>
+                            ) : (
+                              <span
+                                className="inline-flex align-items-center font-medium shadow-1"
+                                style={{
+                                  fontSize: '9.5px',
+                                  padding: '2px 8px',
+                                  borderRadius: '9999px',
+                                  lineHeight: 1.2,
+                                  gap: '3px',
+                                  backgroundColor: '#f1f5f9',
+                                  color: '#475569',
+                                  border: '1px solid #cbd5e1',
+                                }}
+                                title="Tidak include konsultasi (bayar terpisah)"
+                              >
+                                <i className="pi pi-times-circle" style={{ fontSize: '9px', color: '#94a3b8' }} />
+                                <span>Tidak Include</span>
+                              </span>
+                            )
+                          )}
+
                           {isService && isCapacityLocked && (
                             <Tag
                               rounded
@@ -1401,8 +1460,8 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
 
       {/* ── SELECTED SUMMARY DRAWER BAR ── */}
       {cleanSelectedItems.length > 0 && (
-        <div className="mt-4 p-3 border-round-xl flex flex-column sm:flex-row align-items-start sm:align-items-center justify-content-between gap-3 surface-card border-1 surface-border shadow-1">
-          <div className="flex align-items-center gap-3">
+        <div className="mt-4 p-3 border-round-xl flex flex-column lg:flex-row align-items-start lg:align-items-center justify-content-between gap-3 surface-card border-1 surface-border shadow-1">
+          <div className="flex align-items-center gap-3 min-w-0 flex-1">
             <div
               className="border-circle flex align-items-center justify-content-center flex-shrink-0"
               style={{
@@ -1415,18 +1474,24 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
             >
               <i className="pi pi-check font-bold" style={{ fontSize: '14px' }} />
             </div>
-            <div>
-              <span className="text-xs font-bold text-700 block mb-2">
+            <div className="min-w-0 flex-1">
+              <span className="text-xs font-bold text-700 block mb-1.5">
                 {cleanSelectedItems.length} Item Terpilih untuk Rekomendasi
               </span>
-              <div className="flex align-items-center flex-wrap" style={{ gap: '10px' }}>
+              <div
+                className="flex align-items-center flex-nowrap overflow-x-auto pb-1"
+                style={{
+                  gap: '8px',
+                  scrollbarWidth: 'thin',
+                }}
+              >
                 {cleanSelectedItems.map((item, idx) => {
                   const isLocked = item.is_locked || item.is_pendaftaran;
                   const isProd = (item.jenis || '').includes('produk');
                   return (
                     <div
                       key={idx}
-                      className={`inline-flex align-items-center border-round-xl font-bold shadow-1 ${
+                      className={`inline-flex align-items-center border-round-xl font-bold shadow-1 flex-shrink-0 ${
                         isLocked
                           ? 'bg-amber-50 text-amber-900 border-1 border-amber-300'
                           : isProd
@@ -1434,9 +1499,9 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
                           : 'surface-card text-900 border-1 surface-border'
                       }`}
                       style={{
-                        padding: '6px 14px',
-                        gap: '8px',
-                        fontSize: '12.5px',
+                        padding: '6px 12px',
+                        gap: '6px',
+                        fontSize: '12px',
                         lineHeight: 1.2,
                       }}
                     >
@@ -1471,10 +1536,23 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
             </div>
           </div>
 
-          <div className="flex align-items-center gap-3 w-full sm:w-auto justify-content-between sm:justify-content-end border-top-1 sm:border-top-none pt-2 sm:pt-0 surface-border">
-            <div className="text-right">
-              <span className="text-[10px] text-500 block font-semibold uppercase">Total Estimasi</span>
-              <span className="text-base font-black text-primary">{formatRupiah(totalHargaSelected)}</span>
+          <div className="flex align-items-center gap-3 flex-shrink-0 justify-content-between lg:justify-content-end w-full lg:w-auto border-top-1 lg:border-top-none pt-2 lg:pt-0 surface-border">
+            <div className="text-right flex flex-column justify-content-center" style={{ gap: '3px' }}>
+              <div className="flex align-items-baseline justify-content-end gap-1.5" style={{ lineHeight: 1.1 }}>
+                <span className="text-xs text-500 font-bold uppercase tracking-wide">Total Estimasi:</span>
+                <span className="text-base font-black text-primary">{formatRupiah(totalHargaSelected)}</span>
+              </div>
+              {isAllIncludeKonsul ? (
+                <span className="text-[10.5px] font-bold text-emerald-600" style={{ lineHeight: 1.1 }}>
+                  <i className="pi pi-check-circle mr-1" style={{ fontSize: '9px' }} />
+                  Bebas Biaya Konsultasi (Include)
+                </span>
+              ) : isNonIncludeActive ? (
+                <span className="text-[10.5px] font-semibold text-blue-600" style={{ lineHeight: 1.1 }}>
+                  <i className="pi pi-info-circle mr-1" style={{ fontSize: '9px' }} />
+                  Termasuk Jasa Konsultasi ({formatRupiah(consultFee)})
+                </span>
+              ) : null}
             </div>
 
             <Button
@@ -1483,7 +1561,8 @@ export const RekomendasiTreatmentPanel: React.FC<RekomendasiTreatmentPanelProps>
               outlined
               severity="danger"
               size="small"
-              className="font-bold text-xs border-round-lg"
+              className="font-bold text-xs border-round-lg flex-shrink-0"
+              style={{ height: '34px', padding: '0 12px' }}
               onClick={() => onChangeSelectedItems(selectedItems.filter((i) => i.is_locked || i.is_pendaftaran))}
             />
           </div>

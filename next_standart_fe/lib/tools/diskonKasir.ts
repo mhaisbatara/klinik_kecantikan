@@ -20,7 +20,7 @@ export interface CartItem {
   // Snapshot promo per-item
   kode_promo?: string | null;
   nama_promo?: string | null;
-  jenis_diskon?: 'persen' | 'nominal' | null;
+  jenis_diskon?: 'persen' | 'nominal' | 'include_treatment' | string | null;
   nilai_diskon?: number | null;
   diskon?: number | null; // Nominal diskon rupiah untuk item ini
   subtotal_setelah_diskon?: number | null;

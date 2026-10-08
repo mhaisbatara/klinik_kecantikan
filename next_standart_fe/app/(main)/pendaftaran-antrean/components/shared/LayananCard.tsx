@@ -26,6 +26,8 @@ export interface ServiceItem {
   wajib_konsultasi?: 'tidak' | 'opsional' | 'wajib';
   kode_ruangan_konsultasi?: string;
   is_konsultasi?: number;
+  is_include_konsultasi?: boolean | number | string;
+  harga_konsultasi?: number;
   tipe?: 'MEDICAL TREATMENT' | 'BEAUTY TREATMENT' | 'SERVICE TREATMENT' | string;
   tipe_paket?: string;
   kode_kepemilikan_paket_layanan?: string;
@@ -152,6 +154,7 @@ export interface LayananCardProps {
   gridClassName?: string;
   isClaimedElsewhere?: boolean;
   isRuanganKonsultasi?: boolean;
+  hargaKonsultasi?: number;
 }
 
 export const LayananCard: React.FC<LayananCardProps> = ({
@@ -163,6 +166,7 @@ export const LayananCard: React.FC<LayananCardProps> = ({
   gridClassName,
   isClaimedElsewhere = false,
   isRuanganKonsultasi = false,
+  hargaKonsultasi,
 }) => {
   const isPaket = item.jenis === 'paket';
   const isKlaim = item.jenis === 'klaim_paket';
@@ -175,6 +179,25 @@ export const LayananCard: React.FC<LayananCardProps> = ({
     (item.nama_kategori && item.nama_kategori.toLowerCase().includes('konsultasi')) ||
     (item.nama && item.nama.toLowerCase().includes('konsultasi'))
   );
+
+  const isIncludeKonsul = Boolean(
+    item.is_include_konsultasi === 1 ||
+    item.is_include_konsultasi === '1' ||
+    item.is_include_konsultasi === true
+  );
+
+  const consultFee = typeof item.harga_konsultasi === 'number' && item.harga_konsultasi > 0
+    ? item.harga_konsultasi
+    : (typeof hargaKonsultasi === 'number' && hargaKonsultasi > 0 ? hargaKonsultasi : 15000);
+
+  // Jika bertipe Wajib Konsul dan Tidak Include Konsultasi, harga kartu langsung dijumlahkan dengan biaya konsultasi (misal 150.000 + 15.000 = 165.000)
+  // Jika bertipe Opsional Konsul, Include Konsultasi, atau Tanpa Konsul, harga kartu memunculkan harga asli tindakannya saja
+  const isNonIncludeWajib = !isRuangKonsul && isWajib && !isIncludeKonsul;
+  const displayedPrice = isKlaim
+    ? 0
+    : isNonIncludeWajib
+    ? (item.harga || 0) + consultFee
+    : item.harga || 0;
 
   const isFullBooked = isKlaim && item.sesi_tersedia !== undefined && item.sesi_tersedia <= 0;
   const isCapacityLocked = item.status_kapasitas === 'berisiko';
@@ -384,6 +407,45 @@ export const LayananCard: React.FC<LayananCardProps> = ({
                   Opsional Konsul
                 </span>
               )}
+
+              {/* Penanda Include Konsultasi - Hanya ditampilkan untuk layanan yang wajib/opsional konsultasi (tidak ditampilkan untuk Tanpa Konsul) */}
+              {!isRuangKonsul && !isService && (
+                isIncludeKonsul ? (
+                  <span
+                    className="inline-flex align-items-center font-bold text-white shadow-1"
+                    style={{
+                      fontSize: '10px',
+                      padding: '3px 10px',
+                      borderRadius: '9999px',
+                      backgroundColor: '#16a34a',
+                      lineHeight: 1.2,
+                      letterSpacing: '0.01em',
+                    }}
+                    title="Biaya konsultasi dokter di awal gratis (Rp 0) jika memilih tindakan/paket ini"
+                  >
+                    <i className="pi pi-check-circle mr-1" style={{ fontSize: '9px' }} />
+                    Include Konsul
+                  </span>
+                ) : (
+                  <span
+                    className="inline-flex align-items-center font-medium shadow-1"
+                    style={{
+                      fontSize: '10px',
+                      padding: '2px 8px',
+                      borderRadius: '9999px',
+                      lineHeight: 1.2,
+                      letterSpacing: '0.01em',
+                      backgroundColor: '#f1f5f9',
+                      color: '#475569',
+                      border: '1px solid #cbd5e1',
+                    }}
+                    title="Biaya konsultasi dan tindakan dibayar normal terpisah"
+                  >
+                    <i className="pi pi-times-circle mr-1" style={{ fontSize: '9px', color: '#64748b' }} />
+                    Tidak Include
+                  </span>
+                )
+              )}
             </div>
 
             {/* Title with uniform height */}
@@ -433,7 +495,7 @@ export const LayananCard: React.FC<LayananCardProps> = ({
 
             <div className="flex-shrink-0 text-right">
               <span className="text-sm font-extrabold text-amber-700 white-space-nowrap">
-                {isKlaim ? 'Rp 0 (Klaim)' : formatPrice(item.harga)}
+                {isKlaim ? 'Rp 0 (Klaim)' : formatPrice(displayedPrice)}
               </span>
             </div>
           </div>

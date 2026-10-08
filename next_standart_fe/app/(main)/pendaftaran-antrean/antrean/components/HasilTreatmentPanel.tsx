@@ -551,6 +551,7 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
     const getEffectiveItemPrice = (lay: any): number => {
         const isKlaim = (lay.jenis || lay.jenis_layanan || '').toLowerCase().includes('klaim');
         if (isKlaim) return 0;
+        if (lay.is_free_include || lay.jenis_diskon === 'include_treatment') return 0;
         const rawHrg = parseFloat(lay.harga || 0);
         if (lay.is_promo && lay.nilai_diskon) {
             const nDiskon = parseFloat(lay.nilai_diskon || 0);
@@ -1053,10 +1054,15 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                     {layananPasienList.map((lay: any, idx: number) => {
                                         const hrg = getEffectiveItemPrice(lay);
                                         const isKlaim = (lay.jenis || lay.jenis_layanan || '').toLowerCase().includes('klaim');
+                                        const isFreeInclude = Boolean(lay.is_free_include || lay.jenis_diskon === 'include_treatment');
+                                        const hargaAsal = lay.harga_asal ? parseFloat(lay.harga_asal) : (lay.harga ? parseFloat(lay.harga) : 0);
+
                                         return (
                                             <div
                                                 key={idx}
-                                                className="treatment-summary-card surface-card border-1 surface-border p-3 flex flex-column sm:flex-row sm:align-items-center justify-content-between gap-2"
+                                                className={`treatment-summary-card surface-card border-1 p-3 flex flex-column sm:flex-row sm:align-items-center justify-content-between gap-2 ${
+                                                    isFreeInclude ? 'border-emerald-300 bg-emerald-50/20' : 'surface-border'
+                                                }`}
                                                 style={{
                                                     borderRadius: '13px',
                                                     boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
@@ -1072,8 +1078,8 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                             minWidth: '28px',
                                                             minHeight: '28px',
                                                             borderRadius: '50%',
-                                                            background: '#ccfbf1',
-                                                            color: '#0f766e'
+                                                            background: isFreeInclude ? '#d1fae5' : '#ccfbf1',
+                                                            color: isFreeInclude ? '#059669' : '#0f766e'
                                                         }}
                                                     >
                                                         <CheckCircle2 size={15} />
@@ -1086,7 +1092,23 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                             >
                                                                 {lay.nama_layanan || lay.nama}
                                                             </span>
-                                                            {lay.is_promo && (
+                                                            {isFreeInclude ? (
+                                                                <span
+                                                                    className="inline-flex align-items-center font-bold text-white shadow-xs flex-shrink-0"
+                                                                    style={{
+                                                                        background: 'linear-gradient(135deg, #10b981, #059669)',
+                                                                        fontSize: '9.5px',
+                                                                        padding: '2px 8px',
+                                                                        borderRadius: '9999px',
+                                                                        lineHeight: '1.2',
+                                                                        gap: '3px',
+                                                                        boxShadow: '0 1px 4px rgba(16, 185, 129, 0.35)',
+                                                                    }}
+                                                                >
+                                                                    <i className="pi pi-check" style={{ fontSize: '8px' }} />
+                                                                    <span>{lay.nama_promo || 'Gratis (Include Tindakan)'}</span>
+                                                                </span>
+                                                            ) : lay.is_promo ? (
                                                                 <span
                                                                     className="inline-flex align-items-center font-bold text-white shadow-xs flex-shrink-0"
                                                                     style={{
@@ -1106,7 +1128,7 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                                             : `PROMO -${formatRupiah(lay.nilai_diskon || 0)}`}
                                                                     </span>
                                                                 </span>
-                                                            )}
+                                                            ) : null}
                                                         </div>
                                                         <span
                                                             className="text-[11px] text-teal-600 font-medium block"
@@ -1118,12 +1140,32 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                                 </div>
 
                                                 <div className="text-left sm:text-right pl-5 sm:pl-0 flex flex-column justify-content-center" style={{ gap: '2px' }}>
-                                                    <span className="font-black text-xs text-teal-800 block" style={{ lineHeight: '1.3' }}>
-                                                        {isKlaim ? 'Klaim Paket (Rp 0)' : formatRupiah(hrg)}
-                                                    </span>
-                                                    <span className="text-[10px] text-500 font-normal block" style={{ lineHeight: '1.2' }}>
-                                                        Tarif Layanan
-                                                    </span>
+                                                    {isFreeInclude ? (
+                                                        <>
+                                                            <div className="flex align-items-center justify-content-end gap-1.5">
+                                                                {hargaAsal > 0 && (
+                                                                    <span className="text-[11px] text-400 line-through font-normal">
+                                                                        {formatRupiah(hargaAsal)}
+                                                                    </span>
+                                                                )}
+                                                                <span className="font-black text-xs text-emerald-700 block" style={{ lineHeight: '1.3' }}>
+                                                                    Gratis (Rp 0)
+                                                                </span>
+                                                            </div>
+                                                            <span className="text-[10px] text-emerald-600 font-medium block" style={{ lineHeight: '1.2' }}>
+                                                                Include Tindakan
+                                                            </span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <span className="font-black text-xs text-teal-800 block" style={{ lineHeight: '1.3' }}>
+                                                                {isKlaim ? 'Klaim Paket (Rp 0)' : formatRupiah(hrg)}
+                                                            </span>
+                                                            <span className="text-[10px] text-500 font-normal block" style={{ lineHeight: '1.2' }}>
+                                                                Tarif Layanan
+                                                            </span>
+                                                        </>
+                                                    )}
                                                 </div>
                                             </div>
                                         );

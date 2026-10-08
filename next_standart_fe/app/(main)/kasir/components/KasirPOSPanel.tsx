@@ -967,17 +967,20 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
                     const isFromPendaftaran = Boolean(item.is_from_pendaftaran);
 
                     // Diskon kasir (hanya untuk item tambahan kasir non-pendaftaran yang dipotong di kasir)
-                    const diskonSubtotal = !isFromPendaftaran
-                      ? (disc
-                        ? disc.diskon
-                        : (item.diskon && item.diskon > 0
-                          ? item.diskon
-                          : (item.nilai_diskon && item.nilai_diskon > 0
-                            ? (item.jenis_diskon === 'nominal'
-                              ? Math.min(item.nilai_diskon * item.qty, baseSubtotal)
-                              : (baseSubtotal * item.nilai_diskon) / 100)
-                            : 0)))
-                      : 0;
+                    const isIncludeTreatment = item.jenis_diskon === 'include_treatment' || (Boolean(item.diskon && item.diskon > 0) && item.subtotal === 0);
+                    const diskonSubtotal = isIncludeTreatment
+                      ? (item.diskon || baseSubtotal)
+                      : (!isFromPendaftaran
+                        ? (disc
+                          ? disc.diskon
+                          : (item.diskon && item.diskon > 0
+                            ? item.diskon
+                            : (item.nilai_diskon && item.nilai_diskon > 0
+                              ? (item.jenis_diskon === 'nominal'
+                                ? Math.min(item.nilai_diskon * item.qty, baseSubtotal)
+                                : (baseSubtotal * item.nilai_diskon) / 100)
+                              : 0)))
+                        : (item.diskon || 0));
 
                     const isPersen = activePromo?.jenis_diskon === 'persen' || (!activePromo && (!item.jenis_diskon || item.jenis_diskon === 'persen'));
                     const isNominal = activePromo?.jenis_diskon === 'nominal' || (!activePromo && item.jenis_diskon === 'nominal');
@@ -986,23 +989,29 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
                       ? Number(activePromo.nilai_diskon)
                       : (item.nilai_diskon != null && Number(item.nilai_diskon) > 0 ? Number(item.nilai_diskon) : null);
 
-                    const displayDiskonPersen = isPersen && activeNilaiDiskon != null && activeNilaiDiskon > 0
-                      ? Math.round(activeNilaiDiskon)
-                      : (!isFromPendaftaran && baseSubtotal > 0 && diskonSubtotal > 0 ? Math.round((diskonSubtotal / baseSubtotal) * 100) : null);
+                    const displayDiskonPersen = isIncludeTreatment
+                      ? 100
+                      : (isPersen && activeNilaiDiskon != null && activeNilaiDiskon > 0
+                        ? Math.round(activeNilaiDiskon)
+                        : (baseSubtotal > 0 && diskonSubtotal > 0 ? Math.round((diskonSubtotal / baseSubtotal) * 100) : null));
 
-                    const displayDiskonNominal = isNominal && activeNilaiDiskon != null && activeNilaiDiskon > 0
-                      ? activeNilaiDiskon
-                      : (!isFromPendaftaran && diskonSubtotal > 0 && !displayDiskonPersen ? diskonSubtotal : null);
+                    const displayDiskonNominal = isIncludeTreatment
+                      ? null
+                      : (isNominal && activeNilaiDiskon != null && activeNilaiDiskon > 0
+                        ? activeNilaiDiskon
+                        : (!isFromPendaftaran && diskonSubtotal > 0 && !displayDiskonPersen ? diskonSubtotal : null));
 
                     const activePromoName = activePromo?.nama_promo || item.nama_promo || null;
 
-                    const subtotalSetelahDiskon = !isFromPendaftaran
-                      ? (disc
-                        ? disc.subtotal_setelah_diskon
-                        : (item.subtotal_setelah_diskon != null && item.subtotal_setelah_diskon > 0 && item.subtotal_setelah_diskon < baseSubtotal
-                          ? item.subtotal_setelah_diskon
-                          : Math.max(0, baseSubtotal - diskonSubtotal)))
-                      : baseSubtotal;
+                    const subtotalSetelahDiskon = isIncludeTreatment
+                      ? 0
+                      : (!isFromPendaftaran
+                        ? (disc
+                          ? disc.subtotal_setelah_diskon
+                          : (item.subtotal_setelah_diskon != null && item.subtotal_setelah_diskon >= 0 && item.subtotal_setelah_diskon < baseSubtotal
+                            ? item.subtotal_setelah_diskon
+                            : Math.max(0, baseSubtotal - diskonSubtotal)))
+                        : (item.subtotal_setelah_diskon != null ? item.subtotal_setelah_diskon : baseSubtotal));
 
                     // Harga master / harga asli sebelum diskon
                     const masterPrice = item.harga_master ||
@@ -1050,7 +1059,7 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
                             </span>
                             {activePromoName && (
                               <span className="font-semibold text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 border-round">
-                                Promo: {activePromoName}
+                                {activePromoName}
                               </span>
                             )}
                             <span className="kasir-desc-responsive-show text-slate-600 font-medium">
@@ -1076,7 +1085,11 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
 
                         {/* Kolom 4: Diskon (Pemberitahuan persentase/nominal diskon) */}
                         <div className="kasir-col-responsive-hide justify-content-center align-items-center text-center">
-                          {displayDiskonPersen && displayDiskonPersen > 0 ? (
+                          {isIncludeTreatment ? (
+                            <span className="font-semibold text-xs text-emerald-600 tabular-nums bg-emerald-50 px-1.5 py-0.5 border-round" style={{ whiteSpace: 'nowrap' }}>
+                              Free 100%
+                            </span>
+                          ) : displayDiskonPersen && displayDiskonPersen > 0 ? (
                             <span className="font-semibold text-xs text-emerald-600 tabular-nums" style={{ whiteSpace: 'nowrap' }}>
                               {displayDiskonPersen}%
                             </span>
@@ -1091,10 +1104,10 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
 
                         {/* Kolom 5: Subtotal (Centered) */}
                         <div className="flex justify-content-center align-items-center text-center">
-                          {!isFromPendaftaran && diskonSubtotal > 0 ? (
+                          {isIncludeTreatment || (!isFromPendaftaran && diskonSubtotal > 0) ? (
                             <div className="flex flex-column align-items-center" style={{ gap: '2px', whiteSpace: 'nowrap' }}>
                               <span className="text-slate-400 line-through text-[10px] font-normal tabular-nums leading-none">
-                                {formatRupiah(baseSubtotal)}
+                                {formatRupiah(displayHargaSatuan * item.qty)}
                               </span>
                               <span className="font-bold text-xs text-teal-800 tabular-nums leading-tight">
                                 {formatRupiah(subtotalSetelahDiskon)}
