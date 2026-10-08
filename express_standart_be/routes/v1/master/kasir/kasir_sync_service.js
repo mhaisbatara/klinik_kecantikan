@@ -148,16 +148,18 @@ export const getCompletedItemsForKasir = async (dbOrTrx, kodeKunjungan) => {
 
       if (isAllInclude) {
         // Skenario A: SEMUA TINDAKAN INCLUDE (Gratis Konsultasi Rp 0)
-        const hargaAsli = parseFloat(item.master_harga_layanan || item.harga || 0);
+        const promoPrice = parseFloat(item.harga || 0);
+        const hargaAsli = promoPrice > 0 ? promoPrice : parseFloat(item.master_harga_layanan || 0);
         const firstName = allTreatments[0]?.nama_layanan || allTreatments[0]?.nama || "Tindakan Include";
         return {
           ...item,
           is_free_include: true,
           harga_satuan_gross: hargaAsli,
           harga: 0,
-          diskon: hargaAsli,
+          diskon: 0,
           jenis_diskon: "include_treatment",
-          nilai_diskon: hargaAsli,
+          nilai_diskon: 0,
+          kode_promo: null,
           nama_promo: `Gratis (Include ${firstName})`,
           subtotal_setelah_diskon: 0,
         };
@@ -370,13 +372,14 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
       const isKlaim = (item.jenis_layanan || "").toLowerCase() === "klaim_paket";
       const isFreeInclude = Boolean(item.is_free_include);
 
-      let hargaSatuanGross = isKlaim ? 0 : parseFloat(item.harga_satuan_gross || item.master_harga_layanan || item.harga || 0);
+      let hargaSatuanGross = isKlaim || isFreeInclude ? 0 : parseFloat(item.harga_satuan_gross || item.master_harga_layanan || item.harga || 0);
       let itemSubtotal = isKlaim || isFreeInclude ? 0 : hargaSatuanGross;
-      let itemDiskon = isFreeInclude ? hargaSatuanGross : (item.diskon || 0);
+      let itemDiskon = isFreeInclude ? 0 : (item.diskon || 0);
       let itemSubtotalSetelahDiskon = isFreeInclude ? 0 : itemSubtotal;
       let itemJenisDiskon = isFreeInclude ? "include_treatment" : (item.jenis_diskon || null);
-      let itemNilaiDiskon = isFreeInclude ? hargaSatuanGross : (item.nilai_diskon != null ? parseFloat(item.nilai_diskon) : null);
-      let itemNamaPromo = isFreeInclude ? item.nama_promo : (item.nama_promo || null);
+      let itemNilaiDiskon = isFreeInclude ? 0 : (item.nilai_diskon != null ? parseFloat(item.nilai_diskon) : null);
+      let itemNamaPromo = isFreeInclude ? "Gratis (Include Tindakan)" : (item.nama_promo || null);
+      let itemKodePromo = isFreeInclude ? null : (item.kode_promo || null);
 
       const existRow = existingDetails.find((d) => d.kode_layanan === item.kode_layanan);
 
@@ -388,7 +391,7 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
           updated_at: formatDateSystem(),
         };
         if (hasDiscountCols) {
-          updatePayload.kode_promo = item.kode_promo || null;
+          updatePayload.kode_promo = itemKodePromo;
           updatePayload.nama_promo = itemNamaPromo;
           updatePayload.jenis_diskon = itemJenisDiskon;
           updatePayload.nilai_diskon = itemNilaiDiskon;
@@ -417,7 +420,7 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
           updated_at: formatDateSystem(),
         };
         if (hasDiscountCols) {
-          insertPayload.kode_promo = item.kode_promo || null;
+          insertPayload.kode_promo = itemKodePromo;
           insertPayload.nama_promo = itemNamaPromo;
           insertPayload.jenis_diskon = itemJenisDiskon;
           insertPayload.nilai_diskon = itemNilaiDiskon;

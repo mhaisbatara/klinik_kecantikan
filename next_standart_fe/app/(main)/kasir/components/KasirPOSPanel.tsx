@@ -282,6 +282,7 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
           qty: d.qty,
           harga_satuan: parseFloat(d.harga_satuan),
           harga_master: d.harga_master != null ? parseFloat(d.harga_master) : (d.harga_satuan ? parseFloat(d.harga_satuan) : null),
+          dal_harga: d.dal_harga != null ? parseFloat(d.dal_harga) : null,
           subtotal: parseFloat(d.subtotal),
           is_from_pendaftaran: Boolean(d.is_from_pendaftaran),
           kode_promo: d.kode_promo || null,
@@ -716,7 +717,6 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
       const disc = itemDiscounts[c.kode];
       const isInclude = Boolean(c.is_free_include || c.jenis_diskon === 'include_treatment');
       const isLayanan = Boolean(c.is_from_pendaftaran) || c.jenis === 'layanan' || (c.jenis as string) === 'paket';
-      const itemDisc = isInclude ? (c.diskon || c.harga_master || c.harga_satuan || 0) : (disc ? disc.diskon : (c.diskon || 0));
 
       return {
         jenis: c.jenis,
@@ -728,12 +728,12 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
         subtotal: isInclude ? 0 : c.subtotal,
         is_from_pendaftaran: isLayanan,
         is_free_include: isInclude,
-        kode_promo: disc?.promo?.kode_promo || c.kode_promo || null,
-        nama_promo: disc?.promo?.nama_promo || c.nama_promo || (isInclude ? 'Gratis (Include Tindakan)' : null),
+        kode_promo: isInclude ? null : (disc?.promo?.kode_promo || c.kode_promo || null),
+        nama_promo: isInclude ? 'Gratis (Include Tindakan)' : (disc?.promo?.nama_promo || c.nama_promo || null),
         jenis_diskon: isInclude ? 'include_treatment' : (disc?.promo?.jenis_diskon || c.jenis_diskon || null),
-        nilai_diskon: isInclude ? (c.harga_master || c.harga_satuan || 0) : (disc?.promo?.nilai_diskon != null ? disc.promo.nilai_diskon : (c.nilai_diskon || null)),
-        diskon: itemDisc,
-        subtotal_setelah_diskon: isInclude ? 0 : (disc ? disc.subtotal_setelah_diskon : (c.subtotal_setelah_diskon || (c.subtotal - itemDisc))),
+        nilai_diskon: isInclude ? 0 : (disc?.promo?.nilai_diskon != null ? disc.promo.nilai_diskon : (c.nilai_diskon || null)),
+        diskon: isInclude ? 0 : (disc ? disc.diskon : (c.diskon || 0)),
+        subtotal_setelah_diskon: isInclude ? 0 : (disc ? disc.subtotal_setelah_diskon : (c.subtotal_setelah_diskon || c.subtotal)),
       };
     });
   };
@@ -972,9 +972,9 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
                     const isFromPendaftaran = Boolean(item.is_from_pendaftaran);
 
                     // Diskon kasir (hanya untuk item tambahan kasir non-pendaftaran yang dipotong di kasir)
-                    const isIncludeTreatment = item.jenis_diskon === 'include_treatment' || (Boolean(item.diskon && item.diskon > 0) && item.subtotal === 0);
+                    const isIncludeTreatment = item.jenis_diskon === 'include_treatment' || Boolean(item.is_free_include) || (Boolean(item.diskon && item.diskon > 0) && item.subtotal === 0);
                     const diskonSubtotal = isIncludeTreatment
-                      ? (item.diskon || baseSubtotal)
+                      ? 0
                       : (!isFromPendaftaran
                         ? (disc
                           ? disc.diskon
@@ -1006,7 +1006,7 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
                         ? activeNilaiDiskon
                         : (!isFromPendaftaran && diskonSubtotal > 0 && !displayDiskonPersen ? diskonSubtotal : null));
 
-                    const activePromoName = activePromo?.nama_promo || item.nama_promo || null;
+                    const activePromoName = isIncludeTreatment ? null : (activePromo?.nama_promo || item.nama_promo || null);
 
                     const subtotalSetelahDiskon = isIncludeTreatment
                       ? 0
@@ -1023,13 +1023,29 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
                       layananList.find((l) => l.kode === item.kode)?.harga ||
                       produkOptions.find((p) => p.kode_produk === item.kode)?.harga_jual;
 
-                    const displayHargaSatuan = (masterPrice && masterPrice > 0)
-                      ? masterPrice
-                      : (isFromPendaftaran && displayDiskonPersen && displayDiskonPersen > 0 && displayDiskonPersen < 100
-                          ? Math.round((item.harga_satuan / (100 - displayDiskonPersen)) * 100)
-                          : (isFromPendaftaran && displayDiskonNominal && displayDiskonNominal > 0
-                              ? item.harga_satuan + displayDiskonNominal
-                              : item.harga_satuan));
+                    const promoFromList = promoList.find((p) => p.kode_item === item.kode || (item.kode_promo && p.kode_promo === item.kode_promo));
+                    const effectiveNilaiDiskon = (item.nilai_diskon && item.nilai_diskon > 0)
+                      ? Number(item.nilai_diskon)
+                      : (promoFromList?.nilai_diskon ? Number(promoFromList.nilai_diskon) : null);
+                    const effectiveJenisDiskon = item.jenis_diskon || promoFromList?.jenis_diskon || 'persen';
+
+                    const calculatedPromoPrice = (item.dal_harga && item.dal_harga > 0)
+                      ? item.dal_harga
+                      : ((masterPrice && effectiveNilaiDiskon && effectiveNilaiDiskon > 0)
+                          ? (effectiveJenisDiskon === 'nominal'
+                              ? Math.max(0, masterPrice - effectiveNilaiDiskon)
+                              : Math.max(0, masterPrice - (masterPrice * effectiveNilaiDiskon) / 100))
+                          : (item.harga_satuan > 0 ? item.harga_satuan : null));
+
+                    const displayHargaSatuan = isIncludeTreatment
+                      ? (calculatedPromoPrice || 15000)
+                      : ((masterPrice && masterPrice > 0)
+                          ? masterPrice
+                          : (isFromPendaftaran && displayDiskonPersen && displayDiskonPersen > 0 && displayDiskonPersen < 100
+                              ? Math.round((item.harga_satuan / (100 - displayDiskonPersen)) * 100)
+                              : (isFromPendaftaran && displayDiskonNominal && displayDiskonNominal > 0
+                                  ? item.harga_satuan + displayDiskonNominal
+                                  : item.harga_satuan)));
 
                     return (
                       <div

@@ -88,10 +88,11 @@ router.post("/", async (req, res) => {
     const promoSelectCols = hasDiscountCols ? [
       DB.raw("COALESCE(dt.kode_promo, MAX(dal.kode_promo)) as kode_promo"),
       DB.raw("COALESCE(dt.nama_promo, MAX(dal.nama_promo)) as nama_promo"),
-      DB.raw("COALESCE(dt.jenis_diskon, MAX(dal.jenis_diskon)) as jenis_diskon"),
-      DB.raw("COALESCE(dt.nilai_diskon, MAX(dal.nilai_diskon)) as nilai_diskon"),
+      DB.raw("COALESCE(NULLIF(dt.jenis_diskon, 'include_treatment'), MAX(dal.jenis_diskon)) as jenis_diskon"),
+      DB.raw("COALESCE(NULLIF(dt.nilai_diskon, 0), MAX(dal.nilai_diskon)) as nilai_diskon"),
       DB.raw("COALESCE(dt.diskon, 0) as diskon"),
       DB.raw("COALESCE(dt.subtotal_setelah_diskon, dt.subtotal) as subtotal_setelah_diskon"),
+      DB.raw("MAX(dal.harga) as dal_harga"),
     ] : [
       DB.raw("MAX(dal.kode_promo) as kode_promo"),
       DB.raw("MAX(dal.nama_promo) as nama_promo"),
@@ -99,6 +100,7 @@ router.post("/", async (req, res) => {
       DB.raw("MAX(dal.nilai_diskon) as nilai_diskon"),
       DB.raw("0 as diskon"),
       DB.raw("dt.subtotal as subtotal_setelah_diskon"),
+      DB.raw("MAX(dal.harga) as dal_harga"),
     ];
 
     // Ambil detail item dengan flag is_from_pendaftaran
@@ -144,6 +146,7 @@ router.post("/", async (req, res) => {
     const detailsMapped = details.map((d) => {
       const hrg = parseFloat(d.harga_satuan || 0);
       const masterHrg = parseFloat(d.master_harga_layanan || d.master_harga_paket || d.master_harga_produk || d.harga_satuan || 0);
+      const dalHrg = d.dal_harga != null ? parseFloat(d.dal_harga) : null;
       const qty = parseInt(d.qty || 1, 10);
       const subtotal = parseFloat(d.subtotal || hrg * qty);
       const isPendaftaran = Boolean(d.is_from_pendaftaran);
@@ -165,6 +168,7 @@ router.post("/", async (req, res) => {
         satuan: d.satuan || (d.kode_layanan ? "tindakan" : "pcs"),
         harga_satuan: hrg,
         harga_master: masterHrg,
+        dal_harga: dalHrg,
         subtotal: subtotal,
         diskon: diskon,
         subtotal_setelah_diskon: subtotal_setelah_diskon,

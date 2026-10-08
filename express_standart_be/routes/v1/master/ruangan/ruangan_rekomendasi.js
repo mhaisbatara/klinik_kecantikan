@@ -1555,22 +1555,43 @@ router.post("/antrian-layanan-pendaftaran-items", async (req, res) => {
       "r_pkt.is_konsultasi as pkt_is_konsul"
     );
 
-    // Fetch active promos today
+    // Fetch active promos today with detail promo
     const todayYmd = new Date().toISOString().slice(0, 10);
-    const qPromo = DB("mst_promo as pr")
-      .where("pr.status", "aktif")
-      .where("pr.tanggal_mulai", "<=", todayYmd)
-      .where("pr.tanggal_selesai", ">=", todayYmd);
-    const vaPromo = await qPromo.select("*");
+    const qPromo = DB("mst_promo as p")
+      .join("mst_detail_promo as dp", "p.kode_promo", "dp.kode_promo")
+      .where("p.status", "aktif")
+      .where("dp.status", "aktif")
+      .whereRaw("DATE(p.tanggal_mulai) <= ?", [todayYmd])
+      .whereRaw("DATE(p.tanggal_selesai) >= ?", [todayYmd]);
+
+    const activePromos = await qPromo.select(
+      "p.kode_promo",
+      "p.nama as nama_promo",
+      "p.jenis_diskon",
+      "p.nilai_diskon",
+      "dp.jenis_item",
+      "dp.kode_item"
+    );
+
     const promoMap = {};
-    vaPromo.forEach((p) => {
-      if (p.kode_layanan) {
-        promoMap[`layanan_${p.kode_layanan}`] = p;
-      }
-      if (p.kode_paket_layanan) {
-        promoMap[`paket_${p.kode_paket_layanan}`] = p;
-        promoMap[`paket_layanan_${p.kode_paket_layanan}`] = p;
-      }
+    activePromos.forEach((pr) => {
+      const jenisClean = (pr.jenis_item || "").toLowerCase();
+      const normJenis = jenisClean.includes("layanan")
+        ? jenisClean.includes("paket") ? "paket" : "layanan"
+        : jenisClean.includes("produk") ? jenisClean.includes("paket") ? "paket" : "produk" : jenisClean;
+
+      const keys = [`${normJenis}_${pr.kode_item}`, `${jenisClean}_${pr.kode_item}`];
+      keys.forEach((key) => {
+        if (!promoMap[key]) {
+          promoMap[key] = pr;
+        } else {
+          const curVal = parseFloat(promoMap[key].nilai_diskon || 0);
+          const newVal = parseFloat(pr.nilai_diskon || 0);
+          if (newVal > curVal) {
+            promoMap[key] = pr;
+          }
+        }
+      });
     });
 
     // Cek apakah SEMUA tindakan dalam kunjungan ini adalah include konsultasi
@@ -1631,8 +1652,12 @@ router.post("/antrian-layanan-pendaftaran-items", async (req, res) => {
           promoNama = activePromo.nama_promo;
           promoJenis = activePromo.jenis_diskon;
           promoNilai = parseFloat(activePromo.nilai_diskon || 0);
-        } else if (i.kode_promo || i.nama_promo) {
+        } else if (i.kode_promo || i.nama_promo || i.nilai_diskon) {
           isPromo = true;
+          promoKode = i.kode_promo || null;
+          promoNama = i.nama_promo || null;
+          promoJenis = i.jenis_diskon || null;
+          promoNilai = i.nilai_diskon ? parseFloat(i.nilai_diskon) : null;
         }
 
         let effectivePromoPrice = baseMasterPrice;
@@ -1643,6 +1668,8 @@ router.post("/antrian-layanan-pendaftaran-items", async (req, res) => {
           } else if (promoJenis === "nominal") {
             effectivePromoPrice = Math.max(0, baseMasterPrice - promoNilai);
           }
+        } else if (parseFloat(i.harga || 0) > 0 && parseFloat(i.harga || 0) < baseMasterPrice) {
+          effectivePromoPrice = parseFloat(i.harga);
         }
 
         const isItemIncludeKonsul = Boolean(

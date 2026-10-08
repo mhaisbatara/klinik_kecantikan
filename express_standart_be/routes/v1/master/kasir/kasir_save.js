@@ -100,25 +100,31 @@ router.post("/", async (req, res) => {
     items.forEach((item) => {
       const qty = parseInt(item.qty || 1);
       const isIncludeTreatment = item.is_free_include || item.jenis_diskon === "include_treatment";
-      const rawPrice = parseFloat(item.harga_master || item.harga_satuan_gross || (isIncludeTreatment && item.diskon ? item.diskon : item.harga_satuan) || 0);
-      const subtotalItem = (item.subtotal !== undefined && !isIncludeTreatment ? parseFloat(item.subtotal) : rawPrice * qty);
-      total_harga += (isIncludeTreatment ? rawPrice * qty : subtotalItem);
+      const rawPrice = parseFloat(item.harga_satuan || 0);
+      const subtotalItem = isIncludeTreatment ? 0 : (item.subtotal !== undefined ? parseFloat(item.subtotal) : rawPrice * qty);
+      total_harga += subtotalItem;
 
       let dVal = parseFloat(item.diskon || 0);
       if (isIncludeTreatment) {
-        dVal = rawPrice * qty;
-        item.diskon = dVal;
+        item.diskon = 0;
+        item.harga_satuan = 0;
+        item.subtotal = 0;
         item.subtotal_setelah_diskon = 0;
+        item.kode_promo = null;
+        item.nama_promo = "Gratis (Include Tindakan)";
+        item.jenis_diskon = "include_treatment";
+        item.nilai_diskon = 0;
       } else if (dVal === 0 && item.nilai_diskon && parseFloat(item.nilai_diskon) > 0) {
         const nDisc = parseFloat(item.nilai_diskon);
         dVal = item.jenis_diskon === "nominal" ? Math.min(nDisc * qty, subtotalItem) : (subtotalItem * nDisc) / 100;
         item.diskon = dVal;
         item.subtotal_setelah_diskon = Math.max(0, subtotalItem - dVal);
+        total_diskon_from_items += dVal;
       } else {
         item.diskon = dVal;
         item.subtotal_setelah_diskon = Math.max(0, subtotalItem - dVal);
+        total_diskon_from_items += dVal;
       }
-      total_diskon_from_items += dVal;
     });
 
     // 2. Hitung diskon multi-promo jika item belum memiliki diskon snapshot (hanya untuk item tambahan kasir)

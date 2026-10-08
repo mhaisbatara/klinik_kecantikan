@@ -1055,7 +1055,31 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
                                         const hrg = getEffectiveItemPrice(lay);
                                         const isKlaim = (lay.jenis || lay.jenis_layanan || '').toLowerCase().includes('klaim');
                                         const isFreeInclude = Boolean(lay.is_free_include || lay.jenis_diskon === 'include_treatment');
-                                        const hargaAsal = lay.harga_asal ? parseFloat(lay.harga_asal) : (lay.harga ? parseFloat(lay.harga) : 0);
+                                        let hargaAsal = lay.harga_asal ? parseFloat(lay.harga_asal) : (lay.harga ? parseFloat(lay.harga) : 0);
+
+                                        if (isFreeInclude) {
+                                            if (lay.is_promo && lay.nilai_diskon && lay.harga_master) {
+                                                const hMaster = parseFloat(lay.harga_master || 0);
+                                                const nDiskon = parseFloat(lay.nilai_diskon || 0);
+                                                if (lay.jenis_diskon === 'persen') {
+                                                    hargaAsal = Math.max(0, hMaster - (hMaster * nDiskon) / 100);
+                                                } else if (lay.jenis_diskon === 'nominal') {
+                                                    hargaAsal = Math.max(0, hMaster - nDiskon);
+                                                }
+                                            } else if (lay.is_promo && lay.nilai_diskon && hargaAsal > 0) {
+                                                const nDiskon = parseFloat(lay.nilai_diskon || 0);
+                                                if (lay.jenis_diskon === 'persen' && nDiskon < 100) {
+                                                    const discNominal = (hargaAsal * nDiskon) / 100;
+                                                    if (hargaAsal - discNominal > 0) {
+                                                        hargaAsal = hargaAsal - discNominal;
+                                                    }
+                                                } else if (lay.jenis_diskon === 'nominal' && nDiskon > 0) {
+                                                    if (hargaAsal > nDiskon) {
+                                                        hargaAsal = hargaAsal - nDiskon;
+                                                    }
+                                                }
+                                            }
+                                        }
 
                                         return (
                                             <div
