@@ -13,10 +13,12 @@ export interface CartItem {
   satuan?: string;
   qty: number;
   harga_satuan: number;
+  harga_master?: number | null;
   subtotal: number;
   is_promo?: boolean;
   kode_promo_item?: string;
   is_from_pendaftaran?: boolean;
+  is_free_include?: boolean;
   // Snapshot promo per-item
   kode_promo?: string | null;
   nama_promo?: string | null;

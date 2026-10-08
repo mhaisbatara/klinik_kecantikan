@@ -714,21 +714,26 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
   const getItemsPayload = (): CartItem[] => {
     return cart.map((c) => {
       const disc = itemDiscounts[c.kode];
+      const isInclude = Boolean(c.is_free_include || c.jenis_diskon === 'include_treatment');
       const isLayanan = Boolean(c.is_from_pendaftaran) || c.jenis === 'layanan' || (c.jenis as string) === 'paket';
+      const itemDisc = isInclude ? (c.diskon || c.harga_master || c.harga_satuan || 0) : (disc ? disc.diskon : (c.diskon || 0));
+
       return {
         jenis: c.jenis,
         kode: c.kode,
         nama: c.nama,
         qty: c.qty,
-        harga_satuan: c.harga_satuan,
-        subtotal: c.subtotal,
+        harga_satuan: isInclude ? 0 : c.harga_satuan,
+        harga_master: c.harga_master || c.harga_satuan,
+        subtotal: isInclude ? 0 : c.subtotal,
         is_from_pendaftaran: isLayanan,
+        is_free_include: isInclude,
         kode_promo: disc?.promo?.kode_promo || c.kode_promo || null,
-        nama_promo: disc?.promo?.nama_promo || c.nama_promo || null,
-        jenis_diskon: disc?.promo?.jenis_diskon || c.jenis_diskon || null,
-        nilai_diskon: disc?.promo?.nilai_diskon != null ? disc.promo.nilai_diskon : (c.nilai_diskon || null),
-        diskon: isLayanan ? 0 : (disc ? disc.diskon : (c.diskon || 0)),
-        subtotal_setelah_diskon: isLayanan ? c.subtotal : (disc ? disc.subtotal_setelah_diskon : (c.subtotal_setelah_diskon || (c.subtotal - (c.diskon || 0)))),
+        nama_promo: disc?.promo?.nama_promo || c.nama_promo || (isInclude ? 'Gratis (Include Tindakan)' : null),
+        jenis_diskon: isInclude ? 'include_treatment' : (disc?.promo?.jenis_diskon || c.jenis_diskon || null),
+        nilai_diskon: isInclude ? (c.harga_master || c.harga_satuan || 0) : (disc?.promo?.nilai_diskon != null ? disc.promo.nilai_diskon : (c.nilai_diskon || null)),
+        diskon: itemDisc,
+        subtotal_setelah_diskon: isInclude ? 0 : (disc ? disc.subtotal_setelah_diskon : (c.subtotal_setelah_diskon || (c.subtotal - itemDisc))),
       };
     });
   };

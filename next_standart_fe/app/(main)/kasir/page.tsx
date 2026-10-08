@@ -28,6 +28,7 @@ export interface CartItem {
   is_promo?: boolean;
   kode_promo_item?: string;
   is_from_pendaftaran?: boolean;
+  is_free_include?: boolean;
   // Info promo per-item dari pendaftaran (diskon diterapkan di kasir)
   kode_promo?: string | null;
   nama_promo?: string | null;

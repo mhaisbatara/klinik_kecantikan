@@ -488,7 +488,7 @@ export const KasirStrukModal: React.FC<KasirStrukModalProps> = ({ visible, resul
 
             {totalDiskon > 0 && (
               <div className="flex justify-content-between font-normal text-emerald-700 receipt-discount-text">
-                <span>Voucher Diskon</span>
+                <span>Diskon / Potongan</span>
                 <span className="receipt-tabular" style={{ fontVariantNumeric: 'tabular-nums' }}>
                   -{formatRupiah(totalDiskon)}
                 </span>

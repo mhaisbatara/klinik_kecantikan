@@ -99,22 +99,26 @@ router.post("/", async (req, res) => {
     let total_diskon_from_items = 0;
     items.forEach((item) => {
       const qty = parseInt(item.qty || 1);
-      const subtotalItem = parseFloat(item.harga_satuan || 0) * qty;
-      total_harga += subtotalItem;
-      const isLayanan = Boolean(item.is_from_pendaftaran) || item.jenis === "layanan" || item.jenis === "paket";
-      if (!isLayanan) {
-        let dVal = parseFloat(item.diskon || 0);
-        if (dVal === 0 && item.nilai_diskon && parseFloat(item.nilai_diskon) > 0) {
-          const nDisc = parseFloat(item.nilai_diskon);
-          dVal = item.jenis_diskon === "nominal" ? Math.min(nDisc * qty, subtotalItem) : (subtotalItem * nDisc) / 100;
-          item.diskon = dVal;
-          item.subtotal_setelah_diskon = Math.max(0, subtotalItem - dVal);
-        }
-        total_diskon_from_items += dVal;
+      const isIncludeTreatment = item.is_free_include || item.jenis_diskon === "include_treatment";
+      const rawPrice = parseFloat(item.harga_master || item.harga_satuan_gross || (isIncludeTreatment && item.diskon ? item.diskon : item.harga_satuan) || 0);
+      const subtotalItem = (item.subtotal !== undefined && !isIncludeTreatment ? parseFloat(item.subtotal) : rawPrice * qty);
+      total_harga += (isIncludeTreatment ? rawPrice * qty : subtotalItem);
+
+      let dVal = parseFloat(item.diskon || 0);
+      if (isIncludeTreatment) {
+        dVal = rawPrice * qty;
+        item.diskon = dVal;
+        item.subtotal_setelah_diskon = 0;
+      } else if (dVal === 0 && item.nilai_diskon && parseFloat(item.nilai_diskon) > 0) {
+        const nDisc = parseFloat(item.nilai_diskon);
+        dVal = item.jenis_diskon === "nominal" ? Math.min(nDisc * qty, subtotalItem) : (subtotalItem * nDisc) / 100;
+        item.diskon = dVal;
+        item.subtotal_setelah_diskon = Math.max(0, subtotalItem - dVal);
       } else {
-        item.diskon = 0;
-        item.subtotal_setelah_diskon = subtotalItem;
+        item.diskon = dVal;
+        item.subtotal_setelah_diskon = Math.max(0, subtotalItem - dVal);
       }
+      total_diskon_from_items += dVal;
     });
 
     // 2. Hitung diskon multi-promo jika item belum memiliki diskon snapshot (hanya untuk item tambahan kasir)
