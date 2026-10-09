@@ -543,14 +543,15 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
     return false;
   }, [hasWajibKonsul, hasOpsionalKonsul, globalConsultChoice]);
 
-  // Cek apakah tindakan yang butuh konsultasi bertipe INCLUDE KONSULTASI
+  // Cek apakah ada minimal 1 tindakan yang bertipe INCLUDE KONSULTASI
+  // Sesuai aturan: jika ada 1 layanan include + 1 non-include, konsultasi tidak dikenakan biaya tambahan (sudah tercover)
   const isActionIncludeKonsul = useMemo(() => {
     const consultNeeding = selectedList.filter((item) => {
       const { isWajib, isOpsional } = getItemConsultType(item);
       return isWajib || (isOpsional && globalConsultChoice);
     });
     if (consultNeeding.length === 0) return false;
-    return consultNeeding.every((item) =>
+    return consultNeeding.some((item) =>
       Boolean(item.is_include_konsultasi === 1 || item.is_include_konsultasi === '1' || item.is_include_konsultasi === true)
     );
   }, [selectedList, globalConsultChoice]);

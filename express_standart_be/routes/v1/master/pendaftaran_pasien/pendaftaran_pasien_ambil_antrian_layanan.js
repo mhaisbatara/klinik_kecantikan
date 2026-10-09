@@ -679,9 +679,10 @@ router.post("/", async (req, res) => {
             const consultNama = consultMasterService?.nama || "Konsultasi Dokter";
             const consultKode = consultMasterService?.kode_layanan || "LAY-011";
 
-            // Cek apakah semua tindakan yang butuh konsultasi bertipe INCLUDE KONSULTASI
+            // Cek apakah ada minimal 1 tindakan yang bertipe INCLUDE KONSULTASI
+            // Sesuai aturan: Jika ada Layanan Include + Non-Include, biaya konsultasi Rp 0 (sudah terbayar di layanan include)
             const consultNeedingItems = processedItems.filter((p) => Boolean(p.needs_consult));
-            const allIncludeKonsul = consultNeedingItems.length > 0 && consultNeedingItems.every((p) => Boolean(p.is_include_konsultasi));
+            const hasIncludeKonsul = consultNeedingItems.length > 0 && consultNeedingItems.some((p) => Boolean(p.is_include_konsultasi));
             const firstIncludeItem = consultNeedingItems.find((p) => Boolean(p.is_include_konsultasi));
 
             // Cari promo aktif untuk layanan konsultasi ini
@@ -701,16 +702,16 @@ router.post("/", async (req, res) => {
               jenis_layanan: "layanan",
               kode_layanan: consultKode,
               nama_layanan: consultNama,
-              harga: allIncludeKonsul ? 0 : finalConsultPrice,
+              harga: hasIncludeKonsul ? 0 : finalConsultPrice,
               harga_asal: consultMasterPrice,
               durasi_menit: consultDurasi,
               durasi_tindakan: consultDurasi,
-              is_free_include: allIncludeKonsul,
+              is_free_include: hasIncludeKonsul,
               is_include_konsultasi: false,
-              kode_promo: allIncludeKonsul ? null : (consultPromo?.kode_promo || null),
-              nama_promo: allIncludeKonsul ? `Gratis (Include ${firstIncludeItem?.nama_layanan || "Tindakan"})` : (consultPromo?.nama_promo || null),
-              jenis_diskon: allIncludeKonsul ? "include_treatment" : (consultPromo?.jenis_diskon || null),
-              nilai_diskon: allIncludeKonsul ? consultMasterPrice : (consultPromo ? parseFloat(consultPromo.nilai_diskon || 0) : null),
+              kode_promo: hasIncludeKonsul ? null : (consultPromo?.kode_promo || null),
+              nama_promo: hasIncludeKonsul ? `Gratis (Include ${firstIncludeItem?.nama_layanan || "Tindakan"})` : (consultPromo?.nama_promo || null),
+              jenis_diskon: hasIncludeKonsul ? "include_treatment" : (consultPromo?.jenis_diskon || null),
+              nilai_diskon: hasIncludeKonsul ? consultMasterPrice : (consultPromo ? parseFloat(consultPromo.nilai_diskon || 0) : null),
               kode_ruangan: ruangKonsul.kode_ruangan,
               nama_ruangan: ruangKonsul.nama_ruangan || "Ruang Konsultasi",
               kode_ruangan_tujuan: ruangKonsul.kode_ruangan,

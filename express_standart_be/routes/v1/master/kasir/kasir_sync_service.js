@@ -12,6 +12,50 @@ import DB from "../../../../core/config/knex.js";
 import { formatDateSystem } from "../../components/tools/date_tools.js";
 
 /**
+ * Helper penentuan harga item yang konsisten untuk seluruh alur Kasir
+ * @param {Object} item - Row dari trx_detail_antrian_layanan atau payload item
+ * @param {boolean} isFromPendaftaran - True jika item berasal dari antrean/pendaftaran
+ * @returns {Object} { hargaSatuan, hargaMaster, isFallback }
+ */
+export const resolveItemPriceForKasir = (item, isFromPendaftaran = true) => {
+  const isKlaim = (item.jenis_layanan || item.jenis || "").toLowerCase().includes("klaim");
+  if (isKlaim || item.is_free_include || item.jenis_diskon === "include_treatment") {
+    return { hargaSatuan: 0, hargaMaster: 0, isFallback: false };
+  }
+
+  const hargaAntrean = item.harga !== undefined && item.harga !== null ? parseFloat(item.harga) : null;
+  const masterHarga = parseFloat(
+    item.master_harga_layanan ||
+    item.master_harga_paket ||
+    item.master_harga_produk ||
+    item.harga_master ||
+    0
+  );
+
+  if (isFromPendaftaran) {
+    if (hargaAntrean !== null && !isNaN(hargaAntrean)) {
+      return {
+        hargaSatuan: hargaAntrean,
+        hargaMaster: masterHarga > 0 ? masterHarga : hargaAntrean,
+        isFallback: false,
+      };
+    }
+    console.warn(`[KASIR_PRICE_FALLBACK] Item antrean ${item.kode_layanan || item.kode} tidak memiliki harga di trx_detail_antrian_layanan. Menggunakan master_harga: ${masterHarga}`);
+    return {
+      hargaSatuan: masterHarga,
+      hargaMaster: masterHarga,
+      isFallback: true,
+    };
+  }
+
+  return {
+    hargaSatuan: masterHarga > 0 ? masterHarga : (hargaAntrean || 0),
+    hargaMaster: masterHarga > 0 ? masterHarga : (hargaAntrean || 0),
+    isFallback: false,
+  };
+};
+
+/**
  * Mengambil SEMUA item layanan dari antrean yang berstatus 'selesai' untuk satu atau beberapa kunjungan,
  * dengan DEDUPLIKASI OTOMATIS & EVALUASI INCLUDE KONSULTASI:
  * 1. Deduplikasi: Item layanan pendaftaran yang diteruskan ke antrean rujukan anak hanya diambil 1x.
@@ -132,7 +176,7 @@ export const getCompletedItemsForKasir = async (dbOrTrx, kodeKunjungan) => {
   }
 
   // 3. Proses penyesuaian diskon Include Konsultasi:
-  // Bebas biaya konsultasi (Rp 0) HANYA jika SEMUA tindakan yang diambil adalah INCLUDE KONSULTASI (tidak ada yang non-include)
+  // Sesuai aturan: jika ada MINIMAL 1 tindakan yang diambil bertipe INCLUDE KONSULTASI, konsultasi Rp 0 (Diskon 100% Include)
   return rawItems.map((item) => {
     const isConsultationQueue = Boolean(item.is_konsultasi) ||
       (item.nama_layanan || "").toLowerCase().includes("konsul") ||
@@ -144,13 +188,14 @@ export const getCompletedItemsForKasir = async (dbOrTrx, kodeKunjungan) => {
       const allTreatments = relatedChildren.length > 0 ? relatedChildren : relatedVisitTreatments;
 
       const hasTreatments = allTreatments.length > 0;
-      const isAllInclude = hasTreatments && allTreatments.every((t) => t.isInclude);
+      const hasInclude = hasTreatments && allTreatments.some((t) => t.isInclude);
 
-      if (isAllInclude) {
-        // Skenario A: SEMUA TINDAKAN INCLUDE (Gratis Konsultasi Rp 0)
+      if (hasInclude) {
+        // Skenario A: ADA MINIMAL 1 TINDAKAN INCLUDE (Gratis Konsultasi Rp 0)
         const promoPrice = parseFloat(item.harga || 0);
         const hargaAsli = promoPrice > 0 ? promoPrice : parseFloat(item.master_harga_layanan || 0);
-        const firstName = allTreatments[0]?.nama_layanan || allTreatments[0]?.nama || "Tindakan Include";
+        const firstIncludeTreatment = allTreatments.find((t) => t.isInclude);
+        const firstName = firstIncludeTreatment?.nama_layanan || firstIncludeTreatment?.nama || "Tindakan";
         return {
           ...item,
           is_free_include: true,
@@ -167,11 +212,13 @@ export const getCompletedItemsForKasir = async (dbOrTrx, kodeKunjungan) => {
     }
 
     // Skenario B: NORMAL / NON-INCLUDE / HANYA KONSULTASI / ADA TINDAKAN NON-INCLUDE
-    const rawHarga = parseFloat(item.master_harga_layanan || item.master_harga_paket || item.master_harga_produk || item.harga || 0);
+    // Menggunakan resolveItemPriceForKasir agar harga final antrean konsisten dipakai
+    const priceRes = resolveItemPriceForKasir(item, true);
     return {
       ...item,
       is_free_include: false,
-      harga_satuan_gross: rawHarga,
+      harga_satuan_gross: priceRes.hargaMaster,
+      harga: priceRes.hargaSatuan,
     };
   });
 };
@@ -323,19 +370,31 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
     if (!item.kode_layanan) continue;
 
     const isProduct = ["produk", "paket_produk"].includes((item.jenis_layanan || "").toLowerCase());
+    const priceRes = resolveItemPriceForKasir(item, true);
+    const finalHargaSatuan = priceRes.hargaSatuan;
+
     if (isProduct) {
       const existRow = existingDetails.find((d) => d.kode_produk === item.kode_layanan);
-      const hargaSatuan = parseFloat(item.harga || 0);
+      const subtotalItem = finalHargaSatuan * (existRow ? (existRow.qty || 1) : 1);
 
       if (existRow) {
+        const updatePayload = {
+          harga_satuan: finalHargaSatuan,
+          subtotal: subtotalItem,
+          updated_by: username,
+          updated_at: formatDateSystem(),
+        };
+        if (hasDiscountCols) {
+          updatePayload.kode_promo = item.kode_promo || null;
+          updatePayload.nama_promo = item.nama_promo || null;
+          updatePayload.jenis_diskon = item.jenis_diskon || null;
+          updatePayload.nilai_diskon = item.nilai_diskon != null ? parseFloat(item.nilai_diskon) : null;
+          updatePayload.diskon = 0;
+          updatePayload.subtotal_setelah_diskon = subtotalItem;
+        }
         await trx("trx_detail_transaksi")
           .where("id", existRow.id)
-          .update({
-            harga_satuan: hargaSatuan,
-            subtotal: hargaSatuan * (existRow.qty || 1),
-            updated_by: username,
-            updated_at: formatDateSystem(),
-          });
+          .update(updatePayload);
       } else {
         const cKodeDetail = `${prefixDetail}${String(nextDetailSeq).padStart(3, "0")}`;
         nextDetailSeq++;
@@ -347,8 +406,8 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
           kode_layanan: null,
           kode_produk: item.kode_layanan,
           qty: 1,
-          harga_satuan: hargaSatuan,
-          subtotal: hargaSatuan,
+          harga_satuan: finalHargaSatuan,
+          subtotal: finalHargaSatuan,
           is_from_pendaftaran: 1,
           tz: tz || "Asia/Jakarta",
           created_by: username,
@@ -356,13 +415,13 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
           updated_by: username,
           updated_at: formatDateSystem(),
         };
-        if (hasDiscountCols && item.kode_promo) {
-          insertPayload.kode_promo = item.kode_promo;
+        if (hasDiscountCols) {
+          insertPayload.kode_promo = item.kode_promo || null;
           insertPayload.nama_promo = item.nama_promo || null;
           insertPayload.jenis_diskon = item.jenis_diskon || null;
           insertPayload.nilai_diskon = item.nilai_diskon != null ? parseFloat(item.nilai_diskon) : null;
           insertPayload.diskon = 0;
-          insertPayload.subtotal_setelah_diskon = hargaSatuan;
+          insertPayload.subtotal_setelah_diskon = finalHargaSatuan;
         }
 
         await trx("trx_detail_transaksi").insert(insertPayload);
@@ -372,9 +431,9 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
       const isKlaim = (item.jenis_layanan || "").toLowerCase() === "klaim_paket";
       const isFreeInclude = Boolean(item.is_free_include);
 
-      let hargaSatuanGross = isKlaim || isFreeInclude ? 0 : parseFloat(item.harga_satuan_gross || item.master_harga_layanan || item.harga || 0);
-      let itemSubtotal = isKlaim || isFreeInclude ? 0 : hargaSatuanGross;
-      let itemDiskon = isFreeInclude ? 0 : (item.diskon || 0);
+      let itemHargaSatuan = isKlaim || isFreeInclude ? 0 : finalHargaSatuan;
+      let itemSubtotal = isKlaim || isFreeInclude ? 0 : itemHargaSatuan;
+      let itemDiskon = 0;
       let itemSubtotalSetelahDiskon = isFreeInclude ? 0 : itemSubtotal;
       let itemJenisDiskon = isFreeInclude ? "include_treatment" : (item.jenis_diskon || null);
       let itemNilaiDiskon = isFreeInclude ? 0 : (item.nilai_diskon != null ? parseFloat(item.nilai_diskon) : null);
@@ -385,7 +444,7 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
 
       if (existRow) {
         const updatePayload = {
-          harga_satuan: hargaSatuanGross,
+          harga_satuan: itemHargaSatuan,
           subtotal: itemSubtotal,
           updated_by: username,
           updated_at: formatDateSystem(),
@@ -410,7 +469,7 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
           kode_layanan: item.kode_layanan,
           kode_produk: null,
           qty: 1,
-          harga_satuan: hargaSatuanGross,
+          harga_satuan: itemHargaSatuan,
           subtotal: itemSubtotal,
           is_from_pendaftaran: 1,
           tz: tz || "Asia/Jakarta",

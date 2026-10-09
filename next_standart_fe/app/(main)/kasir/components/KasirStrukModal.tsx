@@ -226,17 +226,39 @@ export const KasirStrukModal: React.FC<KasirStrukModalProps> = ({ visible, resul
   }).replace(':', '.');
   const waktuStr = `${tanggalStr}, ${jamStr}`;
 
-  const totalSubtotal = (result.items || []).length > 0
+  const totalGrossSubtotal = (result.items || []).length > 0
     ? (result.items || []).reduce((sum, item) => {
-        const isFree = Boolean(item.is_free_include || item.jenis_diskon === 'include_treatment');
-        return sum + (isFree ? 0 : (item.subtotal || 0));
+        const isFree = Boolean(
+          item.is_free_include ||
+          item.jenis_diskon === 'include_treatment' ||
+          (item.nama_promo && item.nama_promo.toLowerCase().includes('include')) ||
+          ((item.nama || '').toLowerCase().includes('konsul') && (Number(item.harga_satuan || 0) === 0 || Number(item.subtotal || 0) === 0 || Number(item.nilai_diskon || 0) === 100))
+        );
+        const grossPrice = isFree
+          ? (item.harga_master || (item.harga_satuan > 0 ? item.harga_satuan : 30000))
+          : (item.harga_master && item.harga_master > item.harga_satuan
+              ? item.harga_master
+              : (item.diskon && item.diskon > 0 ? item.harga_satuan + (item.diskon / item.qty) : item.harga_satuan));
+        return sum + (grossPrice * item.qty);
       }, 0)
     : (result.total_harga !== undefined && result.total_harga > 0 ? result.total_harga : result.total_bayar);
 
-  const totalDiskon = (result.items || []).length > 0
+  const totalDiskonAll = (result.items || []).length > 0
     ? (result.items || []).reduce((sum, item) => {
-        const isFree = Boolean(item.is_free_include || item.jenis_diskon === 'include_treatment');
-        return sum + (isFree ? 0 : (item.diskon || 0));
+        const isFree = Boolean(
+          item.is_free_include ||
+          item.jenis_diskon === 'include_treatment' ||
+          (item.nama_promo && item.nama_promo.toLowerCase().includes('include')) ||
+          ((item.nama || '').toLowerCase().includes('konsul') && (Number(item.harga_satuan || 0) === 0 || Number(item.subtotal || 0) === 0 || Number(item.nilai_diskon || 0) === 100))
+        );
+        if (isFree) {
+          const grossPrice = item.harga_master || (item.harga_satuan > 0 ? item.harga_satuan : 30000);
+          return sum + (grossPrice * item.qty);
+        }
+        if (item.harga_master && item.harga_master > item.harga_satuan) {
+          return sum + ((item.harga_master - item.harga_satuan) * item.qty);
+        }
+        return sum + parseFloat(String(item.diskon || 0));
       }, 0)
     : (result.total_diskon !== undefined ? result.total_diskon : 0);
 
@@ -379,17 +401,55 @@ export const KasirStrukModal: React.FC<KasirStrukModalProps> = ({ visible, resul
           </div>
 
           {/* Cart Item Details (Gaya Minimarket: Item, Qty, Harga, Jumlah) */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', margin: '3px 0' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', margin: '3px 0' }}>
             {(result.items || []).map((item: CartItem, i: number) => {
-              const isFreeInclude = Boolean(item.is_free_include || item.jenis_diskon === 'include_treatment');
-              const itemDisc = isFreeInclude ? 0 : parseFloat(String(item.diskon || 0));
-              const hasDiscount = !isFreeInclude && itemDisc > 0;
-              const displayHarga = isFreeInclude ? 0 : item.harga_satuan;
-              const displaySubtotal = isFreeInclude ? 0 : item.subtotal;
+              const isFreeInclude = Boolean(
+                item.is_free_include ||
+                item.jenis_diskon === 'include_treatment' ||
+                (item.nama_promo && item.nama_promo.toLowerCase().includes('include')) ||
+                ((item.nama || '').toLowerCase().includes('konsul') && (Number(item.harga_satuan || 0) === 0 || Number(item.subtotal || 0) === 0 || Number(item.nilai_diskon || 0) === 100))
+              );
+              const grossUnitPrice = isFreeInclude
+                ? (item.harga_master || (item.harga_satuan > 0 ? item.harga_satuan : 30000))
+                : (item.harga_master && item.harga_master > item.harga_satuan
+                    ? item.harga_master
+                    : (item.diskon && item.diskon > 0
+                        ? item.harga_satuan + (item.diskon / item.qty)
+                        : item.harga_satuan));
+              const grossSubtotal = grossUnitPrice * item.qty;
+
+              let itemDisc = 0;
+              let itemDiscName = item.nama_promo || 'Diskon';
+
+              if (isFreeInclude) {
+                itemDisc = grossSubtotal;
+                itemDiscName = 'Gratis (Include Tindakan) (100%)';
+              } else if (item.harga_master && item.harga_master > item.harga_satuan) {
+                itemDisc = (item.harga_master - item.harga_satuan) * item.qty;
+                if (item.nilai_diskon && Number(item.nilai_diskon) > 0) {
+                  const discVal = item.jenis_diskon === 'nominal'
+                    ? `-${formatRupiah(Number(item.nilai_diskon))}`
+                    : `${Math.round(Number(item.nilai_diskon))}%`;
+                  itemDiscName = item.nama_promo ? `${item.nama_promo} (${discVal})` : `Diskon (${discVal})`;
+                } else {
+                  const pct = Math.round(((item.harga_master - item.harga_satuan) / item.harga_master) * 100);
+                  itemDiscName = item.nama_promo ? `${item.nama_promo} (${pct}%)` : `Diskon (${pct}%)`;
+                }
+              } else if (item.diskon && item.diskon > 0) {
+                itemDisc = parseFloat(String(item.diskon));
+                if (item.nilai_diskon && Number(item.nilai_diskon) > 0) {
+                  const discVal = item.jenis_diskon === 'nominal'
+                    ? `-${formatRupiah(Number(item.nilai_diskon))}`
+                    : `${Math.round(Number(item.nilai_diskon))}%`;
+                  itemDiscName = item.nama_promo ? `${item.nama_promo} (${discVal})` : `Diskon (${discVal})`;
+                }
+              }
+
+              const hasDiscount = itemDisc > 0;
 
               return (
                 <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  {/* Baris Utama Item */}
+                  {/* Baris Utama Item: Harga Asli Gross */}
                   <div
                     className="receipt-grid-row text-slate-900"
                     style={{
@@ -430,7 +490,7 @@ export const KasirStrukModal: React.FC<KasirStrukModalProps> = ({ visible, resul
                         whiteSpace: 'nowrap',
                       }}
                     >
-                      {formatAngka(displayHarga)}
+                      {formatAngka(grossUnitPrice)}
                     </div>
                     <div
                       className="font-medium"
@@ -440,11 +500,11 @@ export const KasirStrukModal: React.FC<KasirStrukModalProps> = ({ visible, resul
                         whiteSpace: 'nowrap',
                       }}
                     >
-                      {formatAngka(displaySubtotal)}
+                      {formatAngka(grossSubtotal)}
                     </div>
                   </div>
 
-                  {/* Baris Diskon Per Item di bawah nama item */}
+                  {/* Baris Diskon / Promo Per Item */}
                   {hasDiscount && (
                     <div
                       className="receipt-grid-row text-slate-500 font-normal"
@@ -452,8 +512,8 @@ export const KasirStrukModal: React.FC<KasirStrukModalProps> = ({ visible, resul
                         display: 'grid',
                         gridTemplateColumns: 'minmax(0, 1fr) 28px 64px 74px',
                         columnGap: '4px',
-                        fontSize: '13px',
-                        lineHeight: '1.4',
+                        fontSize: '12px',
+                        lineHeight: '1.3',
                         alignItems: 'center',
                       }}
                     >
@@ -462,10 +522,9 @@ export const KasirStrukModal: React.FC<KasirStrukModalProps> = ({ visible, resul
                           gridColumn: '1 / 4',
                           textAlign: 'left',
                           minWidth: 0,
-                          fontSize: '12px',
                         }}
                       >
-                        {item.nama_promo || 'Diskon'}
+                        {itemDiscName}
                       </div>
                       <div
                         style={{
@@ -491,15 +550,15 @@ export const KasirStrukModal: React.FC<KasirStrukModalProps> = ({ visible, resul
             <div className="flex justify-content-between font-normal">
               <span className="text-slate-600">Subtotal</span>
               <span className="text-slate-800 receipt-tabular" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                {formatRupiah(totalSubtotal)}
+                {formatRupiah(totalGrossSubtotal)}
               </span>
             </div>
 
-            {totalDiskon > 0 && (
+            {totalDiskonAll > 0 && (
               <div className="flex justify-content-between font-normal text-emerald-700 receipt-discount-text">
                 <span>Diskon / Potongan</span>
                 <span className="receipt-tabular" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                  -{formatRupiah(totalDiskon)}
+                  -{formatRupiah(totalDiskonAll)}
                 </span>
               </div>
             )}

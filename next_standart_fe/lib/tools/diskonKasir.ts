@@ -247,6 +247,29 @@ export function calculateTransactionDiscounts(
   const breakdownMap: Record<string, { kode_promo: string; kode_detail_promo?: string; nama_promo: string; nama_item: string; diskon: number }> = {};
 
   for (const item of cart) {
+    const isInclude = Boolean(
+      item.is_free_include ||
+      item.jenis_diskon === 'include_treatment' ||
+      (Number(item.subtotal || 0) === 0 && Number(item.harga_satuan || 0) === 0 && (item.nama || '').toLowerCase().includes('konsul'))
+    );
+
+    if (isInclude) {
+      itemDiscounts[item.kode] = {
+        diskon: 0,
+        subtotal_setelah_diskon: 0,
+        promo: {
+          kode_detail_promo: `include_${item.kode}`,
+          kode_promo: '',
+          nama_promo: 'Gratis (Include Tindakan)',
+          jenis_diskon: 'persen' as any,
+          nilai_diskon: 100,
+          kode_item: item.kode,
+          nama_item: item.nama,
+        },
+      };
+      continue;
+    }
+
     const promo = promoMapByItem.get(item.kode);
     const isPendaftaran = Boolean(item.is_from_pendaftaran) || item.jenis === 'layanan' || item.jenis === 'paket';
 

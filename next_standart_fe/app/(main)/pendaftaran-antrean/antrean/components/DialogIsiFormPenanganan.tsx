@@ -487,31 +487,38 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
                                 </div>
                             </div>
 
-                            {/* KONTROL UI: LANJUT KE TREATMENT? */}
-                            <div className="p-3 surface-100 border-round-lg border-1 surface-border flex align-items-center justify-content-between">
-                                <div>
-                                    <span className="font-bold text-sm text-900 block">Lanjut ke Treatment Sesi Ini?</span>
-                                    <span className="text-xs text-500">Jika Ya, sistem otomatis menerbitkan antrean di ruang tindakan pasien tanpa daftar ulang.</span>
-                                </div>
-                                <div className="flex align-items-center gap-3">
-                                    <div className="flex align-items-center gap-1">
-                                        <Checkbox
-                                            inputId="lanjut_ya"
-                                            checked={lanjutKeTindakan}
-                                            onChange={(e) => setLanjutKeTindakan(true)}
-                                        />
-                                        <label htmlFor="lanjut_ya" className="text-sm font-bold text-teal-800 cursor-pointer">Ya (Lanjut Treatment)</label>
+                            {/* KONTROL UI: LANJUT KE TREATMENT? (HANYA JIKA PASIEN MURNI KONSULTASI / BELUM DAFTAR TREATMENT) */}
+                            {(() => {
+                                const registeredTreatments = (rekomendasiItems || []).filter((i) => i.is_pendaftaran || i.is_locked || (i.jenis !== 'produk' && i.jenis !== 'paket_produk' && !i.nama?.toLowerCase().includes('konsul')));
+                                const hasRegisteredTreatment = registeredTreatments.length > 0 || (antrianData as any)?.wajib_konsultasi === 'wajib' || (antrianData?.nama_layanan && !antrianData.nama_layanan.toLowerCase().includes('konsul'));
+                                if (hasRegisteredTreatment) return null;
+                                return (
+                                    <div className="p-3 surface-100 border-round-lg border-1 surface-border flex align-items-center justify-content-between">
+                                        <div>
+                                            <span className="font-bold text-sm text-900 block">Lanjut ke Treatment Sesi Ini?</span>
+                                            <span className="text-xs text-500">Jika Ya, sistem otomatis menerbitkan antrean di ruang tindakan pasien tanpa daftar ulang.</span>
+                                        </div>
+                                        <div className="flex align-items-center gap-3">
+                                            <div className="flex align-items-center gap-1">
+                                                <Checkbox
+                                                    inputId="lanjut_ya"
+                                                    checked={lanjutKeTindakan}
+                                                    onChange={(e) => setLanjutKeTindakan(true)}
+                                                />
+                                                <label htmlFor="lanjut_ya" className="text-sm font-bold text-teal-800 cursor-pointer">Ya (Lanjut Treatment)</label>
+                                            </div>
+                                            <div className="flex align-items-center gap-1">
+                                                <Checkbox
+                                                    inputId="lanjut_tidak"
+                                                    checked={!lanjutKeTindakan}
+                                                    onChange={(e) => setLanjutKeTindakan(false)}
+                                                />
+                                                <label htmlFor="lanjut_tidak" className="text-sm font-bold text-500 cursor-pointer">Tidak</label>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div className="flex align-items-center gap-1">
-                                        <Checkbox
-                                            inputId="lanjut_tidak"
-                                            checked={!lanjutKeTindakan}
-                                            onChange={(e) => setLanjutKeTindakan(false)}
-                                        />
-                                        <label htmlFor="lanjut_tidak" className="text-sm font-bold text-500 cursor-pointer">Tidak</label>
-                                    </div>
-                                </div>
-                            </div>
+                                );
+                            })()}
                         </div>
                     )}
 
@@ -610,13 +617,40 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
                         </div>
                     )}
 
-                    {isKonsultasi && lanjutKeTindakan && (
-                        <RekomendasiTreatmentPanel
-                            toast={toast}
-                            selectedItems={rekomendasiItems}
-                            onChangeSelectedItems={setRekomendasiItems}
-                            kodeCabang={(antrianData as any)?.kode_cabang}
-                        />
+                    {isKonsultasi && (
+                        (() => {
+                            const registeredTreatments = (rekomendasiItems || []).filter((i) => i.is_pendaftaran || i.is_locked || (i.jenis !== 'produk' && i.jenis !== 'paket_produk' && !i.nama?.toLowerCase().includes('konsul')));
+                            const hasRegisteredTreatment = registeredTreatments.length > 0 || (antrianData as any)?.wajib_konsultasi === 'wajib' || (antrianData?.nama_layanan && !antrianData.nama_layanan.toLowerCase().includes('konsul'));
+                            const registeredTreatmentNames = registeredTreatments.map((t) => t.nama).filter(Boolean).join(', ')
+                                || (antrianData?.nama_layanan && !antrianData.nama_layanan.toLowerCase().includes('konsul') ? antrianData.nama_layanan : '')
+                                || (antrianData as any)?.nama_layanan_tindakan
+                                || (antrianData as any)?.nama_layanan
+                                || 'Treatment Terdaftar';
+
+                            return hasRegisteredTreatment ? (
+                                <div className="surface-card p-4 border-round-xl border-1 surface-border bg-teal-50/80 shadow-1 flex align-items-center justify-content-between">
+                                    <div className="flex align-items-center gap-3">
+                                        <div className="w-3rem h-3rem border-circle bg-teal-100 flex align-items-center justify-content-center text-teal-700">
+                                            <i className="pi pi-check-circle text-2xl" />
+                                        </div>
+                                        <div>
+                                            <span className="font-extrabold text-teal-900 text-sm block">PASIEN TERDAFTAR TREATMENT: {registeredTreatmentNames}</span>
+                                            <span className="text-xs text-teal-700">Setelah sesi konsultasi disimpan, sistem otomatis menerbitkan antrean ke ruang tindakan untuk perawatan ini.</span>
+                                        </div>
+                                    </div>
+                                    <Tag value="Treatment Terdaftar" severity="info" className="px-3 py-1 font-bold text-xs" />
+                                </div>
+                            ) : (
+                                lanjutKeTindakan && (
+                                    <RekomendasiTreatmentPanel
+                                        toast={toast}
+                                        selectedItems={rekomendasiItems}
+                                        onChangeSelectedItems={setRekomendasiItems}
+                                        kodeCabang={(antrianData as any)?.kode_cabang}
+                                    />
+                                )
+                            );
+                        })()
                     )}
 
                     <div className="surface-card p-3 border-round-xl border-1 surface-border">
