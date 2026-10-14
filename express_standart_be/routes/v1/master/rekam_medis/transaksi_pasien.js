@@ -96,7 +96,13 @@ router.post("/", async (req, res) => {
           "prod.satuan",
           "dt.qty",
           "dt.harga_satuan",
-          "dt.subtotal"
+          "dt.subtotal",
+          "dt.kode_promo",
+          "dt.nama_promo",
+          "dt.jenis_diskon",
+          "dt.nilai_diskon",
+          DB.raw("COALESCE(dt.diskon, 0) as diskon"),
+          DB.raw("COALESCE(dt.subtotal_setelah_diskon, dt.subtotal) as subtotal_setelah_diskon")
         )
         .orderBy("dt.id", "asc");
 
@@ -104,15 +110,58 @@ router.post("/", async (req, res) => {
         if (!detailsMap[d.kode_transaksi]) {
           detailsMap[d.kode_transaksi] = [];
         }
+        const netSubtotal =
+          d.subtotal_setelah_diskon !== undefined && d.subtotal_setelah_diskon !== null
+            ? parseFloat(d.subtotal_setelah_diskon)
+            : parseFloat(d.subtotal || 0);
+
+        const qty = parseInt(d.qty || 1, 10);
+        let hargaSatuan = parseFloat(d.harga_satuan || 0);
+        let diskonNominal = parseFloat(d.diskon || 0);
+        let nilaiDiskon = d.nilai_diskon != null ? parseFloat(d.nilai_diskon) : null;
+        let jenisDiskon = d.jenis_diskon || null;
+        const isIncludeTreatment = jenisDiskon === 'include_treatment' || (d.nama_promo || '').toLowerCase().includes('include');
+
+        // Harga asli sebelum diskon
+        let hargaAsli = hargaSatuan * qty;
+        if (isIncludeTreatment) {
+          hargaAsli = 30000;
+          diskonNominal = 30000;
+          nilaiDiskon = 100;
+          jenisDiskon = 'persen';
+        } else if (nilaiDiskon && jenisDiskon === 'persen' && nilaiDiskon > 0 && nilaiDiskon < 100) {
+          hargaAsli = Math.round(netSubtotal / (1 - nilaiDiskon / 100));
+        } else if (diskonNominal > 0 && hargaAsli <= netSubtotal) {
+          hargaAsli = netSubtotal + diskonNominal;
+        }
+
+        // Teks diskon
+        let diskonText = null;
+        if (isIncludeTreatment || (nilaiDiskon === 100 && netSubtotal === 0)) {
+          diskonText = '100%';
+        } else if (nilaiDiskon && nilaiDiskon > 0) {
+          diskonText = jenisDiskon === 'nominal' ? `-${diskonNominal}` : `${Math.round(nilaiDiskon)}%`;
+        } else if (diskonNominal > 0 && hargaAsli > netSubtotal) {
+          const pct = Math.round((diskonNominal / hargaAsli) * 100);
+          diskonText = pct > 0 ? `${pct}%` : null;
+        }
+
         detailsMap[d.kode_transaksi].push({
           kode_detail_transaksi: d.kode_detail_transaksi,
           jenis: d.kode_layanan ? "layanan" : "produk",
           kode: d.kode_layanan || d.kode_produk,
           nama: d.nama_layanan_single || d.nama_paket_layanan || d.nama_produk || "-",
           satuan: d.satuan || (d.kode_layanan ? "tindakan" : "pcs"),
-          qty: parseInt(d.qty || 1, 10),
-          harga_satuan: parseFloat(d.harga_satuan || 0),
-          subtotal: parseFloat(d.subtotal || 0),
+          qty,
+          harga_satuan: hargaSatuan,
+          harga_asli: hargaAsli,
+          diskon: diskonNominal,
+          nilai_diskon: nilaiDiskon,
+          jenis_diskon: jenisDiskon,
+          diskon_text: diskonText,
+          nama_promo: d.nama_promo || null,
+          subtotal: netSubtotal,
+          subtotal_setelah_diskon: netSubtotal,
         });
       });
     }
