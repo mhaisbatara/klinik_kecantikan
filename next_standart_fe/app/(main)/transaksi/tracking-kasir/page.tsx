@@ -33,6 +33,11 @@ interface ShiftRecord {
   modal_awal: number | string;
   total_penjualan_tunai: number | string;
   total_penjualan_nontunai: number | string;
+  total_qris?: number | string;
+  total_transfer?: number | string;
+  total_debit?: number | string;
+  total_kredit?: number | string;
+  total_transaksi?: number | string;
   total_kas_masuk_lain: number | string;
   total_kas_keluar: number | string;
   kas_diharapkan: number | string;
@@ -52,7 +57,7 @@ interface MutasiRecord {
   user_code: string;
   nama_kasir: string;
   kode_cabang: string;
-  tipe: 'modal_awal' | 'penjualan_tunai' | 'kas_masuk' | 'kas_keluar' | 'tutup_shift';
+  tipe: 'modal_awal' | 'penjualan_tunai' | 'penjualan_nontunai' | 'kas_masuk' | 'kas_keluar' | 'tutup_shift';
   kategori: string | null;
   nominal: number | string;
   arus: 'masuk' | 'keluar';
@@ -93,6 +98,11 @@ export default function TrackingKasKasirPage() {
     total_modal_awal: 0,
     total_penjualan_tunai: 0,
     total_penjualan_nontunai: 0,
+    total_qris: 0,
+    total_transfer: 0,
+    total_debit: 0,
+    total_kredit: 0,
+    total_transaksi: 0,
     total_kas_masuk_lain: 0,
     total_kas_masuk: 0,
     total_kas_keluar: 0,
@@ -133,6 +143,7 @@ export default function TrackingKasKasirPage() {
     { label: 'Semua Tipe Mutasi', value: '' },
     { label: 'Modal Awal', value: 'modal_awal' },
     { label: 'Penjualan Tunai', value: 'penjualan_tunai' },
+    { label: 'Penjualan Non-Tunai', value: 'penjualan_nontunai' },
     { label: 'Kas Masuk Lain', value: 'kas_masuk' },
     { label: 'Kas Keluar', value: 'kas_keluar' },
     { label: 'Tutup Shift', value: 'tutup_shift' },
@@ -161,10 +172,17 @@ export default function TrackingKasKasirPage() {
   const formatDatetime = (dt: string | null | undefined) => {
     if (!dt) return '-';
     try {
+      // Hilangkan offset UTC/Z dan milidetik agar tidak terkena pergeseran jam ganda (+7 jam) di browser WIB
+      const cleanStr = String(dt).replace('T', ' ').replace(/\.\d+.*$/, '').replace(/Z$/, '').trim();
+      const match = cleanStr.match(/^(\d{4})-(\d{2})-(\d{2})(?:\s+(\d{2}):(\d{2}):(\d{2}))?/);
+      if (match) {
+        const [, year, month, day, hour = '00', min = '00', sec = '00'] = match;
+        return `${day}/${month}/${year} ${hour}:${min}:${sec}`;
+      }
       const d = new Date(dt);
       return format(d, 'dd/MM/yyyy HH:mm:ss');
     } catch {
-      return dt;
+      return String(dt);
     }
   };
 
@@ -452,11 +470,11 @@ export default function TrackingKasKasirPage() {
         </div>
 
         <div class="summary-card">
-          <div style="font-weight: bold; margin-bottom: 8px; color: #166534;">RINGKASAN REKONSILIASI KAS:</div>
+          <div style="font-weight: bold; margin-bottom: 8px; color: #166534;">RINGKASAN REKONSILIASI KAS (LACI FISIK):</div>
           <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
             <div>Modal Awal: <strong>Rp ${parseFloat(String(target.modal_awal || 0)).toLocaleString('id-ID')}</strong></div>
-            <div>Penjualan Tunai: <strong>Rp ${parseFloat(String(target.total_penjualan_tunai || 0)).toLocaleString('id-ID')}</strong></div>
-            <div>Kas Keluar: <strong>Rp ${parseFloat(String(target.total_kas_keluar || 0)).toLocaleString('id-ID')}</strong></div>
+            <div>Penjualan Tunai: <strong style="color: #16a34a;">Rp ${parseFloat(String(target.total_penjualan_tunai || 0)).toLocaleString('id-ID')}</strong></div>
+            <div>Kas Keluar: <strong style="color: #dc2626;">Rp ${parseFloat(String(target.total_kas_keluar || 0)).toLocaleString('id-ID')}</strong></div>
             <div>Kas Masuk Lain: <strong>Rp ${parseFloat(String(target.total_kas_masuk_lain || 0)).toLocaleString('id-ID')}</strong></div>
           </div>
           <hr style="border: 0; border-top: 1px dashed #86efac; margin: 10px 0;" />
@@ -464,6 +482,21 @@ export default function TrackingKasKasirPage() {
             <div>Ekspektasi Kas Laci: <strong>Rp ${parseFloat(String(target.kas_diharapkan || 0)).toLocaleString('id-ID')}</strong></div>
             <div>Kas Aktual Fisik: <strong>Rp ${target.kas_aktual !== null ? parseFloat(String(target.kas_aktual)).toLocaleString('id-ID') : '-'}</strong></div>
             <div>Selisih: <strong>${target.selisih !== null ? 'Rp ' + parseFloat(String(target.selisih)).toLocaleString('id-ID') : '-'}</strong></div>
+          </div>
+        </div>
+
+        <div class="summary-card" style="margin-top: 12px; background: #f8fafc; border-color: #cbd5e1;">
+          <div style="font-weight: bold; margin-bottom: 8px; color: #1e293b;">RINCIAN OMSET & METODE PEMBAYARAN SESI INI:</div>
+          <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;">
+            <div>Tunai Masuk:<br /><strong style="color: #16a34a;">Rp ${parseFloat(String(target.total_penjualan_tunai || 0)).toLocaleString('id-ID')}</strong></div>
+            <div>QRIS:<br /><strong style="color: #7e22ce;">Rp ${parseFloat(String(target.total_qris || 0)).toLocaleString('id-ID')}</strong></div>
+            <div>Transfer Bank:<br /><strong style="color: #1d4ed8;">Rp ${parseFloat(String(target.total_transfer || 0)).toLocaleString('id-ID')}</strong></div>
+            <div>Debit / Kartu EDC:<br /><strong style="color: #c2410c;">Rp ${(parseFloat(String(target.total_debit || 0)) + parseFloat(String(target.total_kredit || 0))).toLocaleString('id-ID')}</strong></div>
+            <div>Total Non-Tunai:<br /><strong style="color: #581c87;">Rp ${parseFloat(String(target.total_penjualan_nontunai || 0)).toLocaleString('id-ID')}</strong></div>
+          </div>
+          <hr style="border: 0; border-top: 1px dashed #cbd5e1; margin: 8px 0;" />
+          <div style="font-size: 13px; font-weight: bold; color: #0f766e;">
+            TOTAL OMSET PENJUALAN SESI (TUNAI + NON-TUNAI): Rp ${(parseFloat(String(target.total_penjualan_tunai || 0)) + parseFloat(String(target.total_penjualan_nontunai || 0))).toLocaleString('id-ID')}
           </div>
         </div>
 
@@ -532,7 +565,7 @@ export default function TrackingKasKasirPage() {
 
   // Cetak Semua Sesi Terfilter
   const handlePrintAllShifts = () => {
-    const printWindow = window.open('', '_blank', 'width=1000,height=900');
+    const printWindow = window.open('', '_blank', 'width=1100,height=900');
     if (!printWindow) {
       alert('Popup diblokir browser. Izinkan popup untuk mencetak laporan.');
       return;
@@ -548,13 +581,13 @@ export default function TrackingKasKasirPage() {
           .header { text-align: center; border-bottom: 2px solid #0f766e; padding-bottom: 12px; margin-bottom: 20px; }
           .title { font-size: 20px; font-weight: bold; color: #0f766e; margin: 0; }
           .subtitle { font-size: 13px; color: #64748b; margin-top: 4px; }
-          .kpi-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 20px; }
+          .kpi-row { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 20px; }
           .kpi-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px; text-align: center; }
-          .kpi-label { font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: bold; }
-          .kpi-val { font-size: 13px; font-weight: bold; color: #0f172a; margin-top: 4px; }
+          .kpi-label { font-size: 9px; color: #64748b; text-transform: uppercase; font-weight: bold; }
+          .kpi-val { font-size: 12px; font-weight: bold; color: #0f172a; margin-top: 4px; }
           table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 11px; }
-          th { background: #0f766e; color: white; text-align: left; padding: 7px 8px; font-weight: 600; }
-          td { border-bottom: 1px solid #e2e8f0; padding: 7px 8px; }
+          th { background: #0f766e; color: white; text-align: left; padding: 7px 6px; font-weight: 600; font-size: 10px; }
+          td { border-bottom: 1px solid #e2e8f0; padding: 6px 6px; }
           .text-right { text-align: right; }
           .text-center { text-align: center; }
           .footer { margin-top: 30px; display: flex; justify-content: space-between; font-size: 11px; text-align: center; }
@@ -576,20 +609,24 @@ export default function TrackingKasKasirPage() {
             <div class="kpi-val" style="color: #16a34a;">${formatRupiah(summary.total_penjualan_tunai)}</div>
           </div>
           <div class="kpi-card">
-            <div class="kpi-label">Kas Keluar</div>
-            <div class="kpi-val" style="color: #dc2626;">${formatRupiah(summary.total_kas_keluar)}</div>
+            <div class="kpi-label">QRIS</div>
+            <div class="kpi-val" style="color: #7e22ce;">${formatRupiah(summary.total_qris)}</div>
           </div>
           <div class="kpi-card">
-            <div class="kpi-label">Non-Tunai</div>
-            <div class="kpi-val">${formatRupiah(summary.total_penjualan_nontunai)}</div>
+            <div class="kpi-label">Transfer Bank</div>
+            <div class="kpi-val" style="color: #1d4ed8;">${formatRupiah(summary.total_transfer)}</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Total Non-Tunai</div>
+            <div class="kpi-val" style="color: #581c87;">${formatRupiah(summary.total_penjualan_nontunai)}</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Total Omset</div>
+            <div class="kpi-val" style="color: #0f766e;">${formatRupiah(summary.total_transaksi || (parseFloat(summary.total_penjualan_tunai || 0) + parseFloat(summary.total_penjualan_nontunai || 0)))}</div>
           </div>
           <div class="kpi-card" style="background: #f0fdf4; border-color: #bbf7d0;">
-            <div class="kpi-label">Ekspektasi Kas</div>
+            <div class="kpi-label">Ekspektasi Kas Laci</div>
             <div class="kpi-val" style="color: #0f766e;">${formatRupiah(summary.total_kas_diharapkan)}</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">Selisih Kas</div>
-            <div class="kpi-val">${summary.total_selisih === 0 ? 'Rp 0 (Pas)' : formatRupiah(summary.total_selisih)}</div>
           </div>
         </div>
 
@@ -601,10 +638,15 @@ export default function TrackingKasKasirPage() {
               <th>Kasir</th>
               <th>Waktu Buka / Tutup</th>
               <th class="text-right">Modal Awal</th>
-              <th class="text-right">Tunai Masuk</th>
+              <th class="text-right">Tunai</th>
+              <th class="text-right">QRIS</th>
+              <th class="text-right">Transfer</th>
+              <th class="text-right">Debit/EDC</th>
+              <th class="text-right">Non-Tunai</th>
+              <th class="text-right">Omset</th>
               <th class="text-right">Kas Keluar</th>
-              <th class="text-right">Kas Diharapkan</th>
-              <th class="text-right">Kas Aktual</th>
+              <th class="text-right">Kas Laci</th>
+              <th class="text-right">Aktual</th>
               <th class="text-center">Selisih</th>
               <th class="text-center">Status</th>
             </tr>
@@ -620,6 +662,11 @@ export default function TrackingKasKasirPage() {
                 <td>Buka: ${formatDatetime(s.waktu_buka)}<br/>Tutup: ${s.waktu_tutup ? formatDatetime(s.waktu_tutup) : 'Sedang Aktif'}</td>
                 <td class="text-right">${formatRupiah(s.modal_awal)}</td>
                 <td class="text-right" style="color:#16a34a; font-weight:bold;">+${formatRupiah(s.total_penjualan_tunai)}</td>
+                <td class="text-right" style="color:#7e22ce;">${parseFloat(String(s.total_qris || 0)) > 0 ? '+' + formatRupiah(s.total_qris) : 'Rp 0'}</td>
+                <td class="text-right" style="color:#1d4ed8;">${parseFloat(String(s.total_transfer || 0)) > 0 ? '+' + formatRupiah(s.total_transfer) : 'Rp 0'}</td>
+                <td class="text-right" style="color:#c2410c;">${(parseFloat(String(s.total_debit || 0)) + parseFloat(String(s.total_kredit || 0))) > 0 ? '+' + formatRupiah(parseFloat(String(s.total_debit || 0)) + parseFloat(String(s.total_kredit || 0))) : 'Rp 0'}</td>
+                <td class="text-right" style="color:#581c87; font-weight:bold;">+${formatRupiah(s.total_penjualan_nontunai)}</td>
+                <td class="text-right" style="font-weight:bold; color:#0f766e;">${formatRupiah(s.total_transaksi || (parseFloat(String(s.total_penjualan_tunai || 0)) + parseFloat(String(s.total_penjualan_nontunai || 0))))}</td>
                 <td class="text-right" style="color:#dc2626;">${parseFloat(String(s.total_kas_keluar || 0)) > 0 ? '-' + formatRupiah(s.total_kas_keluar) : 'Rp 0'}</td>
                 <td class="text-right" style="font-weight:bold; color:#0f766e;">${formatRupiah(s.kas_diharapkan)}</td>
                 <td class="text-right">${s.kas_aktual !== null ? formatRupiah(s.kas_aktual) : '-'}</td>
@@ -733,17 +780,49 @@ export default function TrackingKasKasirPage() {
           </div>
         </div>
 
+        {/* Breakdown Pembayaran Non-Tunai Sesi */}
         <div className="grid text-xs mt-1">
           <div className="col-12 sm:col-6 md:col-3 p-1">
             <div className="p-2.5 surface-card border-round-md border-1 border-200">
-              <span className="text-500 block mb-1">Kas Masuk Lainnya</span>
-              <span className="font-bold text-sm text-teal-700">+{formatRupiah(row.total_kas_masuk_lain)}</span>
+              <span className="text-500 block mb-1">QRIS</span>
+              <span className="font-bold text-sm text-purple-700">+{formatRupiah(row.total_qris)}</span>
             </div>
           </div>
           <div className="col-12 sm:col-6 md:col-3 p-1">
             <div className="p-2.5 surface-card border-round-md border-1 border-200">
-              <span className="text-500 block mb-1">Penjualan Non-Tunai</span>
-              <span className="font-bold text-sm text-purple-700">{formatRupiah(row.total_penjualan_nontunai)}</span>
+              <span className="text-500 block mb-1">Transfer Bank</span>
+              <span className="font-bold text-sm text-blue-700">+{formatRupiah(row.total_transfer)}</span>
+            </div>
+          </div>
+          <div className="col-12 sm:col-6 md:col-3 p-1">
+            <div className="p-2.5 surface-card border-round-md border-1 border-200">
+              <span className="text-500 block mb-1">Debit / Kartu EDC</span>
+              <span className="font-bold text-sm text-orange-700">
+                +{formatRupiah(parseFloat(String(row.total_debit || 0)) + parseFloat(String(row.total_kredit || 0)))}
+              </span>
+            </div>
+          </div>
+          <div className="col-12 sm:col-6 md:col-3 p-1">
+            <div className="p-2.5 surface-card border-round-md border-1 border-purple-200 bg-purple-50">
+              <span className="text-purple-800 font-semibold block mb-1">Total Non-Tunai</span>
+              <span className="font-bold text-sm text-purple-900">+{formatRupiah(row.total_penjualan_nontunai)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid text-xs mt-1">
+          <div className="col-12 sm:col-6 md:col-3 p-1">
+            <div className="p-2.5 surface-card border-round-md border-1 border-teal-200 bg-teal-50">
+              <span className="text-teal-800 font-semibold block mb-1">Total Omset Sesi</span>
+              <span className="font-bold text-sm text-teal-900">
+                {formatRupiah(row.total_transaksi || (parseFloat(String(row.total_penjualan_tunai || 0)) + parseFloat(String(row.total_penjualan_nontunai || 0))))}
+              </span>
+            </div>
+          </div>
+          <div className="col-12 sm:col-6 md:col-3 p-1">
+            <div className="p-2.5 surface-card border-round-md border-1 border-200">
+              <span className="text-500 block mb-1">Kas Masuk Lainnya</span>
+              <span className="font-bold text-sm text-teal-700">+{formatRupiah(row.total_kas_masuk_lain)}</span>
             </div>
           </div>
           <div className="col-12 sm:col-6 md:col-3 p-1">
@@ -813,11 +892,11 @@ export default function TrackingKasKasirPage() {
         </div>
 
         {/* =========================================================
-            3 KPI CARDS STRIP UTAMA (Ringkas, Rapi & Lega)
+            4 KPI CARDS STRIP UTAMA (Ringkas, Rapi & Lega)
             ========================================================= */}
         <div className="grid m-0 mb-4">
           {/* 1. Kas Masuk (Tunai) */}
-          <div className="col-12 md:col-4 p-2">
+          <div className="col-12 sm:col-6 lg:col-3 p-2">
             <div className="p-3 border-round-xl surface-ground border-1 border-200 flex align-items-center justify-content-between h-full hover:shadow-1 transition-shadow">
               <div>
                 <span className="text-xs text-500 font-semibold uppercase block mb-1">Kas Masuk (Tunai)</span>
@@ -832,8 +911,24 @@ export default function TrackingKasKasirPage() {
             </div>
           </div>
 
-          {/* 2. Total Kas Keluar */}
-          <div className="col-12 md:col-4 p-2">
+          {/* 2. Transaksi Non-Tunai (QRIS, Transfer, EDC) */}
+          <div className="col-12 sm:col-6 lg:col-3 p-2">
+            <div className="p-3 border-round-xl surface-ground border-1 border-200 flex align-items-center justify-content-between h-full hover:shadow-1 transition-shadow">
+              <div>
+                <span className="text-xs text-500 font-semibold uppercase block mb-1">Transaksi Non-Tunai</span>
+                <span className="text-2xl font-bold text-purple-700 block">+{formatRupiah(summary.total_penjualan_nontunai)}</span>
+                <span className="text-xs text-500 block mt-1">
+                  QRIS: {formatRupiah(summary.total_qris)} • Trf: {formatRupiah(summary.total_transfer)}
+                </span>
+              </div>
+              <div className="w-3rem h-3rem border-round-lg bg-purple-100 flex align-items-center justify-content-center text-purple-700 flex-shrink-0">
+                <i className="pi pi-credit-card text-xl" />
+              </div>
+            </div>
+          </div>
+
+          {/* 3. Total Kas Keluar */}
+          <div className="col-12 sm:col-6 lg:col-3 p-2">
             <div className="p-3 border-round-xl surface-ground border-1 border-200 flex align-items-center justify-content-between h-full hover:shadow-1 transition-shadow">
               <div>
                 <span className="text-xs text-500 font-semibold uppercase block mb-1">Total Kas Keluar</span>
@@ -848,14 +943,14 @@ export default function TrackingKasKasirPage() {
             </div>
           </div>
 
-          {/* 3. Ekspektasi Kas Laci (Saldo Kas Seharusnya) */}
-          <div className="col-12 md:col-4 p-2">
+          {/* 4. Ekspektasi Kas Laci (Saldo Kas Seharusnya) */}
+          <div className="col-12 sm:col-6 lg:col-3 p-2">
             <div className="p-3 border-round-xl border-1 border-teal-200 flex align-items-center justify-content-between h-full bg-teal-50 hover:shadow-1 transition-shadow">
               <div>
                 <span className="text-xs text-teal-800 font-semibold uppercase block mb-1">Ekspektasi Kas Laci</span>
                 <span className="text-2xl font-black text-teal-900 block">{formatRupiah(summary.total_kas_diharapkan)}</span>
                 <span className="text-xs text-teal-700 block mt-1 font-medium">
-                  Selisih: {summary.total_selisih === 0 ? 'Rp 0 (Pas)' : (summary.total_selisih > 0 ? '+' : '') + formatRupiah(summary.total_selisih)} • {summary.total_shift_open || 0} Buka / {summary.total_shift_closed || 0} Tutup
+                  Total Omset: {formatRupiah(summary.total_transaksi || (parseFloat(summary.total_penjualan_tunai || 0) + parseFloat(summary.total_penjualan_nontunai || 0)))}
                 </span>
               </div>
               <div className="w-3rem h-3rem border-round-lg bg-teal-100 flex align-items-center justify-content-center text-teal-700 flex-shrink-0">
@@ -1153,6 +1248,87 @@ export default function TrackingKasKasirPage() {
                     +{formatRupiah(row.total_penjualan_tunai)}
                   </span>
                 )}
+              />
+
+              {/* QRIS */}
+              <Column
+                field="total_qris"
+                header="QRIS"
+                align="right"
+                style={{ minWidth: '7.5rem' }}
+                body={(row: ShiftRecord) => {
+                  const val = parseFloat(String(row.total_qris || 0));
+                  return (
+                    <span className={`font-mono text-xs ${val > 0 ? 'text-purple-700 font-bold' : 'text-400'}`}>
+                      {val > 0 ? `+${formatRupiah(val)}` : 'Rp 0'}
+                    </span>
+                  );
+                }}
+              />
+
+              {/* Transfer */}
+              <Column
+                field="total_transfer"
+                header="Transfer"
+                align="right"
+                style={{ minWidth: '7.5rem' }}
+                body={(row: ShiftRecord) => {
+                  const val = parseFloat(String(row.total_transfer || 0));
+                  return (
+                    <span className={`font-mono text-xs ${val > 0 ? 'text-blue-700 font-bold' : 'text-400'}`}>
+                      {val > 0 ? `+${formatRupiah(val)}` : 'Rp 0'}
+                    </span>
+                  );
+                }}
+              />
+
+              {/* Debit / Kartu EDC */}
+              <Column
+                header="Debit / EDC"
+                align="right"
+                style={{ minWidth: '8rem' }}
+                body={(row: ShiftRecord) => {
+                  const val = parseFloat(String(row.total_debit || 0)) + parseFloat(String(row.total_kredit || 0));
+                  return (
+                    <span className={`font-mono text-xs ${val > 0 ? 'text-orange-700 font-bold' : 'text-400'}`}>
+                      {val > 0 ? `+${formatRupiah(val)}` : 'Rp 0'}
+                    </span>
+                  );
+                }}
+              />
+
+              {/* Total Non-Tunai */}
+              <Column
+                field="total_penjualan_nontunai"
+                header="Total Non-Tunai"
+                align="right"
+                style={{ minWidth: '8.5rem' }}
+                body={(row: ShiftRecord) => {
+                  const val = parseFloat(String(row.total_penjualan_nontunai || 0));
+                  return (
+                    <span className={`font-mono text-xs ${val > 0 ? 'text-purple-900 font-bold' : 'text-400'}`}>
+                      {val > 0 ? `+${formatRupiah(val)}` : 'Rp 0'}
+                    </span>
+                  );
+                }}
+              />
+
+              {/* Total Omset Sesi */}
+              <Column
+                field="total_transaksi"
+                header="Total Omset"
+                align="right"
+                style={{ minWidth: '9rem' }}
+                body={(row: ShiftRecord) => {
+                  const tunai = parseFloat(String(row.total_penjualan_tunai || 0));
+                  const nontunai = parseFloat(String(row.total_penjualan_nontunai || 0));
+                  const val = row.total_transaksi !== undefined ? parseFloat(String(row.total_transaksi || 0)) : tunai + nontunai;
+                  return (
+                    <span className="font-bold text-xs text-teal-900 font-mono">
+                      {formatRupiah(val)}
+                    </span>
+                  );
+                }}
               />
 
               {/* Kas Keluar */}
@@ -1508,6 +1684,7 @@ export default function TrackingKasKasirPage() {
                   let tagSeverity: any = 'info';
                   if (m.tipe === 'modal_awal') tagSeverity = 'primary';
                   if (m.tipe === 'penjualan_tunai' || m.arus === 'masuk') tagSeverity = 'success';
+                  if (m.tipe === 'penjualan_nontunai') tagSeverity = 'help';
                   if (m.tipe === 'kas_keluar' || m.arus === 'keluar') tagSeverity = 'danger';
                   if (m.tipe === 'tutup_shift') tagSeverity = 'secondary';
 
@@ -1634,32 +1811,76 @@ export default function TrackingKasKasirPage() {
 
               <Divider className="my-2" />
 
-              {/* Metric Breakdown */}
+              {/* Metric Breakdown 1: Rekap Kas Fisik */}
               <div className="grid text-xs pt-1">
-                <div className="col-6 sm:col-3 md:col-2">
+                <div className="col-6 sm:col-4 md:col-2">
                   <div className="text-500">Modal Awal:</div>
                   <div className="font-bold text-slate-800">{formatRupiah(selectedShift.modal_awal)}</div>
                 </div>
-                <div className="col-6 sm:col-3 md:col-2">
+                <div className="col-6 sm:col-4 md:col-2">
                   <div className="text-500">Penjualan Tunai:</div>
                   <div className="font-bold text-green-700">+{formatRupiah(selectedShift.total_penjualan_tunai)}</div>
                 </div>
-                <div className="col-6 sm:col-3 md:col-2">
+                <div className="col-6 sm:col-4 md:col-2">
                   <div className="text-500">Kas Masuk Lain:</div>
-                  <div className="font-bold text-green-600">+{formatRupiah(selectedShift.total_kas_masuk_lain)}</div>
+                  <div className="font-bold text-teal-700">+{formatRupiah(selectedShift.total_kas_masuk_lain)}</div>
                 </div>
-                <div className="col-6 sm:col-3 md:col-2">
+                <div className="col-6 sm:col-4 md:col-2">
                   <div className="text-500">Kas Keluar:</div>
                   <div className="font-bold text-red-600">-{formatRupiah(selectedShift.total_kas_keluar)}</div>
                 </div>
-                <div className="col-6 sm:col-3 md:col-2">
+                <div className="col-6 sm:col-4 md:col-2">
                   <div className="text-500">Kas Diharapkan:</div>
                   <div className="font-bold text-teal-800">{formatRupiah(selectedShift.kas_diharapkan)}</div>
                 </div>
-                <div className="col-6 sm:col-3 md:col-2">
+                <div className="col-6 sm:col-4 md:col-2">
                   <div className="text-500">Kas Fisik Aktual:</div>
                   <div className="font-bold text-indigo-900">
                     {selectedShift.kas_aktual !== null ? formatRupiah(selectedShift.kas_aktual) : '-'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Metric Breakdown 2: Metode Non-Tunai & Omset */}
+              <div className="grid text-xs pt-2 mt-1 border-top-1 surface-border">
+                <div className="col-6 sm:col-4 md:col-2">
+                  <div className="text-500">QRIS:</div>
+                  <div className="font-bold text-purple-700">+{formatRupiah(selectedShift.total_qris)}</div>
+                </div>
+                <div className="col-6 sm:col-4 md:col-2">
+                  <div className="text-500">Transfer Bank:</div>
+                  <div className="font-bold text-blue-700">+{formatRupiah(selectedShift.total_transfer)}</div>
+                </div>
+                <div className="col-6 sm:col-4 md:col-2">
+                  <div className="text-500">Debit / EDC:</div>
+                  <div className="font-bold text-orange-700">
+                    +{formatRupiah(parseFloat(String(selectedShift.total_debit || 0)) + parseFloat(String(selectedShift.total_kredit || 0)))}
+                  </div>
+                </div>
+                <div className="col-6 sm:col-4 md:col-2">
+                  <div className="text-500">Total Non-Tunai:</div>
+                  <div className="font-bold text-purple-900">+{formatRupiah(selectedShift.total_penjualan_nontunai)}</div>
+                </div>
+                <div className="col-6 sm:col-4 md:col-2">
+                  <div className="text-500">Total Omset Sesi:</div>
+                  <div className="font-bold text-teal-900">
+                    {formatRupiah(selectedShift.total_transaksi || (parseFloat(String(selectedShift.total_penjualan_tunai || 0)) + parseFloat(String(selectedShift.total_penjualan_nontunai || 0))))}
+                  </div>
+                </div>
+                <div className="col-6 sm:col-4 md:col-2">
+                  <div className="text-500">Selisih Kas:</div>
+                  <div className="font-bold">
+                    {selectedShift.selisih !== null ? (
+                      parseFloat(String(selectedShift.selisih)) === 0 ? (
+                        <span className="text-green-600">Rp 0 (Pas)</span>
+                      ) : parseFloat(String(selectedShift.selisih)) > 0 ? (
+                        <span className="text-blue-600">+{formatRupiah(selectedShift.selisih)}</span>
+                      ) : (
+                        <span className="text-red-600">{formatRupiah(selectedShift.selisih)}</span>
+                      )
+                    ) : (
+                      '-'
+                    )}
                   </div>
                 </div>
               </div>

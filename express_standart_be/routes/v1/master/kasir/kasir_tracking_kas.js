@@ -98,6 +98,10 @@ router.post("/data", async (req, res) => {
         DB.raw("COALESCE(SUM(s.modal_awal), 0) as total_modal_awal"),
         DB.raw("COALESCE(SUM(s.total_penjualan_tunai), 0) as total_penjualan_tunai"),
         DB.raw("COALESCE(SUM(s.total_penjualan_nontunai), 0) as total_penjualan_nontunai"),
+        DB.raw("COALESCE(SUM(GREATEST(COALESCE(s.total_qris, 0), COALESCE((SELECT SUM(t.total_bayar) FROM trx_transaksi t WHERE t.kode_shift COLLATE utf8mb4_unicode_ci = s.kode_shift COLLATE utf8mb4_unicode_ci AND LOWER(t.metode_bayar) = 'qris' AND t.status = 'lunas'), 0))), 0) as total_qris"),
+        DB.raw("COALESCE(SUM(GREATEST(COALESCE(s.total_transfer, 0), COALESCE((SELECT SUM(t.total_bayar) FROM trx_transaksi t WHERE t.kode_shift COLLATE utf8mb4_unicode_ci = s.kode_shift COLLATE utf8mb4_unicode_ci AND LOWER(t.metode_bayar) = 'transfer' AND t.status = 'lunas'), 0))), 0) as total_transfer"),
+        DB.raw("COALESCE(SUM(GREATEST(COALESCE(s.total_debit, 0), COALESCE((SELECT SUM(t.total_bayar) FROM trx_transaksi t WHERE t.kode_shift COLLATE utf8mb4_unicode_ci = s.kode_shift COLLATE utf8mb4_unicode_ci AND LOWER(t.metode_bayar) = 'debit' AND t.status = 'lunas'), 0))), 0) as total_debit"),
+        DB.raw("COALESCE(SUM(GREATEST(COALESCE(s.total_kredit, 0), COALESCE((SELECT SUM(t.total_bayar) FROM trx_transaksi t WHERE t.kode_shift COLLATE utf8mb4_unicode_ci = s.kode_shift COLLATE utf8mb4_unicode_ci AND LOWER(t.metode_bayar) = 'kredit' AND t.status = 'lunas'), 0))), 0) as total_kredit"),
         DB.raw("COALESCE(SUM(s.total_kas_masuk_lain), 0) as total_kas_masuk_lain"),
         DB.raw("COALESCE(SUM(s.total_kas_keluar), 0) as total_kas_keluar"),
         DB.raw("COALESCE(SUM(s.kas_diharapkan), 0) as total_kas_diharapkan"),
@@ -116,11 +120,16 @@ router.post("/data", async (req, res) => {
         "s.nama_kasir",
         "s.kode_cabang",
         "c.nama_cabang",
-        "s.waktu_buka",
-        "s.waktu_tutup",
+        DB.raw("DATE_FORMAT(s.waktu_buka, '%Y-%m-%d %H:%i:%s') as waktu_buka"),
+        DB.raw("DATE_FORMAT(s.waktu_tutup, '%Y-%m-%d %H:%i:%s') as waktu_tutup"),
         "s.modal_awal",
         "s.total_penjualan_tunai",
         "s.total_penjualan_nontunai",
+        DB.raw("GREATEST(COALESCE(s.total_qris, 0), COALESCE((SELECT SUM(t.total_bayar) FROM trx_transaksi t WHERE t.kode_shift COLLATE utf8mb4_unicode_ci = s.kode_shift COLLATE utf8mb4_unicode_ci AND LOWER(t.metode_bayar) = 'qris' AND t.status = 'lunas'), 0)) as total_qris"),
+        DB.raw("GREATEST(COALESCE(s.total_transfer, 0), COALESCE((SELECT SUM(t.total_bayar) FROM trx_transaksi t WHERE t.kode_shift COLLATE utf8mb4_unicode_ci = s.kode_shift COLLATE utf8mb4_unicode_ci AND LOWER(t.metode_bayar) = 'transfer' AND t.status = 'lunas'), 0)) as total_transfer"),
+        DB.raw("GREATEST(COALESCE(s.total_debit, 0), COALESCE((SELECT SUM(t.total_bayar) FROM trx_transaksi t WHERE t.kode_shift COLLATE utf8mb4_unicode_ci = s.kode_shift COLLATE utf8mb4_unicode_ci AND LOWER(t.metode_bayar) = 'debit' AND t.status = 'lunas'), 0)) as total_debit"),
+        DB.raw("GREATEST(COALESCE(s.total_kredit, 0), COALESCE((SELECT SUM(t.total_bayar) FROM trx_transaksi t WHERE t.kode_shift COLLATE utf8mb4_unicode_ci = s.kode_shift COLLATE utf8mb4_unicode_ci AND LOWER(t.metode_bayar) = 'kredit' AND t.status = 'lunas'), 0)) as total_kredit"),
+        DB.raw("(COALESCE(s.total_penjualan_tunai, 0) + COALESCE(s.total_penjualan_nontunai, 0)) as total_transaksi"),
         "s.total_kas_masuk_lain",
         "s.total_kas_keluar",
         "s.kas_diharapkan",
@@ -130,7 +139,7 @@ router.post("/data", async (req, res) => {
         "s.catatan_buka",
         "s.catatan_tutup",
         "s.created_by",
-        "s.created_at"
+        DB.raw("DATE_FORMAT(s.created_at, '%Y-%m-%d %H:%i:%s') as created_at")
       )
       .orderBy("s.waktu_buka", "desc");
 
@@ -167,6 +176,11 @@ router.post("/data", async (req, res) => {
           total_modal_awal: parseFloat(summaryResult?.total_modal_awal || 0),
           total_penjualan_tunai: totalPenjualanTunai,
           total_penjualan_nontunai: parseFloat(summaryResult?.total_penjualan_nontunai || 0),
+          total_qris: parseFloat(summaryResult?.total_qris || 0),
+          total_transfer: parseFloat(summaryResult?.total_transfer || 0),
+          total_debit: parseFloat(summaryResult?.total_debit || 0),
+          total_kredit: parseFloat(summaryResult?.total_kredit || 0),
+          total_transaksi: totalPenjualanTunai + parseFloat(summaryResult?.total_penjualan_nontunai || 0),
           total_kas_masuk_lain: totalKasMasukLain,
           total_kas_masuk: totalKasMasukSemua,
           total_kas_keluar: parseFloat(summaryResult?.total_kas_keluar || 0),
@@ -206,7 +220,17 @@ router.post("/detail", async (req, res) => {
     const shift = await DB("trx_kasir_shift as s")
       .leftJoin("mst_cabang as c", DB.raw("s.kode_cabang COLLATE utf8mb4_unicode_ci = c.kode_cabang COLLATE utf8mb4_unicode_ci"))
       .where("s.kode_shift", kode_shift)
-      .select("s.*", "c.nama_cabang")
+      .select(
+        "s.*",
+        "c.nama_cabang",
+        DB.raw("DATE_FORMAT(s.waktu_buka, '%Y-%m-%d %H:%i:%s') as waktu_buka"),
+        DB.raw("DATE_FORMAT(s.waktu_tutup, '%Y-%m-%d %H:%i:%s') as waktu_tutup"),
+        DB.raw("GREATEST(COALESCE(s.total_qris, 0), COALESCE((SELECT SUM(t.total_bayar) FROM trx_transaksi t WHERE t.kode_shift COLLATE utf8mb4_unicode_ci = s.kode_shift COLLATE utf8mb4_unicode_ci AND LOWER(t.metode_bayar) = 'qris' AND t.status = 'lunas'), 0)) as total_qris"),
+        DB.raw("GREATEST(COALESCE(s.total_transfer, 0), COALESCE((SELECT SUM(t.total_bayar) FROM trx_transaksi t WHERE t.kode_shift COLLATE utf8mb4_unicode_ci = s.kode_shift COLLATE utf8mb4_unicode_ci AND LOWER(t.metode_bayar) = 'transfer' AND t.status = 'lunas'), 0)) as total_transfer"),
+        DB.raw("GREATEST(COALESCE(s.total_debit, 0), COALESCE((SELECT SUM(t.total_bayar) FROM trx_transaksi t WHERE t.kode_shift COLLATE utf8mb4_unicode_ci = s.kode_shift COLLATE utf8mb4_unicode_ci AND LOWER(t.metode_bayar) = 'debit' AND t.status = 'lunas'), 0)) as total_debit"),
+        DB.raw("GREATEST(COALESCE(s.total_kredit, 0), COALESCE((SELECT SUM(t.total_bayar) FROM trx_transaksi t WHERE t.kode_shift COLLATE utf8mb4_unicode_ci = s.kode_shift COLLATE utf8mb4_unicode_ci AND LOWER(t.metode_bayar) = 'kredit' AND t.status = 'lunas'), 0)) as total_kredit"),
+        DB.raw("(COALESCE(s.total_penjualan_tunai, 0) + COALESCE(s.total_penjualan_nontunai, 0)) as total_transaksi")
+      )
       .first();
 
     if (!shift) {
@@ -217,9 +241,13 @@ router.post("/detail", async (req, res) => {
       });
     }
 
-    const mutasi = await DB("trx_kasir_mutasi_kas")
-      .where("kode_shift", kode_shift)
-      .orderBy("id", "asc");
+    const mutasi = await DB("trx_kasir_mutasi_kas as m")
+      .where("m.kode_shift", kode_shift)
+      .select(
+        "m.*",
+        DB.raw("DATE_FORMAT(m.created_at, '%Y-%m-%d %H:%i:%s') as created_at")
+      )
+      .orderBy("m.id", "asc");
 
     return res.status(200).json({
       status: status.SUKSES,
@@ -344,7 +372,10 @@ router.post("/mutasi-data", async (req, res) => {
       .first();
 
     const dataQuery = DB("trx_kasir_mutasi_kas as m")
-      .select("m.*")
+      .select(
+        "m.*",
+        DB.raw("DATE_FORMAT(m.created_at, '%Y-%m-%d %H:%i:%s') as created_at")
+      )
       .orderBy("m.created_at", "desc");
 
     applyFilters(dataQuery);
