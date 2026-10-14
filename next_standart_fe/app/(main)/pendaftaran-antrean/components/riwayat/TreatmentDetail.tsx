@@ -6,7 +6,6 @@ import { formatRupiah, formatTanggalIndo } from './utils';
 import {
   Sparkles,
   FileText,
-  Pill,
   ShoppingBag,
 } from 'lucide-react';
 
@@ -26,17 +25,6 @@ export const TreatmentDetail: React.FC<TreatmentDetailProps> = ({ kunjungan }) =
     kunjungan.catatan &&
     kunjungan.catatan.trim() !== '' &&
     kunjungan.catatan.trim() !== '-';
-
-  const hasResep =
-    Array.isArray(kunjungan.resep) &&
-    kunjungan.resep.length > 0 &&
-    kunjungan.resep.some(
-      (r) =>
-        r &&
-        (typeof r === 'string'
-          ? r.trim() !== '' && r.trim() !== '-' && !r.toLowerCase().includes('tidak ada')
-          : true)
-    );
 
   const produkList = kunjungan.produk || [];
   const totalProduk = produkList.reduce(
@@ -501,52 +489,6 @@ export const TreatmentDetail: React.FC<TreatmentDetailProps> = ({ kunjungan }) =
             ? kunjungan.catatan
             : 'Tindakan perawatan selesai dengan kondisi kulit baik tanpa komplikasi.'}
         </p>
-      </div>
-
-      {/* 4. CARD KEEMPAT: RESEP / OBAT (Persis Referensi Gambar 2) */}
-      <div
-        className="w-full bg-white border-round-xl p-3 sm:p-4 mt-3"
-        style={{ border: '1px solid #e2e8f0' }}
-      >
-        <div className="flex align-items-center gap-2 mb-2.5">
-          <Pill size={17} strokeWidth={2.2} style={{ color: '#0f2942' }} />
-          <h4
-            className="m-0 font-bold"
-            style={{ color: '#0f2942', fontSize: '0.875rem' }}
-          >
-            Resep / Obat
-          </h4>
-        </div>
-        {hasResep ? (
-          <ul className="m-0 p-0 list-none flex flex-column gap-1.5">
-            {kunjungan.resep!.map((item, idx) => {
-              const text =
-                typeof item === 'string'
-                  ? item
-                  : (item as any)?.nama_obat || (item as any)?.nama_produk || String(item);
-              return (
-                <li
-                  key={idx}
-                  className="flex align-items-center gap-2"
-                  style={{ color: '#475569', fontSize: '0.8rem' }}
-                >
-                  <span
-                    className="w-1.5 h-1.5 border-circle inline-block flex-shrink-0"
-                    style={{ backgroundColor: '#10b981' }}
-                  />
-                  <span>{text}</span>
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          <p
-            className="m-0"
-            style={{ color: '#475569', fontSize: '0.8rem' }}
-          >
-            - Tidak ada resep obat
-          </p>
-        )}
       </div>
     </div>
   );

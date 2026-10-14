@@ -25,7 +25,7 @@ export const KunjunganDetailCard: React.FC<KunjunganDetailCardProps> = ({
           Pilih Kunjungan
         </h3>
         <p className="text-xs text-500 m-0 max-w-sm">
-          Pilih salah satu riwayat kunjungan di panel sebelah kiri untuk melihat rincian pemeriksaan, layanan, dan resep.
+          Pilih salah satu riwayat kunjungan di panel sebelah kiri untuk melihat rincian pemeriksaan dan layanan.
         </p>
       </div>
     );
