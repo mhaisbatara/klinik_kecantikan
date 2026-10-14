@@ -428,17 +428,20 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
       }
     } else {
       // Layanan / Paket Layanan
-      const isKlaim = (item.jenis_layanan || "").toLowerCase() === "klaim_paket";
+      const isKlaim = (item.jenis_layanan || "").toLowerCase() === "klaim_paket" ||
+        Boolean(item.is_klaim) ||
+        Boolean(item.is_klaim_paket) ||
+        (item.nama_layanan || item.nama || "").toLowerCase().includes("klaim");
       const isFreeInclude = Boolean(item.is_free_include);
 
       let itemHargaSatuan = isKlaim || isFreeInclude ? 0 : finalHargaSatuan;
       let itemSubtotal = isKlaim || isFreeInclude ? 0 : itemHargaSatuan;
-      let itemDiskon = 0;
-      let itemSubtotalSetelahDiskon = isFreeInclude ? 0 : itemSubtotal;
-      let itemJenisDiskon = isFreeInclude ? "include_treatment" : (item.jenis_diskon || null);
-      let itemNilaiDiskon = isFreeInclude ? 0 : (item.nilai_diskon != null ? parseFloat(item.nilai_diskon) : null);
-      let itemNamaPromo = isFreeInclude ? "Gratis (Include Tindakan)" : (item.nama_promo || null);
-      let itemKodePromo = isFreeInclude ? null : (item.kode_promo || null);
+      let itemDiskon = isKlaim ? (finalHargaSatuan > 0 ? finalHargaSatuan : 0) : 0;
+      let itemSubtotalSetelahDiskon = isFreeInclude || isKlaim ? 0 : itemSubtotal;
+      let itemJenisDiskon = isFreeInclude ? "include_treatment" : (isKlaim ? "klaim_paket" : (item.jenis_diskon || null));
+      let itemNilaiDiskon = isFreeInclude || isKlaim ? 100 : (item.nilai_diskon != null ? parseFloat(item.nilai_diskon) : null);
+      let itemNamaPromo = isFreeInclude ? "Gratis (Include Tindakan)" : (isKlaim ? (item.nama_promo || "Klaim Sesi") : (item.nama_promo || null));
+      let itemKodePromo = isFreeInclude || isKlaim ? null : (item.kode_promo || null);
 
       const existRow = existingDetails.find((d) => d.kode_layanan === item.kode_layanan);
 

@@ -16,7 +16,7 @@ import { KasirStrukModal } from './components/KasirStrukModal';
 import { KasirShiftHeader } from './components/KasirShiftHeader';
 
 export interface CartItem {
-  jenis: 'layanan' | 'produk';
+  jenis: 'layanan' | 'produk' | 'klaim_paket' | string;
   kode: string;
   nama: string;
   nama_kategori?: string;
@@ -30,6 +30,8 @@ export interface CartItem {
   kode_promo_item?: string;
   is_from_pendaftaran?: boolean;
   is_free_include?: boolean;
+  is_klaim?: boolean;
+  is_klaim_paket?: boolean;
   // Info promo per-item dari pendaftaran (diskon diterapkan di kasir)
   kode_promo?: string | null;
   nama_promo?: string | null;

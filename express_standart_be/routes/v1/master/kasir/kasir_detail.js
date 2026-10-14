@@ -93,6 +93,8 @@ router.post("/", async (req, res) => {
       DB.raw("COALESCE(dt.diskon, 0) as diskon"),
       DB.raw("COALESCE(dt.subtotal_setelah_diskon, dt.subtotal) as subtotal_setelah_diskon"),
       DB.raw("MAX(dal.harga) as dal_harga"),
+      DB.raw("MAX(dal.jenis_layanan) as dal_jenis_layanan"),
+      DB.raw("MAX(dal.nama_layanan) as dal_nama_layanan"),
     ] : [
       DB.raw("MAX(dal.kode_promo) as kode_promo"),
       DB.raw("MAX(dal.nama_promo) as nama_promo"),
@@ -101,6 +103,8 @@ router.post("/", async (req, res) => {
       DB.raw("0 as diskon"),
       DB.raw("dt.subtotal as subtotal_setelah_diskon"),
       DB.raw("MAX(dal.harga) as dal_harga"),
+      DB.raw("MAX(dal.jenis_layanan) as dal_jenis_layanan"),
+      DB.raw("MAX(dal.nama_layanan) as dal_nama_layanan"),
     ];
 
     // Ambil detail item dengan flag is_from_pendaftaran
@@ -165,6 +169,13 @@ router.post("/", async (req, res) => {
       const isInclude = d.jenis_diskon === "include_treatment" ||
         (hrg === 0 && ((d.nama_layanan_single || "").toLowerCase().includes("konsul") || (d.kode_layanan || "").toLowerCase().includes("konsul")));
 
+      const isKlaim = (d.dal_jenis_layanan || "").toLowerCase().includes("klaim") ||
+        (d.dal_nama_layanan || "").toLowerCase().includes("klaim") ||
+        (d.nama_promo || "").toLowerCase().includes("klaim") ||
+        Boolean(d.is_klaim) ||
+        Boolean(d.is_klaim_paket) ||
+        (isPendaftaran && hrg === 0 && !isInclude);
+
       return {
         ...d,
         jenis: d.kode_layanan ? "layanan" : "produk",
@@ -177,11 +188,13 @@ router.post("/", async (req, res) => {
         subtotal: subtotal,
         diskon: diskon,
         subtotal_setelah_diskon: subtotal_setelah_diskon,
-        nilai_diskon: isInclude ? 100 : (d.nilai_diskon != null ? parseFloat(d.nilai_diskon) : null),
-        jenis_diskon: isInclude ? "include_treatment" : (d.jenis_diskon || null),
-        nama_promo: isInclude ? "Gratis (Include Tindakan)" : (d.nama_promo || null),
-        kode_promo: isInclude ? null : (d.kode_promo || null),
+        nilai_diskon: isInclude || isKlaim ? 100 : (d.nilai_diskon != null ? parseFloat(d.nilai_diskon) : null),
+        jenis_diskon: isInclude ? "include_treatment" : (isKlaim ? "klaim_paket" : (d.jenis_diskon || null)),
+        nama_promo: isInclude ? "Gratis (Include Tindakan)" : (isKlaim ? (d.nama_promo || "Klaim Sesi") : (d.nama_promo || null)),
+        kode_promo: isInclude || isKlaim ? null : (d.kode_promo || null),
         is_free_include: isInclude,
+        is_klaim: isKlaim,
+        is_klaim_paket: isKlaim,
         is_from_pendaftaran: isPendaftaran,
         is_expired_override: Boolean(d.is_expired_override),
         catatan_override: d.catatan_override || null,

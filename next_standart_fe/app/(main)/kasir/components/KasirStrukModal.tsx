@@ -418,12 +418,23 @@ export const KasirStrukModal: React.FC<KasirStrukModalProps> = ({ visible, resul
                         : item.harga_satuan));
               const grossSubtotal = grossUnitPrice * item.qty;
 
+              const isKlaim = Boolean(
+                item.is_klaim ||
+                item.is_klaim_paket ||
+                (item.jenis as string) === 'klaim_paket' ||
+                (item.nama || '').toLowerCase().includes('klaim') ||
+                (item.nama_promo || '').toLowerCase().includes('klaim')
+              );
+
               let itemDisc = 0;
               let itemDiscName = item.nama_promo || 'Diskon';
 
               if (isFreeInclude) {
                 itemDisc = grossSubtotal;
                 itemDiscName = 'Gratis (Include Tindakan) (100%)';
+              } else if (isKlaim) {
+                itemDisc = grossSubtotal;
+                itemDiscName = 'Klaim Sesi Paket (100%)';
               } else if (item.harga_master && item.harga_master > item.harga_satuan) {
                 itemDisc = (item.harga_master - item.harga_satuan) * item.qty;
                 if (item.nilai_diskon && Number(item.nilai_diskon) > 0) {

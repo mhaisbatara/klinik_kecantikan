@@ -282,6 +282,14 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
             d.jenis_diskon === 'include_treatment' ||
             (Number(d.harga_satuan || 0) === 0 && (d.nama || '').toLowerCase().includes('konsul'))
           );
+          const isKlaim = Boolean(
+            d.is_klaim ||
+            d.is_klaim_paket ||
+            (d.jenis as string) === 'klaim_paket' ||
+            (d.nama || '').toLowerCase().includes('(klaim') ||
+            (d.nama_promo || '').toLowerCase().includes('klaim') ||
+            (Boolean(d.is_from_pendaftaran) && Number(d.harga_satuan || 0) === 0 && !isInclude)
+          );
           return {
             jenis: d.jenis,
             kode: d.kode,
@@ -294,12 +302,14 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
             subtotal: parseFloat(d.subtotal),
             is_from_pendaftaran: Boolean(d.is_from_pendaftaran),
             is_free_include: isInclude,
-            kode_promo: isInclude ? null : (d.kode_promo || null),
-            nama_promo: isInclude ? 'Gratis (Include Tindakan)' : (d.nama_promo || null),
-            jenis_diskon: isInclude ? 'include_treatment' : (d.jenis_diskon || null),
-            nilai_diskon: isInclude ? 100 : (d.nilai_diskon != null ? parseFloat(d.nilai_diskon) : null),
-            diskon: isInclude ? 0 : (d.diskon != null ? parseFloat(d.diskon) : 0),
-            subtotal_setelah_diskon: isInclude ? 0 : (d.subtotal_setelah_diskon != null ? parseFloat(d.subtotal_setelah_diskon) : parseFloat(d.subtotal)),
+            is_klaim: isKlaim,
+            is_klaim_paket: isKlaim,
+            kode_promo: isInclude || isKlaim ? null : (d.kode_promo || null),
+            nama_promo: isInclude ? 'Gratis (Include Tindakan)' : (isKlaim ? (d.nama_promo || 'Klaim Sesi') : (d.nama_promo || null)),
+            jenis_diskon: isInclude ? 'include_treatment' : (isKlaim ? 'klaim_paket' : (d.jenis_diskon || null)),
+            nilai_diskon: isInclude || isKlaim ? 100 : (d.nilai_diskon != null ? parseFloat(d.nilai_diskon) : null),
+            diskon: isInclude || isKlaim ? 0 : (d.diskon != null ? parseFloat(d.diskon) : 0),
+            subtotal_setelah_diskon: isInclude || isKlaim ? 0 : (d.subtotal_setelah_diskon != null ? parseFloat(d.subtotal_setelah_diskon) : parseFloat(d.subtotal)),
           };
         });
         setCart(cartItems);
@@ -309,7 +319,7 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
         const usedItemCodes = new Set<string>();
 
         for (const item of cartItems) {
-          if (item.is_free_include || item.jenis_diskon === 'include_treatment') continue;
+          if (item.is_free_include || item.jenis_diskon === 'include_treatment' || item.is_klaim || item.is_klaim_paket) continue;
           if (item.kode_promo) {
             const foundInList = promoList.find((p) => p.kode_promo === item.kode_promo && p.kode_item === item.kode);
             if (foundInList) {
@@ -333,7 +343,7 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
 
         // Auto-select promo untuk item di keranjang yang memiliki promo aktif di promoList
         for (const item of cartItems) {
-          if (item.is_free_include || item.jenis_diskon === 'include_treatment') continue;
+          if (item.is_free_include || item.jenis_diskon === 'include_treatment' || item.is_klaim || item.is_klaim_paket) continue;
           if (!usedItemCodes.has(item.kode)) {
             const promoEligible = promoList.find((p) => p.kode_item === item.kode);
             if (promoEligible) {
@@ -386,13 +396,24 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
           item.jenis_diskon === 'include_treatment' ||
           (Number(item.harga_satuan || 0) === 0 && (item.nama || '').toLowerCase().includes('konsul'))
         );
+        const isKlaim = Boolean(
+          item.is_klaim ||
+          item.is_klaim_paket ||
+          (item.jenis as string) === 'klaim_paket' ||
+          (item.nama || '').toLowerCase().includes('(klaim') ||
+          (item.nama_promo || '').toLowerCase().includes('klaim') ||
+          (Number(item.harga_satuan || 0) === 0 && !isInclude)
+        );
         return {
           ...item,
           is_free_include: isInclude,
+          is_klaim: isKlaim,
+          is_klaim_paket: isKlaim,
           harga_master: item.harga_master || (isInclude ? 30000 : item.harga_satuan),
-          nama_promo: isInclude ? 'Gratis (Include Tindakan)' : item.nama_promo,
-          jenis_diskon: isInclude ? 'include_treatment' : item.jenis_diskon,
-          nilai_diskon: isInclude ? 100 : item.nilai_diskon,
+          nama_promo: isInclude ? 'Gratis (Include Tindakan)' : (isKlaim ? (item.nama_promo || 'Klaim Sesi') : item.nama_promo),
+          jenis_diskon: isInclude ? 'include_treatment' : (isKlaim ? 'klaim_paket' : item.jenis_diskon),
+          nilai_diskon: isInclude || isKlaim ? 100 : item.nilai_diskon,
+          subtotal_setelah_diskon: isInclude || isKlaim ? 0 : (item.subtotal_setelah_diskon != null ? item.subtotal_setelah_diskon : item.subtotal),
         };
       });
       setCart(itemsFromPendaftaran);
@@ -401,7 +422,7 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
       const usedCodes = new Set<string>();
 
       for (const item of itemsFromPendaftaran) {
-        if (item.is_free_include || item.jenis_diskon === 'include_treatment') continue;
+        if (item.is_free_include || item.jenis_diskon === 'include_treatment' || item.is_klaim || item.is_klaim_paket) continue;
         if (item.kode_promo) {
           const found = promoList.find((p) => p.kode_promo === item.kode_promo && p.kode_item === item.kode);
           if (found) {
@@ -423,7 +444,7 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
         }
       }
       for (const item of itemsFromPendaftaran) {
-        if (item.is_free_include || item.jenis_diskon === 'include_treatment') continue;
+        if (item.is_free_include || item.jenis_diskon === 'include_treatment' || item.is_klaim || item.is_klaim_paket) continue;
         if (!usedCodes.has(item.kode)) {
           const found = promoList.find((p) => p.kode_item === item.kode);
           if (found) {
@@ -1009,18 +1030,26 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
                       item.jenis_diskon === 'include_treatment' ||
                       (Number(item.subtotal || 0) === 0 && Number(item.harga_satuan || 0) === 0 && (item.nama || '').toLowerCase().includes('konsul'))
                     );
+                    const isKlaimSesi = Boolean(
+                      item.is_klaim ||
+                      item.is_klaim_paket ||
+                      (item.jenis as string) === 'klaim_paket' ||
+                      (item.nama || '').toLowerCase().includes('(klaim') ||
+                      (item.nama_promo || '').toLowerCase().includes('klaim') ||
+                      (isFromPendaftaran && Number(item.harga_satuan || 0) === 0 && !isIncludeTreatment)
+                    );
                     const baseSubtotal = item.subtotal !== undefined ? item.subtotal : (item.harga_satuan * item.qty);
 
                     // Harga master / harga asli sebelum diskon
                     const masterPrice = item.harga_master ||
                       layananList.find((l) => l.kode === item.kode)?.harga ||
                       produkOptions.find((p) => p.kode_produk === item.kode)?.harga_jual ||
-                      (isIncludeTreatment ? 30000 : item.harga_satuan);
+                      (isIncludeTreatment ? 30000 : (item.harga_satuan > 0 ? item.harga_satuan : 0));
 
-                    const isPromoApplied = !isIncludeTreatment && isFromPendaftaran && masterPrice > item.harga_satuan;
+                    const isPromoApplied = !isIncludeTreatment && !isKlaimSesi && isFromPendaftaran && masterPrice > item.harga_satuan;
 
                     const disc = itemDiscounts[item.kode];
-                    const activePromo = isIncludeTreatment ? null : (disc?.promo || selectedPromos.find((p) => p.kode_item === item.kode) || (item.kode_promo ? {
+                    const activePromo = (isIncludeTreatment || isKlaimSesi) ? null : (disc?.promo || selectedPromos.find((p) => p.kode_item === item.kode) || (item.kode_promo ? {
                       kode_detail_promo: `item_${item.kode_promo}_${item.kode}`,
                       kode_promo: item.kode_promo,
                       nama_promo: item.nama_promo || item.kode_promo,
@@ -1030,7 +1059,7 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
                       nama_item: item.nama,
                     } : null));
 
-                    const diskonSubtotal = isIncludeTreatment
+                    const diskonSubtotal = (isIncludeTreatment || isKlaimSesi)
                       ? 0
                       : (!isFromPendaftaran
                         ? (disc
@@ -1051,25 +1080,29 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
                       ? Number(activePromo.nilai_diskon)
                       : (item.nilai_diskon != null && Number(item.nilai_diskon) > 0 ? Number(item.nilai_diskon) : null);
 
-                    const displayDiskonPersen = isIncludeTreatment
+                    const displayDiskonPersen = (isIncludeTreatment || isKlaimSesi)
                       ? 100
                       : (isPersen && activeNilaiDiskon != null && activeNilaiDiskon > 0
                         ? Math.round(activeNilaiDiskon)
                         : (baseSubtotal > 0 && diskonSubtotal > 0 ? Math.round((diskonSubtotal / baseSubtotal) * 100) : null));
 
-                    const displayDiskonNominal = isIncludeTreatment
+                    const displayDiskonNominal = (isIncludeTreatment || isKlaimSesi)
                       ? null
                       : (isNominal && activeNilaiDiskon != null && activeNilaiDiskon > 0
                         ? activeNilaiDiskon
                         : (!isFromPendaftaran && diskonSubtotal > 0 && !displayDiskonPersen ? diskonSubtotal : null));
 
-                    const activePromoName = isIncludeTreatment ? 'Include Tindakan' : (activePromo?.nama_promo || item.nama_promo || null);
+                    const activePromoName = isIncludeTreatment
+                      ? 'Include Tindakan'
+                      : (isKlaimSesi
+                        ? 'Klaim Sesi'
+                        : (activePromo?.nama_promo || item.nama_promo || null));
 
                     // Tentukan teks diskon yang ditampilkan di kolom Diskon
                     let displayDiskonText: string | null = null;
                     let isDiskonActive = false;
 
-                    if (isIncludeTreatment) {
+                    if (isIncludeTreatment || isKlaimSesi) {
                       displayDiskonText = '100%';
                       isDiskonActive = true;
                     } else if (isFromPendaftaran) {
@@ -1098,7 +1131,7 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
 
                     const displayHargaSatuanGross = masterPrice > 0 ? masterPrice : item.harga_satuan;
 
-                    const subtotalSetelahDiskon = isIncludeTreatment
+                    const subtotalSetelahDiskon = (isIncludeTreatment || isKlaimSesi)
                       ? 0
                       : (!isFromPendaftaran
                         ? (disc
@@ -1139,11 +1172,19 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
                             <span>
                               {item.nama_kategori || (item.jenis === 'layanan' ? 'Layanan' : (item.satuan ? `Produk (${item.satuan})` : 'Produk'))}
                             </span>
-                            {activePromoName && (
+                            {isKlaimSesi ? (
+                              <span
+                                className="font-semibold text-[10px] px-2 py-0.5 border-round text-blue-700 bg-blue-50 border-1 border-blue-200 flex align-items-center gap-1 shadow-xs"
+                                title="Klaim Sesi Paket Layanan"
+                              >
+                                <i className="pi pi-check-circle text-[9px]" />
+                                Klaim Sesi
+                              </span>
+                            ) : activePromoName ? (
                               <span className={`font-semibold text-[10px] px-1.5 py-0.5 border-round ${isIncludeTreatment ? 'text-teal-700 bg-teal-50' : 'text-emerald-700 bg-emerald-50'}`}>
                                 {activePromoName}
                               </span>
-                            )}
+                            ) : null}
                             <span className="kasir-desc-responsive-show text-slate-600 font-medium">
                               · {formatRupiah(displayHargaSatuanGross)}
                               {isDiskonActive && displayDiskonText ? ` (Disc ${displayDiskonText})` : ''}
@@ -1168,7 +1209,16 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
                         {/* Kolom 4: Diskon (Centered - Persen atau Potongan Nominal) */}
                         <div className="kasir-col-responsive-hide justify-content-center align-items-center text-center">
                           {isDiskonActive && displayDiskonText ? (
-                            <span className="font-semibold text-xs text-emerald-600 tabular-nums bg-emerald-50 px-2 py-0.5 border-round" style={{ whiteSpace: 'nowrap' }}>
+                            <span
+                              className={`font-semibold text-xs tabular-nums px-2 py-0.5 border-round ${
+                                isKlaimSesi
+                                  ? 'text-blue-700 bg-blue-50 border-1 border-blue-200'
+                                  : isIncludeTreatment
+                                  ? 'text-teal-700 bg-teal-50'
+                                  : 'text-emerald-600 bg-emerald-50'
+                              }`}
+                              style={{ whiteSpace: 'nowrap' }}
+                            >
                               {displayDiskonText}
                             </span>
                           ) : (
