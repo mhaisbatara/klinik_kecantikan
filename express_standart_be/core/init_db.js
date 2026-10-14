@@ -40,6 +40,36 @@ export async function ensureRequiredColumnsExist() {
         }
       }
     }
+
+    const hasShiftTable = await DB.schema.hasTable("trx_kasir_shift");
+    if (hasShiftTable) {
+      const shiftCols = [
+        { name: "total_qris", type: (t) => t.decimal("total_qris", 15, 2).defaultTo(0) },
+        { name: "total_transfer", type: (t) => t.decimal("total_transfer", 15, 2).defaultTo(0) },
+        { name: "total_debit", type: (t) => t.decimal("total_debit", 15, 2).defaultTo(0) },
+        { name: "total_kredit", type: (t) => t.decimal("total_kredit", 15, 2).defaultTo(0) },
+      ];
+      for (const col of shiftCols) {
+        const hasCol = await DB.schema.hasColumn("trx_kasir_shift", col.name);
+        if (!hasCol) {
+          await DB.schema.alterTable("trx_kasir_shift", (table) => {
+            col.type(table);
+          });
+          console.log(`✅ Column '${col.name}' added to trx_kasir_shift`);
+        }
+      }
+    }
+
+    if (hasTrx) {
+      const hasKodeShift = await DB.schema.hasColumn("trx_transaksi", "kode_shift");
+      if (!hasKodeShift) {
+        await DB.schema.alterTable("trx_transaksi", (table) => {
+          table.string("kode_shift", 50).nullable().after("kode_transaksi");
+        });
+        console.log("✅ Column 'kode_shift' added to trx_transaksi");
+      }
+    }
+
     const hasRmr = await DB.schema.hasTable("trx_rekam_medis_ruangan");
     if (!hasRmr) {
       await DB.schema.createTable("trx_rekam_medis_ruangan", (table) => {

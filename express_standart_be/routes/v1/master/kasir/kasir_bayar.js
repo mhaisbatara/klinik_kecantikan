@@ -112,6 +112,7 @@ router.post("/", async (req, res) => {
       metode_bayar,
       sisa_bayar: tagihanPelunasan,
       status: "lunas",
+      kode_shift: activeShift ? activeShift.kode_shift : null,
       updated_by: username,
       updated_at: DB.fn.now(),
     });
@@ -120,48 +121,88 @@ router.post("/", async (req, res) => {
     try {
       const nowWib = formatDateSystem();
       const payNominal = tagihanPelunasan > 0 ? tagihanPelunasan : totalBayar;
+      const effectiveShift = activeShift;
 
-      if (metode_bayar === "tunai") {
-        const newTunai = parseFloat(activeShift.total_penjualan_tunai || 0) + payNominal;
-        const newKasDiharapkan = parseFloat(activeShift.kas_diharapkan || 0) + payNominal;
+      if (effectiveShift) {
+        if (metode_bayar === "tunai") {
+          const newTunai = parseFloat(effectiveShift.total_penjualan_tunai || 0) + payNominal;
+          const newKasDiharapkan = parseFloat(effectiveShift.kas_diharapkan || 0) + payNominal;
 
-        await trx("trx_kasir_shift").where("id", activeShift.id).update({
-          total_penjualan_tunai: newTunai,
-          kas_diharapkan: newKasDiharapkan,
-          updated_by: username,
-          updated_at: DB.fn.now(),
-        });
+          await trx("trx_kasir_shift").where("id", effectiveShift.id).update({
+            total_penjualan_tunai: newTunai,
+            kas_diharapkan: newKasDiharapkan,
+            updated_by: username,
+            updated_at: DB.fn.now(),
+          });
 
-        const countMut = await trx("trx_kasir_mutasi_kas")
-          .where("kode_shift", activeShift.kode_shift)
-          .count("id as total")
-          .first();
-        const nextMutSeq = (parseInt(countMut?.total || 0, 10) + 1).toString().padStart(3, "0");
-        const kodeMutasi = `MUT-${activeShift.kode_shift.replace("SFT-", "")}-${nextMutSeq}`;
+          const countMut = await trx("trx_kasir_mutasi_kas")
+            .where("kode_shift", effectiveShift.kode_shift)
+            .count("id as total")
+            .first();
+          const nextMutSeq = (parseInt(countMut?.total || 0, 10) + 1).toString().padStart(3, "0");
+          const kodeMutasi = `MUT-${effectiveShift.kode_shift.replace("SFT-", "")}-${nextMutSeq}`;
 
-        await trx("trx_kasir_mutasi_kas").insert({
-          kode_mutasi: kodeMutasi,
-          kode_shift: activeShift.kode_shift,
-          user_code: activeShift.user_code,
-          nama_kasir: activeShift.nama_kasir,
-          kode_cabang: activeShift.kode_cabang,
-          tipe: "penjualan_tunai",
-          kategori: `Penjualan Tunai (${kode_transaksi})`,
-          nominal: payNominal,
-          arus: "masuk",
-          saldo_setelah: newKasDiharapkan,
-          referensi: kode_transaksi,
-          keterangan: `Pembayaran tunai transaksi ${kode_transaksi}`,
-          created_by: username,
-          created_at: nowWib,
-        });
-      } else {
-        const newNonTunai = parseFloat(activeShift.total_penjualan_nontunai || 0) + payNominal;
-        await trx("trx_kasir_shift").where("id", activeShift.id).update({
-          total_penjualan_nontunai: newNonTunai,
-          updated_by: username,
-          updated_at: DB.fn.now(),
-        });
+          await trx("trx_kasir_mutasi_kas").insert({
+            kode_mutasi: kodeMutasi,
+            kode_shift: effectiveShift.kode_shift,
+            user_code: effectiveShift.user_code,
+            nama_kasir: effectiveShift.nama_kasir,
+            kode_cabang: effectiveShift.kode_cabang,
+            tipe: "penjualan_tunai",
+            kategori: `Penjualan Tunai (${kode_transaksi})`,
+            nominal: payNominal,
+            arus: "masuk",
+            saldo_setelah: newKasDiharapkan,
+            referensi: kode_transaksi,
+            keterangan: `Pembayaran tunai transaksi ${kode_transaksi}`,
+            created_by: username,
+            created_at: nowWib,
+          });
+        } else {
+          const newNonTunai = parseFloat(effectiveShift.total_penjualan_nontunai || 0) + payNominal;
+          const updateShiftObj = {
+            total_penjualan_nontunai: newNonTunai,
+            updated_by: username,
+            updated_at: DB.fn.now(),
+          };
+
+          if (metode_bayar === "qris") {
+            updateShiftObj.total_qris = parseFloat(effectiveShift.total_qris || 0) + payNominal;
+          } else if (metode_bayar === "transfer") {
+            updateShiftObj.total_transfer = parseFloat(effectiveShift.total_transfer || 0) + payNominal;
+          } else if (metode_bayar === "debit") {
+            updateShiftObj.total_debit = parseFloat(effectiveShift.total_debit || 0) + payNominal;
+          } else if (metode_bayar === "kredit") {
+            updateShiftObj.total_kredit = parseFloat(effectiveShift.total_kredit || 0) + payNominal;
+          }
+
+          await trx("trx_kasir_shift").where("id", effectiveShift.id).update(updateShiftObj);
+
+          // Catat juga ke log mutasi kas agar semua metode pembayaran ter-tracking kronologis
+          const countMut = await trx("trx_kasir_mutasi_kas")
+            .where("kode_shift", effectiveShift.kode_shift)
+            .count("id as total")
+            .first();
+          const nextMutSeq = (parseInt(countMut?.total || 0, 10) + 1).toString().padStart(3, "0");
+          const kodeMutasi = `MUT-${effectiveShift.kode_shift.replace("SFT-", "")}-${nextMutSeq}`;
+
+          await trx("trx_kasir_mutasi_kas").insert({
+            kode_mutasi: kodeMutasi,
+            kode_shift: effectiveShift.kode_shift,
+            user_code: effectiveShift.user_code,
+            nama_kasir: effectiveShift.nama_kasir,
+            kode_cabang: effectiveShift.kode_cabang,
+            tipe: `penjualan_${metode_bayar}`,
+            kategori: `Penjualan ${metode_bayar.toUpperCase()} (${kode_transaksi})`,
+            nominal: payNominal,
+            arus: "masuk",
+            saldo_setelah: effectiveShift.kas_diharapkan || effectiveShift.modal_awal,
+            referensi: kode_transaksi,
+            keterangan: `Pembayaran ${metode_bayar.toUpperCase()} transaksi ${kode_transaksi}`,
+            created_by: username,
+            created_at: nowWib,
+          });
+        }
       }
     } catch (shiftErr) {
       console.warn("Peringatan: Gagal mencatat mutasi shift kasir:", shiftErr?.message);
