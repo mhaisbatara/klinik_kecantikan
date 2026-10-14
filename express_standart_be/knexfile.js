@@ -19,7 +19,7 @@ import 'dotenv/config';
 import pg from 'pg';
 
 const IS_ONSITE = process.env.APP_PREMISE === "ONSITE";
-const TARGET_TZ = IS_ONSITE ? (process.env.APP_TZ || 'Asia/Jakarta') : 'UTC';
+const TARGET_TZ = IS_ONSITE ? (process.env.APP_TZ || 'Asia/Jakarta') : 'Asia/Jakarta';
 const MYSQL_TZ = IS_ONSITE ? 'local' : '+00:00';
 
 const parseFn = (val) => val;
@@ -29,11 +29,11 @@ pg.types.setTypeParser(pg.types.builtins.DATE, parseFn);
 
 const getConnectionConfig = ({ dbms, host, port, username, password, database }) => {
   const baseConfig = {
-    host: host || "localhost",
+    host: host || "127.0.0.1",
     port: Number(port) || (dbms === "pg" || dbms === "postgresql" ? 5432 : 3306),
-    user: username || "",
+    user: username || "root",
     password: password || "",
-    database: database || "",
+    database: database || "db_klinik_kecantikan",
   };
 
   if (dbms === "mysql" || dbms === "mysql2") {
@@ -67,11 +67,11 @@ const knexConfig = {
           : `${dbUrl}?multipleStatements=true`)
       : getConnectionConfig({
       dbms: process.env.DB_DBMS || "mysql2",
-      host: process.env.DB_HOST || process.env.MYSQLHOST || process.env.MYSQL_HOST,
-      port: process.env.DB_PORT || process.env.MYSQLPORT || process.env.MYSQL_PORT,
-      username: process.env.DB_USERNAME || process.env.DB_USER || process.env.MYSQLUSER || process.env.MYSQL_USER,
-      password: process.env.DB_PASSWORD || process.env.MYSQLPASSWORD || process.env.MYSQL_PASSWORD,
-      database: process.env.DB_DATABASE || process.env.DB_NAME || process.env.MYSQLDATABASE || process.env.MYSQL_DATABASE,
+      host: process.env.DB_HOST || process.env.MYSQLHOST || process.env.MYSQL_HOST || "127.0.0.1",
+      port: process.env.DB_PORT || process.env.MYSQLPORT || process.env.MYSQL_PORT || 3306,
+      username: process.env.DB_USERNAME || process.env.DB_USER || process.env.MYSQLUSER || process.env.MYSQL_USER || "root",
+      password: process.env.DB_PASSWORD !== undefined ? process.env.DB_PASSWORD : (process.env.MYSQLPASSWORD || process.env.MYSQL_PASSWORD || ""),
+      database: process.env.DB_DATABASE || process.env.DB_NAME || process.env.MYSQLDATABASE || process.env.MYSQL_DATABASE || "db_klinik_kecantikan",
     }),
     pool: {
       min: 2,

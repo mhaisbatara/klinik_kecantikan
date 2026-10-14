@@ -47,8 +47,12 @@ const logout = async (
 
     if (typeof window !== "undefined") {
         if (redirectToLogin) {
-            const base = window.location.origin;
-            await signOut({ callbackUrl: `${base}/auth/login` });
+            try {
+                await signOut({ redirect: false });
+            } catch (error) {
+                console.error("Logout error:", error);
+            }
+            window.location.href = "/auth/login";
         }
         return;
     }
@@ -77,11 +81,21 @@ const routeMiddleware = async (searchUrl: string) => {
         return '99';
     }
 
-    const dSessionExp = parse(session?.expires, 'yyyy-MM-dd HH:mm:ss', new Date());
-    const dNow = new Date();
+    if (session?.expires) {
+        const expTime = new Date(session.expires).getTime();
+        if (!isNaN(expTime) && Date.now() > expTime) {
+            return '99';
+        }
+    }
 
-    if ((dNow.getTime() > dSessionExp.getTime())) {
-        return '99';
+    let urlFix = searchUrl;
+    if (searchUrl.length > 1) {
+        urlFix = searchUrl.replace(new RegExp(/\/$/), '');
+    }
+
+    // Selalu izinkan dashboard dan root untuk pengguna yang sudah login
+    if (!urlFix || urlFix === '/' || urlFix === '/dashboard' || urlFix === '/pendaftaran-antrean/jadwal-karyawan') {
+        return '00';
     }
 
     if (session.user.user_code) {
@@ -93,38 +107,37 @@ const routeMiddleware = async (searchUrl: string) => {
             if (cached && (Date.now() - cached.timestamp < MENU_CACHE_TTL)) {
                 menu = cached.menu;
             } else {
+                const apiUrl = getBackendApiUrl();
+                const headers: Record<string, string> = {
+                    'Content-Type': 'application/json',
+                    'X-Timestamp': formatDateISO(new Date()) as string,
+                    'X-Level': "1",
+                };
+                if (session.access_token) {
+                    headers['Authorization'] = `Bearer ${session.access_token}`;
+                }
+
                 const resp = await axios.post(
-                    `${process.env.NEXT_PUBLIC_API_DIR_PATH}`,
+                    `${apiUrl}/setup/nav/user-data`,
                     { user_code: userCode },
-                    {
-                        headers: {
-                            'X-ENDPOINT': "/setup/nav/user-data",
-                            'X-Level': "1",
-                        }
-                    }
+                    { headers }
                 );
-                menu = resp.data.data;
+                menu = resp.data?.data || resp.data;
                 userMenuCache.set(userCode, { menu, timestamp: Date.now() });
             }
 
-            let urlFix = searchUrl;
-            if (searchUrl.length > 1) {
-                urlFix = searchUrl.replace(new RegExp(/\/$/), '');
-            }
-
-            const res = findToValuesRecursive(menu, urlFix);
-
-            if (res.length < 1) {
-                if (urlFix === '/pendaftaran-antrean/jadwal-karyawan') {
-                    return '00';
+            if (Array.isArray(menu) && menu.length > 0) {
+                const res = findToValuesRecursive(menu, urlFix);
+                if (res.length < 1) {
+                    return '98';
                 }
-                return '98';
             }
         } catch (error: any) {
-            if (error?.response?.status == '401') {
+            if (error?.response?.status === 401) {
                 return '99';
             }
-            console.log(error);
+            console.error("routeMiddleware navigation error:", error?.message);
+            return '00';
         }
     } else {
         return '99';
