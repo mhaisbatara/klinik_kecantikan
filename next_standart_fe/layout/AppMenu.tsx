@@ -136,6 +136,8 @@ const AppMenu = () => {
     const isSuperAdminUser = userRole === 'superadmin' || userRole === 'admin_pusat';
 
     const getRoleAllowedReports = () => {
+        if (isOwnerOrManagerRole || isSuperAdminUser) return LAPORAN_MENU_ITEMS;
+
         if (state.allowedPaths.size > 0) {
             const hasAnyTab = LAPORAN_MENU_ITEMS.some((it) =>
                 state.allowedPaths.has('/riwayat/rekam-medis?tab=' + it.id)
@@ -145,13 +147,10 @@ const AppMenu = () => {
                     state.allowedPaths.has('/riwayat/rekam-medis?tab=' + it.id)
                 );
             }
-            if (!state.allowedPaths.has('/riwayat/rekam-medis')) {
-                return [];
+            if (state.allowedPaths.has('/riwayat/rekam-medis')) {
+                return LAPORAN_MENU_ITEMS;
             }
-            return LAPORAN_MENU_ITEMS;
         }
-
-        if (isOwnerOrManagerRole || isSuperAdminUser) return LAPORAN_MENU_ITEMS;
 
         if (userRole === 'dokter') {
             return LAPORAN_MENU_ITEMS.filter((it) => ['dokter', 'rekam_medis', 'pasien', 'kunjungan'].includes(it.id));
@@ -911,49 +910,58 @@ const AppMenu = () => {
 
                         // Hak Akses Operasional Berdasarkan Role & Permission Navigasi yang Diberikan
                         const hasAllowedPath = (target: string) => {
-                            if (state.allowedPaths.size > 0) {
-                                if (state.allowedPaths.has(target)) return true;
-                                for (const p of state.allowedPaths) {
-                                    if (target.includes('?') && p.startsWith(target)) return true;
-                                    if (!target.includes('?') && (p === target || p.startsWith(target + '?'))) return true;
-                                }
-                                return false;
-                            }
                             if (isSuperAdminRole || isOwnerOrManager) return true;
+                            if (state.allowedPaths.has(target)) return true;
+                            for (const p of state.allowedPaths) {
+                                if (target.includes('?') && p.startsWith(target)) return true;
+                                if (!target.includes('?') && (p === target || p.startsWith(target + '?'))) return true;
+                            }
                             return false;
                         };
 
                         const canAccessTindakan =
-                            state.allowedPaths.size > 0
+                            isSuperAdminRole ||
+                            isOwnerOrManager ||
+                            (state.allowedPaths.size > 0
                                 ? hasAllowedPath('/pendaftaran-antrean/antrean?type=layanan')
-                                : (isSuperAdminRole || isOwnerOrManager || ['dokter', 'beautician'].includes(currentRole));
+                                : ['dokter', 'beautician'].includes(currentRole));
 
                         const canAccessKonsul =
-                            state.allowedPaths.size > 0
+                            isSuperAdminRole ||
+                            isOwnerOrManager ||
+                            (state.allowedPaths.size > 0
                                 ? hasAllowedPath('/pendaftaran-antrean/antrean?type=konsul')
-                                : (isSuperAdminRole || isOwnerOrManager || currentRole === 'dokter');
+                                : currentRole === 'dokter');
 
                         const canAccessLayanan = canAccessTindakan || canAccessKonsul;
 
                         const canAccessKasir =
-                            state.allowedPaths.size > 0
+                            isSuperAdminRole ||
+                            isOwnerOrManager ||
+                            (state.allowedPaths.size > 0
                                 ? hasAllowedPath('/kasir')
-                                : (isSuperAdminRole || isOwnerOrManager || currentRole === 'kasir');
+                                : currentRole === 'kasir');
 
                         const canAccessInventori =
-                            state.allowedPaths.size > 0
+                            isSuperAdminRole ||
+                            isOwnerOrManager ||
+                            (state.allowedPaths.size > 0
                                 ? hasAllowedPath('/master-data/inventori')
-                                : (isSuperAdminRole || isOwnerOrManager || ['owner', 'manager', 'warehouse', 'admin'].includes(currentRole));
+                                : ['owner', 'manager', 'warehouse', 'admin'].includes(currentRole));
 
                         const canAccessTrackingKasir =
-                            state.allowedPaths.size > 0
+                            isSuperAdminRole ||
+                            isOwnerOrManager ||
+                            (state.allowedPaths.size > 0
                                 ? hasAllowedPath('/transaksi/tracking-kasir')
-                                : (isSuperAdminRole || isOwnerOrManager || ['owner', 'manager', 'admin', 'kasir'].includes(currentRole));
+                                : ['owner', 'manager', 'admin', 'kasir'].includes(currentRole));
 
                         const canAccessLaporan =
-                            state.allowedPaths.size > 0
-                                ? (hasAllowedPath('/riwayat/rekam-medis') && roleReports.length > 0)
-                                : (isSuperAdminRole || isOwnerOrManager || ['owner', 'manager', 'dokter', 'kasir', 'warehouse', 'admin'].includes(currentRole));
+                            isSuperAdminRole ||
+                            isOwnerOrManager ||
+                            roleReports.length > 0 ||
+                            ['owner', 'manager', 'dokter', 'kasir', 'warehouse', 'admin'].includes(currentRole) ||
+                            (state.allowedPaths.size > 0 && hasAllowedPath('/riwayat/rekam-medis'));
 
                         const searchLower = state.searchVal.trim().toLowerCase();
                         const matchesTindakan = canAccessTindakan && (!searchLower || 'tindakan'.includes(searchLower) || 'layanan'.includes(searchLower));
