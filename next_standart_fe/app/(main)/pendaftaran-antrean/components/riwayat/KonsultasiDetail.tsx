@@ -48,10 +48,10 @@ export const KonsultasiDetail: React.FC<KonsultasiDetailProps> = ({
     kunjungan.layanan?.deskripsi ||
     'Konsultasi kondisi kulit, saran perawatan, dan rekomendasi program perawatan.';
   const hargaLayanan =
-    kunjungan.totalBayarKasir !== undefined && kunjungan.totalBayarKasir !== null
-      ? kunjungan.totalBayarKasir
-      : kunjungan.layanan?.harga !== undefined && kunjungan.layanan?.harga !== null
+    kunjungan.layanan?.harga !== undefined && kunjungan.layanan?.harga !== null
       ? kunjungan.layanan.harga
+      : kunjungan.totalBayarKasir !== undefined && kunjungan.totalBayarKasir !== null
+      ? kunjungan.totalBayarKasir
       : 250000;
 
   return (
@@ -291,12 +291,49 @@ export const KonsultasiDetail: React.FC<KonsultasiDetailProps> = ({
               >
                 Harga
               </span>
-              <span
-                className="block font-bold mt-1"
-                style={{ color: '#0f2942', fontSize: '0.875rem' }}
-              >
-                {formatRupiah(hargaLayanan)}
-              </span>
+              {kunjungan.layanan?.hargaAsli && kunjungan.layanan.hargaAsli > hargaLayanan ? (
+                <div className="mt-1">
+                  <div className="flex align-items-center gap-1.5 justify-content-end sm:justify-content-start">
+                    <span
+                      style={{
+                        textDecoration: 'line-through',
+                        color: '#94a3b8',
+                        fontSize: '0.75rem',
+                      }}
+                    >
+                      {formatRupiah(kunjungan.layanan.hargaAsli)}
+                    </span>
+                    {kunjungan.layanan.diskonText && (
+                      <span
+                        style={{
+                          backgroundColor: '#fee2e2',
+                          color: '#dc2626',
+                          fontSize: '0.65rem',
+                          fontWeight: 700,
+                          padding: '1px 5px',
+                          borderRadius: '4px',
+                          lineHeight: '1.2',
+                        }}
+                      >
+                        {kunjungan.layanan.diskonText}
+                      </span>
+                    )}
+                  </div>
+                  <span
+                    className="block font-bold"
+                    style={{ color: '#0f2942', fontSize: '0.875rem' }}
+                  >
+                    {formatRupiah(hargaLayanan)}
+                  </span>
+                </div>
+              ) : (
+                <span
+                  className="block font-bold mt-1"
+                  style={{ color: '#0f2942', fontSize: '0.875rem' }}
+                >
+                  {formatRupiah(hargaLayanan)}
+                </span>
+              )}
             </div>
           </div>
         </div>
