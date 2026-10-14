@@ -91,7 +91,9 @@ router.post("/", async (req, res) => {
           "dt.kode_layanan",
           "dt.kode_produk",
           "l.nama as nama_layanan_single",
+          "l.harga as master_harga_layanan",
           "pl.nama as nama_paket_layanan",
+          "pl.harga as master_harga_paket",
           "prod.nama as nama_produk",
           "prod.satuan",
           "dt.qty",
@@ -125,8 +127,9 @@ router.post("/", async (req, res) => {
         // Harga asli sebelum diskon
         let hargaAsli = hargaSatuan * qty;
         if (isIncludeTreatment) {
-          hargaAsli = 30000;
-          diskonNominal = 30000;
+          const nominalKonsul = parseFloat(d.master_harga_layanan || d.harga_satuan || 0) || (diskonNominal > 0 ? diskonNominal : 0);
+          hargaAsli = nominalKonsul > 0 ? nominalKonsul : (hargaSatuan > 0 ? hargaSatuan : 30000);
+          diskonNominal = hargaAsli;
           nilaiDiskon = 100;
           jenisDiskon = 'persen';
         } else if (nilaiDiskon && jenisDiskon === 'persen' && nilaiDiskon > 0 && nilaiDiskon < 100) {
