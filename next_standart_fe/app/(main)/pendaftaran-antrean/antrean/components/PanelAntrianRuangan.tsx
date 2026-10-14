@@ -287,7 +287,12 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
             try {
                 const optRes = await postData('/master/pendaftaran-pasien-layanan-options', {});
                 const ruangDataMap: Record<string, any> = {};
-                (optRes.data?.data?.ruangans || []).forEach((r: any) => {
+                const rawRuanganOptions =
+                    optRes.data?.data?.ruangan_layanan ||
+                    optRes.data?.data?.kategori_layanan ||
+                    optRes.data?.data?.ruangans ||
+                    [];
+                rawRuanganOptions.forEach((r: any) => {
                     ruangDataMap[r.kode_ruangan] = r;
                 });
 
@@ -927,11 +932,16 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
                                                                     />
                                                                 ) : isBerisiko ? (
                                                                     <Tag
-                                                                        value={`Berisiko Bentrok${r.slack_menit !== null && r.slack_menit !== undefined ? ` (±${Math.max(0, r.slack_menit)}m)` : ''}`}
+                                                                        value={
+                                                                            r.slack_menit !== null && r.slack_menit !== undefined && r.slack_menit <= 0
+                                                                                ? 'Tidak Siap Walk-In (Bentrok Booking)'
+                                                                                : `Tidak Siap Walk-In (±${Math.max(0, r.slack_menit ?? 0)}m)`
+                                                                        }
                                                                         icon="pi pi-exclamation-triangle"
                                                                         severity="danger"
                                                                         className="text-xs font-bold line-height-1 inline-flex align-items-center"
                                                                         style={{ padding: '6px 10px', borderRadius: '8px', gap: '6px' }}
+                                                                        title={r.keterangan_status || 'Kapasitas berisiko bentrok dengan booking'}
                                                                     />
                                                                 ) : isWaspada ? (
                                                                     <Tag
@@ -940,6 +950,7 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
                                                                         severity="warning"
                                                                         className="text-xs font-bold line-height-1 inline-flex align-items-center"
                                                                         style={{ padding: '6px 10px', borderRadius: '8px', gap: '6px' }}
+                                                                        title={r.keterangan_status || undefined}
                                                                     />
                                                                 ) : (
                                                                     <Tag
@@ -948,6 +959,7 @@ export const PanelAntrianRuangan: React.FC<PanelAntrianRuanganProps> = ({
                                                                         severity="success"
                                                                         className="text-xs font-bold line-height-1 inline-flex align-items-center"
                                                                         style={{ padding: '6px 10px', borderRadius: '8px', gap: '6px' }}
+                                                                        title={r.keterangan_status || undefined}
                                                                     />
                                                                 )}
                                                             </td>

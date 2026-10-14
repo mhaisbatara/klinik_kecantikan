@@ -820,6 +820,7 @@ const handleGetOptions = async (req, res) => {
         semua_ruangan: vaRuangan,
         ruangan_layanan: resultRuangan,
         kategori_layanan: resultRuangan,
+        ruangans: resultRuangan,
         paket_layanan: paketItems,
       },
     });
