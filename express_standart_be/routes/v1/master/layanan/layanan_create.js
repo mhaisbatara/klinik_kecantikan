@@ -108,14 +108,34 @@ router.post("/", upload.any(), async (req, res) => {
         else if (tipe === "SERVICE TREATMENT") wajibKonsul = "tidak";
         else wajibKonsul = "opsional";
       }
-      const isIncludeKonsul = oPayload.is_include_konsultasi === 1 || oPayload.is_include_konsultasi === "1" || oPayload.is_include_konsultasi === true || oPayload.is_include_konsultasi === "true" ? 1 : 0;
+      let isIncludeKonsul = oPayload.is_include_konsultasi === 1 || oPayload.is_include_konsultasi === "1" || oPayload.is_include_konsultasi === true || oPayload.is_include_konsultasi === "true" ? 1 : 0;
+      if (oPayload.kode_ruangan) {
+        const room = await trx("mst_ruangan").where("kode_ruangan", oPayload.kode_ruangan).first();
+        if (room && (room.is_konsultasi === 1 || (room.nama_ruangan && room.nama_ruangan.toLowerCase().includes("konsul")))) {
+          wajibKonsul = "tidak";
+          isIncludeKonsul = 0;
+        }
+      }
+      let kodeRuanganKonsulFinal = oPayload.kode_ruangan_konsultasi || null;
+      let kodeLayananKonsulFinal = oPayload.kode_layanan_konsultasi || null;
+      if (wajibKonsul !== "tidak" && kodeLayananKonsulFinal) {
+        const consultLay = await trx("mst_layanan").where("kode_layanan", kodeLayananKonsulFinal).first();
+        if (consultLay?.kode_ruangan) {
+          kodeRuanganKonsulFinal = consultLay.kode_ruangan;
+        }
+      } else if (wajibKonsul === "tidak") {
+        kodeRuanganKonsulFinal = null;
+        kodeLayananKonsulFinal = null;
+      }
+
       const oData = {
         kode_cabang: branchCode,
         kode_layanan: kodeLayanan,
         kode_kategori_layanan: oPayload.kode_kategori_layanan,
         kode_ruangan: oPayload.kode_ruangan || null,
         wajib_konsultasi: wajibKonsul,
-        kode_ruangan_konsultasi: wajibKonsul !== "tidak" ? (oPayload.kode_ruangan_konsultasi || null) : null,
+        kode_ruangan_konsultasi: kodeRuanganKonsulFinal,
+        kode_layanan_konsultasi: kodeLayananKonsulFinal,
         is_include_konsultasi: isIncludeKonsul,
         nama: oPayload.nama,
         tipe: tipe,

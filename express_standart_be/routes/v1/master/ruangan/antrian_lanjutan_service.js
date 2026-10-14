@@ -380,11 +380,16 @@ export const terbitkanAntreanLanjutanRuangan = async (trx, {
     for (const item of groupItems) {
       const cKodeDetailAntrian = `DAL-${todayStr}-${String(nextSeq).padStart(3, "0")}-${String(dSeq).padStart(2, "0")}`;
       dSeq++;
+      const jType = (item.jenis || item.jenis_layanan || "").toLowerCase();
+      const isPaket = jType.includes("paket") || (item.kode || item.kode_layanan || "").toUpperCase().startsWith("PKT-");
+      const isKlaim = jType.includes("klaim");
+      const finalJenis = isKlaim ? "klaim_paket" : (isPaket ? "paket" : "layanan");
+
       vaInsertDetail.push({
         kode_detail_antrian_layanan: cKodeDetailAntrian,
         kode_antrian_layanan: cKodeAntrianLayanan,
         kode_kunjungan: kodeKunjungan,
-        jenis_layanan: item.jenis === "paket_layanan" ? "paket" : "layanan",
+        jenis_layanan: finalJenis,
         kode_layanan: item.kode || item.kode_layanan,
         nama_layanan: item.nama || item.nama_layanan,
         harga: item.harga || 0,

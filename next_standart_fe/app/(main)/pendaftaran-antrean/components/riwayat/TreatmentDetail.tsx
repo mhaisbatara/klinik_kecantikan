@@ -40,7 +40,7 @@ export const TreatmentDetail: React.FC<TreatmentDetailProps> = ({ kunjungan }) =
 
   const produkList = kunjungan.produk || [];
   const totalProduk = produkList.reduce(
-    (sum, p) => sum + (p.harga || 0) * (p.qty || 1),
+    (sum, p) => sum + (p.subtotal !== undefined ? Number(p.subtotal) : Number(p.harga || 0)),
     0
   );
 
@@ -282,16 +282,62 @@ export const TreatmentDetail: React.FC<TreatmentDetailProps> = ({ kunjungan }) =
               >
                 Harga
               </span>
-              <span
-                className="block font-bold mt-1"
-                style={{ color: '#0f2942', fontSize: '0.875rem' }}
-              >
-                {formatRupiah(
-                  kunjungan.totalBayarKasir !== undefined && kunjungan.totalBayarKasir !== null
-                    ? kunjungan.totalBayarKasir
-                    : (kunjungan.layanan?.harga || 350000)
-                )}
-              </span>
+              {kunjungan.layanan?.hargaAsli &&
+              kunjungan.layanan.hargaAsli > (kunjungan.layanan?.harga ?? 0) ? (
+                <div className="mt-1">
+                  <div className="flex align-items-center gap-1.5 justify-content-end sm:justify-content-start">
+                    <span
+                      style={{
+                        textDecoration: 'line-through',
+                        color: '#94a3b8',
+                        fontSize: '0.75rem',
+                      }}
+                    >
+                      {formatRupiah(kunjungan.layanan.hargaAsli)}
+                    </span>
+                    {kunjungan.layanan.diskonText && (
+                      <span
+                        style={{
+                          backgroundColor: '#fee2e2',
+                          color: '#dc2626',
+                          fontSize: '0.65rem',
+                          fontWeight: 700,
+                          padding: '1px 5px',
+                          borderRadius: '4px',
+                          lineHeight: '1.2',
+                        }}
+                      >
+                        {kunjungan.layanan.diskonText}
+                      </span>
+                    )}
+                  </div>
+                  <span
+                    className="block font-bold"
+                    style={{ color: '#0f2942', fontSize: '0.875rem' }}
+                  >
+                    {formatRupiah(
+                      kunjungan.layanan?.harga !== undefined && kunjungan.layanan?.harga !== null
+                        ? kunjungan.layanan.harga
+                        : kunjungan.totalBayarKasir !== undefined && kunjungan.totalBayarKasir !== null
+                        ? kunjungan.totalBayarKasir
+                        : 0
+                    )}
+                  </span>
+                </div>
+              ) : (
+                <span
+                  className="block font-bold mt-1"
+                  style={{ color: '#0f2942', fontSize: '0.875rem' }}
+                >
+                  {formatRupiah(
+                    kunjungan.layanan?.harga !== undefined && kunjungan.layanan?.harga !== null
+                      ? kunjungan.layanan.harga
+                      : kunjungan.totalBayarKasir !== undefined && kunjungan.totalBayarKasir !== null
+                      ? kunjungan.totalBayarKasir
+                      : 0
+                  )}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -361,7 +407,45 @@ export const TreatmentDetail: React.FC<TreatmentDetailProps> = ({ kunjungan }) =
                         className="p-2 text-right font-semibold"
                         style={{ color: '#334155' }}
                       >
-                        {formatRupiah(prod.harga)}
+                        {prod.hargaAsli &&
+                        prod.hargaAsli >
+                          (prod.subtotal !== undefined ? prod.subtotal : prod.harga) ? (
+                          <div className="flex flex-column align-items-end">
+                            <div className="flex align-items-center gap-1">
+                              <span
+                                style={{
+                                  textDecoration: 'line-through',
+                                  color: '#94a3b8',
+                                  fontSize: '0.7rem',
+                                }}
+                              >
+                                {formatRupiah(prod.hargaAsli)}
+                              </span>
+                              {prod.diskonText && (
+                                <span
+                                  style={{
+                                    backgroundColor: '#fee2e2',
+                                    color: '#dc2626',
+                                    fontSize: '0.6rem',
+                                    fontWeight: 700,
+                                    padding: '1px 4px',
+                                    borderRadius: '3px',
+                                    lineHeight: '1',
+                                  }}
+                                >
+                                  {prod.diskonText}
+                                </span>
+                              )}
+                            </div>
+                            <span>
+                              {formatRupiah(
+                                prod.subtotal !== undefined ? prod.subtotal : prod.harga
+                              )}
+                            </span>
+                          </div>
+                        ) : (
+                          formatRupiah(prod.subtotal !== undefined ? prod.subtotal : prod.harga)
+                        )}
                       </td>
                     </tr>
                   ))}

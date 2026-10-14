@@ -298,6 +298,10 @@ router.post("/", async (req, res) => {
           nama_layanan: namaItem,
           harga: 0,
           durasi_menit: durasiItem,
+          is_wajib_konsul: (lay?.wajib_konsultasi || "").toLowerCase() === "wajib",
+          is_include_konsultasi: Boolean(lay?.is_include_konsultasi === 1 || lay?.is_include_konsultasi === "1" || lay?.is_include_konsultasi === true),
+          wajib_konsultasi: lay?.wajib_konsultasi || "opsional",
+          kode_ruangan_konsultasi: lay?.kode_ruangan_konsultasi || null,
           kode_kepemilikan_paket_layanan: kpl.kode_kepemilikan_paket_layanan,
           kode_detail_kepemilikan_paket_layanan: dkpl.kode_detail_kepemilikan_paket_layanan,
         });
@@ -337,6 +341,10 @@ router.post("/", async (req, res) => {
           nama_layanan: pkt.nama,
           harga: finalHargaPkt,
           durasi_menit: durasiPkt,
+          is_wajib_konsul: (pkt.tipe || "").toUpperCase() === "MEDICAL TREATMENT",
+          is_include_konsultasi: Boolean(pkt.is_include_konsultasi === 1 || pkt.is_include_konsultasi === "1" || pkt.is_include_konsultasi === true),
+          wajib_konsultasi: (pkt.tipe || "").toUpperCase() === "MEDICAL TREATMENT" ? "wajib" : (pkt.tipe || "").toUpperCase() === "SERVICE TREATMENT" ? "tidak" : "opsional",
+          kode_ruangan_konsultasi: pkt.kode_ruangan_konsultasi || null,
           kode_kepemilikan_paket_layanan: null,
           kode_detail_kepemilikan_paket_layanan: null,
         });
@@ -377,6 +385,9 @@ router.post("/", async (req, res) => {
           harga: finalHargaLay,
           durasi_menit: durasiLay,
           is_wajib_konsul: (lay.wajib_konsultasi || "").toLowerCase() === "wajib",
+          is_include_konsultasi: Boolean(lay.is_include_konsultasi === 1 || lay.is_include_konsultasi === "1" || lay.is_include_konsultasi === true),
+          wajib_konsultasi: lay.wajib_konsultasi || "opsional",
+          kode_ruangan_konsultasi: lay.kode_ruangan_konsultasi || null,
           kode_kepemilikan_paket_layanan: null,
           kode_detail_kepemilikan_paket_layanan: null,
         });
@@ -443,6 +454,94 @@ router.post("/", async (req, res) => {
           status: status.BAD_REQUEST,
           message: `Tidak ada dokter jaga di Ruang Konsultasi pada hari ${namaHariStr} (${tanggalBooking}). Silakan ubah tanggal booking ke hari praktek dokter atau pilih alur 'Langsung Tindakan' jika tindakan memungkinkan tanpa konsultasi.`,
           datetime: formatDateSystem(),
+        });
+      }
+
+      // Cek apakah ada minimal 1 tindakan yang bertipe INCLUDE KONSULTASI
+      // Aturan Klinik: Jika ada minimal 1 layanan include konsultasi, konsultasi dokter Rp 0 (Diskon 100% include).
+      // Jika seluruh tindakan bertipe TIDAK INCLUDE, biaya konsultasi ditambahkan normal ke total booking.
+      const hasAnyIncludeKonsul = validatedItems.some((it) => it.is_include_konsultasi);
+
+      const targetKonsulRoom = validatedItems.find((it) => it.kode_ruangan_konsultasi)?.kode_ruangan_konsultasi;
+      const consultKodeRuangan = targetKonsulRoom || allKonsul[0]?.kode_ruangan || "RNG-007";
+      let consultService = await DB("mst_layanan as l")
+        .where("l.status", "aktif")
+        .where("l.kode_ruangan", consultKodeRuangan)
+        .orderBy("l.id", "asc")
+        .first();
+
+      if (!consultService) {
+        consultService = await DB("mst_layanan as l")
+          .leftJoin("mst_ruangan as r", "l.kode_ruangan", "r.kode_ruangan")
+          .where("r.is_konsultasi", 1)
+          .where("l.status", "aktif")
+          .modify((qb) => {
+            if (branchCode) qb.where("l.kode_cabang", branchCode);
+          })
+          .orderBy("l.id", "asc")
+          .first();
+      }
+
+      if (!consultService) {
+        consultService = await DB("mst_layanan as l")
+          .where("l.status", "aktif")
+          .where("l.nama", "like", "%konsul%")
+          .orderBy("l.id", "asc")
+          .first();
+      }
+
+      let consultPrice = consultService ? parseFloat(consultService.harga || 0) : 15000;
+      if (consultService) {
+        const targetDateStr = cleanDateStr || todayYmd;
+        const qPromoKonsul = DB("mst_promo as p")
+          .join("mst_detail_promo as dp", "p.kode_promo", "dp.kode_promo")
+          .where("p.status", "aktif")
+          .where("dp.status", "aktif")
+          .where("dp.kode_item", consultService.kode_layanan)
+          .whereRaw("DATE(p.tanggal_mulai) <= ?", [targetDateStr])
+          .whereRaw("DATE(p.tanggal_selesai) >= ?", [targetDateStr]);
+
+        if (branchCode) qPromoKonsul.where("p.kode_cabang", branchCode);
+
+        const promoKonsul = await qPromoKonsul.first();
+        if (promoKonsul) {
+          const diskonNilai = parseFloat(promoKonsul.nilai_diskon || 0);
+          if (promoKonsul.jenis_diskon === "persen") {
+            consultPrice = Math.max(0, consultPrice - (consultPrice * diskonNilai) / 100);
+          } else {
+            consultPrice = Math.max(0, consultPrice - diskonNilai);
+          }
+        }
+      }
+
+      const consultDurasi = parseInt(consultService?.durasi_menit || 10, 10);
+      const consultNama = consultService?.nama || "Konsultasi Dokter";
+      const consultKode = consultService?.kode_layanan || "LAY-011";
+
+      const finalConsultPrice = hasAnyIncludeKonsul ? 0 : consultPrice;
+
+      // Tambahkan biaya konsultasi ke total_biaya jika tidak include
+      calculatedTotalBiaya += finalConsultPrice;
+
+      // Sisipkan item sesi konsultasi dokter ke daftar detail booking jika belum ada
+      const hasExplicitConsultItem = validatedItems.some(
+        (it) => it.is_konsultasi_dokter || (it.nama_layanan || "").toLowerCase().includes("konsul")
+      );
+      if (!hasExplicitConsultItem) {
+        validatedItems.unshift({
+          jenis_layanan: "layanan",
+          jenis_item: "layanan_baru",
+          is_konsultasi_dokter: true,
+          kode_layanan: consultKode,
+          nama_layanan: hasAnyIncludeKonsul ? `${consultNama} (Include)` : consultNama,
+          harga: finalConsultPrice,
+          durasi_menit: consultDurasi,
+          is_wajib_konsul: false,
+          is_include_konsultasi: false,
+          is_free_include: hasAnyIncludeKonsul,
+          butuh_konsul: 1,
+          kode_kepemilikan_paket_layanan: null,
+          kode_detail_kepemilikan_paket_layanan: null,
         });
       }
     }
@@ -702,8 +801,8 @@ router.post("/", async (req, res) => {
       const cKodeBooking = `${prefixBooking}${String(nextSeq).padStart(3, "0")}`;
       const nowFormatted = formatDateSystem();
 
-      const firstItem = validatedItems[0] || {};
-      let headerJenisLayanan = firstItem.jenis_layanan || "layanan";
+      const firstTreatmentItem = validatedItems.find((it) => !it.is_konsultasi_dokter) || validatedItems[0] || {};
+      let headerJenisLayanan = firstTreatmentItem.jenis_layanan || "layanan";
       if (hasKlaim && hasBaru) {
         headerJenisLayanan = "campuran";
       } else if (hasKlaim) {
@@ -739,7 +838,7 @@ router.post("/", async (req, res) => {
         no_rm: noRm,
         kode_ruangan: kodeRuangan,
         jenis_layanan: headerJenisLayanan,
-        kode_layanan: firstItem.kode_layanan || null,
+        kode_layanan: firstTreatmentItem.kode_layanan || null,
         kode_jadwal: kodeJadwal,
         tanggal_booking: tanggalBooking,
         jam_booking: jamBooking,
@@ -768,11 +867,17 @@ router.post("/", async (req, res) => {
       for (const item of validatedItems) {
         const cKodeDetail = `DBKG-${todayStr}-${String(nextSeq).padStart(3, "0")}-${String(itemSeq).padStart(2, "0")}`;
         itemSeq++;
+        const allowedJenisItem = ["layanan_baru", "paket_baru", "klaim_paket"];
+        let safeJenisItem = item.jenis_item;
+        if (!allowedJenisItem.includes(safeJenisItem)) {
+          safeJenisItem = item.jenis_layanan === "paket" ? "paket_baru" : item.jenis_layanan === "klaim_paket" ? "klaim_paket" : "layanan_baru";
+        }
+
         detailInserts.push({
           kode_detail_booking: cKodeDetail,
           kode_booking: cKodeBooking,
           jenis_layanan: item.jenis_layanan,
-          jenis_item: item.jenis_item || "layanan_baru",
+          jenis_item: safeJenisItem,
           kode_layanan: item.kode_layanan,
           kode_kepemilikan_paket_layanan: item.kode_kepemilikan_paket_layanan || null,
           kode_detail_kepemilikan_paket_layanan: item.kode_detail_kepemilikan_paket_layanan || null,

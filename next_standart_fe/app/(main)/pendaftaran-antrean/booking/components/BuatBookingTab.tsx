@@ -241,7 +241,13 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
   // 6. Dialog Jadwal Mingguan Ruangan State
   const [showJadwalRuanganDialog, setShowJadwalRuanganDialog] = useState(false);
   const [jadwalDialogRooms, setJadwalDialogRooms] = useState<RoomTabOption[]>([]);
-  const [consultRoomInfo, setConsultRoomInfo] = useState<{ kode_ruangan: string; nama_ruangan: string } | null>(null);
+  const [consultRoomInfo, setConsultRoomInfo] = useState<{
+    kode_ruangan: string;
+    nama_ruangan: string;
+    harga_konsultasi?: number;
+    kode_layanan?: string;
+    nama_layanan?: string;
+  } | null>(null);
 
   // 7. Popover & Tooltip Pendamping State & Ref
   const companionOpRef = useRef<OverlayPanel>(null);
@@ -486,20 +492,56 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
   };
 
   const selectedList = Object.values(selectedMap);
-  const totalHarga = selectedList.reduce(
-    (acc, curr) => acc + (curr.jenis === 'klaim_paket' ? 0 : (curr.harga || 0)),
-    0
-  );
   const totalDurasi = selectedList.reduce((acc, curr) => acc + (curr.durasi_menit || 0), 0);
 
   const hasOnlyKlaim = selectedList.length > 0 && selectedList.every((it) => it.jenis === 'klaim_paket');
   const hasKlaim = selectedList.some((it) => it.jenis === 'klaim_paket');
 
-  // Evaluasi Aturan Konsultasi Seluruh Booking (Konsisten 100% dengan LayananCard)
+  // Evaluasi Aturan Konsultasi Seluruh Booking (Konsisten 100% dengan LayananCard & Walk-In)
   const hasWajibKonsul = selectedList.some((it) => getItemConsultType(it).isWajib);
   const hasOpsionalKonsul = !hasWajibKonsul && selectedList.some((it) => getItemConsultType(it).isOpsional);
 
   const effectiveButuhKonsul = hasWajibKonsul ? true : hasOpsionalKonsul ? globalConsultChoice : false;
+
+  // Cek apakah ada minimal 1 tindakan yang bertipe INCLUDE KONSULTASI
+  // Sesuai aturan: jika ada 1 layanan include + 1 non-include, konsultasi dokter Rp 0 (Diskon 100% Include)
+  const isActionIncludeKonsul = useMemo(() => {
+    const consultNeeding = selectedList.filter((item) => {
+      const { isWajib, isOpsional } = getItemConsultType(item);
+      return isWajib || (isOpsional && globalConsultChoice);
+    });
+    if (consultNeeding.length === 0) return false;
+    return consultNeeding.some((item) =>
+      Boolean(item.is_include_konsultasi === 1 || item.is_include_konsultasi === '1' || item.is_include_konsultasi === true)
+    );
+  }, [selectedList, globalConsultChoice]);
+
+  const effectiveHargaKonsulMaster = useMemo(() => {
+    const itemWithConsultPrice = selectedList.find(
+      (it) => typeof it.harga_konsultasi === 'number' && it.harga_konsultasi > 0
+    );
+    if (itemWithConsultPrice && itemWithConsultPrice.harga_konsultasi) {
+      return itemWithConsultPrice.harga_konsultasi;
+    }
+    if (consultRoomInfo?.harga_konsultasi) {
+      return parseFloat(String(consultRoomInfo.harga_konsultasi));
+    }
+    return 15000;
+  }, [selectedList, consultRoomInfo?.harga_konsultasi]);
+
+  const biayaKonsultasi = useMemo(() => {
+    if (!effectiveButuhKonsul) return 0;
+    if (isActionIncludeKonsul) return 0;
+    return effectiveHargaKonsulMaster;
+  }, [effectiveButuhKonsul, isActionIncludeKonsul, effectiveHargaKonsulMaster]);
+
+  const totalHarga = useMemo(() => {
+    const totalTindakan = selectedList.reduce(
+      (acc, curr) => acc + (curr.jenis === 'klaim_paket' ? 0 : (curr.harga || 0)),
+      0
+    );
+    return totalTindakan + biayaKonsultasi;
+  }, [selectedList, biayaKonsultasi]);
 
   const activeRoomObj = ruangans.find((r) => r.kode_ruangan === activeRuangan);
   const activeRoomName = activeRoomObj?.nama_ruangan || selectedList[0]?.nama_ruangan || '';
@@ -1261,6 +1303,9 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
         alasan_bebas_dp: dpNominal === 0 ? (hasOnlyKlaim ? 'Klaim Paket (Kepemilikan Aktif)' : alasanBebasDp) : undefined,
         sumber: sumber,
         butuh_konsul: effectiveButuhKonsul,
+        is_include_konsultasi: isActionIncludeKonsul,
+        biaya_konsultasi: biayaKonsultasi,
+        total_biaya: totalHarga,
         items: selectedList.map((it) => ({
           jenis_layanan: it.jenis,
           kode_layanan: it.kode_layanan,
@@ -1270,6 +1315,7 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
           kode_kepemilikan_paket_layanan: it.kode_kepemilikan_paket_layanan,
           kode_detail_kepemilikan_paket_layanan: it.kode_detail_kepemilikan_paket_layanan,
           butuh_konsul: effectiveButuhKonsul,
+          is_include_konsultasi: it.is_include_konsultasi,
         })),
       };
 
@@ -1294,7 +1340,29 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
           nama_ruangan: selectedSlot.nama_ruangan,
           nama_petugas: selectedSlot.nama_petugas,
           butuh_konsul: effectiveButuhKonsul,
-          items: selectedList,
+          is_include_konsultasi: isActionIncludeKonsul,
+          biaya_konsultasi: biayaKonsultasi,
+          total_biaya: totalHarga,
+          dp_nominal: dpNominal,
+          items: [
+            ...(effectiveButuhKonsul
+              ? [
+                  {
+                    nama: isActionIncludeKonsul ? 'Konsultasi Dokter (Include)' : 'Konsultasi Dokter',
+                    nama_layanan: isActionIncludeKonsul ? 'Konsultasi Dokter (Include)' : 'Konsultasi Dokter',
+                    harga: biayaKonsultasi,
+                    subtotal: biayaKonsultasi,
+                    qty: 1,
+                  },
+                ]
+              : []),
+            ...selectedList.map((it) => ({
+              ...it,
+              nama_layanan: it.nama,
+              subtotal: it.jenis === 'klaim_paket' ? 0 : (it.harga || 0),
+              qty: 1,
+            })),
+          ],
           metode_pembayaran_dp: dpNominal > 0 ? metodePembayaranDp : null,
           alasan_bebas_dp: dpNominal === 0 ? (hasOnlyKlaim ? 'Klaim Paket (Kepemilikan Aktif)' : alasanBebasDp) : null,
         });
@@ -1661,7 +1729,9 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
                                   nama_ruangan: det.nama_ruangan || pkg.nama_ruangan_paket || 'Ruangan Treatment',
                                   tipe: pkg.tipe_paket || 'BEAUTY TREATMENT',
                                   tipe_paket: pkg.tipe_paket || 'BEAUTY TREATMENT',
-                                  wajib_konsultasi: (pkg.tipe_paket === 'MEDICAL TREATMENT' ? 'wajib' : pkg.tipe_paket === 'SERVICE TREATMENT' ? 'tidak' : 'opsional'),
+                                  wajib_konsultasi: det.wajib_konsultasi || (pkg.tipe_paket === 'MEDICAL TREATMENT' ? 'wajib' : pkg.tipe_paket === 'SERVICE TREATMENT' ? 'tidak' : 'opsional'),
+                                  is_include_konsultasi: Boolean(det.is_include_konsultasi ?? pkg.is_include_konsultasi ?? false),
+                                  harga_konsultasi: consultRoomInfo?.harga_konsultasi,
                                   kode_kepemilikan_paket_layanan: pkg.kode_kepemilikan_paket_layanan,
                                   kode_detail_kepemilikan_paket_layanan: det.kode_detail_kepemilikan_paket_layanan,
                                   nama_paket_asal: pkg.nama_paket,
@@ -1678,6 +1748,7 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
                                     isDisabled={isRuangDisabled}
                                     onToggle={handleToggleItem}
                                     formatPrice={formatCurrency}
+                                    hargaKonsultasi={consultRoomInfo?.harga_konsultasi}
                                     gridClassName="col-12 sm:col-6 md:col-4 lg:col-3 xl:col-3 p-2"
                                   />
                                 );
@@ -1738,6 +1809,7 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
                                   isDisabled={isRuangDisabled || isClaimedElsewhere}
                                   isClaimedElsewhere={isClaimedElsewhere}
                                   isRuanganKonsultasi={isRuanganKonsultasi}
+                                  hargaKonsultasi={consultRoomInfo?.harga_konsultasi}
                                   onToggle={handleToggleItem}
                                   formatPrice={formatCurrency}
                                   gridClassName="col-12 sm:col-6 md:col-4 lg:col-3 xl:col-3 p-2"
@@ -2663,6 +2735,28 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
                           </div>
                         );
                       })}
+
+                      {/* ITEM KONSULTASI DOKTER (JIKA ALUR KONSULTASI AKTIF) */}
+                      {effectiveButuhKonsul && (
+                        <div className="flex justify-content-between align-items-start text-xs py-1 border-bottom-1 surface-border">
+                          <div className="pr-2">
+                            <div className="font-medium text-800">Konsultasi Dokter Pra-Tindakan</div>
+                            <div className="text-500 text-[11px]">
+                              10 mnt · {consultRoomInfo?.nama_ruangan || 'Ruang Konsultasi Dokter'}
+                              {isActionIncludeKonsul ? (
+                                <span className="text-emerald-700 font-semibold"> (Include Tindakan)</span>
+                              ) : ''}
+                            </div>
+                          </div>
+                          <div className="font-semibold text-900 white-space-nowrap">
+                            {isActionIncludeKonsul ? (
+                              <span className="text-emerald-700 font-bold">Rp 0 (Include)</span>
+                            ) : (
+                              formatCurrency(biayaKonsultasi)
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

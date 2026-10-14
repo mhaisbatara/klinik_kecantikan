@@ -105,6 +105,42 @@ export async function ensureRequiredColumnsExist() {
         console.log("✅ Column 'id_rekam_medis_ruangan' added to trx_rekam_medis_foto");
       }
     }
+
+    const hasMstLayanan = await DB.schema.hasTable("mst_layanan");
+    if (hasMstLayanan) {
+      const hasLayKonsul = await DB.schema.hasColumn("mst_layanan", "kode_layanan_konsultasi");
+      if (!hasLayKonsul) {
+        await DB.schema.alterTable("mst_layanan", (table) => {
+          table.string("kode_layanan_konsultasi", 50).nullable();
+        });
+        console.log("✅ Column 'kode_layanan_konsultasi' added to mst_layanan");
+      }
+      const hasRoomKonsul = await DB.schema.hasColumn("mst_layanan", "kode_ruangan_konsultasi");
+      if (!hasRoomKonsul) {
+        await DB.schema.alterTable("mst_layanan", (table) => {
+          table.string("kode_ruangan_konsultasi", 50).nullable();
+        });
+        console.log("✅ Column 'kode_ruangan_konsultasi' added to mst_layanan");
+      }
+    }
+
+    const hasMstPaket = await DB.schema.hasTable("mst_paket_layanan");
+    if (hasMstPaket) {
+      const hasPktLayKonsul = await DB.schema.hasColumn("mst_paket_layanan", "kode_layanan_konsultasi");
+      if (!hasPktLayKonsul) {
+        await DB.schema.alterTable("mst_paket_layanan", (table) => {
+          table.string("kode_layanan_konsultasi", 50).nullable();
+        });
+        console.log("✅ Column 'kode_layanan_konsultasi' added to mst_paket_layanan");
+      }
+      const hasPktRoomKonsul = await DB.schema.hasColumn("mst_paket_layanan", "kode_ruangan_konsultasi");
+      if (!hasPktRoomKonsul) {
+        await DB.schema.alterTable("mst_paket_layanan", (table) => {
+          table.string("kode_ruangan_konsultasi", 50).nullable();
+        });
+        console.log("✅ Column 'kode_ruangan_konsultasi' added to mst_paket_layanan");
+      }
+    }
   } catch (err) {
     console.error("⚠️ Error ensuring required columns:", err.message);
   }

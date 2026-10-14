@@ -65,7 +65,8 @@ router.post("/", async (req, res) => {
       const roomItems = vaLayananPendaftaran.filter((l) => l.kode_kunjungan === k.kode_kunjungan);
       const mappedItems = roomItems.map((l) => {
         const isProduct = ["produk", "paket_produk"].includes((l.jenis_layanan || "").toLowerCase());
-        const isKlaim = (l.jenis_layanan || "").toLowerCase() === "klaim_paket";
+        const isKlaim = (l.jenis_layanan || "").toLowerCase() === "klaim_paket" ||
+          (l.nama_layanan || "").toLowerCase().includes("klaim");
         const itemHarga = isKlaim ? 0 : parseFloat(l.harga || 0);
         const masterHarga = parseFloat(l.master_harga_layanan || l.master_harga_paket || l.master_harga_produk || itemHarga);
         return {
@@ -80,9 +81,10 @@ router.post("/", async (req, res) => {
           harga_master: masterHarga,
           subtotal: itemHarga,
           is_from_pendaftaran: isProduct ? false : true,
+          is_klaim: isKlaim,
           is_klaim_paket: isKlaim,
           kode_promo: l.kode_promo || null,
-          nama_promo: l.nama_promo || null,
+          nama_promo: isKlaim ? (l.nama_promo || "Klaim Sesi") : (l.nama_promo || null),
           jenis_diskon: l.jenis_diskon || null,
           nilai_diskon: l.nilai_diskon ? parseFloat(l.nilai_diskon) : null,
           diskon: 0,

@@ -120,6 +120,48 @@ const handleGetKepemilikanPaket = async (req, res) => {
 
     const assetsBase = process.env.ASSETS_PATH || "/api/assets";
 
+    // Hitung tarif layanan konsultasi aktif dengan promo
+    let rawConsult = await DB("mst_layanan as l")
+      .where("l.status", "aktif")
+      .where("l.kode_ruangan", kodeRuanganKonsul)
+      .orderBy("l.id", "asc")
+      .first();
+
+    if (!rawConsult) {
+      rawConsult = await DB("mst_layanan as l")
+        .leftJoin("mst_ruangan as r", "l.kode_ruangan", "r.kode_ruangan")
+        .where("l.status", "aktif")
+        .where("r.is_konsultasi", 1)
+        .modify((qb) => {
+          if (branchCode) qb.where("l.kode_cabang", branchCode);
+        })
+        .orderBy("l.id", "asc")
+        .first();
+    }
+
+    let effectiveConsultPrice = rawConsult ? parseFloat(rawConsult.harga || 0) : 15000;
+    if (rawConsult) {
+      const qPromoKonsul = DB("mst_promo as p")
+        .join("mst_detail_promo as dp", "p.kode_promo", "dp.kode_promo")
+        .where("p.status", "aktif")
+        .where("dp.status", "aktif")
+        .where("dp.kode_item", rawConsult.kode_layanan)
+        .whereRaw("DATE(p.tanggal_mulai) <= ?", [todayStr])
+        .whereRaw("DATE(p.tanggal_selesai) >= ?", [todayStr]);
+
+      if (branchCode) qPromoKonsul.where("p.kode_cabang", branchCode);
+
+      const promoKonsul = await qPromoKonsul.first();
+      if (promoKonsul) {
+        const diskonNilai = parseFloat(promoKonsul.nilai_diskon || 0);
+        if (promoKonsul.jenis_diskon === "persen") {
+          effectiveConsultPrice = Math.max(0, effectiveConsultPrice - (effectiveConsultPrice * diskonNilai) / 100);
+        } else {
+          effectiveConsultPrice = Math.max(0, effectiveConsultPrice - diskonNilai);
+        }
+      }
+    }
+
     // Attach detail session items per package ownership
     for (const item of vaData) {
       const details = await DB("trx_detail_kepemilikan_paket_layanan as d")
@@ -197,6 +239,7 @@ const handleGetKepemilikanPaket = async (req, res) => {
           sesi_tersedia: sesiTersedia,
           tipe: finalTipe,
           is_include_konsultasi: Boolean(item.is_include_konsultasi_paket || d.is_include_konsultasi_layanan),
+          harga_konsultasi: effectiveConsultPrice,
           wajib_konsultasi: finalWajibKonsultasi,
           kode_ruangan: d.kode_ruangan || item.kode_ruangan_paket || 'RNG-002',
           nama_ruangan: d.nama_ruangan || item.nama_ruangan_paket || 'Ruangan Facial & Peeling',

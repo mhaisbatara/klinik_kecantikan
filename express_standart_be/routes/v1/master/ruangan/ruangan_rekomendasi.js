@@ -1526,6 +1526,7 @@ router.post("/antrian-layanan-pendaftaran-items", async (req, res) => {
     }
 
     let query = DB("trx_detail_antrian_layanan as dal")
+      .join("trx_antrian_layanan as al", "dal.kode_antrian_layanan", "al.kode_antrian_layanan")
       .leftJoin("mst_layanan as l", "dal.kode_layanan", "l.kode_layanan")
       .leftJoin("mst_kategori_layanan as kl", "l.kode_kategori_layanan", "kl.kode_kategori_layanan")
       .leftJoin("mst_paket_layanan as p", "dal.kode_layanan", "p.kode_paket_layanan")
@@ -1535,7 +1536,15 @@ router.post("/antrian-layanan-pendaftaran-items", async (req, res) => {
       .whereRaw("(dal.kode_layanan NOT LIKE 'PRD%' AND dal.kode_layanan NOT LIKE 'PKP%')");
 
     if (kode_kunjungan) {
-      query = query.where("dal.kode_kunjungan", kode_kunjungan);
+      query = query.where("dal.kode_kunjungan", kode_kunjungan)
+        .whereNotExists(function () {
+          this.select("child.id")
+            .from("trx_antrian_layanan as child")
+            .join("trx_detail_antrian_layanan as cdal", "child.kode_antrian_layanan", "cdal.kode_antrian_layanan")
+            .whereRaw("child.kode_antrian_asal = al.kode_antrian_layanan")
+            .whereRaw("cdal.kode_layanan = dal.kode_layanan")
+            .whereNot("child.status", "batal");
+        });
     } else {
       query = query.where("dal.kode_antrian_layanan", kode_antrian_layanan);
     }
@@ -1594,9 +1603,10 @@ router.post("/antrian-layanan-pendaftaran-items", async (req, res) => {
       });
     });
 
-    // Cek apakah SEMUA tindakan dalam kunjungan ini adalah include konsultasi
+    // Cek apakah ada minimal 1 tindakan dalam kunjungan ini yang include konsultasi
+    // Sesuai aturan: jika ada 1 tindakan include + 1 non-include, konsultasi Rp 0 (sudah terbayar di tindakan include)
     const treatmentItems = rawItems.filter((item) => !Boolean(item.lay_is_konsul) && !Boolean(item.pkt_is_konsul));
-    const isAllInclude = treatmentItems.length > 0 && treatmentItems.every((item) => {
+    const isAllInclude = treatmentItems.length > 0 && treatmentItems.some((item) => {
       return (
         item.lay_is_include_konsultasi === 1 ||
         item.lay_is_include_konsultasi === "1" ||
@@ -1732,13 +1742,18 @@ router.post("/antrian-layanan-pendaftaran-items", async (req, res) => {
         };
       });
 
-    // Deduplicate unique pendaftaran items by (jenis, kode)
+    // Deduplicate unique pendaftaran items by (kode)
     const uniqueItemsMap = new Map();
     formatted.forEach((item) => {
-      const normJenis = (item.jenis || "").includes("paket") ? "paket_layanan" : item.jenis;
-      const key = `${normJenis}_${item.kode}`;
+      const key = (item.kode || item.kode_layanan || item.nama || "").toUpperCase();
       if (!uniqueItemsMap.has(key)) {
         uniqueItemsMap.set(key, item);
+      } else {
+        const existing = uniqueItemsMap.get(key);
+        // Prioritaskan item yang jenisnya paket jika ada bentrok dengan jenis layanan
+        if ((item.jenis || "").includes("paket") && !(existing.jenis || "").includes("paket")) {
+          uniqueItemsMap.set(key, item);
+        }
       }
     });
     const uniqueFormatted = Array.from(uniqueItemsMap.values());

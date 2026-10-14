@@ -103,6 +103,7 @@ const handleGetOptions = async (req, res) => {
         "l.kode_ruangan",
         "l.wajib_konsultasi",
         "l.kode_ruangan_konsultasi",
+        "l.kode_layanan_konsultasi",
         "l.foto",
         "r.nama_ruangan as nama_ruangan",
         "r.is_konsultasi as is_konsultasi"
@@ -127,7 +128,7 @@ const handleGetOptions = async (req, res) => {
     if (branchCode) qPaket.where("p.kode_cabang", branchCode);
 
     const vaPaket = await qPaket
-      .select("p.kode_paket_layanan", "p.nama", "p.harga_paket", "p.is_include_konsultasi", "p.masa_berlaku_hari", "p.tanggal_mulai", "p.tanggal_selesai", "p.tipe", "p.kode_ruangan", "p.foto", "r.nama_ruangan as nama_ruangan", "r.is_konsultasi as is_konsultasi")
+      .select("p.kode_paket_layanan", "p.nama", "p.harga_paket", "p.is_include_konsultasi", "p.masa_berlaku_hari", "p.tanggal_mulai", "p.tanggal_selesai", "p.tipe", "p.kode_ruangan", "p.kode_ruangan_konsultasi", "p.kode_layanan_konsultasi", "p.foto", "r.nama_ruangan as nama_ruangan", "r.is_konsultasi as is_konsultasi")
       .orderBy("p.id", "asc");
 
     // 5b. Fetch antrean aktif hari ini per ruangan dan hitung sisa beban waktu
@@ -528,6 +529,22 @@ const handleGetOptions = async (req, res) => {
     };
 
     // Ambil master & promo layanan konsultasi aktif
+    // Buat map layanan konsultasi per kode_ruangan agar layanan tindakan yang merujuk ke kode_ruangan_konsultasi tertentu mendapatkan harga konsultasi yang tepat
+    const consultServicesByRoom = new Map();
+    vaLayanan.forEach((l) => {
+      const isKonsul = Number(l.is_konsultasi) === 1 || (l.nama || "").toLowerCase().includes("konsul");
+      if (isKonsul && l.kode_ruangan) {
+        if (!consultServicesByRoom.has(l.kode_ruangan)) {
+          const promoItem = applyPromo({
+            ...l,
+            jenis: "layanan",
+            harga: parseFloat(l.harga || 0),
+          });
+          consultServicesByRoom.set(l.kode_ruangan, promoItem);
+        }
+      }
+    });
+
     const rawConsultService = vaLayanan.find(
       (l) => Number(l.is_konsultasi) === 1 || l.kode_ruangan === kodeRuanganKonsul || (l.nama || "").toLowerCase().includes("konsul")
     );
@@ -575,6 +592,23 @@ const handleGetOptions = async (req, res) => {
       const sisaBebanMenit = roomSisaBebanMap.get(kodeRuang) || 0;
       const cap = calculateCapacityStatus(bookingInfo, sisaBebanMenit, bufferBookingMenit);
 
+      let itemConsultPrice = effectiveConsultPrice;
+      if (lay.kode_layanan_konsultasi) {
+        const exactConsult = vaLayanan.find((l) => l.kode_layanan === lay.kode_layanan_konsultasi);
+        if (exactConsult) {
+          const promoItem = applyPromo({
+            ...exactConsult,
+            jenis: "layanan",
+            harga: parseFloat(exactConsult.harga || 0),
+          });
+          itemConsultPrice = promoItem ? parseFloat(promoItem.harga || 0) : parseFloat(exactConsult.harga || 0);
+        }
+      } else {
+        const targetKonsulRoomCode = lay.kode_ruangan_konsultasi || kodeRuanganKonsul;
+        const roomConsultItem = consultServicesByRoom.get(targetKonsulRoomCode) || consultWithPromo;
+        itemConsultPrice = roomConsultItem ? parseFloat(roomConsultItem.harga || 0) : effectiveConsultPrice;
+      }
+
       const rawItem = {
         jenis: "layanan",
         kode_layanan: lay.kode_layanan,
@@ -592,8 +626,9 @@ const handleGetOptions = async (req, res) => {
         nama_ruangan: lay.nama_ruangan || lay.kode_ruangan || "Ruang Treatment",
         wajib_konsultasi: lay.wajib_konsultasi || "tidak",
         kode_ruangan_konsultasi: lay.kode_ruangan_konsultasi || "",
+        kode_layanan_konsultasi: lay.kode_layanan_konsultasi || "",
         is_konsultasi: Number(lay.is_konsultasi || 0),
-        harga_konsultasi: effectiveConsultPrice,
+        harga_konsultasi: itemConsultPrice,
         // Validasi petugas jaga hari ini
         is_petugas_available: isPetugasAvailable,
         alasan_tidak_tersedia: alasanTidakTersedia,
@@ -671,6 +706,22 @@ const handleGetOptions = async (req, res) => {
       const sisaBebanMenitPkt = roomSisaBebanMap.get(kodeRuangPkt) || 0;
       const capPkt = calculateCapacityStatus(bookingInfoPkt, sisaBebanMenitPkt, bufferBookingMenit);
 
+      let pktConsultPrice = effectiveConsultPrice;
+      if (pkt.kode_layanan_konsultasi) {
+        const exactConsult = allConsultServices.find((s) => s.kode_layanan === pkt.kode_layanan_konsultasi);
+        if (exactConsult) {
+          const promoItem = applyPromo({
+            ...exactConsult,
+            jenis: "layanan",
+            harga: parseFloat(exactConsult.harga || 0),
+          });
+          pktConsultPrice = promoItem ? parseFloat(promoItem.harga || 0) : parseFloat(exactConsult.harga || 0);
+        }
+      } else if (pkt.kode_ruangan_konsultasi) {
+        const roomConsultItem = consultServicesByRoom.get(pkt.kode_ruangan_konsultasi) || consultWithPromo;
+        pktConsultPrice = roomConsultItem ? parseFloat(roomConsultItem.harga || 0) : effectiveConsultPrice;
+      }
+
       const rawItem = {
         jenis: "paket",
         kode_layanan: pkt.kode_paket_layanan,
@@ -688,8 +739,10 @@ const handleGetOptions = async (req, res) => {
         is_include_konsultasi: Boolean(pkt.is_include_konsultasi === 1 || pkt.is_include_konsultasi === "1" || pkt.is_include_konsultasi === true),
         kode_ruangan: pkt.kode_ruangan || "",
         nama_ruangan: pkt.nama_ruangan || pkt.kode_ruangan || "Ruang Treatment",
+        kode_ruangan_konsultasi: pkt.kode_ruangan_konsultasi || "",
+        kode_layanan_konsultasi: pkt.kode_layanan_konsultasi || "",
         is_konsultasi: Number(pkt.is_konsultasi || 0),
-        harga_konsultasi: effectiveConsultPrice,
+        harga_konsultasi: pktConsultPrice,
         // Validasi petugas jaga hari ini
         is_petugas_available: isPetugasAvailable,
         alasan_tidak_tersedia: alasanTidakTersedia,

@@ -132,10 +132,21 @@ router.post("/", upload.any(), async (req, res) => {
       }
 
       const branchCode = oPayload.kode_cabang || req?.auth?.kode_cabang || "CBG-001";
+      let kodeRuanganKonsulFinal = oPayload.kode_ruangan_konsultasi || null;
+      let kodeLayananKonsulFinal = oPayload.kode_layanan_konsultasi || null;
+      if (kodeLayananKonsulFinal) {
+        const consultLay = await trx("mst_layanan").where("kode_layanan", kodeLayananKonsulFinal).first();
+        if (consultLay?.kode_ruangan) {
+          kodeRuanganKonsulFinal = consultLay.kode_ruangan;
+        }
+      }
+
       const oData = {
         kode_cabang: branchCode,
         kode_paket_layanan: kode,
         kode_ruangan: oPayload.kode_ruangan || null,
+        kode_ruangan_konsultasi: kodeRuanganKonsulFinal,
+        kode_layanan_konsultasi: kodeLayananKonsulFinal,
         nama: oPayload.nama,
         tipe: selectedTipe,
         is_include_konsultasi: isIncludeKonsul ? 1 : 0,

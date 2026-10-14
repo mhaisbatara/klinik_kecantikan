@@ -3,6 +3,9 @@ export interface LayananItem {
   deskripsi?: string;
   qty: number;
   harga: number;
+  hargaAsli?: number;
+  diskonText?: string;
+  namaPromo?: string;
 }
 
 export interface ProdukItem {
@@ -10,6 +13,10 @@ export interface ProdukItem {
   qty: number;
   satuan?: string;
   harga: number;
+  subtotal?: number;
+  hargaSatuan?: number;
+  hargaAsli?: number;
+  diskonText?: string;
 }
 
 export interface KunjunganRiwayat {

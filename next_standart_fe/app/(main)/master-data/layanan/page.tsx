@@ -132,6 +132,32 @@ const Page = () => {
         return ruanganList.filter((r: any) => r.is_konsultasi === 1 || r.is_konsultasi === '1');
     }, [ruanganList]);
 
+    const [layananKonsultasiList, setLayananKonsultasiList] = useState<any[]>([]);
+
+    const loadLayananKonsultasi = async () => {
+        try {
+            const res = await postData('/master/layanan-data', { status: 'aktif' });
+            const allLayanan = res.data.data || [];
+            const consultServices = allLayanan
+                .filter((l: any) => {
+                    const isRoomKonsul = isKonsulRoom(l.kode_ruangan);
+                    const isNameKonsul = (l.nama || '').toLowerCase().includes('konsul');
+                    return isRoomKonsul || isNameKonsul;
+                })
+                .map((l: any) => ({
+                    label: `${l.kode_layanan} - ${l.nama} (${formatRupiah(l.harga)}) [${l.nama_ruangan || l.kode_ruangan || 'Ruangan'}]`,
+                    value: l.kode_layanan,
+                    kode_layanan: l.kode_layanan,
+                    kode_ruangan: l.kode_ruangan,
+                    nama: l.nama,
+                    harga: l.harga
+                }));
+            setLayananKonsultasiList(consultServices);
+        } catch (error) {
+            console.error('Failed to fetch layanan konsultasi list');
+        }
+    };
+
     // Helper untuk mengecek apakah suatu kode ruangan adalah ruangan konsultasi
     const isKonsulRoom = (kodeRuangan: string) => {
         if (!kodeRuangan) return false;
@@ -161,6 +187,30 @@ const Page = () => {
         return matched ? [matched, ...ruanganKonsultasiOptions] : ruanganKonsultasiOptions;
     }, [ruanganKonsultasiOptions, ruanganList, formData.kode_ruangan_konsultasi]);
 
+    const effectiveLayananKonsulOptions = useMemo(() => {
+        if (!formData.kode_layanan_konsultasi) return layananKonsultasiList;
+        const exists = layananKonsultasiList.some((l: any) => l.value === formData.kode_layanan_konsultasi);
+        if (exists) return layananKonsultasiList;
+        return [
+            {
+                label: `${formData.kode_layanan_konsultasi} - ${formData.nama_layanan_konsultasi || 'Layanan Konsultasi'}`,
+                value: formData.kode_layanan_konsultasi,
+                kode_layanan: formData.kode_layanan_konsultasi,
+                kode_ruangan: formData.kode_ruangan_konsultasi
+            },
+            ...layananKonsultasiList
+        ];
+    }, [layananKonsultasiList, formData.kode_layanan_konsultasi, formData.nama_layanan_konsultasi, formData.kode_ruangan_konsultasi]);
+
+    const handleLayananKonsultasiChange = (kodeLayananKonsul: string) => {
+        const selected = effectiveLayananKonsulOptions.find((l: any) => l.value === kodeLayananKonsul);
+        setFormData((prev: any) => ({
+            ...prev,
+            kode_layanan_konsultasi: kodeLayananKonsul,
+            kode_ruangan_konsultasi: selected?.kode_ruangan || prev.kode_ruangan_konsultasi
+        }));
+    };
+
     // Handler saat memilih Ruangan Tindakan Utama
     const handleRuanganUtamaChange = (newKodeRuangan: string) => {
         const isKonsul = isKonsulRoom(newKodeRuangan);
@@ -170,7 +220,9 @@ const Page = () => {
                 kode_ruangan: newKodeRuangan,
                 tipe: 'SERVICE TREATMENT',
                 wajib_konsultasi: 'tidak',
-                kode_ruangan_konsultasi: ''
+                kode_ruangan_konsultasi: '',
+                kode_layanan_konsultasi: '',
+                is_include_konsultasi: 0
             }));
         } else {
             setFormData((prev: any) => ({
@@ -180,19 +232,21 @@ const Page = () => {
         }
     };
 
-    // Auto-sync: jika ruangan tindakan utama adalah ruangan konsultasi, otomatis kunci ke SERVICE TREATMENT (Tanpa Konsul)
+    // Auto-sync: jika ruangan tindakan utama adalah ruangan konsultasi, otomatis kunci ke SERVICE TREATMENT (Tanpa Konsul) dan nonaktifkan include konsultasi
     useEffect(() => {
         if (dialogVisible && isSelectedRoomKonsultasi) {
-            if (formData.tipe !== 'SERVICE TREATMENT' || formData.wajib_konsultasi !== 'tidak' || formData.kode_ruangan_konsultasi) {
+            if (formData.tipe !== 'SERVICE TREATMENT' || formData.wajib_konsultasi !== 'tidak' || formData.kode_ruangan_konsultasi || formData.kode_layanan_konsultasi || formData.is_include_konsultasi !== 0) {
                 setFormData((prev: any) => ({
                     ...prev,
                     tipe: 'SERVICE TREATMENT',
                     wajib_konsultasi: 'tidak',
-                    kode_ruangan_konsultasi: ''
+                    kode_ruangan_konsultasi: '',
+                    kode_layanan_konsultasi: '',
+                    is_include_konsultasi: 0
                 }));
             }
         }
-    }, [dialogVisible, isSelectedRoomKonsultasi]);
+    }, [dialogVisible, isSelectedRoomKonsultasi, formData.is_include_konsultasi]);
 
     useEffect(() => {
         loadData();
@@ -201,6 +255,7 @@ const Page = () => {
     useEffect(() => {
         loadKategori();
         loadRuangan();
+        loadLayananKonsultasi();
     }, []);
 
     // Handler when selecting Tipe Layanan & Alur Konsultasi
@@ -213,7 +268,8 @@ const Page = () => {
             ...prev,
             tipe: newTipe,
             wajib_konsultasi: wk,
-            kode_ruangan_konsultasi: wk === 'tidak' ? '' : prev.kode_ruangan_konsultasi
+            kode_ruangan_konsultasi: wk === 'tidak' ? '' : prev.kode_ruangan_konsultasi,
+            kode_layanan_konsultasi: wk === 'tidak' ? '' : prev.kode_layanan_konsultasi
         }));
     };
 
@@ -226,6 +282,7 @@ const Page = () => {
             kode_ruangan: ruanganList[0]?.value || '',
             wajib_konsultasi: 'opsional',
             kode_ruangan_konsultasi: '',
+            kode_layanan_konsultasi: '',
             nama: '',
             tipe: 'BEAUTY TREATMENT',
             is_include_konsultasi: 0,
@@ -259,8 +316,9 @@ const Page = () => {
             kode_ruangan: rowData.kode_ruangan || '',
             wajib_konsultasi: isKonsul ? 'tidak' : wk,
             kode_ruangan_konsultasi: isKonsul ? '' : (rowData.kode_ruangan_konsultasi || ''),
+            kode_layanan_konsultasi: isKonsul ? '' : (rowData.kode_layanan_konsultasi || ''),
             tipe: isKonsul ? 'SERVICE TREATMENT' : (rowData.tipe || 'BEAUTY TREATMENT'),
-            is_include_konsultasi: rowData.is_include_konsultasi ? 1 : 0,
+            is_include_konsultasi: isKonsul ? 0 : (rowData.is_include_konsultasi ? 1 : 0),
             foto: null,
             foto_url: rowData.foto || '',
             hapus_foto: false,
@@ -356,7 +414,8 @@ const Page = () => {
             fd.append('kode_ruangan', formData.kode_ruangan || '');
             fd.append('wajib_konsultasi', wk);
             fd.append('kode_ruangan_konsultasi', wk === 'tidak' ? '' : (formData.kode_ruangan_konsultasi || ''));
-            fd.append('is_include_konsultasi', String(formData.is_include_konsultasi ? 1 : 0));
+            fd.append('kode_layanan_konsultasi', wk === 'tidak' ? '' : (formData.kode_layanan_konsultasi || ''));
+            fd.append('is_include_konsultasi', String(isSelectedRoomKonsultasi ? 0 : (formData.is_include_konsultasi ? 1 : 0)));
             fd.append('harga', String(formData.harga || 0));
             fd.append('durasi_menit', String(formData.durasi_menit || 30));
             fd.append('status', formData.status || 'aktif');
@@ -693,10 +752,10 @@ const Page = () => {
                                 <span className="text-800 font-medium text-sm">
                                     {r.nama_ruangan ? `${r.kode_ruangan ? r.kode_ruangan + ' - ' : ''}${r.nama_ruangan}` : (r.kode_ruangan || '-')}
                                 </span>
-                                {r.nama_ruangan_konsultasi && r.wajib_konsultasi !== 'tidak' && (
-                                    <span className="text-500 text-xs mt-1 flex align-items-center gap-1" title="Ruang Konsultasi Terjadwal">
+                                {(r.nama_layanan_konsultasi || r.nama_ruangan_konsultasi) && r.wajib_konsultasi !== 'tidak' && (
+                                    <span className="text-purple-700 font-medium text-xs mt-1 flex align-items-center gap-1" title="Layanan/Ruangan Konsultasi Terjadwal">
                                         <i className="pi pi-comments text-purple-600 text-xs" />
-                                        Konsul: {r.nama_ruangan_konsultasi}
+                                        Konsul: {r.nama_layanan_konsultasi ? `${r.nama_layanan_konsultasi} (${formatRupiah(r.harga_layanan_konsultasi || 0)})` : r.nama_ruangan_konsultasi}
                                     </span>
                                 )}
                             </div>
@@ -924,22 +983,24 @@ const Page = () => {
                         </small>
                     </div>
 
-                    {/* TOGGLE INCLUDE KONSULTASI */}
-                    <div className="surface-50 p-3 border-round-xl border-1 surface-border flex align-items-start gap-3">
-                        <Checkbox
-                            inputId="is_include_konsultasi"
-                            checked={Boolean(formData.is_include_konsultasi)}
-                            onChange={(e) => setFormData({ ...formData, is_include_konsultasi: e.checked ? 1 : 0 })}
-                        />
-                        <div>
-                            <label htmlFor="is_include_konsultasi" className="text-sm font-semibold text-800 cursor-pointer block">
-                                Include Biaya Konsultasi (Gratis Konsul)
-                            </label>
-                            <small className="text-500 block line-height-2 mt-1">
-                                Jika dicentang, biaya konsultasi dokter di awal otomatis gratis (Rp 0) saat pasien memilih tindakan ini.
-                            </small>
+                    {/* TOGGLE INCLUDE KONSULTASI - Disembunyikan jika ruangan tindakan utama adalah Ruangan Konsultasi */}
+                    {!isSelectedRoomKonsultasi && (
+                        <div className="surface-50 p-3 border-round-xl border-1 surface-border flex align-items-start gap-3">
+                            <Checkbox
+                                inputId="is_include_konsultasi"
+                                checked={Boolean(formData.is_include_konsultasi)}
+                                onChange={(e) => setFormData({ ...formData, is_include_konsultasi: e.checked ? 1 : 0 })}
+                            />
+                            <div>
+                                <label htmlFor="is_include_konsultasi" className="text-sm font-semibold text-800 cursor-pointer block">
+                                    Include Biaya Konsultasi (Gratis Konsul)
+                                </label>
+                                <small className="text-500 block line-height-2 mt-1">
+                                    Jika dicentang, biaya konsultasi dokter di awal otomatis gratis (Rp 0) saat pasien memilih tindakan ini.
+                                </small>
+                            </div>
                         </div>
-                    </div>
+                    )}
 
                     <div>
                         <label className="block text-sm font-semibold mb-1">Kategori Layanan *</label>
@@ -964,21 +1025,43 @@ const Page = () => {
                         />
                     </div>
 
-                    {/* Ruangan Konsultasi hanya dimunculkan jika bukan SERVICE TREATMENT */}
+                    {/* Ruangan & Layanan Konsultasi hanya dimunculkan jika bukan SERVICE TREATMENT */}
                     {formData.tipe !== 'SERVICE TREATMENT' && (
-                        <div>
-                            <label className="block text-sm font-semibold mb-1">
-                                Ruangan Konsultasi {formData.tipe === 'MEDICAL TREATMENT' ? '*' : '(Opsional)'}
-                            </label>
+                        <div className="surface-50 p-3 border-round-xl border-1 surface-border flex flex-column gap-2">
+                            <div className="flex align-items-center justify-content-between">
+                                <label className="text-sm font-semibold text-800 flex align-items-center gap-2">
+                                    <i className="pi pi-comments text-purple-600" />
+                                    <span>Layanan Konsultasi Dokter {formData.tipe === 'MEDICAL TREATMENT' ? '*' : '(Opsional)'}</span>
+                                </label>
+                            </div>
                             <Dropdown
-                                value={formData.kode_ruangan_konsultasi}
-                                options={effectiveKonsulOptions}
-                                onChange={(e) => setFormData({ ...formData, kode_ruangan_konsultasi: e.value })}
-                                placeholder="Pilih Ruangan Konsultasi (Default Ruang Konsul)"
+                                value={formData.kode_layanan_konsultasi}
+                                options={effectiveLayananKonsulOptions}
+                                onChange={(e) => handleLayananKonsultasiChange(e.value)}
+                                placeholder="Pilih Layanan Konsultasi (misal: Konsultasi Dokter Rp 50.000)"
                                 showClear
+                                filter
                                 className="w-full text-sm"
-                                emptyMessage="Tidak ada ruangan konsultasi aktif"
+                                emptyMessage="Tidak ada layanan konsultasi aktif"
                             />
+                            <small className="text-500 block">
+                                Menentukan tarif sesi konsultasi yang dikenakan jika pasien memilih alur konsultasi terlebih dahulu. Ruangan konsultasi akan disinkronkan otomatis.
+                            </small>
+
+                            <div className="mt-2">
+                                <label className="block text-xs font-semibold text-700 mb-1">
+                                    Ruangan Konsultasi {formData.tipe === 'MEDICAL TREATMENT' ? '*' : '(Opsional)'}
+                                </label>
+                                <Dropdown
+                                    value={formData.kode_ruangan_konsultasi}
+                                    options={effectiveKonsulOptions}
+                                    onChange={(e) => setFormData({ ...formData, kode_ruangan_konsultasi: e.value })}
+                                    placeholder="Pilih Ruangan Konsultasi"
+                                    showClear
+                                    className="w-full text-sm"
+                                    emptyMessage="Tidak ada ruangan konsultasi aktif"
+                                />
+                            </div>
                         </div>
                     )}
 

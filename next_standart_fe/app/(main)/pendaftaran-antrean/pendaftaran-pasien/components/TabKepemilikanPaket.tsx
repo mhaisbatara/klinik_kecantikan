@@ -27,6 +27,8 @@ interface DetailKepemilikan {
   sisa_sesi: number;
   tipe?: string;
   wajib_konsultasi?: string;
+  is_include_konsultasi?: boolean;
+  harga_konsultasi?: number;
   kode_ruangan?: string;
   nama_ruangan?: string;
   durasi_menit?: number;
@@ -42,6 +44,7 @@ interface KepemilikanPaket {
   kode_paket_layanan: string;
   nama_paket: string;
   tipe_paket?: string;
+  is_include_konsultasi_paket?: boolean | number;
   kode_ruangan_paket?: string;
   nama_ruangan_paket?: string;
   tanggal_beli: string;
@@ -185,6 +188,7 @@ export const TabKepemilikanPaket: React.FC<TabKepemilikanPaketProps> = ({ toast,
             wajib_konsultasi: wajibKon,
             lewat_konsultasi: chooseConsult,
             kode_kepemilikan_paket_layanan: claimTargetItem.kode_kepemilikan_paket_layanan,
+            kode_detail_kepemilikan_paket_layanan: claimTargetDetail.kode_detail_kepemilikan_paket_layanan,
           },
         ],
       });
@@ -204,6 +208,14 @@ export const TabKepemilikanPaket: React.FC<TabKepemilikanPaketProps> = ({ toast,
     } finally {
       setSubmittingClaim(false);
     }
+  };
+
+  const formatCurrency = (val: number) => {
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0,
+    }).format(val || 0);
   };
 
   const formatDateIndoDash = (dateStr?: string) => {
@@ -1308,6 +1320,24 @@ export const TabKepemilikanPaket: React.FC<TabKepemilikanPaketProps> = ({ toast,
           const isOpsional = !isWajib && !isService;
           const roomName = claimTargetDetail.nama_ruangan || claimTargetItem.nama_ruangan_paket || 'Ruangan Tindakan';
 
+          // Cek apakah paket / layanan include konsultasi dokter
+          const isIncludeKonsul = Boolean(
+            claimTargetDetail.is_include_konsultasi ||
+            claimTargetItem.is_include_konsultasi_paket
+          );
+
+          // Tarif konsultasi dokter (promo aktif atau dari data detail)
+          const consultFee = typeof claimTargetDetail.harga_konsultasi === 'number' && claimTargetDetail.harga_konsultasi > 0
+            ? claimTargetDetail.harga_konsultasi
+            : 15000;
+
+          // Apakah konsultasi dokter aktif untuk sesi ini
+          const isConsultActive = isWajib || (isOpsional && claimConsultChoice !== false);
+
+          // Biaya konsultasi: dibebankan jika alur konsultasi aktif DAN tindakan tidak include konsultasi
+          const biayaKonsultasi = (isConsultActive && !isIncludeKonsul) ? consultFee : 0;
+          const totalEstimasi = biayaKonsultasi;
+
           return (
             <div className="flex flex-column gap-3 pt-2">
               <div className="p-3 border-round-xl border-1 surface-border surface-50 flex flex-column gap-2 text-sm">
@@ -1328,14 +1358,40 @@ export const TabKepemilikanPaket: React.FC<TabKepemilikanPaketProps> = ({ toast,
                 <div className="surface-50 border-1 surface-border border-round-xl p-3 flex flex-column gap-2">
                   <div className="flex align-items-center justify-content-between">
                     <span className="font-bold text-900 text-sm">{claimTargetDetail.nama_layanan || claimTargetDetail.kode_layanan}</span>
-                    <span className="font-bold text-amber-600 text-sm">Rp 0 (Klaim Sesi)</span>
+                    <span className="font-bold text-emerald-600 text-sm">Rp 0 (Klaim Sesi)</span>
                   </div>
                   <div className="flex align-items-center gap-2 flex-wrap">
                     <span className="text-xs text-500">{claimTargetItem.nama_paket}</span>
                     <Tag value={`Tersisa ${claimTargetDetail.sisa_sesi} Sesi`} severity="success" className="text-xs font-bold" />
+                    {isIncludeKonsul ? (
+                      <Tag value="Include Konsultasi" severity="success" className="text-xs font-medium" />
+                    ) : (
+                      <Tag value="Tidak Include Konsultasi" severity="warning" className="text-xs font-medium" />
+                    )}
                   </div>
-                  {isWajib && (<span className="text-xs font-semibold text-red-700 flex align-items-center gap-1 pt-1 border-top-1 surface-border"><i className="pi pi-user-edit text-xs" /> Wajib Konsultasi Dokter Dulu</span>)}
-                  {isService && (<span className="text-xs font-semibold text-green-700 flex align-items-center gap-1 pt-1 border-top-1 surface-border"><i className="pi pi-bolt text-xs" /> Langsung ke {roomName}</span>)}
+
+                  {isConsultActive && (
+                    <div className="flex align-items-center justify-content-between pt-1 border-top-1 surface-border">
+                      <span className="text-xs text-600 flex align-items-center gap-1 font-medium">
+                        <i className="pi pi-user-edit text-xs text-indigo-500" />
+                        Sesi Konsultasi Dokter:
+                      </span>
+                      <strong className={isIncludeKonsul ? "text-emerald-600 text-xs font-bold" : "text-amber-700 text-xs font-bold"}>
+                        {isIncludeKonsul ? 'Gratis (Include Paket)' : formatCurrency(consultFee)}
+                      </strong>
+                    </div>
+                  )}
+
+                  {isWajib && (
+                    <div className="text-xs font-semibold text-red-700 flex align-items-center gap-1 pt-1 border-top-1 surface-border">
+                      <i className="pi pi-exclamation-circle text-xs" /> Wajib Konsultasi Dokter Dulu (Pra-tindakan Medis)
+                    </div>
+                  )}
+                  {isService && (
+                    <div className="text-xs font-semibold text-green-700 flex align-items-center gap-1 pt-1 border-top-1 surface-border">
+                      <i className="pi pi-bolt text-xs" /> Langsung ke {roomName} (Service Treatment)
+                    </div>
+                  )}
                   {isOpsional && (
                     <div className="flex flex-column gap-2 pt-1 border-top-1 surface-border">
                       <div className="flex align-items-center justify-content-between">
@@ -1343,19 +1399,39 @@ export const TabKepemilikanPaket: React.FC<TabKepemilikanPaketProps> = ({ toast,
                         <Tag value="Opsional Konsul" severity="info" className="text-xs" />
                       </div>
                       <div className="flex gap-2">
-                        <div className="flex-1 p-2 border-round-xl border-2 cursor-pointer transition-all transition-duration-200 flex align-items-center gap-2" style={{ borderColor: claimConsultChoice !== false ? '#6366f1' : '#e2e8f0', background: claimConsultChoice !== false ? 'linear-gradient(135deg, #eef2ff, #e0e7ff)' : 'var(--surface-50)' }} onClick={() => setClaimConsultChoice(true)}>
-                          <div className="flex align-items-center justify-content-center border-round-lg text-white flex-shrink-0" style={{ width: '32px', height: '32px', background: claimConsultChoice !== false ? 'linear-gradient(135deg, #6366f1, #4f46e5)' : '#cbd5e1' }}><i className="pi pi-user-edit text-sm" /></div>
+                        <div
+                          className="flex-1 p-2 border-round-xl border-2 cursor-pointer transition-all transition-duration-200 flex align-items-center gap-2"
+                          style={{
+                            borderColor: claimConsultChoice !== false ? '#6366f1' : '#e2e8f0',
+                            background: claimConsultChoice !== false ? 'linear-gradient(135deg, #eef2ff, #e0e7ff)' : 'var(--surface-50)'
+                          }}
+                          onClick={() => setClaimConsultChoice(true)}
+                        >
+                          <div className="flex align-items-center justify-content-center border-round-lg text-white flex-shrink-0" style={{ width: '32px', height: '32px', background: claimConsultChoice !== false ? 'linear-gradient(135deg, #6366f1, #4f46e5)' : '#cbd5e1' }}>
+                            <i className="pi pi-user-edit text-sm" />
+                          </div>
                           <div className="flex-1 min-w-0">
                             <div className="font-bold text-xs" style={{ color: claimConsultChoice !== false ? '#4338ca' : '#64748b' }}>Konsultasi Dokter Dulu</div>
-                            <div className="text-xs" style={{ color: claimConsultChoice !== false ? '#6366f1' : '#94a3b8' }}>Ke Ruang Konsultasi</div>
+                            <div className="text-xs" style={{ color: claimConsultChoice !== false ? (isIncludeKonsul ? '#059669' : '#b45309') : '#94a3b8' }}>
+                              {isIncludeKonsul ? 'Gratis (Include Paket)' : `+ ${formatCurrency(consultFee)}`}
+                            </div>
                           </div>
                           {claimConsultChoice !== false && <i className="pi pi-check-circle text-indigo-500 flex-shrink-0" />}
                         </div>
-                        <div className="flex-1 p-2 border-round-xl border-2 cursor-pointer transition-all transition-duration-200 flex align-items-center gap-2" style={{ borderColor: claimConsultChoice === false ? '#10b981' : '#e2e8f0', background: claimConsultChoice === false ? 'linear-gradient(135deg, #ecfdf5, #d1fae5)' : 'var(--surface-50)' }} onClick={() => setClaimConsultChoice(false)}>
-                          <div className="flex align-items-center justify-content-center border-round-lg text-white flex-shrink-0" style={{ width: '32px', height: '32px', background: claimConsultChoice === false ? 'linear-gradient(135deg, #10b981, #059669)' : '#cbd5e1' }}><i className="pi pi-bolt text-sm" /></div>
+                        <div
+                          className="flex-1 p-2 border-round-xl border-2 cursor-pointer transition-all transition-duration-200 flex align-items-center gap-2"
+                          style={{
+                            borderColor: claimConsultChoice === false ? '#10b981' : '#e2e8f0',
+                            background: claimConsultChoice === false ? 'linear-gradient(135deg, #ecfdf5, #d1fae5)' : 'var(--surface-50)'
+                          }}
+                          onClick={() => setClaimConsultChoice(false)}
+                        >
+                          <div className="flex align-items-center justify-content-center border-round-lg text-white flex-shrink-0" style={{ width: '32px', height: '32px', background: claimConsultChoice === false ? 'linear-gradient(135deg, #10b981, #059669)' : '#cbd5e1' }}>
+                            <i className="pi pi-bolt text-sm" />
+                          </div>
                           <div className="flex-1 min-w-0">
                             <div className="font-bold text-xs" style={{ color: claimConsultChoice === false ? '#065f46' : '#64748b' }}>Langsung Tindakan</div>
-                            <div className="text-xs" style={{ color: claimConsultChoice === false ? '#10b981' : '#94a3b8' }}>{roomName}</div>
+                            <div className="text-xs" style={{ color: claimConsultChoice === false ? '#10b981' : '#94a3b8' }}>{roomName} • Biaya Rp 0</div>
                           </div>
                           {claimConsultChoice === false && <i className="pi pi-check-circle text-green-500 flex-shrink-0" />}
                         </div>
@@ -1364,9 +1440,22 @@ export const TabKepemilikanPaket: React.FC<TabKepemilikanPaketProps> = ({ toast,
                   )}
                 </div>
               </div>
-              <div className="flex align-items-center justify-content-between font-extrabold text-base pt-2 border-top-2 surface-border text-900">
-                <span>Total Estimasi Biaya:</span>
-                <span className="text-blue-600">Rp 0 (Klaim Sesi Paket)</span>
+              <div className="p-3 border-round-xl border-1 surface-border surface-50 flex flex-column gap-1">
+                <div className="flex align-items-center justify-content-between font-extrabold text-base text-900">
+                  <span>Total Estimasi Biaya:</span>
+                  <span className={totalEstimasi > 0 ? "text-amber-700 font-extrabold text-base" : "text-emerald-700 font-bold"}>
+                    {totalEstimasi > 0 ? formatCurrency(totalEstimasi) : 'Rp 0 (Klaim Sesi Paket)'}
+                  </span>
+                </div>
+                {totalEstimasi > 0 ? (
+                  <div className="text-xs text-600">
+                    * Sesi tindakan diklaim dari paket (Rp 0). Biaya <strong>{formatCurrency(totalEstimasi)}</strong> merupakan tarif konsultasi dokter yang belum termasuk dalam paket ini.
+                  </div>
+                ) : (
+                  <div className="text-xs text-500">
+                    * Pasien tidak dikenakan biaya tambahan pada kunjungan ini ({isConsultActive ? 'Konsultasi dokter tercover dalam paket' : 'Langsung tindakan'}).
+                  </div>
+                )}
               </div>
               <p className="text-xs text-500 m-0">Nomor antrean dan nomor kunjungan baru akan otomatis diterbitkan ke sistem.</p>
             </div>
