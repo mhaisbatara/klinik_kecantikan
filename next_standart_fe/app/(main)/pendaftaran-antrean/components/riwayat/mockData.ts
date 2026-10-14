@@ -1,8 +1,31 @@
 import { KunjunganRiwayat } from './types';
 import postData from '@/lib/axios/postData';
 
+const mockKonsul12: KunjunganRiwayat = {
+  id: 'KJ-000012-konsul',
+  noKunjungan: '#KJ-000012',
+  tanggal: '2026-10-08',
+  jamMulai: '10:15',
+  jamSelesai: '10:45',
+  jenis: 'konsultasi',
+  status: 'Selesai',
+  dokter: 'dr. Sari Wulandari',
+  ruangan: 'Ruang Konsultasi Dokter',
+  petugas: 'Nina Ayu',
+  layanan: {
+    nama: 'konsultasi',
+    deskripsi: 'Sesi konsultasi kondisi kulit, evaluasi masalah jerawat, dan rekomendasi program perawatan.',
+    qty: 1,
+    harga: 15000,
+  },
+  produk: [],
+  totalBayarKasir: 510000,
+  catatan: 'Pasien datang dengan keluhan kulit wajah kusam dan berjerawat ringan. Dokter merekomendasikan tindakan Facial Deep Cleansing + Masker.',
+  resep: [],
+};
+
 const mockTreatment12: KunjunganRiwayat = {
-  id: 'KJ-000012-treatment',
+  id: 'KJ-000012',
   noKunjungan: '#KJ-000012',
   tanggal: '2026-10-08',
   jamMulai: '10:45',
@@ -25,35 +48,12 @@ const mockTreatment12: KunjunganRiwayat = {
   totalBayarKasir: 510000,
   catatan: 'Tindakan facial deep cleansing telah selesai dilakukan. Komedo berkurang signifikan, kulit bersih dan lembap.',
   resep: ['Sunscreen Gel SPF 50 - Oleskan pagi dan siang hari'],
+  konsultasiSebelumnya: mockKonsul12,
 };
-
-const mockKonsul12: KunjunganRiwayat = {
-  id: 'KJ-000012',
-  noKunjungan: '#KJ-000012',
-  tanggal: '2026-10-08',
-  jamMulai: '10:15',
-  jamSelesai: '10:45',
-  jenis: 'konsultasi',
-  status: 'Selesai',
-  dokter: 'dr. Sari Wulandari',
-  ruangan: 'Ruang Konsultasi Dokter',
-  petugas: 'Nina Ayu',
-  layanan: {
-    nama: 'konsultasi',
-    deskripsi: 'Sesi konsultasi kondisi kulit, evaluasi masalah jerawat, dan rekomendasi program perawatan.',
-    qty: 1,
-    harga: 15000,
-  },
-  produk: [],
-  totalBayarKasir: 15000,
-  catatan: 'Pasien datang dengan keluhan kulit wajah kusam dan berjerawat ringan. Dokter merekomendasikan tindakan Facial Deep Cleansing + Masker.',
-  resep: [],
-};
+mockKonsul12.treatmentLanjutan = mockTreatment12;
 
 export const MOCK_RIWAYAT_ITEMS: KunjunganRiwayat[] = [
-  // 1. Riwayat Konsultasi
-  mockKonsul12,
-  // 2. Riwayat Treatment yang lanjut dari konsul ditaruh di bawahnya!
+  // Satu kunjungan (KJ-000012) yang mencakup konsultasi & treatment
   mockTreatment12,
   {
     id: 'KJ-000011',
@@ -205,10 +205,12 @@ export const fetchRiwayatKunjungan = async (
     const cleanNoRm = (noRm || '').replace(/^#/, '').trim();
     if (cleanNoRm) {
       // Panggil kedua endpoint secara paralel: rekam medis kunjungan & transaksi kasir
+      // Catatan: riwayat kunjungan hanya masuk saat pasien sudah melakukan pembayaran lunas di kasir
       const [resRekamMedis, resTransaksi] = await Promise.allSettled([
         postData('/master/pasien-rekam-medis', {
           no_rm: cleanNoRm,
           only_selesai: true,
+          only_lunas: true,
           page: 1,
           perPage: 50,
         }),
@@ -226,16 +228,29 @@ export const fetchRiwayatKunjungan = async (
       if (resTrx?.data?.data && Array.isArray(resTrx.data.data)) {
         resTrx.data.data.forEach((trx: any) => {
           if (trx.kode_kunjungan) {
-            mapTrx[trx.kode_kunjungan] = trx;
+            const isLunas = ['lunas', 'selesai'].includes(String(trx.status || '').toLowerCase());
+            if (!mapTrx[trx.kode_kunjungan] || isLunas) {
+              mapTrx[trx.kode_kunjungan] = trx;
+            }
           }
         });
       }
 
-      const rawData = res?.data?.data || [];
-      if (Array.isArray(rawData) && rawData.length > 0) {
+      if (res && (res.status === 200 || ['00', '0000', 200].includes(res.data?.status) || Array.isArray(res.data?.data))) {
+        const rawData = Array.isArray(res.data?.data) ? res.data.data : [];
         const mapped: KunjunganRiwayat[] = [];
 
         rawData.forEach((item: any) => {
+          // SYARAT MUTLAK: Riwayat baru masuk saat pasien sudah melakukan pembayaran lunas di kasir
+          const trxMatch = item.kode_kunjungan ? mapTrx[item.kode_kunjungan] : null;
+          const isLunas = Boolean(
+            trxMatch &&
+            ['lunas', 'selesai'].includes(String(trxMatch.status || '').toLowerCase())
+          );
+
+          if (!isLunas) {
+            return;
+          }
           const layananList = Array.isArray(item.layanan) ? item.layanan : [];
           const rawDate = item.tanggal_kunjungan || item.created_at || '2026-10-08';
           const tanggalFormatted =
@@ -269,8 +284,7 @@ export const fetchRiwayatKunjungan = async (
             item.dokter_nama ||
             'dr. Amanda Putri Wijaya';
 
-          // Transaksi kasir terkait untuk kunjungan ini
-          const trxMatch = item.kode_kunjungan ? mapTrx[item.kode_kunjungan] : null;
+          // Transaksi kasir terkait untuk kunjungan ini (sudah terverifikasi lunas)
           const totalBayarKasirKunjungan = trxMatch
             ? Number(
                 trxMatch.total_bayar !== undefined && trxMatch.total_bayar !== null
@@ -289,17 +303,82 @@ export const fetchRiwayatKunjungan = async (
                 (!d.kode_layanan && String(d.kode || '').startsWith('PRD')) ||
                 (!d.kode_layanan && String(d.kode || '').startsWith('CUSTOM'))
             )
-            .map((d: any) => ({
-              nama: d.nama || d.nama_produk || 'Produk',
-              qty: Number(d.qty || 1),
-              satuan: d.satuan || 'PCS',
-              harga: Number(d.harga_satuan || d.subtotal || 0),
-            }));
+            .map((d: any) => {
+              const subtotalNet = Number(
+                d.subtotal_setelah_diskon !== undefined && d.subtotal_setelah_diskon !== null
+                  ? d.subtotal_setelah_diskon
+                  : (d.subtotal !== undefined && d.subtotal !== null ? d.subtotal : (d.harga_satuan || 0))
+              );
+              const hargaAsli = Number(d.harga_asli || d.subtotal || subtotalNet);
+              return {
+                nama: d.nama || d.nama_produk || 'Produk',
+                qty: Number(d.qty || 1),
+                satuan: d.satuan || 'PCS',
+                subtotal: subtotalNet,
+                harga: subtotalNet,
+                hargaSatuan: Number(d.harga_satuan || 0),
+                hargaAsli: hargaAsli > subtotalNet ? hargaAsli : undefined,
+                diskonText: d.diskon_text || undefined,
+                namaPromo: d.nama_promo || undefined,
+              };
+            });
 
           const prodTotal = trxProducts.reduce(
-            (sum: number, p: any) => sum + (p.harga || 0) * (p.qty || 1),
+            (sum: number, p: any) => sum + (p.subtotal !== undefined ? Number(p.subtotal) : Number(p.harga || 0)),
             0
           );
+
+          // Helper untuk mendapatkan detail harga layanan dari kasir
+          const getTrxLayananInfo = (kodeLayanan?: string, namaLayanan?: string, fallbackPrice: number = 0) => {
+            if (!trxMatch || !Array.isArray(trxMatch.details)) {
+              return { harga: fallbackPrice, hargaAsli: undefined, diskonText: undefined, namaPromo: undefined };
+            }
+            const details = trxMatch.details;
+            let match: any = null;
+
+            // 1. Coba cocokkan berdasarkan kode_layanan
+            if (kodeLayanan) {
+              match = details.find((d: any) => d.kode_layanan === kodeLayanan || d.kode === kodeLayanan);
+            }
+
+            // 2. Coba cocokkan berdasarkan nama layanan (prioritas konsultasi jika nama mengandung konsul)
+            if (!match && namaLayanan) {
+              const target = namaLayanan.toLowerCase();
+              const isKonsul = target.includes('konsul');
+              if (isKonsul) {
+                match = details.find((d: any) => (d.nama_layanan_single || d.nama || '').toLowerCase().includes('konsul'));
+              } else {
+                match = details.find((d: any) => {
+                  const n = (d.nama_layanan_single || d.nama || '').toLowerCase();
+                  return n.includes(target) || target.includes(n);
+                });
+              }
+            }
+
+            // 3. Fallback jika nama tidak cocok tetapi ada item layanan
+            if (!match) {
+              if (namaLayanan && namaLayanan.toLowerCase().includes('konsul')) {
+                match = details.find((d: any) => (d.nama_layanan_single || d.nama || '').toLowerCase().includes('konsul'));
+              } else {
+                match = details.find((d: any) => d.jenis === 'layanan' && !(d.nama_layanan_single || d.nama || '').toLowerCase().includes('konsul'));
+              }
+            }
+
+            if (match) {
+              const val = match.subtotal_setelah_diskon !== undefined && match.subtotal_setelah_diskon !== null
+                ? Number(match.subtotal_setelah_diskon)
+                : Number(match.subtotal !== undefined ? match.subtotal : (match.harga_satuan || 0));
+              const hargaAsli = Number(match.harga_asli || match.subtotal || val);
+              return {
+                harga: val,
+                hargaAsli: hargaAsli > val ? hargaAsli : undefined,
+                diskonText: match.diskon_text || undefined,
+                namaPromo: match.nama_promo || undefined,
+              };
+            }
+
+            return { harga: fallbackPrice, hargaAsli: undefined, diskonText: undefined, namaPromo: undefined };
+          };
 
           // 1. Identifikasi apakah ada sesi di Ruang Konsultasi
           const konsulLayanan = layananList.find((l: any) => {
@@ -316,32 +395,24 @@ export const fetchRiwayatKunjungan = async (
           });
 
           if (konsulLayanan && realTreatmentList.length > 0) {
-            // Pasien melakukan konsul SEBELUM treatment: tampilkan 2 (konsul dan treatment)!
+            // Pasien melakukan konsul SEBELUM treatment: jadikan SATU kartu riwayat kunjungan!
             const primaryTreatment = realTreatmentList[0];
+            const konsulInfo = getTrxLayananInfo(
+              konsulLayanan.kode_layanan,
+              konsulLayanan.nama_layanan || 'konsul',
+              Number(konsulLayanan.harga || 0)
+            );
+            const treatmentInfo = getTrxLayananInfo(
+              primaryTreatment.kode_layanan,
+              primaryTreatment.nama_layanan,
+              Number(primaryTreatment.harga || 150000)
+            );
 
-            let konsulBayar = 0;
-            if (trxMatch) {
-              const details = Array.isArray(trxMatch.details) ? trxMatch.details : [];
-              const konsulDetail = details.find(
-                (d: any) =>
-                  (d.nama_layanan_single || '').toLowerCase().includes('konsul') ||
-                  (d.nama || '').toLowerCase().includes('konsul') ||
-                  (d.kode_layanan && d.kode_layanan === konsulLayanan.kode_layanan)
-              );
-              if (konsulDetail) {
-                konsulBayar = Number(konsulDetail.subtotal || konsulDetail.harga_satuan || 0);
-              } else {
-                konsulBayar = Number(konsulLayanan.harga || 0);
-              }
-            } else {
-              konsulBayar = Number(konsulLayanan.harga || 15000);
-            }
-
-            // Total semua biaya yang dikeluarkan saat kunjungan: biaya konsul + treatment + pembelian produk
+            // Total semua biaya yang dikeluarkan saat kunjungan: total yang dibayarkan di kasir
             const totalBiayaKunjungan =
               totalBayarKasirKunjungan !== undefined
                 ? totalBayarKasirKunjungan
-                : konsulBayar + Number(primaryTreatment.harga || 150000) + prodTotal;
+                : konsulInfo.harga + treatmentInfo.harga + prodTotal;
 
             const konsulObj: KunjunganRiwayat = {
               id: `${item.kode_kunjungan || item.kunjungan_id}-konsul`,
@@ -361,10 +432,13 @@ export const fetchRiwayatKunjungan = async (
                   konsulLayanan.catatan_petugas ||
                   'Sesi konsultasi dokter dan evaluasi kondisi kulit.',
                 qty: 1,
-                harga: konsulBayar,
+                harga: konsulInfo.harga,
+                hargaAsli: konsulInfo.hargaAsli,
+                diskonText: konsulInfo.diskonText,
+                namaPromo: konsulInfo.namaPromo,
               },
               produk: [],
-              totalBayarKasir: konsulBayar,
+              totalBayarKasir: totalBiayaKunjungan,
               metodeBayar: trxMatch?.metode_bayar,
               statusTransaksi: trxMatch?.status,
               catatan:
@@ -375,7 +449,7 @@ export const fetchRiwayatKunjungan = async (
             };
 
             const treatmentObj: KunjunganRiwayat = {
-              id: `${item.kode_kunjungan || item.kunjungan_id}-treatment`,
+              id: item.kode_kunjungan || item.kunjungan_id,
               noKunjungan: item.kode_kunjungan ? `#${item.kode_kunjungan}` : `#KJ-${item.kunjungan_id}`,
               tanggal: tanggalFormatted,
               jamMulai: primaryTreatment.dipanggil_at ? String(primaryTreatment.dipanggil_at).slice(11, 16) : jamMulai,
@@ -389,7 +463,10 @@ export const fetchRiwayatKunjungan = async (
                 nama: primaryTreatment.nama_layanan || 'Facial Glow Up',
                 deskripsi: primaryTreatment.deskripsi || 'Tindakan perawatan kecantikan lanjutan pasca konsultasi dokter.',
                 qty: 1,
-                harga: Number(primaryTreatment.harga || 150000),
+                harga: treatmentInfo.harga,
+                hargaAsli: treatmentInfo.hargaAsli,
+                diskonText: treatmentInfo.diskonText,
+                namaPromo: treatmentInfo.namaPromo,
               },
               produk: trxProducts,
               totalBayarKasir: totalBiayaKunjungan,
@@ -401,19 +478,25 @@ export const fetchRiwayatKunjungan = async (
                 item.header_rekam_medis?.diagnosis ||
                 '-',
               resep: resepList,
+              konsultasiSebelumnya: konsulObj,
             };
 
-            // 1. Tampilkan riwayat konsul
-            mapped.push(konsulObj);
-            // 2. Tampilkan riwayat treatment di bawahnya riwayat konsul dengan total semua biaya kunjungan
+            konsulObj.treatmentLanjutan = treatmentObj;
+
+            // Masukkan HANYA 1 kartu untuk satu kunjungan, dengan total harga yang dibayarkan
             mapped.push(treatmentObj);
           } else if (konsulLayanan) {
             // Kunjungan yang HANYA memiliki ruang konsultasi:
             // JANGAN tampilkan double konsultasi! TAMPILKAN SATU SAJA!
+            const konsulInfo = getTrxLayananInfo(
+              konsulLayanan.kode_layanan,
+              konsulLayanan.nama_layanan || 'konsul',
+              Number(konsulLayanan.harga || 15000)
+            );
             const totalBayarKasir =
               totalBayarKasirKunjungan !== undefined
                 ? totalBayarKasirKunjungan
-                : Number(konsulLayanan.harga || 15000) + prodTotal;
+                : konsulInfo.harga + prodTotal;
 
             mapped.push({
               id: item.kode_kunjungan || item.kunjungan_id,
@@ -433,7 +516,10 @@ export const fetchRiwayatKunjungan = async (
                   konsulLayanan.catatan_petugas ||
                   'Sesi konsultasi kondisi kulit, evaluasi masalah estetika, dan saran perawatan.',
                 qty: 1,
-                harga: Number(konsulLayanan.harga || 15000),
+                harga: konsulInfo.harga,
+                hargaAsli: konsulInfo.hargaAsli,
+                diskonText: konsulInfo.diskonText,
+                namaPromo: konsulInfo.namaPromo,
               },
               produk: trxProducts,
               totalBayarKasir,
@@ -450,10 +536,15 @@ export const fetchRiwayatKunjungan = async (
             // Kunjungan yang langsung ke treatment (tanpa konsultasi):
             // Tampilkan 1 treatment saja
             const primaryTreatment = realTreatmentList[0];
+            const treatmentInfo = getTrxLayananInfo(
+              primaryTreatment.kode_layanan,
+              primaryTreatment.nama_layanan,
+              Number(primaryTreatment.harga || 150000)
+            );
             const totalBayarKasir =
               totalBayarKasirKunjungan !== undefined
                 ? totalBayarKasirKunjungan
-                : Number(primaryTreatment.harga || 150000) + prodTotal;
+                : treatmentInfo.harga + prodTotal;
 
             mapped.push({
               id: item.kode_kunjungan || item.kunjungan_id,
@@ -470,7 +561,10 @@ export const fetchRiwayatKunjungan = async (
                 nama: primaryTreatment.nama_layanan || 'Treatment Estetika',
                 deskripsi: primaryTreatment.deskripsi || 'Tindakan perawatan kecantikan.',
                 qty: 1,
-                harga: Number(primaryTreatment.harga || 150000),
+                harga: treatmentInfo.harga,
+                hargaAsli: treatmentInfo.hargaAsli,
+                diskonText: treatmentInfo.diskonText,
+                namaPromo: treatmentInfo.namaPromo,
               },
               produk: trxProducts,
               totalBayarKasir,
@@ -487,10 +581,15 @@ export const fetchRiwayatKunjungan = async (
             // Fallback jika tidak ada antrian ruangan spesifik
             const primaryLayanan = layananList[0] || {};
             const namaLayanan = primaryLayanan.nama_layanan || 'Konsultasi Dokter Estetika';
+            const layananInfo = getTrxLayananInfo(
+              primaryLayanan.kode_layanan,
+              primaryLayanan.nama_layanan,
+              Number(primaryLayanan.harga || 15000)
+            );
             const totalBayarKasir =
               totalBayarKasirKunjungan !== undefined
                 ? totalBayarKasirKunjungan
-                : Number(primaryLayanan.harga || 15000) + prodTotal;
+                : layananInfo.harga + prodTotal;
 
             mapped.push({
               id: item.kode_kunjungan || item.kunjungan_id,
@@ -507,7 +606,10 @@ export const fetchRiwayatKunjungan = async (
                 nama: namaLayanan,
                 deskripsi: primaryLayanan.deskripsi || 'Sesi konsultasi kondisi kulit dan pemeriksaan umum.',
                 qty: 1,
-                harga: Number(primaryLayanan.harga || 15000),
+                harga: layananInfo.harga,
+                hargaAsli: layananInfo.hargaAsli,
+                diskonText: layananInfo.diskonText,
+                namaPromo: layananInfo.namaPromo,
               },
               produk: trxProducts,
               totalBayarKasir,

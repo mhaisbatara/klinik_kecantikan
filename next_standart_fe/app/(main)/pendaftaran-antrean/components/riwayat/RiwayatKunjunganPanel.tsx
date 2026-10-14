@@ -90,7 +90,10 @@ export const RiwayatKunjunganPanel: React.FC<RiwayatKunjunganPanelProps> = ({
       if (searchTerm.trim()) {
         const q = searchTerm.toLowerCase();
         const noKjMatch = (item.noKunjungan || '').toLowerCase().includes(q);
-        const layananMatch = (item.layanan?.nama || '').toLowerCase().includes(q);
+        const layananMatch =
+          (item.layanan?.nama || '').toLowerCase().includes(q) ||
+          (item.konsultasiSebelumnya?.layanan?.nama || '').toLowerCase().includes(q) ||
+          (item.treatmentLanjutan?.layanan?.nama || '').toLowerCase().includes(q);
         const rawDateMatch = String(item.tanggal || '').toLowerCase().includes(q);
         const formattedDateMatch = formatTanggalIndo(item.tanggal).toLowerCase().includes(q);
         const doctorMatch = (item.dokter || '').toLowerCase().includes(q);
@@ -109,7 +112,12 @@ export const RiwayatKunjunganPanel: React.FC<RiwayatKunjunganPanelProps> = ({
 
       // 3. Filter Jenis
       if (filterJenis !== 'semua') {
-        if (item.jenis !== filterJenis) {
+        const hasKonsul = item.jenis === 'konsultasi' || Boolean(item.konsultasiSebelumnya);
+        const hasTreatment = item.jenis === 'treatment' || Boolean(item.treatmentLanjutan);
+        if (filterJenis === 'konsultasi' && !hasKonsul) {
+          return false;
+        }
+        if (filterJenis === 'treatment' && !hasTreatment) {
           return false;
         }
       }

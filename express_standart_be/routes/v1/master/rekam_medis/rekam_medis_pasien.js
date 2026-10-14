@@ -58,6 +58,7 @@ const handleGetRekamMedis = async (req, res) => {
   const keyword = (oPayload.keyword || "").trim();
   const exclude_kode_kunjungan = (oPayload.exclude_kode_kunjungan || "").trim();
   const only_selesai = oPayload.only_selesai === true || oPayload.only_selesai === 'true' || oPayload.only_selesai === 1 || oPayload.only_selesai === '1';
+  const only_lunas = oPayload.only_lunas === true || oPayload.only_lunas === 'true' || oPayload.only_lunas === 1 || oPayload.only_lunas === '1';
 
   try {
     // 1. Fetch form field labels map (kode_ruangan -> field_key -> label_field)
@@ -92,6 +93,15 @@ const handleGetRekamMedis = async (req, res) => {
       .leftJoin("trx_rekam_medis_ruangan as rmr", "k.kode_kunjungan", "rmr.kode_kunjungan")
       .leftJoin("trx_antrian_layanan as al", "k.kode_kunjungan", "al.kode_kunjungan")
       .modify((qb) => {
+        if (only_lunas) {
+          qb.leftJoin("trx_transaksi as t_lunas", function () {
+            this.on("k.kode_kunjungan", "=", "t_lunas.kode_kunjungan")
+              .andOn(function () {
+                this.on("t_lunas.status", "=", DB.raw("?", ["lunas"]))
+                  .orOn("t_lunas.status", "=", DB.raw("?", ["selesai"]));
+              });
+          }).whereNotNull("t_lunas.id");
+        }
         if (branchCode) qb.where("k.kode_cabang", branchCode);
         if (no_rm) qb.where("k.no_rm", no_rm);
         if (exclude_kode_kunjungan) qb.whereNot("k.kode_kunjungan", exclude_kode_kunjungan);
@@ -157,6 +167,17 @@ const handleGetRekamMedis = async (req, res) => {
       .leftJoin("trx_rekam_medis as rm", "k.kode_kunjungan", "rm.kode_kunjungan")
       .leftJoin("trx_rekam_medis_ruangan as rmr", "k.kode_kunjungan", "rmr.kode_kunjungan")
       .leftJoin("trx_antrian_layanan as al", "k.kode_kunjungan", "al.kode_kunjungan")
+      .modify((qb) => {
+        if (only_lunas) {
+          qb.leftJoin("trx_transaksi as t_lunas", function () {
+            this.on("k.kode_kunjungan", "=", "t_lunas.kode_kunjungan")
+              .andOn(function () {
+                this.on("t_lunas.status", "=", DB.raw("?", ["lunas"]))
+                  .orOn("t_lunas.status", "=", DB.raw("?", ["selesai"]));
+              });
+          }).whereNotNull("t_lunas.id");
+        }
+      })
       .groupBy("k.id", "p.id")
       .modify((qb) => {
         if (branchCode) qb.where("k.kode_cabang", branchCode);
@@ -336,6 +357,7 @@ const handleGetRekamMedis = async (req, res) => {
           "j_book.no_sip as booking_no_sip",
           "kar_book.nama as booking_nama_petugas",
           "kar_book.jabatan as booking_jabatan_petugas",
+          "dal.kode_layanan as dal_kode_layanan",
           "dal.nama_layanan as dal_nama_layanan",
           "dal.jenis_layanan as dal_jenis_layanan",
           "dal.harga"
@@ -345,6 +367,15 @@ const handleGetRekamMedis = async (req, res) => {
         const kKunjungan = al.kode_kunjungan;
         if (!mapLayanan[kKunjungan]) mapLayanan[kKunjungan] = {};
         const key = al.kode_antrian_layanan;
+        const existing = mapLayanan[kKunjungan][key];
+        const isKonsulRoom = (al.nama_ruangan || "").toLowerCase().includes("konsul");
+        const isKonsulRow = (al.dal_nama_layanan || "").toLowerCase().includes("konsul");
+
+        if (existing && isKonsulRoom) {
+          if ((existing.nama_layanan || "").toLowerCase().includes("konsul") && !isKonsulRow) {
+            return;
+          }
+        }
         const headerRM = headerRmMap[kKunjungan] || {};
 
         let parsedAlForm = {};
@@ -400,6 +431,7 @@ const handleGetRekamMedis = async (req, res) => {
 
         mapLayanan[kKunjungan][key] = {
           kode_antrian_layanan: al.kode_antrian_layanan,
+          kode_layanan: al.dal_kode_layanan || null,
           kode_rekam_medis_ruangan: null,
           nama_layanan: al.dal_nama_layanan || al.nama_ruangan || "Pelayanan Klinik",
           jenis_layanan: al.dal_jenis_layanan || "layanan",
@@ -492,6 +524,7 @@ const handleGetRekamMedis = async (req, res) => {
           "j_book.no_sip as booking_no_sip",
           "kar_book.nama as booking_nama_petugas",
           "kar_book.jabatan as booking_jabatan_petugas",
+          "dal.kode_layanan as dal_kode_layanan",
           "dal.nama_layanan",
           "dal.jenis_layanan",
           "dal.harga",
@@ -529,13 +562,22 @@ const handleGetRekamMedis = async (req, res) => {
         });
       }
 
-      // Merge data dari trx_rekam_medis_ruangan
       vaRuanganRows.forEach((item) => {
         const kKunjungan = item.kode_kunjungan;
         if (!mapLayanan[kKunjungan]) mapLayanan[kKunjungan] = {};
 
         const headerRM = headerRmMap[kKunjungan] || {};
         const keyRuangan = item.kode_antrian_layanan || item.kode_rekam_medis_ruangan || `RMR-${item.rmr_id}`;
+
+        const existing = mapLayanan[kKunjungan][keyRuangan];
+        const isKonsulRoom = (item.nama_ruangan || existing?.nama_ruangan || "").toLowerCase().includes("konsul");
+        const isKonsulRow = (item.nama_layanan || "").toLowerCase().includes("konsul");
+
+        if (existing && isKonsulRoom) {
+          if ((existing.nama_layanan || "").toLowerCase().includes("konsul") && !isKonsulRow) {
+            return;
+          }
+        }
 
         let parsedDataForm = {};
         if (item.data_form) {
@@ -612,10 +654,11 @@ const handleGetRekamMedis = async (req, res) => {
 
         mapLayanan[kKunjungan][keyRuangan] = {
           kode_antrian_layanan: item.kode_antrian_layanan || keyRuangan,
+          kode_layanan: item.dal_kode_layanan || mapLayanan[kKunjungan]?.[keyRuangan]?.kode_layanan || null,
           kode_rekam_medis_ruangan: item.kode_rekam_medis_ruangan,
           nama_layanan: item.nama_layanan || mapLayanan[kKunjungan]?.[keyRuangan]?.nama_layanan || "Sesi Pelayanan Ruangan",
           jenis_layanan: item.jenis_layanan || mapLayanan[kKunjungan]?.[keyRuangan]?.jenis_layanan || "layanan",
-          harga: parseFloat(item.harga || mapLayanan[kKunjungan]?.[keyRuangan]?.harga || 0),
+          harga: parseFloat(item.harga !== undefined && item.harga !== null ? item.harga : (mapLayanan[kKunjungan]?.[keyRuangan]?.harga || 0)),
           kode_ruangan: item.kode_ruangan || mapLayanan[kKunjungan]?.[keyRuangan]?.kode_ruangan,
           nama_ruangan: item.nama_ruangan || mapLayanan[kKunjungan]?.[keyRuangan]?.nama_ruangan || "Ruangan Treatment",
           status: item.status_ruangan || "selesai",
