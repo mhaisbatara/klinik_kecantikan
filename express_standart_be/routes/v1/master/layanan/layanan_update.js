@@ -115,15 +115,37 @@ router.post("/", upload.any(), async (req, res) => {
       else if (oPayload.hapus_foto === true || oPayload.hapus_foto === "true" || oPayload.hapus_foto === "1" || oPayload.hapus_foto === 1) {
         finalFotoFilename = null;
       }
-      const isIncludeKonsul = oPayload.is_include_konsultasi !== undefined
+      let isIncludeKonsul = oPayload.is_include_konsultasi !== undefined
         ? (oPayload.is_include_konsultasi === 1 || oPayload.is_include_konsultasi === "1" || oPayload.is_include_konsultasi === true || oPayload.is_include_konsultasi === "true" ? 1 : 0)
         : (prevRecord.is_include_konsultasi || 0);
+
+      const targetKodeRuangan = oPayload.kode_ruangan !== undefined ? oPayload.kode_ruangan : prevRecord.kode_ruangan;
+      if (targetKodeRuangan) {
+        const room = await trx("mst_ruangan").where("kode_ruangan", targetKodeRuangan).first();
+        if (room && (room.is_konsultasi === 1 || (room.nama_ruangan && room.nama_ruangan.toLowerCase().includes("konsul")))) {
+          wajibKonsul = "tidak";
+          isIncludeKonsul = 0;
+        }
+      }
+
+      let kodeRuanganKonsulFinal = oPayload.kode_ruangan_konsultasi !== undefined ? (oPayload.kode_ruangan_konsultasi || null) : prevRecord.kode_ruangan_konsultasi;
+      let kodeLayananKonsulFinal = oPayload.kode_layanan_konsultasi !== undefined ? (oPayload.kode_layanan_konsultasi || null) : prevRecord.kode_layanan_konsultasi;
+      if (wajibKonsul !== "tidak" && kodeLayananKonsulFinal) {
+        const consultLay = await trx("mst_layanan").where("kode_layanan", kodeLayananKonsulFinal).first();
+        if (consultLay?.kode_ruangan) {
+          kodeRuanganKonsulFinal = consultLay.kode_ruangan;
+        }
+      } else if (wajibKonsul === "tidak") {
+        kodeRuanganKonsulFinal = null;
+        kodeLayananKonsulFinal = null;
+      }
 
       const oData = {
         kode_kategori_layanan: oPayload.kode_kategori_layanan,
         kode_ruangan: oPayload.kode_ruangan || null,
         wajib_konsultasi: wajibKonsul,
-        kode_ruangan_konsultasi: wajibKonsul !== "tidak" ? (oPayload.kode_ruangan_konsultasi || null) : null,
+        kode_ruangan_konsultasi: kodeRuanganKonsulFinal,
+        kode_layanan_konsultasi: kodeLayananKonsulFinal,
         is_include_konsultasi: isIncludeKonsul,
         nama: oPayload.nama,
         tipe: tipe,

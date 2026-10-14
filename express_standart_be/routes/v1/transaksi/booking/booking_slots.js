@@ -471,8 +471,71 @@ router.post("/", async (req, res) => {
       };
     });
 
-    // 6. Kalkulasi default DP
+    // 6. Kalkulasi default DP & informasi tarif konsultasi dokter
     const dpNominal = Math.round((baseHarga * DEFAULT_DP_PERCENTAGE) / 100);
+
+    let targetKonsulRoom = null;
+    if (oPayload.kode_layanan) {
+      const layCheck = await DB("mst_layanan").where("kode_layanan", oPayload.kode_layanan).first();
+      if (layCheck?.kode_ruangan_konsultasi) {
+        targetKonsulRoom = layCheck.kode_ruangan_konsultasi;
+      }
+    } else if (oPayload.kode_paket_layanan) {
+      const pktCheck = await DB("mst_paket_layanan").where("kode_paket_layanan", oPayload.kode_paket_layanan).first();
+      if (pktCheck?.kode_ruangan_konsultasi) {
+        targetKonsulRoom = pktCheck.kode_ruangan_konsultasi;
+      }
+    }
+    const consultKodeRuangan = targetKonsulRoom || allKonsulStaff[0]?.kode_ruangan || "RNG-007";
+    let consultService = await DB("mst_layanan as l")
+      .where("l.status", "aktif")
+      .where("l.kode_ruangan", consultKodeRuangan)
+      .orderBy("l.id", "asc")
+      .first();
+
+    if (!consultService) {
+      consultService = await DB("mst_layanan as l")
+        .leftJoin("mst_ruangan as r", "l.kode_ruangan", "r.kode_ruangan")
+        .where("l.status", "aktif")
+        .where("r.is_konsultasi", 1)
+        .modify((qb) => {
+          if (branchCode) qb.where("l.kode_cabang", branchCode);
+        })
+        .orderBy("l.id", "asc")
+        .first();
+    }
+
+    if (!consultService) {
+      consultService = await DB("mst_layanan as l")
+        .where("l.status", "aktif")
+        .where("l.nama", "like", "%konsul%")
+        .orderBy("l.id", "asc")
+        .first();
+    }
+
+    let consultPrice = consultService ? parseFloat(consultService.harga || 0) : 15000;
+    if (consultService) {
+      const targetDateStr = tanggalBooking || formatDateSystem(new Date(), "yyyy-MM-dd");
+      const qPromoKonsul = DB("mst_promo as p")
+        .join("mst_detail_promo as dp", "p.kode_promo", "dp.kode_promo")
+        .where("p.status", "aktif")
+        .where("dp.status", "aktif")
+        .where("dp.kode_item", consultService.kode_layanan)
+        .whereRaw("DATE(p.tanggal_mulai) <= ?", [targetDateStr])
+        .whereRaw("DATE(p.tanggal_selesai) >= ?", [targetDateStr]);
+
+      if (branchCode) qPromoKonsul.where("p.kode_cabang", branchCode);
+
+      const promoKonsul = await qPromoKonsul.first();
+      if (promoKonsul) {
+        const diskonNilai = parseFloat(promoKonsul.nilai_diskon || 0);
+        if (promoKonsul.jenis_diskon === "persen") {
+          consultPrice = Math.max(0, consultPrice - (consultPrice * diskonNilai) / 100);
+        } else {
+          consultPrice = Math.max(0, consultPrice - diskonNilai);
+        }
+      }
+    }
 
     return res.status(200).json({
       status: status.SUKSES,
@@ -495,8 +558,11 @@ router.post("/", async (req, res) => {
         consult_slots: vaConsultSlots,
         dokter_konsul: dokterKonsulList,
         ruang_konsultasi: {
-          kode_ruangan: allKonsulStaff[0]?.kode_ruangan || "RNG-007",
+          kode_ruangan: consultKodeRuangan,
           nama_ruangan: allKonsulStaff[0]?.nama_ruangan || "Ruang Konsultasi",
+          kode_layanan: consultService?.kode_layanan || "LAY-011",
+          nama_layanan: consultService?.nama || "Konsultasi Dokter",
+          harga_konsultasi: consultPrice,
         },
       },
     });

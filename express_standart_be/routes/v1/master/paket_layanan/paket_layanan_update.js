@@ -136,9 +136,20 @@ router.post("/", upload.any(), async (req, res) => {
         finalFotoFilename = null;
       }
 
+      let kodeRuanganKonsulFinal = oPayload.kode_ruangan_konsultasi !== undefined ? (oPayload.kode_ruangan_konsultasi || null) : prev.kode_ruangan_konsultasi;
+      let kodeLayananKonsulFinal = oPayload.kode_layanan_konsultasi !== undefined ? (oPayload.kode_layanan_konsultasi || null) : prev.kode_layanan_konsultasi;
+      if (kodeLayananKonsulFinal) {
+        const consultLay = await trx("mst_layanan").where("kode_layanan", kodeLayananKonsulFinal).first();
+        if (consultLay?.kode_ruangan) {
+          kodeRuanganKonsulFinal = consultLay.kode_ruangan;
+        }
+      }
+
       const oData = {
         nama: oPayload.nama,
         kode_ruangan: oPayload.kode_ruangan || null,
+        kode_ruangan_konsultasi: kodeRuanganKonsulFinal,
+        kode_layanan_konsultasi: kodeLayananKonsulFinal,
         tipe: selectedTipe,
         is_include_konsultasi: isIncludeKonsul ? 1 : 0,
         harga_paket: oPayload.harga_paket,

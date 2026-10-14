@@ -1385,6 +1385,10 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
                               tipe: pkg.tipe_paket || 'BEAUTY TREATMENT',
                               tipe_paket: pkg.tipe_paket || 'BEAUTY TREATMENT',
                               wajib_konsultasi: pkg.tipe_paket === 'MEDICAL TREATMENT' ? 'wajib' : pkg.tipe_paket === 'SERVICE TREATMENT' ? 'tidak' : 'opsional',
+                              is_include_konsultasi: Boolean(det.is_include_konsultasi ?? pkg.is_include_konsultasi_paket ?? false),
+                              harga_konsultasi: typeof det.harga_konsultasi === 'number' && det.harga_konsultasi > 0
+                                ? det.harga_konsultasi
+                                : (consultRoomInfo?.harga_konsultasi ? parseFloat(String(consultRoomInfo.harga_konsultasi)) : 15000),
                               kode_kepemilikan_paket_layanan: pkg.kode_kepemilikan_paket_layanan,
                               kode_detail_kepemilikan_paket_layanan: det.kode_detail_kepemilikan_paket_layanan,
                               nama_paket_asal: pkg.nama_paket,
@@ -1401,6 +1405,7 @@ export const FormPendaftaranKunjungan: React.FC<Props> = ({ toast, onSuccess }) 
                                 isDisabled={isRuangDisabled}
                                 onToggle={handleToggleItem}
                                 formatPrice={formatCurrency}
+                                hargaKonsultasi={consultRoomInfo?.harga_konsultasi}
                               />
                             );
                           });

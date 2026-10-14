@@ -45,6 +45,7 @@ router.post("/", async (req, res) => {
       .leftJoin("mst_kategori_layanan as k", "l.kode_kategori_layanan", "k.kode_kategori_layanan")
       .leftJoin("mst_ruangan as r", "l.kode_ruangan", "r.kode_ruangan")
       .leftJoin("mst_ruangan as r_konsul", "l.kode_ruangan_konsultasi", "r_konsul.kode_ruangan")
+      .leftJoin("mst_layanan as l_konsul", "l.kode_layanan_konsultasi", "l_konsul.kode_layanan")
       .modify((qb) => {
         if (branchCode) {
           qb.where("l.kode_cabang", branchCode);
@@ -78,6 +79,9 @@ router.post("/", async (req, res) => {
       "l.wajib_konsultasi",
       "l.kode_ruangan_konsultasi",
       "r_konsul.nama_ruangan as nama_ruangan_konsultasi",
+      "l.kode_layanan_konsultasi",
+      "l_konsul.nama as nama_layanan_konsultasi",
+      "l_konsul.harga as harga_layanan_konsultasi",
       "l.is_include_konsultasi",
       "l.nama",
       "l.harga",

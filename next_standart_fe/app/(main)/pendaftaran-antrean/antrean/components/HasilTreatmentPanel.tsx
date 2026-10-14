@@ -267,13 +267,28 @@ export const HasilTreatmentPanel: React.FC<HasilTreatmentPanelProps> = ({
 
     const filterOnlyLayanan = (items: any[]) => {
         if (!Array.isArray(items)) return [];
-        return items.filter((item: any) => {
+        const filtered = items.filter((item: any) => {
             const jenis = (item.jenis || item.jenis_layanan || item.tipe || '').toLowerCase();
             const kode = (item.kode || item.kode_layanan || item.kode_produk || '').toUpperCase();
             if (jenis.includes('produk') || jenis.includes('product')) return false;
             if (kode.startsWith('PRD-') || kode.startsWith('PKP-')) return false;
             return true;
         });
+
+        // Deduplikasi pengaman: pastikan layanan/paket unik hanya muncul 1 kali
+        const uniqueMap = new Map();
+        for (const it of filtered) {
+            const key = (it.kode || it.kode_layanan || it.nama || it.nama_layanan || '').toUpperCase();
+            if (!uniqueMap.has(key)) {
+                uniqueMap.set(key, it);
+            } else {
+                const existing = uniqueMap.get(key);
+                if ((it.jenis || '').includes('paket') || (it.nama_kategori || '').toLowerCase().includes('paket')) {
+                    uniqueMap.set(key, it);
+                }
+            }
+        }
+        return Array.from(uniqueMap.values());
     };
 
     const loadLayananPasien = async (kodeKunjungan: string) => {
