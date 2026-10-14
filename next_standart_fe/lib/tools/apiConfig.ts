@@ -1,6 +1,6 @@
 /**
  * @file apiConfig.ts
- * @description Helper terpusat untuk URL API backend dengan fallback cerdas untuk deployment Railway
+ * @description Helper terpusat untuk URL API backend
  */
 
 export const getBackendApiUrl = (): string => {
@@ -8,9 +8,6 @@ export const getBackendApiUrl = (): string => {
 
     // Jika kosong atau masih berupa placeholder bawaan template
     if (!url || url.includes('<') || url.includes('>')) {
-        if (process.env.NODE_ENV === 'production') {
-            return 'https://worthy-illumination-production-844e.up.railway.app/api/v1';
-        }
         return 'http://localhost:8000/api/v1';
     }
 
