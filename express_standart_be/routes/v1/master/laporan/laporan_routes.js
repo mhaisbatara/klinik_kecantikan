@@ -1699,6 +1699,7 @@ router.post("/expired", async (req, res) => {
       "b.stok_masuk",
       "b.stok_sisa",
       "b.harga_beli_satuan",
+      "b.kode_po",
       "p.satuan",
       "b.is_legacy_estimate",
       "b.status",
@@ -1734,6 +1735,9 @@ router.post("/expired", async (req, res) => {
     const filtered = mappedWithStatus.filter((b) => {
       if (!filterStatusExpired || filterStatusExpired === "ALL") return true;
       if (Array.isArray(filterStatusExpired)) return filterStatusExpired.includes(b.status_expired);
+      if (filterStatusExpired === "kritis") {
+        return b.status_expired === "kritis" || b.status_expired === "kadaluarsa";
+      }
       return b.status_expired === filterStatusExpired;
     });
 
@@ -1745,8 +1749,55 @@ router.post("/expired", async (req, res) => {
       return 0;
     });
 
-    const totalData = filtered.length;
-    const paginated = filtered.slice(offset, offset + perPage);
+    // Grouping per produk agar tidak menumpuk (seperti menu inventori)
+    const productMap = {};
+    for (const b of filtered) {
+      if (!productMap[b.kode_produk]) {
+        productMap[b.kode_produk] = {
+          kode_produk: b.kode_produk,
+          nama_produk: b.nama_produk,
+          nama: b.nama_produk,
+          satuan: b.satuan,
+          nama_supplier: b.nama_supplier,
+          total_stok: 0,
+          stok_tersedia: 0,
+          tanggal_kadaluarsa: b.tanggal_kadaluarsa,
+          sisa_hari: b.sisa_hari,
+          status_expired: b.status_expired,
+          is_legacy_estimate: b.is_legacy_estimate,
+          nearest_batch: b,
+          batches: [],
+        };
+      }
+      productMap[b.kode_produk].batches.push(b);
+      productMap[b.kode_produk].total_stok += (b.stok_tersedia || 0);
+      productMap[b.kode_produk].stok_tersedia += (b.stok_tersedia || 0);
+
+      // Prioritas status kadaluarsa terburuk/terdekat untuk level produk
+      const currentWorst = productMap[b.kode_produk].status_expired;
+      const curP = priorityMap[currentWorst] || 5;
+      const newP = priorityMap[b.status_expired] || 5;
+      if (newP < curP || (newP === curP && b.sisa_hari !== null && (productMap[b.kode_produk].sisa_hari === null || b.sisa_hari < productMap[b.kode_produk].sisa_hari))) {
+        productMap[b.kode_produk].status_expired = b.status_expired;
+        productMap[b.kode_produk].nearest_batch = b;
+        productMap[b.kode_produk].tanggal_kadaluarsa = b.tanggal_kadaluarsa;
+        productMap[b.kode_produk].sisa_hari = b.sisa_hari;
+      }
+      if (b.is_legacy_estimate === 1) {
+        productMap[b.kode_produk].is_legacy_estimate = 1;
+      }
+    }
+
+    const groupedProducts = Object.values(productMap);
+    groupedProducts.sort((a, b) => {
+      const pDiff = (priorityMap[a.status_expired] || 5) - (priorityMap[b.status_expired] || 5);
+      if (pDiff !== 0) return pDiff;
+      if (a.sisa_hari !== null && b.sisa_hari !== null) return a.sisa_hari - b.sisa_hari;
+      return 0;
+    });
+
+    const totalData = groupedProducts.length;
+    const paginated = (body.perPage && body.perPage < 1000) ? groupedProducts.slice(offset, offset + perPage) : groupedProducts;
 
     const totalBatch = mappedWithStatus.length;
     const kadaluarsa = mappedWithStatus.filter((b) => b.status_expired === "kadaluarsa").length;
@@ -1760,9 +1811,10 @@ router.post("/expired", async (req, res) => {
       message: "Data Laporan Expired Multi-Batch berhasil dimuat",
       datetime: formatDateSystem(),
       data: paginated,
+      raw_batches: filtered,
       total_data: totalData,
       summary: {
-        total_produk: totalBatch,
+        total_produk: groupedProducts.length,
         total_batch: totalBatch,
         kadaluarsa,
         kritis,
