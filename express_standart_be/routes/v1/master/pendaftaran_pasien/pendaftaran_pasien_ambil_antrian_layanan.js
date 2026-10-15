@@ -219,6 +219,19 @@ router.post("/", async (req, res) => {
         }
 
         // 1. Validasi & Ambil Detail Semua Item (harga ASLI dari master, promo disimpan sebagai referensi)
+        const prefixPpl = `PPL-${todayStr}-`;
+        const lastPpl = await trx("trx_pemakaian_paket_layanan")
+          .where("kode_pemakaian_paket_layanan", "like", `${prefixPpl}%`)
+          .orderBy("id", "desc")
+          .first();
+
+        let nextPplSeq = 1;
+        if (lastPpl && lastPpl.kode_pemakaian_paket_layanan) {
+          const parts = lastPpl.kode_pemakaian_paket_layanan.split("-");
+          const num = parseInt(parts[parts.length - 1], 10);
+          if (!isNaN(num)) nextPplSeq = num + 1;
+        }
+
         const checkedRoomsToday = new Map();
         const processedItems = [];
         for (const item of items) {
@@ -282,13 +295,35 @@ router.post("/", async (req, res) => {
               throw err;
             }
 
+            const sesiKe = dkpl.sesi_terpakai + 1;
             // Potong 1 sesi (sesi_terpakai + 1)
             await trx("trx_detail_kepemilikan_paket_layanan")
               .where("id", dkpl.id)
               .update({
-                sesi_terpakai: dkpl.sesi_terpakai + 1,
+                sesi_terpakai: sesiKe,
                 updated_at: formatDateSystem(),
               });
+
+            // Insert log pemakaian ke trx_pemakaian_paket_layanan
+            const cKodePpl = `${prefixPpl}${String(nextPplSeq).padStart(3, "0")}`;
+            nextPplSeq++;
+
+            await trx("trx_pemakaian_paket_layanan").insert({
+              kode_cabang: branchCode || null,
+              kode_pemakaian_paket_layanan: cKodePpl,
+              kode_detail_kepemilikan_paket_layanan: dkpl.kode_detail_kepemilikan_paket_layanan,
+              sesi_ke: sesiKe,
+              kode_kunjungan: cKodeKunjungan,
+              kode_booking: null,
+              tanggal_pakai: todayYmd,
+              status_pemakaian: "hadir",
+              keterangan: "Hadir treatment (Walk-in)",
+              tz: oPayload.tz || "Asia/Jakarta",
+              created_by: username,
+              created_at: formatDateSystem(),
+              updated_by: username,
+              updated_at: formatDateSystem(),
+            });
 
             // Cek apakah seluruh detail sesi sudah habis (sisa_sesi === 0)
             const allDetails = await trx("trx_detail_kepemilikan_paket_layanan")
@@ -479,6 +514,7 @@ router.post("/", async (req, res) => {
 
               let dkSeq = 1;
               const vaDetailKpl = [];
+              const vaPemakaianKpl = [];
               for (const det of pktDetails) {
                 const cKodeDkpl = `DKPL-${todayStr}-${String(nextKplSeq).padStart(3, "0")}-${String(dkSeq).padStart(2, "0")}`;
                 dkSeq++;
@@ -495,9 +531,31 @@ router.post("/", async (req, res) => {
                   updated_by: username,
                   updated_at: formatDateSystem(),
                 });
+
+                const cKodePpl = `${prefixPpl}${String(nextPplSeq).padStart(3, "0")}`;
+                nextPplSeq++;
+                vaPemakaianKpl.push({
+                  kode_cabang: branchCode || null,
+                  kode_pemakaian_paket_layanan: cKodePpl,
+                  kode_detail_kepemilikan_paket_layanan: cKodeDkpl,
+                  sesi_ke: 1,
+                  kode_kunjungan: cKodeKunjungan,
+                  kode_booking: null,
+                  tanggal_pakai: todayYmd,
+                  status_pemakaian: "hadir",
+                  keterangan: "Hadir treatment sesi ke-1 (Pembelian Paket Walk-in)",
+                  tz: oPayload.tz || "Asia/Jakarta",
+                  created_by: username,
+                  created_at: formatDateSystem(),
+                  updated_by: username,
+                  updated_at: formatDateSystem(),
+                });
               }
               if (vaDetailKpl.length > 0) {
                 await trx("trx_detail_kepemilikan_paket_layanan").insert(vaDetailKpl);
+              }
+              if (vaPemakaianKpl.length > 0) {
+                await trx("trx_pemakaian_paket_layanan").insert(vaPemakaianKpl);
               }
             }
           }
