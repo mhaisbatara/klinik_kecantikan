@@ -4330,17 +4330,66 @@ export const LaporanExpiredView: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [keyword, setKeyword] = useState<string>('');
   const [selectedStatusExpired, setSelectedStatusExpired] = useState<string | null>(null);
-  const [summary, setSummary] = useState({ total_produk: 0, kritis: 0, perhatian: 0, aman: 0, belum_diisi: 0 });
+  const [summary, setSummary] = useState({ total_produk: 0, total_batch: 0, kritis: 0, perhatian: 0, aman: 0, belum_diisi: 0 });
+  const [expandedRows, setExpandedRows] = useState<any>(null);
   const toast = useRef<Toast>(null);
+
+  // Helper untuk memastikan data terkelompok per produk dengan array batches
+  const processGroupedData = (items: any[]) => {
+    if (!items || items.length === 0) return [];
+    if (items[0]?.batches && Array.isArray(items[0].batches)) {
+      return items;
+    }
+    const map: Record<string, any> = {};
+    const priorityMap: Record<string, number> = { kadaluarsa: 1, kritis: 2, perhatian: 3, aman: 4 };
+
+    for (const b of items) {
+      const code = b.kode_produk || b.nama_produk;
+      if (!map[code]) {
+        map[code] = {
+          kode_produk: b.kode_produk,
+          nama_produk: b.nama_produk,
+          nama: b.nama_produk,
+          satuan: b.satuan,
+          nama_supplier: b.nama_supplier,
+          total_stok: 0,
+          stok_tersedia: 0,
+          tanggal_kadaluarsa: b.tanggal_kadaluarsa,
+          sisa_hari: b.sisa_hari,
+          status_expired: b.status_expired,
+          is_legacy_estimate: b.is_legacy_estimate,
+          nearest_batch: b,
+          batches: [],
+        };
+      }
+      map[code].batches.push(b);
+      const stock = Number(b.stok_tersedia ?? b.stok_sisa ?? 0);
+      map[code].total_stok += stock;
+      map[code].stok_tersedia += stock;
+
+      const curP = priorityMap[map[code].status_expired] || 5;
+      const newP = priorityMap[b.status_expired] || 5;
+      if (newP < curP || (newP === curP && b.sisa_hari !== null && (map[code].sisa_hari === null || b.sisa_hari < map[code].sisa_hari))) {
+        map[code].status_expired = b.status_expired;
+        map[code].nearest_batch = b;
+        map[code].tanggal_kadaluarsa = b.tanggal_kadaluarsa;
+        map[code].sisa_hari = b.sisa_hari;
+      }
+      if (b.is_legacy_estimate === 1) {
+        map[code].is_legacy_estimate = 1;
+      }
+    }
+    return Object.values(map);
+  };
 
   const fetchData = async (kw = keyword, sExp = selectedStatusExpired) => {
     setLoading(true);
     try {
-      const payload: any = { keyword: kw, perPage: 100 };
+      const payload: any = { keyword: kw, perPage: 1000 };
       if (sExp) payload.status_expired = sExp;
       const res = await postData('/master/laporan/expired', payload);
       if (['00', '0000'].includes(res?.data?.status)) {
-        setData(res.data.data || []);
+        setData(processGroupedData(res.data.data || []));
         if (res.data.summary) setSummary(res.data.summary);
       }
     } catch (err: any) {
@@ -4355,24 +4404,37 @@ export const LaporanExpiredView: React.FC = () => {
   }, []);
 
   const handleExport = async () => {
-    const exportData = data.map((r, i) => ({
-      No: i + 1,
-      'Kode Produk': r.kode_produk,
-      'Nama Obat/Skincare': r.nama_produk,
-      'No. Batch': r.no_batch || '-',
-      'Tanggal Kadaluarsa': r.tanggal_kadaluarsa
-        ? `${formatDateIndo(r.tanggal_kadaluarsa)}${r.is_legacy_estimate ? ' (⚠️ Perkiraan)' : ''}`
-        : '-',
-      'Sisa Stok': `${r.stok_tersedia} ${r.satuan || ''}`,
-      'Status Kadaluarsa':
-        r.status_expired === 'kritis'
-          ? (r.sisa_hari !== null && r.sisa_hari <= 0 ? 'EXPIRED' : `Kritis (${r.sisa_hari ?? '<30'} Hari)`)
-          : r.status_expired === 'perhatian'
-          ? `Perhatian (${r.sisa_hari ?? '<90'} Hari)`
-          : r.status_expired === 'aman'
-          ? 'Aman'
-          : 'Belum Diisi',
-    }));
+    const exportData: any[] = [];
+    let no = 1;
+    data.forEach((p) => {
+      const batches = p.batches && p.batches.length > 0 ? p.batches : [p];
+      batches.forEach((b: any) => {
+        exportData.push({
+          No: no++,
+          'Kode Produk': p.kode_produk,
+          'Nama Obat/Skincare': p.nama_produk,
+          'Kode Batch': b.kode_batch || '-',
+          'No. Batch': b.no_batch || '-',
+          'Tanggal Kadaluarsa': b.tanggal_kadaluarsa
+            ? `${formatDateIndo(b.tanggal_kadaluarsa)}${b.is_legacy_estimate ? ' (⚠️ Perkiraan)' : ''}`
+            : '-',
+          'Sisa Stok': `${b.stok_sisa ?? b.stok_tersedia ?? 0} ${p.satuan || ''}`,
+          'Harga Beli Satuan': formatRupiah(b.harga_beli_satuan || 0),
+          'Nilai Aset Batch': formatRupiah(b.nilai_aset_batch || (Number(b.stok_sisa ?? b.stok_tersedia ?? 0) * Number(b.harga_beli_satuan || 0))),
+          'Supplier': b.nama_supplier || p.nama_supplier || '-',
+          'Status Kadaluarsa':
+            b.status_expired === 'kadaluarsa'
+              ? 'EXPIRED'
+              : b.status_expired === 'kritis'
+              ? (b.sisa_hari !== null && b.sisa_hari <= 0 ? 'EXPIRED' : `Kritis (${b.sisa_hari ?? '<30'} Hari)`)
+              : b.status_expired === 'perhatian'
+              ? `Perhatian (${b.sisa_hari ?? '<90'} Hari)`
+              : b.status_expired === 'aman'
+              ? 'Aman'
+              : 'Belum Diisi',
+        });
+      });
+    });
     await exportToXLSX({
       data: exportData,
       fileName: `Laporan_Expired_${new Date().toISOString().slice(0, 10)}`,
@@ -4380,27 +4442,261 @@ export const LaporanExpiredView: React.FC = () => {
   };
 
   const handlePrint = () => {
-    const cols = ['#', 'Kode Produk', 'Nama Obat/Skincare', 'No. Batch', 'Tgl Kadaluarsa', 'Sisa Stok', 'Status'];
-    const rows = data
-      .map(
-        (r, i) => `
-        <tr>
-          <td style="text-align: center;">${i + 1}</td>
-          <td style="text-align: center; font-family: monospace;">${r.kode_produk}</td>
-          <td><strong>${r.nama_produk}</strong></td>
-          <td style="text-align: center;">${r.no_batch || '-'}</td>
-          <td style="text-align: center;">${r.tanggal_kadaluarsa ? formatDateIndo(r.tanggal_kadaluarsa) : '-'}${r.is_legacy_estimate ? ' <span style="color:#d97706;font-size:11px;">(Perkiraan)</span>' : ''}</td>
-          <td style="text-align: center;">${r.stok_tersedia} ${r.satuan || ''}</td>
-          <td style="text-align: center; font-weight: bold;">${String(r.status_expired || '-').toUpperCase()}</td>
-        </tr>
-      `
-      )
-      .join('');
-    printHtmlTable('Laporan Kadaluarsa (Expired) Obat & Skincare', cols, rows);
+    const cols = ['#', 'Kode Produk', 'Nama Obat/Skincare', 'Kode Batch', 'No. Batch', 'Tgl Kadaluarsa', 'Sisa Stok', 'Nilai Aset', 'Status'];
+    const rows: string[] = [];
+    let no = 1;
+
+    data.forEach((p) => {
+      const batches = p.batches && p.batches.length > 0 ? p.batches : [p];
+      const batchCount = batches.length;
+      const totalStok = batches.reduce((acc: number, b: any) => acc + Number(b.stok_sisa ?? b.stok_tersedia ?? 0), 0);
+
+      batches.forEach((b: any, bIdx: number) => {
+        const sisa = Number(b.stok_sisa ?? b.stok_tersedia ?? 0);
+        const harga = Number(b.harga_beli_satuan || 0);
+        const nilaiAset = b.nilai_aset_batch !== undefined ? Number(b.nilai_aset_batch) : sisa * harga;
+
+        const rawStatus = String(b.status_expired || '').toLowerCase();
+        let statusLabel = String(b.status_expired || '-').toUpperCase();
+        let statusColor = '#334155';
+        if (rawStatus === 'kadaluarsa' || (b.sisa_hari !== null && b.sisa_hari < 0)) {
+          statusColor = '#dc2626';
+          statusLabel = 'KADALUARSA';
+        } else if (rawStatus === 'kritis') {
+          statusColor = '#ea580c';
+          statusLabel = 'KRITIS';
+        } else if (rawStatus === 'perhatian') {
+          statusColor = '#d97706';
+          statusLabel = 'PERHATIAN';
+        } else if (rawStatus === 'aman') {
+          statusColor = '#16a34a';
+          statusLabel = 'AMAN';
+        }
+
+        const isLastBatch = bIdx === batchCount - 1;
+        const groupBorderBottom = isLastBatch ? 'border-bottom: 2px solid #cbd5e1;' : '';
+
+        if (bIdx === 0) {
+          // Baris pertama produk (berisi kolom produk dengan rowspan)
+          rows.push(`
+            <tr style="${groupBorderBottom}">
+              <td rowspan="${batchCount}" style="text-align: center; vertical-align: middle; font-weight: bold; background-color: #fafafa; border-bottom: 2px solid #cbd5e1;">${no++}</td>
+              <td rowspan="${batchCount}" style="text-align: center; font-family: monospace; vertical-align: middle; background-color: #fafafa; border-bottom: 2px solid #cbd5e1;"><strong>${p.kode_produk}</strong></td>
+              <td rowspan="${batchCount}" style="vertical-align: middle; background-color: #fafafa; border-bottom: 2px solid #cbd5e1;">
+                <strong>${p.nama_produk}</strong>
+                ${batchCount > 1 ? `<div style="font-size: 10px; color: #64748b; margin-top: 3px;">Total: ${totalStok} ${p.satuan || ''} (${batchCount} Batch)</div>` : ''}
+              </td>
+              <td style="text-align: center; font-family: monospace; ${groupBorderBottom}">${b.kode_batch || '-'}</td>
+              <td style="text-align: center; ${groupBorderBottom}">${b.no_batch || '-'}</td>
+              <td style="text-align: center; ${groupBorderBottom}">${b.tanggal_kadaluarsa ? formatDateIndo(b.tanggal_kadaluarsa) : '-'}${b.is_legacy_estimate ? ' <span style="color:#d97706;font-size:11px;">(Perkiraan)</span>' : ''}</td>
+              <td style="text-align: center; ${groupBorderBottom}">${sisa} ${p.satuan || ''}</td>
+              <td style="text-align: right; ${groupBorderBottom}">${formatRupiah(nilaiAset)}</td>
+              <td style="text-align: center; font-weight: bold; color: ${statusColor}; ${groupBorderBottom}">${statusLabel}</td>
+            </tr>
+          `);
+        } else {
+          // Baris batch berikutnya untuk produk yang sama (hanya kolom batch)
+          rows.push(`
+            <tr style="${groupBorderBottom}">
+              <td style="text-align: center; font-family: monospace; ${groupBorderBottom}">${b.kode_batch || '-'}</td>
+              <td style="text-align: center; ${groupBorderBottom}">${b.no_batch || '-'}</td>
+              <td style="text-align: center; ${groupBorderBottom}">${b.tanggal_kadaluarsa ? formatDateIndo(b.tanggal_kadaluarsa) : '-'}${b.is_legacy_estimate ? ' <span style="color:#d97706;font-size:11px;">(Perkiraan)</span>' : ''}</td>
+              <td style="text-align: center; ${groupBorderBottom}">${sisa} ${p.satuan || ''}</td>
+              <td style="text-align: right; ${groupBorderBottom}">${formatRupiah(nilaiAset)}</td>
+              <td style="text-align: center; font-weight: bold; color: ${statusColor}; ${groupBorderBottom}">${statusLabel}</td>
+            </tr>
+          `);
+        }
+      });
+    });
+
+    printHtmlTable('Laporan Kadaluarsa (Expired) Obat & Skincare', cols, rows.join(''));
+  };
+
+  const rowExpansionTemplate = (dataItem: any) => {
+    const batches = dataItem.batches || [];
+    return (
+      <div className="p-3 surface-50 border-round-xl m-2 border-1 border-purple-200 shadow-1">
+        {/* SUB-TABLE HEADER: Sama persis dengan menu inventori */}
+        <div className="flex align-items-center gap-2 flex-wrap mb-3 pb-2 border-bottom-1 border-200">
+          <span className="w-2rem h-2rem border-round-lg bg-purple-100 text-purple-700 flex align-items-center justify-content-center font-bold">
+            <i className="pi pi-box text-sm" />
+          </span>
+          <div>
+            <span className="font-bold text-900 text-sm mr-2">
+              Rincian Batch Fisik: {dataItem.nama_produk || dataItem.nama}
+            </span>
+            <span className="font-mono text-xs text-purple-700 bg-purple-50 px-2 py-0.5 border-round font-semibold">
+              {dataItem.kode_produk}
+            </span>
+          </div>
+          <Tag value={`${batches.length} Batch`} severity="info" className="text-xs py-0 px-2" />
+        </div>
+
+        {batches.length === 0 ? (
+          <div className="p-4 text-center text-500 text-xs surface-card border-round-lg border-1 border-200">
+            <i className="pi pi-inbox text-2xl text-400 block mb-2" />
+            Belum ada data batch fisik untuk produk ini.
+          </div>
+        ) : (
+          <DataTable
+            value={batches}
+            size="small"
+            className="p-datatable-sm surface-card border-round-lg border-1 border-200 overflow-hidden"
+            responsiveLayout="scroll"
+          >
+            {/* 1. Status Indicator Dot */}
+            <Column
+              header=""
+              headerStyle={{ width: '2.5rem', textAlign: 'center', whiteSpace: 'nowrap' }}
+              bodyStyle={{ textAlign: 'center' }}
+              body={(b) => {
+                const isHabis = b.status === 'habis' || Number(b.stok_sisa ?? b.stok_tersedia ?? 0) <= 0;
+                const isKadaluarsa = b.status_expired === 'kadaluarsa' || (b.sisa_hari !== null && b.sisa_hari < 0);
+                const isMenipisOrExpSoon = b.status_expired === 'kritis' || b.status_expired === 'perhatian' || (b.sisa_hari !== null && b.sisa_hari <= 30);
+
+                let dotColor = '#22c55e';
+                let dotTitle = 'Batch Aktif & Layak Jual';
+
+                if (isHabis) {
+                  dotColor = '#64748b';
+                  dotTitle = 'Batch Habis (0 Pcs)';
+                } else if (isKadaluarsa) {
+                  dotColor = '#dc2626';
+                  dotTitle = `Batch Kadaluarsa (${b.tanggal_kadaluarsa ? formatDateIndo(b.tanggal_kadaluarsa) : '-'})`;
+                } else if (isMenipisOrExpSoon) {
+                  dotColor = '#f97316';
+                  dotTitle = `Mendekati Kadaluarsa (${b.sisa_hari} hari lagi)`;
+                }
+
+                return (
+                  <div className="flex justify-content-center" title={dotTitle}>
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        width: '12px',
+                        height: '12px',
+                        borderRadius: '3px',
+                        backgroundColor: dotColor,
+                        boxShadow: `0 1px 3px ${dotColor}66`,
+                      }}
+                    />
+                  </div>
+                );
+              }}
+            />
+
+            {/* 2. Kode Batch */}
+            <Column
+              header="Kode Batch"
+              field="kode_batch"
+              headerStyle={{ minWidth: '9rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}
+              body={(b) => (
+                <span className="font-mono font-semibold text-xs text-purple-700 bg-purple-50 px-2 py-0.5 border-round">
+                  {b.kode_batch || '-'}
+                </span>
+              )}
+            />
+
+            {/* 3. No. Batch */}
+            <Column
+              header="No. Batch"
+              field="no_batch"
+              headerStyle={{ minWidth: '9rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}
+              body={(b) => (
+                <span className="font-mono font-bold text-xs text-900 bg-gray-100 px-2 py-0.5 border-round">
+                  {b.no_batch || '-'}
+                </span>
+              )}
+            />
+
+            {/* 4. Tanggal Kadaluarsa */}
+            <Column
+              header="Tanggal Kadaluarsa"
+              headerStyle={{ minWidth: '10.5rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}
+              body={(b) => {
+                let badgeBg = 'bg-green-100 text-green-800 border-green-300';
+                if (b.status_expired === 'kadaluarsa') badgeBg = 'bg-red-500 text-white font-bold';
+                else if (b.status_expired === 'kritis') badgeBg = 'bg-red-100 text-red-800 font-bold border-red-300';
+                else if (b.status_expired === 'perhatian') badgeBg = 'bg-orange-100 text-orange-800 font-semibold border-orange-300';
+
+                return (
+                  <div className="flex flex-column gap-1">
+                    <span className={`px-2 py-0.5 border-round text-xs font-semibold border-1 w-max ${badgeBg}`}>
+                      {b.tanggal_kadaluarsa ? formatDateIndo(b.tanggal_kadaluarsa) : '-'}
+                    </span>
+                    {b.is_legacy_estimate === 1 && (
+                      <Tag
+                        value="⚠️ Perkiraan Default (+1 Thn)"
+                        severity="warning"
+                        className="text-[10px] py-0 px-1 border-round w-max"
+                      />
+                    )}
+                  </div>
+                );
+              }}
+              style={{ minWidth: '10.5rem' }}
+            />
+
+            {/* 5. Kuantitas Stok */}
+            <Column
+              header="Kuantitas Stok"
+              body={(b) => (
+                <div className="text-xs">
+                  <div className="flex align-items-center gap-1">
+                    <span className="text-500">Sisa:</span>
+                    <strong className={Number(b.stok_sisa ?? b.stok_tersedia ?? 0) > 0 ? 'text-green-700 text-sm font-bold' : 'text-500'}>
+                      {b.stok_sisa ?? b.stok_tersedia ?? 0} {dataItem.satuan || ''}
+                    </strong>
+                  </div>
+                  <div className="text-500 text-[11px]">
+                    Masuk: {b.stok_masuk !== undefined ? b.stok_masuk : '-'} {dataItem.satuan || ''}
+                  </div>
+                </div>
+              )}
+              style={{ minWidth: '9rem' }}
+            />
+
+            {/* 6. Harga & Nilai Aset */}
+            <Column
+              header="Harga & Nilai Aset"
+              body={(b) => {
+                const sisa = Number(b.stok_sisa ?? b.stok_tersedia ?? 0);
+                const harga = Number(b.harga_beli_satuan ?? 0);
+                const nilaiAset = b.nilai_aset_batch !== undefined ? Number(b.nilai_aset_batch) : sisa * harga;
+                return (
+                  <div className="text-xs">
+                    <div className="font-bold text-900">
+                      {formatRupiah(nilaiAset)}
+                    </div>
+                    <div className="text-500 text-[11px]">
+                      @ {formatRupiah(harga)}
+                    </div>
+                  </div>
+                );
+              }}
+              style={{ minWidth: '10rem' }}
+            />
+
+            {/* 7. Supplier / PO */}
+            <Column
+              header="Supplier / PO"
+              body={(b) => (
+                <div className="text-xs">
+                  <span className="font-medium text-800 block">{b.nama_supplier || dataItem.nama_supplier || '-'}</span>
+                  {b.kode_po && <span className="font-mono text-500 text-[11px]">{b.kode_po}</span>}
+                </div>
+              )}
+              style={{ minWidth: '11rem' }}
+            />
+          </DataTable>
+        )}
+      </div>
+    );
   };
 
   const summaryCards: SummaryCardItem[] = [
-    { label: 'Total Batch Dipantau', value: `${summary.total_produk || data.length} Batch`, icon: 'pi pi-box', color: 'blue' },
+    { label: 'Total Batch Dipantau', value: `${summary.total_batch || summary.total_produk || data.length} Batch`, icon: 'pi pi-box', color: 'blue' },
     { label: 'Kritis (<30 Hari)', value: `${summary.kritis} Batch`, icon: 'pi pi-exclamation-circle', color: 'red' },
     { label: 'Perhatian (<90 Hari)', value: `${summary.perhatian} Batch`, icon: 'pi pi-clock', color: 'amber' },
     { label: 'Stok Aman', value: `${summary.aman} Batch`, icon: 'pi pi-shield', color: 'green' },
@@ -4440,6 +4736,10 @@ export const LaporanExpiredView: React.FC = () => {
           rowsPerPageOptions={[10, 25, 50]}
           emptyMessage="Data Laporan Expired Tidak Ditemukan"
           className="p-datatable-sm"
+          expandedRows={expandedRows}
+          onRowToggle={(e) => setExpandedRows(e.data)}
+          rowExpansionTemplate={rowExpansionTemplate}
+          dataKey="kode_produk"
           header={
             <LaporanTableHeaderFilter
               searchVal={keyword}
@@ -4468,7 +4768,7 @@ export const LaporanExpiredView: React.FC = () => {
                       value={selectedStatusExpired}
                       options={[
                         { label: 'Semua Status', value: '' },
-                        { label: 'Kritis (< 30 Hari)', value: 'kritis' },
+                        { label: 'Kritis / Kadaluarsa (< 30 Hari)', value: 'kritis' },
                         { label: 'Perhatian (< 90 Hari)', value: 'perhatian' },
                         { label: 'Aman (>= 90 Hari)', value: 'aman' },
                         { label: 'Belum Diisi No. Batch/Tgl', value: 'belum_diisi' },
@@ -4483,43 +4783,84 @@ export const LaporanExpiredView: React.FC = () => {
             />
           }
         >
+          <Column expander style={{ width: '3rem' }} />
           <Column
             header=""
             headerStyle={{ width: '3.5rem' }}
             align="center"
             body={(r) => {
-              const color =
-                r.status_expired === 'kritis'
-                  ? '#ef4444'
-                  : r.status_expired === 'perhatian'
-                  ? '#eab308'
-                  : r.status_expired === 'aman'
-                  ? '#22c55e'
-                  : '#94a3b8';
-              const tip =
-                r.status_expired === 'kritis'
-                  ? (r.sisa_hari !== null && r.sisa_hari <= 0 ? 'Expired' : `Kritis (${r.sisa_hari ?? '<30'} Hari)`)
-                  : r.status_expired === 'perhatian'
-                  ? `Perhatian (${r.sisa_hari ?? '<90'} Hari)`
-                  : r.status_expired === 'aman'
-                  ? 'Aman'
-                  : 'Belum Diisi';
+              const isKadaluarsa = r.status_expired === 'kadaluarsa' || (r.sisa_hari !== null && r.sisa_hari < 0);
+              const isKritis = r.status_expired === 'kritis' || (r.sisa_hari !== null && r.sisa_hari <= 30);
+              const isPerhatian = r.status_expired === 'perhatian' || (r.sisa_hari !== null && r.sisa_hari <= 90);
+              const isAman = r.status_expired === 'aman';
+
+              let color = '#94a3b8';
+              let tip = 'Belum Diisi';
+
+              if (isKadaluarsa) {
+                color = '#dc2626';
+                tip = 'Kadaluarsa (Expired)';
+              } else if (isKritis) {
+                color = '#ef4444';
+                tip = `Kritis (${r.sisa_hari ?? '<30'} Hari)`;
+              } else if (isPerhatian) {
+                color = '#eab308';
+                tip = `Perhatian (${r.sisa_hari ?? '<90'} Hari)`;
+              } else if (isAman) {
+                color = '#22c55e';
+                tip = 'Aman';
+              }
+
               return <StatusSquare color={color} tooltip={tip} />;
             }}
           />
-          <Column field="kode_produk" header="Kode Produk" sortable className="font-semibold text-800 font-mono" style={{ minWidth: '9rem' }} />
-          <Column field="nama_produk" header="Nama Obat / Skincare" sortable className="font-bold text-gray-800" style={{ minWidth: '15rem' }} />
+          <Column
+            field="kode_produk"
+            header="Kode Produk"
+            sortable
+            className="font-semibold text-800 font-mono"
+            style={{ minWidth: '9rem' }}
+            body={(r) => (
+              <span className="font-mono font-bold text-purple-700 bg-purple-50 px-2 py-1 border-round text-xs inline-block">
+                {r.kode_produk}
+              </span>
+            )}
+          />
+          <Column
+            field="nama_produk"
+            header="Nama Obat / Skincare"
+            sortable
+            className="font-bold text-gray-800"
+            style={{ minWidth: '15rem' }}
+            body={(r) => (
+              <span
+                className="font-bold text-900 text-sm hover:text-purple-700 cursor-pointer block"
+                onClick={() => {
+                  const newExpanded = { ...expandedRows, [r.kode_produk]: !expandedRows?.[r.kode_produk] };
+                  setExpandedRows(newExpanded);
+                }}
+                title="Klik untuk buka/tutup rincian batch"
+              >
+                {r.nama_produk}
+              </span>
+            )}
+          />
           <Column
             field="no_batch"
             header="No. Batch"
             sortable
             body={(r) => (
-              <div>
-                {r.no_batch ? (
-                  <span className="font-mono text-gray-700 font-semibold">{r.no_batch}</span>
-                ) : (
-                  <span className="text-gray-400 italic text-xs">-</span>
-                )}
+              <div className="flex flex-column gap-1">
+                <Tag
+                  value={`${r.batches?.length || 1} Batch`}
+                  severity="info"
+                  className="text-xs py-0 px-2 w-max cursor-pointer"
+                  onClick={() => {
+                    const newExpanded = { ...expandedRows, [r.kode_produk]: !expandedRows?.[r.kode_produk] };
+                    setExpandedRows(newExpanded);
+                  }}
+                  title="Klik untuk buka/tutup rincian batch"
+                />
                 {r.nama_supplier && (
                   <div className="text-xs text-500">{r.nama_supplier}</div>
                 )}
@@ -4531,18 +4872,33 @@ export const LaporanExpiredView: React.FC = () => {
             field="tanggal_kadaluarsa"
             header="Tanggal Kadaluarsa"
             sortable
-            body={(r) => (
-              <div className="flex flex-column gap-1">
-                <span>{r.tanggal_kadaluarsa ? formatDateIndo(r.tanggal_kadaluarsa) : <span className="text-gray-400 italic text-xs">-</span>}</span>
-                {Boolean(r.is_legacy_estimate) && (
-                  <Tag
-                    value="⚠️ Perkiraan — Verifikasi"
-                    severity="warning"
-                    className="text-[10px] py-0 px-1 border-round w-max"
-                  />
-                )}
-              </div>
-            )}
+            body={(r) => {
+              const b = r.nearest_batch || r.batches?.[0] || r;
+              const tgl = b.tanggal_kadaluarsa || r.tanggal_kadaluarsa;
+              let badgeBg = 'bg-green-100 text-green-800 border-green-300';
+              if (b.status_expired === 'kadaluarsa') badgeBg = 'bg-red-500 text-white font-bold';
+              else if (b.status_expired === 'kritis') badgeBg = 'bg-red-100 text-red-800 font-bold border-red-300';
+              else if (b.status_expired === 'perhatian') badgeBg = 'bg-orange-100 text-orange-800 font-semibold border-orange-300';
+
+              return (
+                <div className="flex flex-column gap-1">
+                  {tgl ? (
+                    <span className={`px-2 py-0.5 border-round text-xs font-semibold border-1 w-max ${badgeBg}`}>
+                      {formatDateIndo(tgl)}
+                    </span>
+                  ) : (
+                    <span className="text-gray-400 italic text-xs">-</span>
+                  )}
+                  {Boolean(b.is_legacy_estimate) && (
+                    <Tag
+                      value="⚠️ Perkiraan — Verifikasi"
+                      severity="warning"
+                      className="text-[10px] py-0 px-1 border-round w-max"
+                    />
+                  )}
+                </div>
+              );
+            }}
             style={{ minWidth: '13rem' }}
           />
           <Column
@@ -4550,7 +4906,11 @@ export const LaporanExpiredView: React.FC = () => {
             header="Sisa Stok Batch"
             sortable
             align="center"
-            body={(r) => <span className="font-bold text-gray-700">{r.stok_tersedia} {r.satuan || ''}</span>}
+            body={(r) => (
+              <span className="font-bold text-gray-700">
+                {r.total_stok ?? r.stok_tersedia} {r.satuan || ''}
+              </span>
+            )}
             style={{ minWidth: '9rem' }}
           />
 
