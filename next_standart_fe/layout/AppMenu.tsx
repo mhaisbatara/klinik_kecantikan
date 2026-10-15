@@ -136,8 +136,6 @@ const AppMenu = () => {
     const isSuperAdminUser = userRole === 'superadmin' || userRole === 'admin_pusat';
 
     const getRoleAllowedReports = () => {
-        if (isOwnerOrManagerRole || isSuperAdminUser) return LAPORAN_MENU_ITEMS;
-
         if (state.allowedPaths.size > 0) {
             const hasAnyTab = LAPORAN_MENU_ITEMS.some((it) =>
                 state.allowedPaths.has('/riwayat/rekam-medis?tab=' + it.id)
@@ -150,7 +148,10 @@ const AppMenu = () => {
             if (state.allowedPaths.has('/riwayat/rekam-medis')) {
                 return LAPORAN_MENU_ITEMS;
             }
+            return [];
         }
+
+        if (isOwnerOrManagerRole) return LAPORAN_MENU_ITEMS;
 
         if (userRole === 'dokter') {
             return LAPORAN_MENU_ITEMS.filter((it) => ['dokter', 'rekam_medis', 'pasien', 'kunjungan'].includes(it.id));
@@ -167,7 +168,7 @@ const AppMenu = () => {
         if (userRole === 'admin') {
             return LAPORAN_MENU_ITEMS.filter((it) => ['pasien', 'kunjungan', 'appointment'].includes(it.id));
         }
-        return LAPORAN_MENU_ITEMS;
+        return [];
     };
 
     const roleReports = getRoleAllowedReports();
@@ -180,6 +181,10 @@ const AppMenu = () => {
 
     const [ruanganList, setRuanganList] = useState<RuanganItem[]>([]);
     const [loadRuangan, setLoadRuangan] = useState<boolean>(true);
+    const [cabangList, setCabangList] = useState<{ kode_cabang: string; nama_cabang: string }[]>([
+        { kode_cabang: 'CBG-001', nama_cabang: 'Klinik Cabang Utama' },
+        { kode_cabang: 'CBG-002', nama_cabang: 'Klinik Cabang Surabaya' },
+    ]);
 
     useEffect(() => {
         getMenu(session?.user?.user_code || 'USR000000');
@@ -197,7 +202,22 @@ const AppMenu = () => {
 
     useEffect(() => {
         fetchRuangan();
-    }, []);
+        if ((session?.user?.role || '').toLowerCase() === 'superadmin') {
+            fetchCabangList();
+        }
+    }, [session]);
+
+    const fetchCabangList = async () => {
+        try {
+            const res = await postData('/master/cabang-data', {});
+            if (res?.data?.data && Array.isArray(res.data.data)) {
+                setCabangList(res.data.data.map((c: any) => ({
+                    kode_cabang: c.kode_cabang,
+                    nama_cabang: c.nama_cabang,
+                })));
+            }
+        } catch (_) {}
+    };
 
     const fetchRuangan = async () => {
         setLoadRuangan(true);
@@ -273,12 +293,21 @@ const AppMenu = () => {
                         const isSuperAdminRole = currentRole === 'superadmin';
 
                         if (isSuperAdminRole) {
+                            const dynamicBranches = cabangList.length > 0 ? cabangList : [
+                                { kode_cabang: 'CBG-001', nama_cabang: 'Klinik Cabang Utama' },
+                                { kode_cabang: 'CBG-002', nama_cabang: 'Klinik Cabang Surabaya' },
+                            ];
                             subItems = [
                                 {
-                                    label: 'Dashboard',
+                                    label: 'Dashboard Pusat',
                                     to: '/dashboard',
                                     icon: 'pi pi-fw pi-home',
-                                }
+                                },
+                                ...dynamicBranches.map((cb) => ({
+                                    label: `Dashboard ${cb.nama_cabang.replace(/^Klinik\s+/i, '')}`,
+                                    to: `/dashboard/cabang/${cb.kode_cabang}`,
+                                    icon: 'pi pi-fw pi-building',
+                                }))
                             ];
                         } else {
                             subItems = [
@@ -594,13 +623,13 @@ const AppMenu = () => {
                     defaultTrxSubItems.push({ label: 'Tracking Kas Kasir', icon: 'pi pi-fw pi-wallet', to: '/transaksi/tracking-kasir' });
                 }
             } else {
-                if (isOwnerOrManager || currentRole === 'kasir' || currentRole === 'admin' || isSuperAdminRole) {
+                if (isOwnerOrManager || currentRole === 'kasir' || currentRole === 'admin') {
                     defaultTrxSubItems.push({ label: 'Kasir', icon: 'pi pi-fw pi-calculator', to: '/kasir' });
                 }
-                if (isOwnerOrManager || currentRole === 'warehouse' || currentRole === 'admin' || isSuperAdminRole) {
+                if (isOwnerOrManager || currentRole === 'warehouse' || currentRole === 'admin') {
                     defaultTrxSubItems.push({ label: 'Inventori', icon: 'pi pi-fw pi-box', to: '/master-data/inventori' });
                 }
-                if (isOwnerOrManager || currentRole === 'admin' || currentRole === 'kasir' || isSuperAdminRole) {
+                if (isOwnerOrManager || currentRole === 'admin' || currentRole === 'kasir') {
                     defaultTrxSubItems.push({ label: 'Tracking Kas Kasir', icon: 'pi pi-fw pi-wallet', to: '/transaksi/tracking-kasir' });
                 }
             }
@@ -663,7 +692,11 @@ const AppMenu = () => {
                     {
                         label: 'HOME',
                         icon: 'pi pi-fw pi-home',
-                        items: [{ label: 'Dashboard', icon: 'pi pi-fw pi-home', to: '/dashboard' }]
+                        items: [
+                            { label: 'Dashboard Pusat', icon: 'pi pi-fw pi-home', to: '/dashboard' },
+                            { label: 'Dashboard Cabang Utama', icon: 'pi pi-fw pi-building', to: '/dashboard/cabang/CBG-001' },
+                            { label: 'Dashboard Cabang Surabaya', icon: 'pi pi-fw pi-building', to: '/dashboard/cabang/CBG-002' },
+                        ]
                     },
                     {
                         label: 'PENGATURAN KLINIK',
@@ -910,58 +943,49 @@ const AppMenu = () => {
 
                         // Hak Akses Operasional Berdasarkan Role & Permission Navigasi yang Diberikan
                         const hasAllowedPath = (target: string) => {
-                            if (isSuperAdminRole || isOwnerOrManager) return true;
-                            if (state.allowedPaths.has(target)) return true;
-                            for (const p of state.allowedPaths) {
-                                if (target.includes('?') && p.startsWith(target)) return true;
-                                if (!target.includes('?') && (p === target || p.startsWith(target + '?'))) return true;
+                            if (state.allowedPaths.size > 0) {
+                                if (state.allowedPaths.has(target)) return true;
+                                for (const p of state.allowedPaths) {
+                                    if (target.includes('?') && p.startsWith(target)) return true;
+                                    if (!target.includes('?') && (p === target || p.startsWith(target + '?'))) return true;
+                                }
+                                return false;
                             }
+                            if (isOwnerOrManager) return true;
                             return false;
                         };
 
                         const canAccessTindakan =
-                            isSuperAdminRole ||
-                            isOwnerOrManager ||
-                            (state.allowedPaths.size > 0
+                            state.allowedPaths.size > 0
                                 ? hasAllowedPath('/pendaftaran-antrean/antrean?type=layanan')
-                                : ['dokter', 'beautician'].includes(currentRole));
+                                : (isOwnerOrManager || ['dokter', 'beautician'].includes(currentRole));
 
                         const canAccessKonsul =
-                            isSuperAdminRole ||
-                            isOwnerOrManager ||
-                            (state.allowedPaths.size > 0
+                            state.allowedPaths.size > 0
                                 ? hasAllowedPath('/pendaftaran-antrean/antrean?type=konsul')
-                                : currentRole === 'dokter');
+                                : (isOwnerOrManager || currentRole === 'dokter');
 
                         const canAccessLayanan = canAccessTindakan || canAccessKonsul;
 
                         const canAccessKasir =
-                            isSuperAdminRole ||
-                            isOwnerOrManager ||
-                            (state.allowedPaths.size > 0
+                            state.allowedPaths.size > 0
                                 ? hasAllowedPath('/kasir')
-                                : currentRole === 'kasir');
+                                : (isOwnerOrManager || currentRole === 'kasir');
 
                         const canAccessInventori =
-                            isSuperAdminRole ||
-                            isOwnerOrManager ||
-                            (state.allowedPaths.size > 0
+                            state.allowedPaths.size > 0
                                 ? hasAllowedPath('/master-data/inventori')
-                                : ['owner', 'manager', 'warehouse', 'admin'].includes(currentRole));
+                                : (isOwnerOrManager || ['warehouse', 'admin'].includes(currentRole));
 
                         const canAccessTrackingKasir =
-                            isSuperAdminRole ||
-                            isOwnerOrManager ||
-                            (state.allowedPaths.size > 0
+                            state.allowedPaths.size > 0
                                 ? hasAllowedPath('/transaksi/tracking-kasir')
-                                : ['owner', 'manager', 'admin', 'kasir'].includes(currentRole));
+                                : (isOwnerOrManager || ['admin', 'kasir'].includes(currentRole));
 
                         const canAccessLaporan =
-                            isSuperAdminRole ||
-                            isOwnerOrManager ||
-                            roleReports.length > 0 ||
-                            ['owner', 'manager', 'dokter', 'kasir', 'warehouse', 'admin'].includes(currentRole) ||
-                            (state.allowedPaths.size > 0 && hasAllowedPath('/riwayat/rekam-medis'));
+                            state.allowedPaths.size > 0
+                                ? (hasAllowedPath('/riwayat/rekam-medis') || roleReports.length > 0)
+                                : (isOwnerOrManager || roleReports.length > 0 || ['dokter', 'kasir', 'warehouse', 'admin'].includes(currentRole));
 
                         const searchLower = state.searchVal.trim().toLowerCase();
                         const matchesTindakan = canAccessTindakan && (!searchLower || 'tindakan'.includes(searchLower) || 'layanan'.includes(searchLower));

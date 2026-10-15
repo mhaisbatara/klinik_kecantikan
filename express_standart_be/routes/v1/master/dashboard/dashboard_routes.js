@@ -499,4 +499,285 @@ router.post("/role-data", async (req, res) => {
   }
 });
 
+/**
+ * POST /master/dashboard/cabang-detail
+ * Khusus Superadmin: Mengambil detail tracking aktivitas & metrik operasional cabang tertentu
+ */
+router.post("/cabang-detail", async (req, res) => {
+  const { body } = req;
+  const username = req?.auth?.username || body.username || "";
+  const role = (req?.auth?.role || body.role || "").toLowerCase();
+  const isSuperAdmin = role === "superadmin" || role === "admin_pusat" || req?.auth?.is_superadmin;
+
+  if (!isSuperAdmin) {
+    return res.status(403).json({
+      status: status.GAGAL,
+      message: "Akses ditolak: Dashboard Cabang hanya dapat diakses oleh Superadmin.",
+    });
+  }
+
+  const kodeCabang = body.kode_cabang || "CBG-001";
+  try {
+    const today = formatDateSystem(new Date(), "yyyy-MM-dd");
+
+    // 1. Profil Cabang
+    const cabang = await DB("mst_cabang").where("kode_cabang", kodeCabang).first();
+    if (!cabang) {
+      return res.status(404).json({
+        status: status.NOT_FOUND,
+        message: `Cabang dengan kode ${kodeCabang} tidak ditemukan.`,
+      });
+    }
+
+    // 2. Daftar seluruh cabang untuk switcher cepat
+    const allBranches = await DB("mst_cabang").select("kode_cabang", "nama_cabang", "status").orderBy("id", "asc");
+
+    // 3. User Manager di cabang ini
+    const managers = await DB("user_credential")
+      .where("kode_cabang", kodeCabang)
+      .whereIn("role", ["owner", "manager"])
+      .select("user_code", "fullname", "username", "telp", "status");
+
+    // 4. Omzet Hari Ini & Total
+    const omzetTrxTotal = await DB("trx_transaksi")
+      .where("kode_cabang", kodeCabang)
+      .whereIn("status", ["lunas", "selesai"])
+      .sum("total_bayar as total")
+      .first();
+
+    const omzetToday = await DB("trx_transaksi")
+      .where("kode_cabang", kodeCabang)
+      .whereIn("status", ["lunas", "selesai"])
+      .whereRaw("DATE(tanggal_transaksi) = ?", [today])
+      .sum("total_bayar as total")
+      .first();
+
+    const dpReceivedToday = await DB("trx_booking")
+      .where("kode_cabang", kodeCabang)
+      .whereRaw("DATE(COALESCE(dp_dibayar_at, created_at)) = ?", [today])
+      .whereIn("dp_status", ["sudah_bayar", "dipotong_treatment", "hangus"])
+      .sum("dp_nominal as total")
+      .first();
+
+    const totalOmzetVal = parseFloat(omzetTrxTotal?.total || 0);
+    const omzetHariIniVal = parseFloat(omzetToday?.total || 0) + parseFloat(dpReceivedToday?.total || 0);
+
+    // Total Transaksi
+    const trxCountTotal = await DB("trx_transaksi")
+      .where("kode_cabang", kodeCabang)
+      .whereIn("status", ["lunas", "selesai"])
+      .count("id as total")
+      .first();
+
+    const trxCountToday = await DB("trx_transaksi")
+      .where("kode_cabang", kodeCabang)
+      .whereIn("status", ["lunas", "selesai"])
+      .whereRaw("DATE(tanggal_transaksi) = ?", [today])
+      .count("id as total")
+      .first();
+
+    // 5. Kunjungan Hari Ini & Total
+    const kunjunganToday = await DB("trx_kunjungan")
+      .where("kode_cabang", kodeCabang)
+      .whereRaw("DATE(tanggal_kunjungan) = ?", [today])
+      .count("id as total")
+      .first();
+
+    const kunjunganTotal = await DB("trx_kunjungan")
+      .where("kode_cabang", kodeCabang)
+      .count("id as total")
+      .first();
+
+    // 6. Total Pasien Terdaftar
+    const totalPasien = await DB("mst_pasien")
+      .where("kode_cabang", kodeCabang)
+      .count("id as total")
+      .first();
+
+    const pasienBaruToday = await DB("mst_pasien")
+      .where("kode_cabang", kodeCabang)
+      .whereRaw("DATE(created_at) = ?", [today])
+      .count("id as total")
+      .first();
+
+    // 7. Karyawan & Dokter di Cabang Ini
+    const stafList = await DB("mst_karyawan")
+      .where("kode_cabang", kodeCabang)
+      .select("id", "kode_karyawan", "nama", "jabatan", "no_hp", "email", "status", "no_sip")
+      .orderBy("nama", "asc");
+
+    const dokterCount = stafList.filter(s => (s.jabatan || "").toLowerCase().includes("dokter")).length;
+    const beauticianCount = stafList.filter(s => (s.jabatan || "").toLowerCase().includes("terapis") || (s.jabatan || "").toLowerCase().includes("beautician")).length;
+
+    // 8. Ruangan di Cabang Ini
+    const ruanganList = await DB("mst_ruangan")
+      .where("kode_cabang", kodeCabang)
+      .select("id", "kode_ruangan", "nama_ruangan", "is_konsultasi", "status")
+      .orderBy("id", "asc");
+
+    // 9. Metode Pembayaran Breakdown di Cabang Ini
+    const metodeBreakdown = await DB("trx_transaksi")
+      .where("kode_cabang", kodeCabang)
+      .whereIn("status", ["lunas", "selesai"])
+      .select("metode_bayar")
+      .sum("total_bayar as total")
+      .count("id as count")
+      .groupBy("metode_bayar");
+
+    // 10. Shift Kasir Aktif di Cabang Ini
+    const activeShift = await DB("trx_kasir_shift")
+      .where("kode_cabang", kodeCabang)
+      .where("status", "open")
+      .orderBy("id", "desc")
+      .first();
+
+    // 11. Top Treatments di Cabang Ini
+    const topTreatments = await DB("trx_detail_transaksi as dt")
+      .leftJoin("mst_layanan as l", "dt.kode_layanan", "l.kode_layanan")
+      .where("dt.kode_cabang", kodeCabang)
+      .whereNotNull("dt.kode_layanan")
+      .select(DB.raw("COALESCE(l.nama, dt.kode_layanan) as nama"))
+      .count("dt.id as count")
+      .sum("dt.subtotal as total_omzet")
+      .groupBy(DB.raw("COALESCE(l.nama, dt.kode_layanan)"))
+      .orderBy("count", "desc")
+      .limit(5);
+
+    // 12. Trend 7 Hari Terakhir
+    const dailyTrend = await DB("trx_transaksi")
+      .where("kode_cabang", kodeCabang)
+      .whereIn("status", ["lunas", "selesai"])
+      .select(DB.raw("DATE(tanggal_transaksi) as tanggal"))
+      .sum("total_bayar as omzet")
+      .count("id as transaksi")
+      .groupBy(DB.raw("DATE(tanggal_transaksi)"))
+      .orderBy("tanggal", "desc")
+      .limit(7);
+
+    // 13. LIVE ACTIVITY FEED (Kunjungan, Transaksi, Booking, Shift Kasir)
+    // a. Kunjungan terbaru
+    const recentKunjungan = await DB("trx_kunjungan as k")
+      .leftJoin("mst_pasien as p", "k.no_rm", "p.no_rm")
+      .where("k.kode_cabang", kodeCabang)
+      .select(
+        "k.kode_kunjungan as kode",
+        "k.status",
+        "k.jam_datang",
+        "k.tanggal_kunjungan",
+        "k.created_at",
+        "p.nama as nama_pasien",
+        "k.no_rm"
+      )
+      .orderBy("k.id", "desc")
+      .limit(20);
+
+    // b. Transaksi terbaru
+    const recentTransaksi = await DB("trx_transaksi as t")
+      .leftJoin("mst_pasien as p", "t.no_rm", "p.no_rm")
+      .where("t.kode_cabang", kodeCabang)
+      .select(
+        "t.kode_transaksi as kode",
+        "t.total_bayar",
+        "t.metode_bayar",
+        "t.status",
+        "t.tanggal_transaksi",
+        "t.created_at",
+        "p.nama as nama_pasien",
+        "t.no_rm"
+      )
+      .orderBy("t.id", "desc")
+      .limit(20);
+
+    // c. Booking terbaru
+    const recentBooking = await DB("trx_booking as b")
+      .leftJoin("mst_pasien as p", "b.no_rm", "p.no_rm")
+      .where("b.kode_cabang", kodeCabang)
+      .select(
+        "b.kode_booking as kode",
+        "b.jenis_layanan",
+        "b.status",
+        "b.tanggal_booking",
+        "b.jam_booking",
+        "b.total_biaya",
+        "b.created_at",
+        "p.nama as nama_pasien",
+        "b.no_rm"
+      )
+      .orderBy("b.id", "desc")
+      .limit(20);
+
+    // Gabungkan menjadi satu activity timeline yang rapi
+    const activities = [
+      ...recentTransaksi.map(t => ({
+        id: `trx-${t.kode}`,
+        kategori: "transaksi",
+        judul: `Transaksi Pembayaran ${t.kode}`,
+        deskripsi: `${t.nama_pasien || 'Pasien Umum'} (${t.no_rm || '-'}) — Pembayaran Rp ${Number(t.total_bayar || 0).toLocaleString('id-ID')} via ${(t.metode_bayar || 'Tunai').toUpperCase()}`,
+        status: t.status,
+        waktu: t.created_at || t.tanggal_transaksi,
+        badge: "TRANSAKSI",
+        badgeSeverity: t.status === "lunas" ? "success" : "warning",
+      })),
+      ...recentKunjungan.map(k => ({
+        id: `kj-${k.kode}`,
+        kategori: "kunjungan",
+        judul: `Kunjungan Pasien ${k.kode}`,
+        deskripsi: `${k.nama_pasien || 'Pasien'} (${k.no_rm || '-'}) — Jam Datang: ${k.jam_datang || '-'}`,
+        status: k.status,
+        waktu: k.created_at || k.tanggal_kunjungan,
+        badge: "KUNJUNGAN",
+        badgeSeverity: k.status === "selesai" ? "info" : "warning",
+      })),
+      ...recentBooking.map(b => ({
+        id: `bk-${b.kode}`,
+        kategori: "booking",
+        judul: `Reservasi Booking ${b.kode}`,
+        deskripsi: `${b.nama_pasien || 'Pasien'} (${b.no_rm || '-'}) — Layanan: ${b.jenis_layanan || 'Treatment'} (Jadwal: ${b.tanggal_booking ? String(b.tanggal_booking).slice(0, 10) : '-'} ${b.jam_booking || ''})`,
+        status: b.status,
+        waktu: b.created_at || b.tanggal_booking,
+        badge: "BOOKING",
+        badgeSeverity: "primary",
+      })),
+    ];
+
+    // Urutkan dari yang paling baru
+    activities.sort((a, b) => new Date(b.waktu).getTime() - new Date(a.waktu).getTime());
+
+    return res.status(200).json({
+      status: status.SUKSES,
+      message: "Data detail aktivitas cabang berhasil dimuat",
+      data: {
+        cabang,
+        all_cabang: allBranches,
+        managers,
+        kpi: {
+          total_omzet: totalOmzetVal,
+          omzet_hari_ini: omzetHariIniVal,
+          total_transaksi: parseInt(trxCountTotal?.total || 0, 10),
+          transaksi_hari_ini: parseInt(trxCountToday?.total || 0, 10),
+          total_kunjungan: parseInt(kunjunganTotal?.total || 0, 10),
+          kunjungan_hari_ini: parseInt(kunjunganToday?.total || 0, 10),
+          total_pasien: parseInt(totalPasien?.total || 0, 10),
+          pasien_baru_hari_ini: parseInt(pasienBaruToday?.total || 0, 10),
+          total_staf: stafList.length,
+          total_dokter: dokterCount,
+          total_beautician: beauticianCount,
+          total_ruangan: ruanganList.length,
+        },
+        metode_bayar: metodeBreakdown || [],
+        top_treatment: topTreatments || [],
+        daily_trend: dailyTrend || [],
+        active_shift: activeShift || null,
+        staf_list: stafList || [],
+        ruangan_list: ruanganList || [],
+        activities: activities.slice(0, 40),
+      },
+    });
+  } catch (err) {
+    console.error("CABANG_DETAIL_ERR:", err);
+    Logging(err, { file: "dashboard_routes.js", func: "cabang-detail", request: body });
+    return res.status(500).json({ status: status.BAD_REQUEST, message: err.message });
+  }
+});
+
 export default router;
