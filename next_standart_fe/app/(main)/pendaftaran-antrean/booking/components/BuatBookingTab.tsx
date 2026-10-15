@@ -212,18 +212,10 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
   // 4. DP & Catatan State
   const [dpPercentage, setDpPercentage] = useState<number>(20);
   const [dpNominal, setDpNominal] = useState<number>(0);
-  const [metodePembayaranDp, setMetodePembayaranDp] = useState<'cash' | 'transfer' | 'qris'>('cash');
-  const [konfirmasiDpDiterima, setKonfirmasiDpDiterima] = useState<boolean>(false);
   const [alasanBebasDp, setAlasanBebasDp] = useState<string>('');
   const [sumber, setSumber] = useState<'staff' | 'whatsapp'>('staff');
   const [catatanPasien, setCatatanPasien] = useState('');
   const [globalConsultChoice, setGlobalConsultChoice] = useState<boolean>(true);
-
-  const METODE_DP_OPTIONS = [
-    { label: 'Cash / Tunai', value: 'cash' },
-    { label: 'Transfer Bank', value: 'transfer' },
-    { label: 'QRIS', value: 'qris' },
-  ];
 
   const ALASAN_BEBAS_DP_OPTIONS = [
     { label: 'Klaim Paket (Kepemilikan Aktif)', value: 'Klaim Paket (Kepemilikan Aktif)' },
@@ -585,7 +577,6 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
       setDpNominal(0);
       setDpPercentage(0);
       setAlasanBebasDp('Klaim Paket (Kepemilikan Aktif)');
-      setKonfirmasiDpDiterima(false);
     } else {
       const calculated = Math.round((totalHarga * dpPercentage) / 100);
       setDpNominal(calculated);
@@ -608,7 +599,7 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
   const isDpValid = hasOnlyKlaim
     ? true
     : dpNominal > 0
-    ? !!metodePembayaranDp && konfirmasiDpDiterima
+    ? true
     : !!alasanBebasDp;
 
   // Helper konversi jam "HH:mm" <-> menit dari tengah malam
@@ -1270,17 +1261,8 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
       }
     }
 
-    // Validasi DP baru
-    if (dpNominal > 0) {
-      if (!metodePembayaranDp) {
-        showError(toast, 'Harap pilih metode pembayaran DP (Cash / Transfer / QRIS)!');
-        return;
-      }
-      if (!konfirmasiDpDiterima) {
-        showError(toast, 'Harap centang konfirmasi bahwa pembayaran DP telah diterima dari pasien!');
-        return;
-      }
-    } else {
+    // Validasi DP
+    if (dpNominal === 0) {
       if (!hasOnlyKlaim && !alasanBebasDp) {
         showError(toast, 'Harap pilih alasan bebas DP (Rp 0)!');
         return;
@@ -1298,8 +1280,6 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
         jam_booking: jamBooking,
         catatan_pasien: catatanPasien.trim() || undefined,
         dp_nominal: dpNominal,
-        metode_pembayaran_dp: dpNominal > 0 ? metodePembayaranDp : undefined,
-        konfirmasi_dp_diterima: dpNominal > 0 ? konfirmasiDpDiterima : undefined,
         alasan_bebas_dp: dpNominal === 0 ? (hasOnlyKlaim ? 'Klaim Paket (Kepemilikan Aktif)' : alasanBebasDp) : undefined,
         sumber: sumber,
         butuh_konsul: effectiveButuhKonsul,
@@ -1363,7 +1343,7 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
               qty: 1,
             })),
           ],
-          metode_pembayaran_dp: dpNominal > 0 ? metodePembayaranDp : null,
+          metode_pembayaran_dp: dpNominal > 0 ? 'Menunggu Kasir' : null,
           alasan_bebas_dp: dpNominal === 0 ? (hasOnlyKlaim ? 'Klaim Paket (Kepemilikan Aktif)' : alasanBebasDp) : null,
         });
         setShowDetailDialog(true);
@@ -1404,8 +1384,6 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
     setOwnedPackages([]);
     setGlobalConsultChoice(true);
     setActiveTabIndex(0);
-    setMetodePembayaranDp('cash');
-    setKonfirmasiDpDiterima(false);
     setAlasanBebasDp('');
   };
 
@@ -2821,52 +2799,7 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
                       Default 20%. Nominal DP dapat disesuaikan manual atau 0% untuk Bebas DP.
                     </div>
 
-                    {dpNominal > 0 ? (
-                      <div className="p-3 surface-50 border-1 border-200 border-round-xl flex flex-column gap-3 mt-2">
-                        <div>
-                          <label className="font-semibold text-xs text-700 block mb-1.5">
-                            Metode Pembayaran DP <span className="text-red-500">*</span>
-                          </label>
-                          <SelectButton
-                            value={metodePembayaranDp}
-                            options={METODE_DP_OPTIONS}
-                            onChange={(e) => e.value && setMetodePembayaranDp(e.value)}
-                            className="w-full selectbutton-sm"
-                          />
-                        </div>
-
-                        <div
-                          onClick={() => setKonfirmasiDpDiterima(!konfirmasiDpDiterima)}
-                          className={`flex align-items-start p-3 border-round-xl border-1 transition-all cursor-pointer select-none ${
-                            konfirmasiDpDiterima
-                              ? 'bg-emerald-50 border-emerald-300 shadow-sm'
-                              : 'bg-blue-50/70 border-blue-200 hover:border-blue-300'
-                          }`}
-                          style={{ gap: '14px' }}
-                        >
-                          <Checkbox
-                            inputId="konfirmasi_dp"
-                            checked={konfirmasiDpDiterima}
-                            onChange={(e) => setKonfirmasiDpDiterima(!!e.checked)}
-                            onClick={(e) => e.stopPropagation()}
-                            className="flex-shrink-0"
-                            style={{ marginTop: '2px' }}
-                          />
-                          <label
-                            htmlFor="konfirmasi_dp"
-                            className="flex-1 text-xs text-900 cursor-pointer m-0 line-height-2"
-                            onClick={(e) => e.stopPropagation()}
-                            style={{ paddingLeft: '2px' }}
-                          >
-                            <span className="font-bold text-900">Konfirmasi:</span> Uang muka (DP) sebesar{' '}
-                            <span className="font-bold text-emerald-700 bg-emerald-100/80 px-1.5 py-0.5 border-round font-mono">
-                              {formatCurrency(dpNominal)}
-                            </span>{' '}
-                            sudah diterima dari pasien melalui kasir/staff.
-                          </label>
-                        </div>
-                      </div>
-                    ) : (
+                    {dpNominal === 0 && (
                       <div className="p-3 bg-yellow-50 border-1 border-yellow-200 border-round-lg flex flex-column gap-2 mt-2">
                         <div className="flex align-items-center gap-2 text-xs text-yellow-900 font-semibold">
                           <AlertCircle size={15} className="text-yellow-700 flex-shrink-0" />
@@ -2929,9 +2862,7 @@ export const BuatBookingTab: React.FC<Props> = ({ toast, onSuccessCreated, initi
                 {!isDpValid && selectedPasien && selectedList.length > 0 && selectedSlot && jamBooking && (
                   <div className="text-xs text-red-600 bg-red-50 border-1 border-red-200 border-round p-2">
                     <i className="pi pi-info-circle mr-1 text-xs" />
-                    {dpNominal > 0
-                      ? 'Pilih metode pembayaran DP dan centang konfirmasi DP untuk mengaktifkan tombol simpan.'
-                      : 'Pilih alasan bebas DP untuk mengaktifkan tombol simpan.'}
+                    Pilih alasan bebas DP untuk mengaktifkan tombol simpan.
                   </div>
                 )}
                 <Button

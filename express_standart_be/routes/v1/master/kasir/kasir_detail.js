@@ -27,7 +27,9 @@ router.post("/", async (req, res) => {
     let qTrx = DB("trx_transaksi as t")
       .leftJoin("mst_pasien as p", "t.no_rm", "p.no_rm")
       .leftJoin("trx_kunjungan as k", "t.kode_kunjungan", "k.kode_kunjungan")
-      .leftJoin("trx_booking as b", "k.kode_booking", "b.kode_booking")
+      .leftJoin("trx_booking as b", function() {
+        this.on("b.kode_booking", DB.raw("COALESCE(k.kode_booking, t.kode_booking)"));
+      })
       .leftJoin("mst_promo as pr", "t.kode_promo", "pr.kode_promo")
       .where("t.kode_transaksi", kode_transaksi);
 
@@ -40,7 +42,7 @@ router.post("/", async (req, res) => {
         "t.*",
         "p.nama as nama_pasien",
         "p.no_hp",
-        "k.kode_booking",
+        DB.raw("COALESCE(t.kode_booking, k.kode_booking) as kode_booking"),
         "b.dp_nominal as booking_dp_nominal",
         "b.dp_status as booking_dp_status",
         "b.metode_pembayaran_dp as booking_metode_dp",
@@ -55,15 +57,29 @@ router.post("/", async (req, res) => {
     }
 
     // Resolusi DP & sisa bayar
-    const resolvedDpNominal = parseFloat(trx.dp_nominal || 0) > 0
-      ? parseFloat(trx.dp_nominal)
-      : (["sudah_bayar", "dipotong_treatment"].includes(trx.booking_dp_status) ? parseFloat(trx.booking_dp_nominal || 0) : 0);
+    // Catatan: Jika ini adalah draf pembayaran DP booking (kode_kunjungan null, kode_booking ada),
+    // transaksi ini ADALAH pembayaran DP itu sendiri, sehingga tidak ada potongan DP di dalamnya.
+    const isBookingDpDraft = !trx.kode_kunjungan && Boolean(trx.kode_booking);
+    const resolvedDpNominal = isBookingDpDraft
+      ? 0
+      : (parseFloat(trx.dp_nominal || 0) > 0
+          ? parseFloat(trx.dp_nominal)
+          : (["sudah_bayar", "dipotong_treatment"].includes(trx.booking_dp_status) ? parseFloat(trx.booking_dp_nominal || 0) : 0));
     const resolvedMetodeDp = trx.metode_pembayaran_dp || (resolvedDpNominal > 0 ? trx.booking_metode_dp : null);
-    const resolvedSisaBayar = Math.max(0, parseFloat(trx.total_bayar || 0) - resolvedDpNominal);
+    const resolvedSisaBayar = isBookingDpDraft
+      ? parseFloat(trx.total_bayar || 0)
+      : Math.max(0, parseFloat(trx.total_bayar || 0) - resolvedDpNominal);
 
     trx.dp_nominal = resolvedDpNominal;
     trx.metode_pembayaran_dp = resolvedMetodeDp;
     trx.sisa_bayar = resolvedSisaBayar;
+
+    if (isBookingDpDraft) {
+      trx.kode_promo = null;
+      trx.nama_promo = null;
+      trx.total_diskon = 0;
+      trx.total_harga = parseFloat(trx.total_bayar || 0);
+    }
 
     // ─── AUTO-SELECT IDEMPOTENT LAYANAN/PAKET DARI ANTRIAN (JIKA DRAFT & KODE_KUNJUNGAN ADA) ───
     if (trx.kode_kunjungan && trx.status === "draft") {
@@ -148,39 +164,42 @@ router.post("/", async (req, res) => {
       .orderBy("dt.id", "asc");
 
     const detailsMapped = details.map((d) => {
+      const isDp = isBookingDpDraft || d.jenis_diskon === "dp_booking" || (d.nama_promo || "").toLowerCase().includes("uang muka");
       const hrg = parseFloat(d.harga_satuan || 0);
-      const masterHrg = parseFloat(d.master_harga_layanan || d.master_harga_paket || d.master_harga_produk || d.harga_satuan || 0);
+      const masterHrg = isDp ? hrg : parseFloat(d.master_harga_layanan || d.master_harga_paket || d.master_harga_produk || d.harga_satuan || 0);
       const dalHrg = d.dal_harga != null ? parseFloat(d.dal_harga) : null;
       const qty = parseInt(d.qty || 1, 10);
       const subtotal = parseFloat(d.subtotal || hrg * qty);
-      const isPendaftaran = Boolean(d.is_from_pendaftaran);
+      const isPendaftaran = isDp ? false : Boolean(d.is_from_pendaftaran);
 
-      let diskon = isPendaftaran ? 0 : parseFloat(d.diskon || 0);
-      if (!isPendaftaran && diskon === 0 && d.nilai_diskon && parseFloat(d.nilai_diskon) > 0) {
+      let diskon = (isPendaftaran || isDp) ? 0 : parseFloat(d.diskon || 0);
+      if (!isPendaftaran && !isDp && diskon === 0 && d.nilai_diskon && parseFloat(d.nilai_diskon) > 0) {
         const nDisc = parseFloat(d.nilai_diskon);
         diskon = d.jenis_diskon === "nominal" ? Math.min(nDisc * qty, subtotal) : (subtotal * nDisc) / 100;
       }
-      const subtotal_setelah_diskon = isPendaftaran
+      const subtotal_setelah_diskon = (isPendaftaran || isDp)
         ? subtotal
         : (d.subtotal_setelah_diskon !== null && parseFloat(d.subtotal_setelah_diskon) >= 0 && parseFloat(d.subtotal_setelah_diskon) <= subtotal
           ? parseFloat(d.subtotal_setelah_diskon)
           : Math.max(0, subtotal - diskon));
 
-      const isInclude = d.jenis_diskon === "include_treatment" ||
-        (hrg === 0 && ((d.nama_layanan_single || "").toLowerCase().includes("konsul") || (d.kode_layanan || "").toLowerCase().includes("konsul")));
+      const isInclude = !isDp && (d.jenis_diskon === "include_treatment" ||
+        (hrg === 0 && ((d.nama_layanan_single || "").toLowerCase().includes("konsul") || (d.kode_layanan || "").toLowerCase().includes("konsul"))));
 
-      const isKlaim = (d.dal_jenis_layanan || "").toLowerCase().includes("klaim") ||
+      const isKlaim = !isDp && ((d.dal_jenis_layanan || "").toLowerCase().includes("klaim") ||
         (d.dal_nama_layanan || "").toLowerCase().includes("klaim") ||
         (d.nama_promo || "").toLowerCase().includes("klaim") ||
         Boolean(d.is_klaim) ||
         Boolean(d.is_klaim_paket) ||
-        (isPendaftaran && hrg === 0 && !isInclude);
+        (isPendaftaran && hrg === 0 && !isInclude));
 
       return {
         ...d,
         jenis: d.kode_layanan ? "layanan" : "produk",
         kode: d.kode_layanan || d.kode_produk,
-        nama: d.nama_layanan_single || d.nama_paket_layanan || d.nama_produk || "-",
+        nama: isDp
+          ? (d.nama_promo || `Uang Muka (DP) - ${d.nama_layanan_single || d.nama_paket_layanan || "Booking"}`)
+          : (d.nama_layanan_single || d.nama_paket_layanan || d.nama_produk || "-"),
         satuan: d.satuan || (d.kode_layanan ? "tindakan" : "pcs"),
         harga_satuan: hrg,
         harga_master: masterHrg,
@@ -188,10 +207,10 @@ router.post("/", async (req, res) => {
         subtotal: subtotal,
         diskon: diskon,
         subtotal_setelah_diskon: subtotal_setelah_diskon,
-        nilai_diskon: isInclude || isKlaim ? 100 : (d.nilai_diskon != null ? parseFloat(d.nilai_diskon) : null),
-        jenis_diskon: isInclude ? "include_treatment" : (isKlaim ? "klaim_paket" : (d.jenis_diskon || null)),
-        nama_promo: isInclude ? "Gratis (Include Tindakan)" : (isKlaim ? (d.nama_promo || "Klaim Sesi") : (d.nama_promo || null)),
-        kode_promo: isInclude || isKlaim ? null : (d.kode_promo || null),
+        nilai_diskon: isDp ? null : (isInclude || isKlaim ? 100 : (d.nilai_diskon != null ? parseFloat(d.nilai_diskon) : null)),
+        jenis_diskon: isDp ? "dp_booking" : (isInclude ? "include_treatment" : (isKlaim ? "klaim_paket" : (d.jenis_diskon || null))),
+        nama_promo: isDp ? null : (isInclude ? "Gratis (Include Tindakan)" : (isKlaim ? (d.nama_promo || "Klaim Sesi") : (d.nama_promo || null))),
+        kode_promo: (isDp || isInclude || isKlaim) ? null : (d.kode_promo || null),
         is_free_include: isInclude,
         is_klaim: isKlaim,
         is_klaim_paket: isKlaim,

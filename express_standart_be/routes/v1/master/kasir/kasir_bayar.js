@@ -217,7 +217,20 @@ router.post("/", async (req, res) => {
       });
     }
 
+    // 3b. Update status DP booking menjadi sudah_bayar jika ini transaksi pembayaran DP booking
+    if (existing.kode_booking && !existing.kode_kunjungan) {
+      await trx("trx_booking").where("kode_booking", existing.kode_booking).update({
+        dp_status: "sudah_bayar",
+        dp_dibayar_at: DB.fn.now(),
+        metode_pembayaran_dp: metode_bayar,
+        updated_by: username,
+        updated_at: DB.fn.now(),
+      });
+    }
+
     await trx.commit();
+
+    const isBookingDp = !existing.kode_kunjungan && Boolean(existing.kode_booking);
 
     return res.status(200).json({
       status: status.SUKSES,
@@ -225,15 +238,17 @@ router.post("/", async (req, res) => {
       datetime: formatDateSystem(),
       data: {
         kode_transaksi,
+        kode_kunjungan: existing.kode_kunjungan || null,
+        kode_booking: existing.kode_booking || null,
         metode_bayar,
-        kode_promo: existing.kode_promo || null,
-        nama_promo: existing.nama_promo || null,
-        total_harga: parseFloat(existing.total_harga || 0),
-        total_diskon: parseFloat(existing.total_diskon || 0),
+        kode_promo: isBookingDp ? null : (existing.kode_promo || null),
+        nama_promo: isBookingDp ? null : (existing.nama_promo || null),
+        total_harga: isBookingDp ? totalBayar : parseFloat(existing.total_harga || 0),
+        total_diskon: isBookingDp ? 0 : parseFloat(existing.total_diskon || 0),
         total_bayar: totalBayar,
-        dp_nominal: dpNominal,
+        dp_nominal: isBookingDp ? 0 : dpNominal,
         metode_pembayaran_dp: existing.metode_pembayaran_dp || null,
-        sisa_bayar: tagihanPelunasan,
+        sisa_bayar: isBookingDp ? totalBayar : tagihanPelunasan,
         nominal_bayar: nominalBayar,
         kembalian,
       },

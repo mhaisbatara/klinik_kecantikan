@@ -14,6 +14,7 @@ import { formatDateSystem } from "../../components/tools/date_tools.js";
 import { Logging, ChangesLog } from "../../components/tools/servertool.js";
 import { status } from "../../components/tools/general.js";
 import { getBranchScope } from "../../components/tools/branch_scope.js";
+import { syncBookingToKasirDraft } from "../../master/kasir/kasir_sync_service.js";
 
 const router = express.Router();
 
@@ -726,23 +727,7 @@ router.post("/", async (req, res) => {
     const hasBaru = validatedItems.some((it) => it.jenis_item !== "klaim_paket");
     const finalDpNominal = (!hasBaru && hasKlaim) ? 0 : (isNaN(dpNominal) ? 0 : Math.max(0, dpNominal));
 
-    if (finalDpNominal > 0) {
-      if (!konfirmasiDpDiterima) {
-        return res.status(422).json({
-          status: status.BAD_REQUEST,
-          message: "Uang muka (DP) wajib dikonfirmasi telah diterima dari pasien untuk mengunci jadwal booking.",
-          datetime: formatDateSystem(),
-        });
-      }
-      const allowedMethods = ["cash", "transfer", "qris"];
-      if (!metodePembayaranDp || !allowedMethods.includes(metodePembayaranDp)) {
-        return res.status(422).json({
-          status: status.BAD_REQUEST,
-          message: "Metode pembayaran DP wajib dipilih (Cash, Transfer, atau QRIS).",
-          datetime: formatDateSystem(),
-        });
-      }
-    } else {
+    if (finalDpNominal === 0) {
       let effectiveAlasan = alasanBebasDp;
       if (!effectiveAlasan && !hasBaru && hasKlaim) {
         effectiveAlasan = "Klaim Paket (Kepemilikan Aktif)";
@@ -846,8 +831,8 @@ router.post("/", async (req, res) => {
         total_biaya: calculatedTotalBiaya,
         status: "dikonfirmasi",
         dp_nominal: finalDpNominal,
-        dp_status: "sudah_bayar",
-        dp_dibayar_at: nowFormatted,
+        dp_status: "belum_bayar",
+        dp_dibayar_at: null,
         metode_pembayaran_dp: savedMetodeDp,
         alasan_bebas_dp: savedAlasanBebasDp,
         sumber: ["staff", "whatsapp"].includes(sumber) ? sumber : "staff",
@@ -903,9 +888,29 @@ router.post("/", async (req, res) => {
         items: detailInserts,
       };
 
+      // --- INTEGRASI KASIR: Terbitkan draf transaksi kasir jika booking memiliki DP ---
+      // Hanya diterbitkan jika DP > 0 (ada uang muka yang perlu divalidasi kasir).
+      // Booking klaim paket (dp = 0) tidak perlu draf kasir di tahap ini.
+      if (finalDpNominal > 0) {
+        try {
+          await syncBookingToKasirDraft(trx, {
+            kodeBooking: cKodeBooking,
+            noRm: noRm,
+            kodeCabang: branchCode,
+            dpNominal: finalDpNominal,
+            metodePembayaranDp: savedMetodeDp,
+            username: username,
+            tz: oPayload.tz || "Asia/Jakarta",
+          });
+        } catch (syncErr) {
+          // Gagal sync kasir tidak boleh membatalkan booking
+          console.error(`[BOOKING_CREATE] Gagal sinkronisasi draf kasir untuk ${cKodeBooking}:`, syncErr.message);
+        }
+      }
+
       await ChangesLog(
         {
-          description: `Membuat booking baru ${cKodeBooking}`,
+          description: `Membuat booking baru ${cKodeBooking}${finalDpNominal > 0 ? " (draf kasir diterbitkan)" : ""}`,
           tableName: "trx_booking",
           referenceCode: cKodeBooking,
           action: "create",

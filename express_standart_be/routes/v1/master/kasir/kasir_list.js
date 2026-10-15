@@ -48,17 +48,24 @@ router.post("/", async (req, res) => {
     const vaData = await baseQuery.clone()
       .select(
         "t.kode_transaksi",
+        "t.kode_booking",
         "t.kode_kunjungan",
         "t.no_rm",
         "t.kode_rekam_medis",
         "p.nama as nama_pasien",
         "p.no_hp",
-        "t.kode_promo",
-        "pr.nama as nama_promo",
+        t.kode_promo,
+        DB.raw(`COALESCE(
+          t.nama_promo,
+          pr.nama,
+          (SELECT dt.nama_promo FROM trx_detail_transaksi dt WHERE dt.kode_transaksi = t.kode_transaksi AND (dt.jenis_diskon = 'klaim_paket' OR dt.nama_promo LIKE '%klaim%') LIMIT 1)
+        ) as nama_promo`),
         "t.tanggal_transaksi",
         "t.total_harga",
         "t.total_diskon",
         "t.total_bayar",
+        "t.dp_nominal",
+        "t.sisa_bayar",
         "t.metode_bayar",
         "t.status",
         "t.created_at",
