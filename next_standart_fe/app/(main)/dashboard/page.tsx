@@ -10,7 +10,6 @@ import RevenueHero from './components/RevenueHero';
 import StatStrip from './components/StatStrip';
 import PaymentDonutPanel from './components/PaymentDonutPanel';
 import TopTreatmentsPanel from './components/TopTreatmentsPanel';
-import StaffActivityTable from './components/StaffActivityTable';
 import {
   DokterView,
   BeauticianView,
@@ -382,16 +381,10 @@ const DashboardPage: React.FC = () => {
       </div>
 
       {/* ─── 3. DUA PANEL BERDAMPINGAN: KOMPOSISI & TOP TREATMENT ─── */}
-      <div
-        className="clinic-two-col-grid"
-        style={{ marginBottom: '24px' }}
-      >
+      <div className="clinic-two-col-grid">
         <PaymentDonutPanel paymentData={paymentData} totalOmzet={totalOmzet} />
         <TopTreatmentsPanel treatments={topTreatments} />
       </div>
-
-      {/* ─── 4. DUA TABEL BERDAMPINGAN: AKTIVITAS DOKTER & BEAUTICIAN ─── */}
-      <StaffActivityTable doctors={doctors} staff={staff} />
     </div>
   );
 };

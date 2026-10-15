@@ -94,7 +94,7 @@ const routeMiddleware = async (searchUrl: string) => {
     }
 
     // Selalu izinkan dashboard dan root untuk pengguna yang sudah login
-    if (!urlFix || urlFix === '/' || urlFix === '/dashboard' || urlFix === '/pendaftaran-antrean/jadwal-karyawan') {
+    if (!urlFix || urlFix === '/' || urlFix === '/dashboard' || urlFix.startsWith('/dashboard/') || urlFix === '/pendaftaran-antrean/jadwal-karyawan') {
         return '00';
     }
 
