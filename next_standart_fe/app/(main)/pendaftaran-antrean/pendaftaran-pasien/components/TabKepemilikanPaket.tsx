@@ -18,6 +18,19 @@ import { KarcisAntrianLayananModal } from './dialogs/KarcisAntrianLayananModal';
 import { Package } from 'lucide-react';
 import KeteranganStatus from '@/app/components/KeteranganStatus';
 
+interface RiwayatPemakaian {
+  id: number;
+  kode_pemakaian_paket_layanan: string;
+  kode_detail_kepemilikan_paket_layanan: string;
+  sesi_ke: number;
+  kode_kunjungan?: string;
+  kode_booking?: string;
+  tanggal_pakai: string;
+  status_pemakaian: 'hadir' | 'hangus_no_show' | string;
+  keterangan?: string;
+  created_at?: string;
+}
+
 interface DetailKepemilikan {
   kode_detail_kepemilikan_paket_layanan: string;
   kode_layanan: string;
@@ -32,6 +45,7 @@ interface DetailKepemilikan {
   kode_ruangan?: string;
   nama_ruangan?: string;
   durasi_menit?: number;
+  riwayat_pemakaian?: RiwayatPemakaian[];
 }
 
 interface KepemilikanPaket {
@@ -54,6 +68,7 @@ interface KepemilikanPaket {
   total_terpakai: number;
   sisa_sesi: number;
   details: DetailKepemilikan[];
+  riwayat_pemakaian?: RiwayatPemakaian[];
 }
 
 interface TabKepemilikanPaketProps {
@@ -248,8 +263,19 @@ export const TabKepemilikanPaket: React.FC<TabKepemilikanPaketProps> = ({ toast,
 
       const circlesHtml = Array.from({ length: total }, (_, i) => {
         const sesiNum = i + 1;
-        const isUsed = sesiNum <= terpakai;
-        if (isUsed) {
+        const logSesi = (det.riwayat_pemakaian || []).find((r) => Number(r.sesi_ke) === sesiNum);
+        const isHangus = logSesi?.status_pemakaian === 'hangus_no_show';
+        const isUsed = logSesi?.status_pemakaian === 'hadir' || (!logSesi && sesiNum <= terpakai);
+
+        if (isHangus) {
+          return `
+            <div class="stamp-circle stamp-circle-hangus">
+              <div class="stamp-cross">✕</div>
+              <div class="stamp-label-hangus">SESI ${sesiNum}</div>
+              <div class="stamp-sub-hangus">HANGUS</div>
+            </div>
+          `;
+        } else if (isUsed) {
           return `
             <div class="stamp-circle stamp-circle-used">
               <div class="stamp-check">✓</div>
@@ -485,6 +511,15 @@ export const TabKepemilikanPaket: React.FC<TabKepemilikanPaketProps> = ({ toast,
             }
             .stamp-check { color: #059669; font-size: 20px; font-weight: 900; line-height: 1; }
             .stamp-label { color: #065f46; font-size: 8.5px; font-weight: 800; letter-spacing: 0.5px; margin-top: 2px; }
+            .stamp-circle-hangus {
+              border: 2px solid #ef4444;
+              background: radial-gradient(circle, #fef2f2 0%, #fee2e2 100%);
+              box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+              transform: rotate(-6deg);
+            }
+            .stamp-cross { color: #dc2626; font-size: 18px; font-weight: 900; line-height: 1; }
+            .stamp-label-hangus { color: #991b1b; font-size: 8.5px; font-weight: 800; letter-spacing: 0.5px; margin-top: 2px; }
+            .stamp-sub-hangus { color: #b91c1c; font-size: 7.5px; font-weight: 800; letter-spacing: 0.3px; }
             .stamp-circle-remain {
               border: 2px dashed #94a3b8;
               background: #ffffff;
@@ -1104,15 +1139,49 @@ export const TabKepemilikanPaket: React.FC<TabKepemilikanPaketProps> = ({ toast,
                     >
                       {Array.from({ length: total }, (_, i) => {
                         const sesiNum = i + 1;
-                        const isUsed = sesiNum <= terpakai;
+                        const logSesi = (det.riwayat_pemakaian || []).find((r) => Number(r.sesi_ke) === sesiNum);
+                        const isHangus = logSesi?.status_pemakaian === 'hangus_no_show';
+                        const isUsed = logSesi?.status_pemakaian === 'hadir' || (!logSesi && sesiNum <= terpakai);
 
-                        if (isUsed) {
+                        if (isHangus) {
                           return (
                             <div
                               key={sesiNum}
+                              title={`${logSesi?.keterangan || 'Sesi hangus (No-Show)'} • ${logSesi?.tanggal_pakai || ''} ${logSesi?.kode_booking ? `(${logSesi.kode_booking})` : ''}`}
                               style={{
-                                width: '74px',
-                                height: '74px',
+                                width: '76px',
+                                height: '76px',
+                                borderRadius: '50%',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                border: '2px solid #ef4444',
+                                background: 'radial-gradient(circle, #fef2f2 0%, #fee2e2 100%)',
+                                boxShadow: '0 4px 12px rgba(239, 68, 68, 0.2)',
+                                transform: `rotate(${i % 2 === 0 ? '-5deg' : '-7deg'})`,
+                                flexShrink: 0,
+                                userSelect: 'none',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <div style={{ color: '#dc2626', fontSize: '20px', fontWeight: 900, lineHeight: 1 }}>✕</div>
+                              <div style={{ color: '#991b1b', fontSize: '9px', fontWeight: 800, letterSpacing: '0.5px', marginTop: '2px' }}>
+                                SESI {sesiNum}
+                              </div>
+                              <div style={{ color: '#b91c1c', fontSize: '8px', fontWeight: 800, letterSpacing: '0.3px' }}>
+                                HANGUS
+                              </div>
+                            </div>
+                          );
+                        } else if (isUsed) {
+                          return (
+                            <div
+                              key={sesiNum}
+                              title={`${logSesi?.keterangan || 'Hadir Treatment'} • ${logSesi?.tanggal_pakai || ''} ${logSesi?.kode_kunjungan ? `(${logSesi.kode_kunjungan})` : ''}`}
+                              style={{
+                                width: '76px',
+                                height: '76px',
                                 borderRadius: '50%',
                                 display: 'flex',
                                 flexDirection: 'column',
@@ -1124,11 +1193,15 @@ export const TabKepemilikanPaket: React.FC<TabKepemilikanPaketProps> = ({ toast,
                                 transform: `rotate(${i % 2 === 0 ? '-5deg' : '-7deg'})`,
                                 flexShrink: 0,
                                 userSelect: 'none',
+                                cursor: 'pointer',
                               }}
                             >
                               <div style={{ color: '#059669', fontSize: '22px', fontWeight: 900, lineHeight: 1 }}>✓</div>
-                              <div style={{ color: '#065f46', fontSize: '9px', fontWeight: 800, letterSpacing: '0.5px', marginTop: '3px' }}>
+                              <div style={{ color: '#065f46', fontSize: '9px', fontWeight: 800, letterSpacing: '0.5px', marginTop: '2px' }}>
                                 SESI {sesiNum}
+                              </div>
+                              <div style={{ color: '#047857', fontSize: '8px', fontWeight: 700, letterSpacing: '0.3px' }}>
+                                HADIR
                               </div>
                             </div>
                           );
@@ -1136,9 +1209,10 @@ export const TabKepemilikanPaket: React.FC<TabKepemilikanPaketProps> = ({ toast,
                           return (
                             <div
                               key={sesiNum}
+                              title={`Sesi ke-${sesiNum} belum digunakan (tersedia)`}
                               style={{
-                                width: '74px',
-                                height: '74px',
+                                width: '76px',
+                                height: '76px',
                                 borderRadius: '50%',
                                 display: 'flex',
                                 flexDirection: 'column',
@@ -1205,6 +1279,94 @@ export const TabKepemilikanPaket: React.FC<TabKepemilikanPaketProps> = ({ toast,
                         {percent}%
                       </span>
                     </div>
+
+                    {/* Buku Log / Riwayat Pemakaian Sesi */}
+                    {det.riwayat_pemakaian && det.riwayat_pemakaian.length > 0 && (
+                      <div
+                        style={{
+                          padding: '12px 16px',
+                          background: '#f8fafc',
+                          borderTop: '1px dashed #e2e8f0',
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: 800,
+                            color: '#334155',
+                            marginBottom: '8px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                          }}
+                        >
+                          <span>📋 Buku Log / Riwayat Pemakaian Sesi:</span>
+                        </div>
+                        <div style={{ overflowX: 'auto' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+                            <thead>
+                              <tr style={{ background: '#f1f5f9', color: '#475569', textAlign: 'left' }}>
+                                <th style={{ padding: '6px 8px', borderRadius: '4px 0 0 4px', width: '60px' }}>Sesi</th>
+                                <th style={{ padding: '6px 8px', width: '95px' }}>Tanggal</th>
+                                <th style={{ padding: '6px 8px', width: '135px' }}>Status</th>
+                                <th style={{ padding: '6px 8px', width: '140px' }}>Kunjungan / Booking</th>
+                                <th style={{ padding: '6px 8px', borderRadius: '0 4px 4px 0' }}>Keterangan</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {det.riwayat_pemakaian.map((rw, rIdx) => {
+                                const isHangusRw = rw.status_pemakaian === 'hangus_no_show';
+                                return (
+                                  <tr key={rw.id || rIdx} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                                    <td style={{ padding: '6px 8px', fontWeight: 800, color: '#0f172a' }}>Ke-{rw.sesi_ke}</td>
+                                    <td style={{ padding: '6px 8px', color: '#334155' }}>
+                                      {rw.tanggal_pakai ? formatDateIndoDash(rw.tanggal_pakai) : '-'}
+                                    </td>
+                                    <td style={{ padding: '6px 8px' }}>
+                                      {isHangusRw ? (
+                                        <span
+                                          style={{
+                                            background: '#fee2e2',
+                                            color: '#dc2626',
+                                            border: '1px solid #fecaca',
+                                            padding: '2px 8px',
+                                            borderRadius: '4px',
+                                            fontWeight: 800,
+                                            fontSize: '10px',
+                                            display: 'inline-block',
+                                          }}
+                                        >
+                                          ✕ Hangus (No-Show)
+                                        </span>
+                                      ) : (
+                                        <span
+                                          style={{
+                                            background: '#dcfce7',
+                                            color: '#16a34a',
+                                            border: '1px solid #bbf7d0',
+                                            padding: '2px 8px',
+                                            borderRadius: '4px',
+                                            fontWeight: 800,
+                                            fontSize: '10px',
+                                            display: 'inline-block',
+                                          }}
+                                        >
+                                          ✓ Hadir Treatment
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td style={{ padding: '6px 8px', fontFamily: 'monospace', color: '#0f172a' }}>
+                                      {rw.kode_kunjungan || rw.kode_booking || '-'}
+                                    </td>
+                                    <td style={{ padding: '6px 8px', color: '#64748b' }}>{rw.keterangan || '-'}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}

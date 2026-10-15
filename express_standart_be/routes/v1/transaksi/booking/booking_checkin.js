@@ -221,6 +221,18 @@ router.post("/", async (req, res) => {
       await trx("trx_antrian_layanan").insert(oAntrianLayananData);
 
       // E. INSERT ke trx_detail_antrian_layanan untuk SETIAP item booking
+      const prefixPpl = `PPL-${todayStr}-`;
+      const lastPpl = await trx("trx_pemakaian_paket_layanan")
+        .where("kode_pemakaian_paket_layanan", "like", `${prefixPpl}%`)
+        .orderBy("id", "desc")
+        .first();
+      let nextPplSeq = 1;
+      if (lastPpl && lastPpl.kode_pemakaian_paket_layanan) {
+        const parts = lastPpl.kode_pemakaian_paket_layanan.split("-");
+        const num = parseInt(parts[parts.length - 1], 10);
+        if (!isNaN(num)) nextPplSeq = num + 1;
+      }
+
       let detailSeq = 1;
       for (const item of bookingItems) {
         const cKodeDetailAntrian = `DAL-${todayStr}-${seqPadded}-${String(detailSeq).padStart(2, "0")}`;
@@ -331,25 +343,51 @@ router.post("/", async (req, res) => {
             // Insert detail kepemilikan paket
             let dkplSeq = 1;
             const vaInsertDkpl = [];
+            const vaInsertPpl = [];
             for (const d of pktDetails) {
               const cKodeDkpl = `DKPL-${todayStr}-${String(nextKplSeq).padStart(3, "0")}-${String(dkplSeq).padStart(2, "0")}`;
               dkplSeq++;
               const jSesi = parseInt(d.jumlah_sesi || 0, 10);
+              const isUsedSesi1 = Math.min(1, jSesi);
               vaInsertDkpl.push({
                 kode_detail_kepemilikan_paket_layanan: cKodeDkpl,
                 kode_kepemilikan_paket_layanan: cKodeKpl,
                 kode_layanan: d.kode_layanan,
                 sesi_total: jSesi,
-                sesi_terpakai: Math.min(1, jSesi), // 1 sesi terpakai pada kunjungan checkin ini
+                sesi_terpakai: isUsedSesi1, // 1 sesi terpakai pada kunjungan checkin ini
                 tz: booking.tz || "Asia/Jakarta",
                 created_by: username,
                 created_at: nowFormatted,
                 updated_by: username,
                 updated_at: nowFormatted,
               });
+
+              if (isUsedSesi1 === 1) {
+                const cKodePpl = `${prefixPpl}${String(nextPplSeq).padStart(3, "0")}`;
+                nextPplSeq++;
+                vaInsertPpl.push({
+                  kode_cabang: branchCodeBooking || null,
+                  kode_pemakaian_paket_layanan: cKodePpl,
+                  kode_detail_kepemilikan_paket_layanan: cKodeDkpl,
+                  sesi_ke: 1,
+                  kode_kunjungan: cKodeKunjungan,
+                  kode_booking: booking.kode_booking || null,
+                  tanggal_pakai: todayYmd,
+                  status_pemakaian: "hadir",
+                  keterangan: "Hadir treatment sesi ke-1 (Pembelian Paket)",
+                  tz: booking.tz || "Asia/Jakarta",
+                  created_by: username,
+                  created_at: nowFormatted,
+                  updated_by: username,
+                  updated_at: nowFormatted,
+                });
+              }
             }
             if (vaInsertDkpl.length > 0) {
               await trx("trx_detail_kepemilikan_paket_layanan").insert(vaInsertDkpl);
+            }
+            if (vaInsertPpl.length > 0) {
+              await trx("trx_pemakaian_paket_layanan").insert(vaInsertPpl);
             }
           }
         }
@@ -373,13 +411,35 @@ router.post("/", async (req, res) => {
           }
 
           if (dkpl) {
+            const sesiKe = dkpl.sesi_terpakai + 1;
             // Potong 1 sesi
             await trx("trx_detail_kepemilikan_paket_layanan")
               .where("id", dkpl.id)
               .update({
-                sesi_terpakai: dkpl.sesi_terpakai + 1,
+                sesi_terpakai: sesiKe,
                 updated_at: nowFormatted,
               });
+
+            // Insert log pemakaian ke trx_pemakaian_paket_layanan
+            const cKodePpl = `${prefixPpl}${String(nextPplSeq).padStart(3, "0")}`;
+            nextPplSeq++;
+
+            await trx("trx_pemakaian_paket_layanan").insert({
+              kode_cabang: branchCodeBooking || null,
+              kode_pemakaian_paket_layanan: cKodePpl,
+              kode_detail_kepemilikan_paket_layanan: dkpl.kode_detail_kepemilikan_paket_layanan,
+              sesi_ke: sesiKe,
+              kode_kunjungan: cKodeKunjungan,
+              kode_booking: booking.kode_booking || null,
+              tanggal_pakai: todayYmd,
+              status_pemakaian: "hadir",
+              keterangan: "Hadir treatment (Check-in)",
+              tz: booking.tz || "Asia/Jakarta",
+              created_by: username,
+              created_at: nowFormatted,
+              updated_by: username,
+              updated_at: nowFormatted,
+            });
 
             // Periksa apakah semua detail sesi pada paket sudah habis
             const kplCode = dkpl.kode_kepemilikan_paket_layanan;

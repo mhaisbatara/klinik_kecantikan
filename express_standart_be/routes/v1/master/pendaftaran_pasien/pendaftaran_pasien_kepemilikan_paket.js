@@ -185,6 +185,8 @@ const handleGetKepemilikanPaket = async (req, res) => {
 
       const detailCodes = details.map((d) => d.kode_detail_kepemilikan_paket_layanan).filter(Boolean);
       const activeBookingsMap = {};
+      const riwayatMap = {};
+
       if (detailCodes.length > 0) {
         const activeRows = await DB("trx_detail_booking as db")
           .join("trx_booking as b", "db.kode_booking", "b.kode_booking")
@@ -196,9 +198,35 @@ const handleGetKepemilikanPaket = async (req, res) => {
         activeRows.forEach((ar) => {
           activeBookingsMap[ar.kode_detail_kepemilikan_paket_layanan] = parseInt(ar.total_booked || 0, 10);
         });
+
+        // Ambil riwayat pemakaian dari trx_pemakaian_paket_layanan
+        const vaRiwayat = await DB("trx_pemakaian_paket_layanan as ppl")
+          .whereIn("ppl.kode_detail_kepemilikan_paket_layanan", detailCodes)
+          .select(
+            "ppl.id",
+            "ppl.kode_pemakaian_paket_layanan",
+            "ppl.kode_detail_kepemilikan_paket_layanan",
+            "ppl.sesi_ke",
+            "ppl.kode_kunjungan",
+            "ppl.kode_booking",
+            DB.raw("DATE_FORMAT(ppl.tanggal_pakai, '%Y-%m-%d') as tanggal_pakai"),
+            "ppl.status_pemakaian",
+            "ppl.keterangan",
+            "ppl.created_at"
+          )
+          .orderBy("ppl.sesi_ke", "asc")
+          .orderBy("ppl.id", "asc");
+
+        vaRiwayat.forEach((rw) => {
+          if (!riwayatMap[rw.kode_detail_kepemilikan_paket_layanan]) {
+            riwayatMap[rw.kode_detail_kepemilikan_paket_layanan] = [];
+          }
+          riwayatMap[rw.kode_detail_kepemilikan_paket_layanan].push(rw);
+        });
       }
 
       item.details = details.map((d) => {
+        const riwayatList = riwayatMap[d.kode_detail_kepemilikan_paket_layanan] || [];
         const sisaSesi = Math.max(0, parseInt(d.sesi_total || 0, 10) - parseInt(d.sesi_terpakai || 0, 10));
         const sesiTerbooking = activeBookingsMap[d.kode_detail_kepemilikan_paket_layanan] || 0;
         const sesiTersedia = Math.max(0, sisaSesi - sesiTerbooking);
@@ -234,6 +262,7 @@ const handleGetKepemilikanPaket = async (req, res) => {
         return {
           ...d,
           foto: fotoItem,
+          riwayat_pemakaian: riwayatList,
           sisa_sesi: sisaSesi,
           sesi_terbooking: sesiTerbooking,
           sesi_tersedia: sesiTersedia,
@@ -258,6 +287,8 @@ const handleGetKepemilikanPaket = async (req, res) => {
       item.total_terpakai = totalTerpakai;
       item.sisa_sesi = Math.max(0, totalSesi - totalTerpakai);
       item.total_terbooking = totalTerbooking;
+      item.total_tersedia = totalTersedia;
+      item.riwayat_pemakaian = Object.values(riwayatMap).flat().sort((a, b) => a.sesi_ke - b.sesi_ke);
       item.total_tersedia = totalTersedia;
 
       // Auto update status to "habis" if remaining sessions are 0
