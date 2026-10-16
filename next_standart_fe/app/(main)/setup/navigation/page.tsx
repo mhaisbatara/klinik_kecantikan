@@ -292,6 +292,7 @@ const DEFAULT_ROLES: RoleItem[] = [
             '/master-data-user/data-pasien',
             '/pendaftaran-antrean/jadwal-karyawan',
             '/transaksi/tracking-kasir',
+            '/riwayat/rekam-medis',
         ],
         is_custom: false,
     },

@@ -34,11 +34,6 @@ const LaporanContent: React.FC = () => {
   const router = useRouter();
   const activeModule = (searchParams.get('tab') as LaporanModuleId) || 'penjualan';
 
-  useEffect(() => {
-    if (session?.user?.role === 'superadmin') {
-      router.replace('/dashboard');
-    }
-  }, [session, router]);
 
   const navigateToActive = (tab: LaporanModuleId = 'penjualan') => {
     router.push(`/riwayat/rekam-medis?tab=${tab}`);

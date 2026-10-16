@@ -27,7 +27,15 @@ router.post("/", async (req, res) => {
       .leftJoin("mst_pasien as p", "t.no_rm", "p.no_rm")
       .leftJoin("trx_kunjungan as k", "t.kode_kunjungan", "k.kode_kunjungan")
       .leftJoin("mst_promo as pr", "t.kode_promo", "pr.kode_promo")
-      .whereRaw("DATE(t.tanggal_transaksi) = ?", [tanggal])
+      .where(function () {
+        this.whereRaw("DATE(t.tanggal_transaksi) = ?", [tanggal])
+          .orWhere(function () {
+            // Tagihan draf DP booking yang belum lunas selalu tampil di kasir agar dapat ditagih/dibayar
+            this.where("t.status", "draft")
+              .whereNotNull("t.kode_booking")
+              .whereNull("t.kode_kunjungan");
+          });
+      })
       .modify((qb) => {
         if (branchCode) qb.where("t.kode_cabang", branchCode);
         if (filterStatus) qb.where("t.status", filterStatus);
@@ -54,7 +62,7 @@ router.post("/", async (req, res) => {
         "t.kode_rekam_medis",
         "p.nama as nama_pasien",
         "p.no_hp",
-        t.kode_promo,
+        "t.kode_promo",
         DB.raw(`COALESCE(
           t.nama_promo,
           pr.nama,

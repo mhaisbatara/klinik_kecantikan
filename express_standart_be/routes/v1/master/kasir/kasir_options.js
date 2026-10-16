@@ -100,6 +100,85 @@ router.post("/", async (req, res) => {
       };
     });
 
+    // 1b. Pasien booking yang memiliki DP dan belum bayar
+    let bookingDpQuery = DB("trx_booking as b")
+      .join("mst_pasien as p", "b.no_rm", "p.no_rm")
+      .leftJoin("trx_transaksi as t_lunas", function () {
+        this.on("b.kode_booking", "=", "t_lunas.kode_booking")
+          .andOn("t_lunas.status", "=", DB.raw("?", ["lunas"]));
+      })
+      .where("b.dp_nominal", ">", 0)
+      .where("b.dp_status", "belum_bayar")
+      .whereNotIn("b.status", ["batal", "dibatalkan", "tidak_hadir"])
+      .whereNull("t_lunas.id")
+      .select(
+        DB.raw("NULL as kode_kunjungan"),
+        "b.kode_booking",
+        "b.no_rm",
+        "p.nama as nama_pasien",
+        "p.no_hp",
+        "b.jam_booking as jam_datang",
+        DB.raw("'booking_dp' as status_kunjungan"),
+        "b.dp_nominal",
+        "b.dp_status",
+        "b.metode_pembayaran_dp"
+      );
+
+    if (branchCode) {
+      bookingDpQuery = bookingDpQuery.where("b.kode_cabang", branchCode);
+    }
+
+    const vaBookingDp = await bookingDpQuery;
+    const bookingCodes = vaBookingDp.map((b) => b.kode_booking).filter(Boolean);
+    let detailBookings = [];
+    if (bookingCodes.length > 0) {
+      detailBookings = await DB("trx_detail_booking").whereIn("kode_booking", bookingCodes);
+    }
+
+    const bookingDpMapped = vaBookingDp.map((b) => {
+      const bDetails = detailBookings.filter((d) => d.kode_booking === b.kode_booking);
+      const svcNames = bDetails.map((d) => d.nama_layanan).filter(Boolean).join(", ");
+      const firstSvc = bDetails[0] || {};
+      const dpNom = parseFloat(b.dp_nominal || 0);
+      const dpItem = {
+        id: `dp_${b.kode_booking}`,
+        kode_detail_antrian_layanan: null,
+        jenis: "layanan",
+        kode: firstSvc.kode_layanan || "DP-BOOKING",
+        nama: svcNames ? `Uang Muka (DP) - ${svcNames}` : `Uang Muka (DP) Booking (${b.kode_booking})`,
+        satuan: "tindakan",
+        qty: 1,
+        harga_satuan: dpNom,
+        harga_master: dpNom,
+        subtotal: dpNom,
+        is_from_pendaftaran: true,
+        is_klaim: false,
+        is_klaim_paket: false,
+        kode_promo: null,
+        nama_promo: null,
+        jenis_diskon: "dp_booking",
+        nilai_diskon: null,
+        diskon: 0,
+        subtotal_setelah_diskon: dpNom,
+      };
+
+      return {
+        kode_kunjungan: null,
+        kode_booking: b.kode_booking,
+        no_rm: b.no_rm,
+        nama_pasien: `${b.nama_pasien} (DP BOOKING)`,
+        no_hp: b.no_hp,
+        jam_datang: b.jam_datang,
+        status_kunjungan: "booking_dp",
+        dp_nominal: dpNom,
+        dp_status: b.dp_status,
+        metode_pembayaran_dp: b.metode_pembayaran_dp,
+        layanan_pendaftaran: [dpItem],
+      };
+    });
+
+    const allKunjunganOptions = [...kunjunganMapped, ...bookingDpMapped];
+
     const host = req.get("host");
     const protocol = req.protocol || "http";
     const assetsBase = `${protocol}://${host}`;
@@ -260,7 +339,7 @@ router.post("/", async (req, res) => {
       message: "Data opsi kasir berhasil dimuat",
       datetime: formatDateSystem(),
       data: {
-        kunjungan: kunjunganMapped,
+        kunjungan: allKunjunganOptions,
         layanan: listLayanan,
         produk: listProduk,
         promo: listPromo,

@@ -270,8 +270,9 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
 
         const isDpBookingTrx = Boolean(trx.kode_booking && !trx.kode_kunjungan);
 
-        const kunjungan = kunjunganList.find((k) => k.kode_kunjungan === trx.kode_kunjungan) ||
-          ((trx.kode_kunjungan || trx.nama_pasien || trx.no_rm) ? {
+        const kunjungan = (trx.kode_kunjungan ? kunjunganList.find((k) => k.kode_kunjungan === trx.kode_kunjungan) : null) ||
+          (trx.kode_booking ? kunjunganList.find((k) => k.kode_booking === trx.kode_booking) : null) ||
+          ((trx.kode_kunjungan || trx.kode_booking || trx.nama_pasien || trx.no_rm) ? {
             kode_kunjungan: trx.kode_kunjungan || '',
             kode_booking: trx.kode_booking || null,
             no_rm: trx.no_rm || '-',

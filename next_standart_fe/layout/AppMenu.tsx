@@ -136,6 +136,7 @@ const AppMenu = () => {
     const isSuperAdminUser = userRole === 'superadmin' || userRole === 'admin_pusat';
 
     const getRoleAllowedReports = () => {
+        // 1. Jika ada izin tab spesifik yang tersimpan di allowedPaths
         if (state.allowedPaths.size > 0) {
             const hasAnyTab = LAPORAN_MENU_ITEMS.some((it) =>
                 state.allowedPaths.has('/riwayat/rekam-medis?tab=' + it.id)
@@ -146,15 +147,31 @@ const AppMenu = () => {
                 );
             }
             if (state.allowedPaths.has('/riwayat/rekam-medis')) {
+                if (isOwnerOrManagerRole || isSuperAdminUser) return LAPORAN_MENU_ITEMS;
+                if (userRole === 'dokter') {
+                    return LAPORAN_MENU_ITEMS.filter((it) => ['dokter', 'rekam_medis', 'pasien', 'kunjungan', 'treatment'].includes(it.id));
+                }
+                if (userRole === 'beautician') {
+                    return LAPORAN_MENU_ITEMS.filter((it) => ['beautician', 'treatment'].includes(it.id));
+                }
+                if (userRole === 'kasir') {
+                    return LAPORAN_MENU_ITEMS.filter((it) => ['penjualan', 'keuangan', 'voucher', 'deposit', 'pasien'].includes(it.id));
+                }
+                if (userRole === 'warehouse') {
+                    return LAPORAN_MENU_ITEMS.filter((it) => ['inventory', 'pembelian', 'expired', 'stok_opname', 'produk'].includes(it.id));
+                }
+                if (userRole === 'admin') {
+                    return LAPORAN_MENU_ITEMS.filter((it) => ['pasien', 'kunjungan', 'appointment', 'membership'].includes(it.id));
+                }
                 return LAPORAN_MENU_ITEMS;
             }
-            return [];
         }
 
-        if (isOwnerOrManagerRole) return LAPORAN_MENU_ITEMS;
+        // 2. Default berdasarkan role jika belum ada konfigurasi granular
+        if (isOwnerOrManagerRole || isSuperAdminUser) return LAPORAN_MENU_ITEMS;
 
         if (userRole === 'dokter') {
-            return LAPORAN_MENU_ITEMS.filter((it) => ['dokter', 'rekam_medis', 'pasien', 'kunjungan'].includes(it.id));
+            return LAPORAN_MENU_ITEMS.filter((it) => ['dokter', 'rekam_medis', 'pasien', 'kunjungan', 'treatment'].includes(it.id));
         }
         if (userRole === 'beautician') {
             return LAPORAN_MENU_ITEMS.filter((it) => ['beautician', 'treatment'].includes(it.id));
@@ -166,7 +183,7 @@ const AppMenu = () => {
             return LAPORAN_MENU_ITEMS.filter((it) => ['inventory', 'pembelian', 'expired', 'stok_opname', 'produk'].includes(it.id));
         }
         if (userRole === 'admin') {
-            return LAPORAN_MENU_ITEMS.filter((it) => ['pasien', 'kunjungan', 'appointment'].includes(it.id));
+            return LAPORAN_MENU_ITEMS.filter((it) => ['pasien', 'kunjungan', 'appointment', 'membership'].includes(it.id));
         }
         return [];
     };
@@ -943,6 +960,7 @@ const AppMenu = () => {
 
                         // Hak Akses Operasional Berdasarkan Role & Permission Navigasi yang Diberikan
                         const hasAllowedPath = (target: string) => {
+                            if (isSuperAdminRole || isOwnerOrManager) return true;
                             if (state.allowedPaths.size > 0) {
                                 if (state.allowedPaths.has(target)) return true;
                                 for (const p of state.allowedPaths) {
@@ -951,41 +969,52 @@ const AppMenu = () => {
                                 }
                                 return false;
                             }
-                            if (isOwnerOrManager) return true;
                             return false;
                         };
 
                         const canAccessTindakan =
-                            state.allowedPaths.size > 0
+                            isSuperAdminRole ||
+                            isOwnerOrManager ||
+                            (state.allowedPaths.size > 0
                                 ? hasAllowedPath('/pendaftaran-antrean/antrean?type=layanan')
-                                : (isOwnerOrManager || ['dokter', 'beautician'].includes(currentRole));
+                                : ['dokter', 'beautician'].includes(currentRole));
 
                         const canAccessKonsul =
-                            state.allowedPaths.size > 0
+                            isSuperAdminRole ||
+                            isOwnerOrManager ||
+                            (state.allowedPaths.size > 0
                                 ? hasAllowedPath('/pendaftaran-antrean/antrean?type=konsul')
-                                : (isOwnerOrManager || currentRole === 'dokter');
+                                : currentRole === 'dokter');
 
                         const canAccessLayanan = canAccessTindakan || canAccessKonsul;
 
                         const canAccessKasir =
-                            state.allowedPaths.size > 0
+                            isSuperAdminRole ||
+                            isOwnerOrManager ||
+                            (state.allowedPaths.size > 0
                                 ? hasAllowedPath('/kasir')
-                                : (isOwnerOrManager || currentRole === 'kasir');
+                                : currentRole === 'kasir');
 
                         const canAccessInventori =
-                            state.allowedPaths.size > 0
+                            isSuperAdminRole ||
+                            isOwnerOrManager ||
+                            (state.allowedPaths.size > 0
                                 ? hasAllowedPath('/master-data/inventori')
-                                : (isOwnerOrManager || ['warehouse', 'admin'].includes(currentRole));
+                                : ['warehouse', 'admin'].includes(currentRole));
 
                         const canAccessTrackingKasir =
-                            state.allowedPaths.size > 0
+                            isSuperAdminRole ||
+                            isOwnerOrManager ||
+                            (state.allowedPaths.size > 0
                                 ? hasAllowedPath('/transaksi/tracking-kasir')
-                                : (isOwnerOrManager || ['admin', 'kasir'].includes(currentRole));
+                                : ['admin', 'kasir'].includes(currentRole));
 
                         const canAccessLaporan =
-                            state.allowedPaths.size > 0
-                                ? (hasAllowedPath('/riwayat/rekam-medis') || roleReports.length > 0)
-                                : (isOwnerOrManager || roleReports.length > 0 || ['dokter', 'kasir', 'warehouse', 'admin'].includes(currentRole));
+                            isSuperAdminRole ||
+                            isOwnerOrManager ||
+                            roleReports.length > 0 ||
+                            hasAllowedPath('/riwayat/rekam-medis') ||
+                            ['owner', 'manager', 'dokter', 'kasir', 'warehouse', 'admin'].includes(currentRole);
 
                         const searchLower = state.searchVal.trim().toLowerCase();
                         const matchesTindakan = canAccessTindakan && (!searchLower || 'tindakan'.includes(searchLower) || 'layanan'.includes(searchLower));
@@ -995,6 +1024,7 @@ const AppMenu = () => {
                         const matchesInventori = canAccessInventori && (!searchLower || 'inventori'.includes(searchLower) || 'stok'.includes(searchLower) || 'gudang'.includes(searchLower) || 'inventory'.includes(searchLower) || 'transaksi'.includes(searchLower));
                         const matchesTrackingKasir = canAccessTrackingKasir && (!searchLower || 'tracking kas kasir'.includes(searchLower) || 'tracking kasir'.includes(searchLower) || 'tracking'.includes(searchLower) || 'kas'.includes(searchLower) || 'kasir'.includes(searchLower) || 'transaksi'.includes(searchLower));
                         const showTransaksiSection = matchesKasir || matchesInventori || matchesTrackingKasir;
+                        const matchesLaporan = canAccessLaporan && (!searchLower || 'laporan'.includes(searchLower) || 'data laporan'.includes(searchLower) || filteredReports.length > 0);
 
                         let idx = 0;
                         return (
@@ -1167,7 +1197,7 @@ const AppMenu = () => {
                                 )}
 
                                 {/* 6. LAPORAN */}
-                                {canAccessLaporan && (
+                                {matchesLaporan && (
                                     <li className="layout-root-menuitem" key="riwayat-section">
                                         <div className="layout-menuitem-root-text">LAPORAN</div>
                                         <ul>
