@@ -86,9 +86,26 @@ export const KasirSidebar: React.FC<KasirSidebarProps> = ({
     return statusMatch && searchMatch;
   });
 
+  const getEffectiveNominalLunas = (item: TransaksiListItem) => {
+    const isDpDraft = Boolean(item.kode_booking && !item.kode_kunjungan);
+    const totalBayar = parseFloat(String(item.total_bayar || 0));
+    const dp = parseFloat(String(item.dp_nominal || 0));
+    if (isDpDraft) {
+      return totalBayar;
+    }
+    if (dp > 0) {
+      return item.sisa_bayar !== undefined && item.sisa_bayar !== null
+        ? Math.min(parseFloat(String(item.sisa_bayar)), Math.max(0, totalBayar - dp))
+        : Math.max(0, totalBayar - dp);
+    }
+    return totalBayar;
+  };
+
   const totalDraft = list.filter((i) => i.status === 'draft').length;
   const totalLunas = list.filter((i) => i.status === 'lunas').length;
-  const totalPendapatan = list.filter((i) => i.status === 'lunas').reduce((s, i) => s + parseFloat(String(i.total_bayar || 0)), 0);
+  const totalPendapatan = list
+    .filter((i) => i.status === 'lunas')
+    .reduce((s, i) => s + getEffectiveNominalLunas(i), 0);
 
   return (
     <div className="flex flex-column h-full w-full user-select-none surface-card border-right-1 surface-border" style={{ minHeight: 0, minWidth: 0 }}>

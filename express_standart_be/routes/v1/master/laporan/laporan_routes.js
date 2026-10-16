@@ -161,7 +161,7 @@ router.post("/penjualan", async (req, res) => {
       .select(
         DB.raw("COALESCE(SUM(t.total_harga), 0) as total_bruto"),
         DB.raw("COALESCE(SUM(t.total_diskon), 0) as total_diskon"),
-        DB.raw("COALESCE(SUM(t.total_bayar), 0) as total_omzet"),
+        DB.raw("COALESCE(SUM(CASE WHEN t.kode_kunjungan IS NOT NULL AND t.dp_nominal > 0 THEN GREATEST(0, t.total_bayar - t.dp_nominal) ELSE t.total_bayar END), 0) as total_omzet"),
         DB.raw("COUNT(t.id) as total_transaksi")
       )
       .first();
@@ -1088,7 +1088,7 @@ router.post("/keuangan", async (req, res) => {
       .select(
         DB.raw("COALESCE(SUM(t.total_harga), 0) as total_bruto"),
         DB.raw("COALESCE(SUM(t.total_diskon), 0) as total_diskon"),
-        DB.raw("COALESCE(SUM(t.total_bayar), 0) as total_netto"),
+        DB.raw("COALESCE(SUM(CASE WHEN t.kode_kunjungan IS NOT NULL AND t.dp_nominal > 0 THEN GREATEST(0, t.total_bayar - t.dp_nominal) ELSE t.total_bayar END), 0) as total_netto"),
         DB.raw("COUNT(t.id) as total_transaksi")
       )
       .first();
@@ -1097,7 +1097,7 @@ router.post("/keuangan", async (req, res) => {
       .select(
         DB.raw("LOWER(COALESCE(t.metode_bayar, 'tunai')) as metode_bayar"),
         DB.raw("COUNT(t.id) as jumlah_transaksi"),
-        DB.raw("COALESCE(SUM(t.total_bayar), 0) as total_nominal")
+        DB.raw("COALESCE(SUM(CASE WHEN t.kode_kunjungan IS NOT NULL AND t.dp_nominal > 0 THEN GREATEST(0, t.total_bayar - t.dp_nominal) ELSE t.total_bayar END), 0) as total_nominal")
       )
       .groupByRaw("LOWER(COALESCE(t.metode_bayar, 'tunai'))");
 
@@ -1107,7 +1107,7 @@ router.post("/keuangan", async (req, res) => {
         DB.raw("COUNT(t.id) as jumlah_transaksi"),
         DB.raw("COALESCE(SUM(t.total_harga), 0) as total_bruto"),
         DB.raw("COALESCE(SUM(t.total_diskon), 0) as total_diskon"),
-        DB.raw("COALESCE(SUM(t.total_bayar), 0) as total_netto")
+        DB.raw("COALESCE(SUM(CASE WHEN t.kode_kunjungan IS NOT NULL AND t.dp_nominal > 0 THEN GREATEST(0, t.total_bayar - t.dp_nominal) ELSE t.total_bayar END), 0) as total_netto")
       )
       .groupByRaw("DATE(t.tanggal_transaksi)")
       .orderBy("tanggal", "desc");
