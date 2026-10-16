@@ -53,6 +53,8 @@ export const DialogCheckinBooking: React.FC<Props> = ({
 
   if (!booking) return null;
 
+  const isDpUnpaid = Number(booking.dp_nominal || 0) > 0 && booking.dp_status !== 'sudah_bayar';
+
   const handleCheckin = async () => {
     setLoading(true);
     try {
@@ -122,14 +124,15 @@ export const DialogCheckinBooking: React.FC<Props> = ({
             icon="pi pi-check"
             className="text-xs font-bold shadow-1"
             style={{
-              background: '#0C8F62',
-              borderColor: '#0C8F62',
+              background: isDpUnpaid ? '#94a3b8' : '#0C8F62',
+              borderColor: isDpUnpaid ? '#94a3b8' : '#0C8F62',
               color: '#ffffff',
               borderRadius: '8px',
               padding: '6px 16px',
             }}
             onClick={handleCheckin}
             loading={loading}
+            disabled={loading || isDpUnpaid}
           />
         </div>
       }
@@ -312,6 +315,17 @@ export const DialogCheckinBooking: React.FC<Props> = ({
                 <CheckCircle2 size={14} style={{ color: '#16a34a', flexShrink: 0, marginTop: '2px' }} />
                 <span style={{ lineHeight: '1.45', flex: 1 }}>
                   DP akan otomatis dicatat sebagai potongan tagihan saat pembayaran di Kasir.
+                </span>
+              </div>
+            </>
+          )}
+
+          {isDpUnpaid && (
+            <>
+              <div style={{ borderTop: '1px dashed #fca5a5', margin: '2px 0 0 0' }} />
+              <div className="flex align-items-start text-[11px] font-medium" style={{ color: '#b91c1c', gap: '6px', paddingTop: '2px' }}>
+                <span style={{ lineHeight: '1.45', flex: 1 }}>
+                  ⚠️ Tagihan DP belum dilunasi di kasir. Selesaikan pembayaran DP di Kasir sebelum melakukan check-in.
                 </span>
               </div>
             </>

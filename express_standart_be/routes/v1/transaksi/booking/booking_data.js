@@ -230,11 +230,15 @@ router.post("/", async (req, res) => {
         ? row.tanggal_booking.toISOString().slice(0, 10)
         : String(row.tanggal_booking).slice(0, 10);
 
-      // Flag apakah check-in aktif (hanya untuk tanggal hari ini dan status dikonfirmasi)
-      const canCheckin = tglStr === todayYmd && row.status === "dikonfirmasi";
+      // Periksa apakah DP sudah diset lunas oleh kasir (atau tidak memiliki tagihan DP)
+      const dpNominalVal = parseFloat(row.dp_nominal || 0);
+      const isDpSettled = dpNominalVal <= 0 || row.dp_status === "sudah_bayar";
 
-      // Flag apakah bisa tandai lunas DP
-      const canPayDp = row.dp_status === "belum_bayar" && row.status === "dikonfirmasi";
+      // Flag apakah check-in aktif (hanya untuk tanggal hari ini, status dikonfirmasi, dan DP sudah lunas)
+      const canCheckin = tglStr === todayYmd && row.status === "dikonfirmasi" && isDpSettled;
+
+      // Flag apakah bisa tandai lunas DP (dihapus sesuai permintaan user, pelunasan wajib via kasir)
+      const canPayDp = false;
 
       // Flag apakah bisa ditandai tidak hadir:
       // HANYA jika status dikonfirmasi DAN sudah melewati tanggal/jam booking + toleransi dinamis

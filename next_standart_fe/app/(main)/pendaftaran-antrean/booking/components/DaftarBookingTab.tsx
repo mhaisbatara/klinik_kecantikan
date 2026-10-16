@@ -185,32 +185,6 @@ export const DaftarBookingTab: React.FC<Props> = ({ toast, onNavigateToCreate, r
     }
   };
 
-  // Tandai DP Lunas
-  const handleMarkDpLunas = (row: BookingRow) => {
-    confirmDialog({
-      message: `Tandai pembayaran DP sebesar ${formatCurrency(row.dp_nominal)} untuk pasien ${row.nama_pasien} (${row.kode_booking}) sebagai LUNAS?`,
-      header: 'Konfirmasi Pelunasan DP',
-      icon: 'pi pi-check-circle',
-      acceptLabel: 'Ya, Tandai Lunas',
-      rejectLabel: 'Batal',
-      acceptClassName: 'p-button-success',
-      accept: async () => {
-        try {
-          const res = await postData('/transaksi/booking/update-dp', {
-            kode_booking: row.kode_booking,
-          });
-          if (res.data?.status === 200 || res.status === 200) {
-            showSuccess(toast, res.data?.message || 'DP berhasil ditandai lunas!');
-            fetchBookingData();
-          } else {
-            showError(toast, res.data?.message || 'Gagal memperbarui status DP');
-          }
-        } catch (e: any) {
-          showError(toast, e?.response?.data?.message || 'Terjadi kesalahan');
-        }
-      },
-    });
-  };
 
   // Batalkan Booking
   const handleCancelBooking = (row: BookingRow) => {
@@ -921,8 +895,8 @@ export const DaftarBookingTab: React.FC<Props> = ({ toast, onNavigateToCreate, r
               style={{ width: '110px', textAlign: 'center', verticalAlign: 'middle', padding: '0.85rem 0.5rem' }}
               body={(rowData: BookingRow) => (
                 <div className="flex align-items-center justify-content-center gap-2">
-                  {/* 1. CHECK-IN BUTTON */}
-                  {rowData.can_checkin && (
+                  {/* 1. CHECK-IN BUTTON (Hanya jika DP lunas / bebas DP) */}
+                  {rowData.can_checkin && (Number(rowData.dp_nominal || 0) <= 0 || rowData.dp_status === 'sudah_bayar') && (
                     <Button
                       icon="pi pi-check"
                       outlined
@@ -933,18 +907,6 @@ export const DaftarBookingTab: React.FC<Props> = ({ toast, onNavigateToCreate, r
                         setSelectedBookingForCheckin(rowData);
                         setShowCheckinDialog(true);
                       }}
-                    />
-                  )}
-
-                  {/* 2. TANDAI DP LUNAS BUTTON */}
-                  {rowData.can_pay_dp && (
-                    <Button
-                      icon="pi pi-dollar"
-                      outlined
-                      severity="warning"
-                      className="p-button-sm border-round-md"
-                      tooltip="Tandai DP Lunas"
-                      onClick={() => handleMarkDpLunas(rowData)}
                     />
                   )}
 
