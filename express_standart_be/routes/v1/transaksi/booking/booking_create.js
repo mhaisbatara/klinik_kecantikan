@@ -850,7 +850,7 @@ router.post("/", async (req, res) => {
         dp_dibayar_at: nowFormatted,
         metode_pembayaran_dp: savedMetodeDp,
         alasan_bebas_dp: savedAlasanBebasDp,
-        sumber: ["staff", "whatsapp"].includes(sumber) ? sumber : "staff",
+        sumber: ["staff", "whatsapp", "mobile"].includes(sumber) ? sumber : "staff",
         butuh_konsul: isBookingButuhKonsul,
         tz: oPayload.tz || "Asia/Jakarta",
         created_by: username,

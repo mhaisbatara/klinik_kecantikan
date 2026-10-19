@@ -66,7 +66,7 @@ interface BookingRow {
   dp_dibayar_at?: string;
   metode_pembayaran_dp?: string;
   alasan_bebas_dp?: string;
-  sumber: 'staff' | 'whatsapp';
+  sumber: 'staff' | 'whatsapp' | 'mobile' | string;
   butuh_konsul?: number | boolean;
   created_at: string;
   can_checkin: boolean;
@@ -750,7 +750,7 @@ export const DaftarBookingTab: React.FC<Props> = ({ toast, onNavigateToCreate, r
                   <div className="mt-1">
                     <Tag
                       value={rowData.sumber ? rowData.sumber.toUpperCase() : 'STAFF'}
-                      severity={rowData.sumber === 'whatsapp' ? 'success' : 'secondary'}
+                      severity={rowData.sumber === 'whatsapp' ? 'success' : rowData.sumber === 'mobile' ? 'info' : 'secondary'}
                       className="text-xs py-0 px-2 font-semibold"
                     />
                   </div>
