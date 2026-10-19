@@ -16,16 +16,30 @@ import { formatDateSystem } from "../../components/tools/date_tools.js";
 import { Logging, ChangesLog } from "../../components/tools/servertool.js";
 import { status } from "../../components/tools/general.js";
 import { getBranchScope } from "../../components/tools/branch_scope.js";
+import { cancelKasirDraftByBooking } from "../../master/kasir/kasir_sync_service.js";
 
 const router = express.Router();
 
 /**
- * Helper untuk memproses penghangusan booking dan pemotongan sesi klaim paket
+ * Helper untuk memproses penghangusan booking:
+ * 1. KASUS 1: Booking Beli Paket Baru (jenis_layanan === 'paket' / jenis_item === 'paket_baru')
+ *    - Status booking: 'tidak_hadir'
+ *    - DP: status otomatis 'hangus'
+ *    - Kepemilikan paket: batal / tidak terbentuk di database (trx_kepemilikan_paket_layanan)
+ *    - Kasir: Rp 0 (tidak ada transaksi kasir yang terbentuk)
+ * 2. KASUS 2: Booking Klaim Sesi Paket Lanjutan (jenis_item === 'klaim_paket' / memiliki kode_detail_kepemilikan_paket_layanan)
+ *    - Status booking: 'tidak_hadir'
+ *    - Sesi: Sesi pertama yang tersedia otomatis hangus (sesi_terpakai + 1)
+ *    - Riwayat pemakaian: Tercatat di trx_pemakaian_paket_layanan dengan status_pemakaian = 'hangus_no_show'
+ *    - Kasir: Rp 0
  */
 async function processNoShowBooking(trx, booking, username, nowFormatted, todayYmd, prefixPpl, seqObj) {
-  const newDpStatus = booking.dp_status === "sudah_bayar" ? "hangus" : booking.dp_status;
+  let newDpStatus = booking.dp_status;
+  if (booking.dp_status === "sudah_bayar" || parseFloat(booking.dp_nominal || 0) > 0) {
+    newDpStatus = "hangus";
+  }
 
-  // 1. Update status booking menjadi 'tidak_hadir'
+  // 1. Update status booking menjadi 'tidak_hadir' & hanguskan DP jika ada
   await trx("trx_booking")
     .where("id", booking.id)
     .update({
@@ -35,10 +49,51 @@ async function processNoShowBooking(trx, booking, username, nowFormatted, todayY
       updated_at: nowFormatted,
     });
 
-  // 2. Periksa apakah booking memiliki item klaim paket
+  // 1b. Batalkan draf kasir yang terikat dengan booking ini (agar tidak ada piutang menggantung)
+  await cancelKasirDraftByBooking(trx, booking.kode_booking, username);
+
+  // 2. Ambil detail booking untuk membedakan Kasus 1 vs Kasus 2
   const detailBookingRows = await trx("trx_detail_booking")
     .where("kode_booking", booking.kode_booking);
 
+  let isBeliPaketBaru = booking.jenis_layanan === "paket";
+  for (const item of detailBookingRows) {
+    if (item.jenis_layanan === "paket" || item.jenis_item === "paket_baru") {
+      isBeliPaketBaru = true;
+    }
+  }
+
+  // --- KASUS 1: BELI PAKET BARU / SESI PERTAMA ---
+  // Pasien no-show pada pembelian paket baru: DP hangus, paket batal diterbitkan / tidak terbentuk di DB
+  if (isBeliPaketBaru) {
+    const existingKpl = await trx("trx_kepemilikan_paket_layanan")
+      .where("kode_transaksi", booking.kode_booking)
+      .select("kode_kepemilikan_paket_layanan");
+
+    if (existingKpl.length > 0) {
+      const kplCodes = existingKpl.map((k) => k.kode_kepemilikan_paket_layanan);
+      await trx("trx_detail_kepemilikan_paket_layanan")
+        .whereIn("kode_kepemilikan_paket_layanan", kplCodes)
+        .delete();
+      await trx("trx_kepemilikan_paket_layanan")
+        .whereIn("kode_kepemilikan_paket_layanan", kplCodes)
+        .delete();
+    }
+
+    // Pastikan tidak ada log pemakaian paket yang tercatat untuk booking pembelian baru yang no-show
+    await trx("trx_pemakaian_paket_layanan")
+      .where("kode_booking", booking.kode_booking)
+      .delete();
+
+    return {
+      newDpStatus,
+      hangusItems: [],
+      isBeliPaketBaru: true,
+    };
+  }
+
+  // --- KASUS 2: KLAIM SESI LANJUTAN (KEDUA, KETIGA, DST.) ---
+  // Pasien no-show pada klaim sesi dari paket yang sudah aktif: sesi pertama yang tersedia hangus (+1)
   const hangusItems = [];
   for (const item of detailBookingRows) {
     const isClaim =
@@ -64,6 +119,7 @@ async function processNoShowBooking(trx, booking, username, nowFormatted, todayY
     }
 
     if (dkpl && dkpl.sesi_terpakai < dkpl.sesi_total) {
+      // Sesi pertama yang masih tersedia dihanguskan
       const sesiKe = dkpl.sesi_terpakai + 1;
 
       // Update sesi_terpakai pada detail kepemilikan
@@ -125,6 +181,7 @@ async function processNoShowBooking(trx, booking, username, nowFormatted, todayY
   return {
     newDpStatus,
     hangusItems,
+    isBeliPaketBaru: false,
   };
 }
 
@@ -227,12 +284,17 @@ router.post("/", async (req, res) => {
           kode_booking: kodeBooking,
           status: "tidak_hadir",
           dp_status: processResult.newDpStatus,
+          is_beli_paket_baru: processResult.isBeliPaketBaru,
           hangus_sesi_items: processResult.hangusItems,
         };
 
+        const logDesc = processResult.isBeliPaketBaru
+          ? `Menandai booking ${kodeBooking} tidak hadir (Beli Paket Baru batal diterbitkan, DP ${processResult.newDpStatus})`
+          : `Menandai booking ${kodeBooking} tidak hadir (${processResult.hangusItems.length} sesi paket dihanguskan)`;
+
         await ChangesLog(
           {
-            description: `Menandai booking ${kodeBooking} tidak hadir (${processResult.hangusItems.length} sesi paket dihanguskan)`,
+            description: logDesc,
             tableName: "trx_booking",
             referenceCode: kodeBooking,
             action: "update",
@@ -240,6 +302,7 @@ router.post("/", async (req, res) => {
               kode_booking: kodeBooking,
               status: "tidak_hadir",
               dp_status: processResult.newDpStatus,
+              is_beli_paket_baru: processResult.isBeliPaketBaru,
               hangus_sesi_count: processResult.hangusItems.length,
             },
             user: username,
@@ -262,10 +325,13 @@ router.post("/", async (req, res) => {
         resultData.hangus_sesi_items?.length > 0
           ? ` Sebanyak ${resultData.hangus_sesi_items.length} sesi paket klaim dinyatakan hangus.`
           : "";
+      const paketBatalMsg = resultData.is_beli_paket_baru
+        ? " Kepemilikan paket baru batal diterbitkan."
+        : "";
 
       return res.status(200).json({
         status: status.SUKSES,
-        message: `Booking ${kodeBooking} berhasil ditandai tidak hadir.${dpMsg}${sesiMsg}`,
+        message: `Booking ${kodeBooking} berhasil ditandai tidak hadir.${dpMsg}${sesiMsg}${paketBatalMsg}`,
         datetime: formatDateSystem(),
         data: resultData,
       });
@@ -350,6 +416,7 @@ router.post("/", async (req, res) => {
           updatedCodes.push({
             kode_booking: lockedBooking.kode_booking,
             dp_status: processResult.newDpStatus,
+            is_beli_paket_baru: processResult.isBeliPaketBaru,
             hangus_sesi_count: processResult.hangusItems.length,
           });
           updatedCount++;

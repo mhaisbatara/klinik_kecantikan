@@ -29,6 +29,7 @@ async function runTest() {
   const KODE_DKPL_TEST = 'DKPL-TEST-001';
   const KODE_BKG_HADIR = 'BKG-TEST-HDR-001';
   const KODE_BKG_NOSHOW = 'BKG-TEST-NSW-001';
+  const KODE_BKG_PAKET_BARU = 'BKG-TEST-PKT-001';
 
   try {
     // 0. Ambil user kredensial & buat JWT token
@@ -58,29 +59,37 @@ async function runTest() {
     const layanan = await DB('mst_layanan').where('status', 'aktif').first();
     const ruangan = await DB('mst_ruangan').where('status', 'aktif').first();
     const jadwal = await DB('mst_jadwal_karyawan').where('status', 'aktif').first();
+    const paketMst = await DB('mst_paket_layanan').where('status', 'aktif').first() || await DB('mst_paket_layanan').first();
 
     console.log(`Menggunakan Pasien: ${pasien.nama} (${pasien.no_rm})`);
     console.log(`Menggunakan Layanan: ${layanan.nama} (${layanan.kode_layanan})`);
+    if (paketMst) console.log(`Menggunakan Paket Master: ${paketMst.nama} (${paketMst.kode_paket_layanan})`);
 
     // 1. Bersihkan data test lama jika ada
     await DB('trx_pemakaian_paket_layanan')
       .whereIn('kode_detail_kepemilikan_paket_layanan', [KODE_DKPL_TEST])
+      .delete();
+    await DB('trx_pemakaian_paket_layanan')
+      .whereIn('kode_booking', [KODE_BKG_HADIR, KODE_BKG_NOSHOW, KODE_BKG_PAKET_BARU])
       .delete();
     await DB('trx_detail_antrian_layanan')
       .whereIn('kode_layanan', [layanan.kode_layanan])
       .where('created_by', 'system_test')
       .delete();
     await DB('trx_detail_booking')
-      .whereIn('kode_booking', [KODE_BKG_HADIR, KODE_BKG_NOSHOW])
+      .whereIn('kode_booking', [KODE_BKG_HADIR, KODE_BKG_NOSHOW, KODE_BKG_PAKET_BARU])
       .delete();
     await DB('trx_booking')
-      .whereIn('kode_booking', [KODE_BKG_HADIR, KODE_BKG_NOSHOW])
+      .whereIn('kode_booking', [KODE_BKG_HADIR, KODE_BKG_NOSHOW, KODE_BKG_PAKET_BARU])
       .delete();
     await DB('trx_detail_kepemilikan_paket_layanan')
       .where('kode_detail_kepemilikan_paket_layanan', KODE_DKPL_TEST)
       .delete();
     await DB('trx_kepemilikan_paket_layanan')
-      .where('kode_kepemilikan_paket_layanan', KODE_KPL_TEST)
+      .whereIn('kode_kepemilikan_paket_layanan', [KODE_KPL_TEST])
+      .delete();
+    await DB('trx_kepemilikan_paket_layanan')
+      .where('kode_transaksi', KODE_BKG_PAKET_BARU)
       .delete();
 
     // 2. Setup Kepemilikan Paket Baru (Paket 5x Sesi, Sesi Terpakai Awal = 0)
@@ -311,37 +320,155 @@ async function runTest() {
     console.log(`HASIL SKENARIO 4: ${isTest4Pass ? '✅ PASS' : '❌ FAIL'}\n`);
 
     // =========================================================================
+    // SKENARIO 5: KASUS 1 - Booking BELI PAKET BARU / SESI PERTAMA DENGAN DP
+    // Aturan Bisnis:
+    // 1. Status booking menjadi 'tidak_hadir'
+    // 2. Status DP (dp_status) otomatis menjadi 'hangus'
+    // 3. Kepemilikan Paket (trx_kepemilikan_paket_layanan) BATAL DITERBITKAN / tidak terbentuk di DB
+    // 4. Tagihan Kasir: Rp 0 (tidak ada transaksi kasir atau kunjungan yang terbentuk)
+    // =========================================================================
+    console.log('--- SKENARIO 5: KASUS 1 - Booking Beli Paket Baru Dengan DP (No-Show) ---');
+    const kodePaketLayanan = paketMst?.kode_paket_layanan || 'PKT-TEST';
+    const namaPaketLayanan = paketMst?.nama || 'Paket Glowing 5x Treatment';
+
+    await DB('trx_booking').insert({
+      kode_cabang: 'CBG-001',
+      kode_booking: KODE_BKG_PAKET_BARU,
+      no_rm: pasien.no_rm,
+      kode_ruangan: ruangan.kode_ruangan,
+      jenis_layanan: 'paket',
+      kode_layanan: kodePaketLayanan,
+      kode_jadwal: jadwal?.kode_jadwal || 'JAD-001',
+      tanggal_booking: '2026-10-15',
+      jam_booking: '16:00:00',
+      total_biaya: 500000,
+      status: 'dikonfirmasi',
+      dp_nominal: 100000,
+      dp_status: 'sudah_bayar',
+      metode_pembayaran_dp: 'transfer',
+      tz: 'Asia/Jakarta',
+      created_by: 'system_test',
+    });
+
+    await DB('trx_detail_booking').insert({
+      kode_detail_booking: 'DBKG-TEST-PKT-01',
+      kode_booking: KODE_BKG_PAKET_BARU,
+      jenis_layanan: 'paket',
+      jenis_item: 'paket_baru',
+      kode_layanan: kodePaketLayanan,
+      nama_layanan: namaPaketLayanan,
+      harga: 500000,
+      durasi_menit: 60,
+      tz: 'Asia/Jakarta',
+      created_by: 'system_test',
+    });
+
+    // Panggil API booking-tidak-hadir pada test server
+    const resNoShowPaketBaru = await fetch(`${baseUrl}/api/v1/master/booking-tidak-hadir`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ kode_booking: KODE_BKG_PAKET_BARU }),
+    });
+
+    const jsonNoShowPaketBaru = await resNoShowPaketBaru.json();
+    console.log('Respon No-Show Beli Paket Baru:', jsonNoShowPaketBaru.message);
+
+    // Verifikasi Database:
+    // A. Booking status & DP status
+    const bkgPaketBaruAfter = await DB('trx_booking')
+      .where('kode_booking', KODE_BKG_PAKET_BARU)
+      .first();
+
+    // B. Kepemilikan paket di DB
+    const kplPaketBaru = await DB('trx_kepemilikan_paket_layanan')
+      .where('kode_transaksi', KODE_BKG_PAKET_BARU);
+
+    // C. Log pemakaian paket
+    const pplPaketBaru = await DB('trx_pemakaian_paket_layanan')
+      .where('kode_booking', KODE_BKG_PAKET_BARU);
+
+    // D. Transaksi kunjungan / kasir
+    const kunjunganPaketBaru = await DB('trx_kunjungan')
+      .where('kode_booking', KODE_BKG_PAKET_BARU);
+
+    console.log(`- Status Booking: ${bkgPaketBaruAfter.status} (Ekspektasi: 'tidak_hadir')`);
+    console.log(`- Status DP: ${bkgPaketBaruAfter.dp_status} (Ekspektasi: 'hangus')`);
+    console.log(`- Baris Kepemilikan Paket Terbentuk: ${kplPaketBaru.length} (Ekspektasi: 0 - Batal Diterbitkan)`);
+    console.log(`- Baris Log Pemakaian Paket: ${pplPaketBaru.length} (Ekspektasi: 0)`);
+    console.log(`- Kunjungan / Tagihan Kasir: ${kunjunganPaketBaru.length} (Ekspektasi: 0 - Rp 0)`);
+
+    const isTest5Pass =
+      bkgPaketBaruAfter.status === 'tidak_hadir' &&
+      bkgPaketBaruAfter.dp_status === 'hangus' &&
+      kplPaketBaru.length === 0 &&
+      pplPaketBaru.length === 0 &&
+      kunjunganPaketBaru.length === 0;
+
+    console.log(`HASIL SKENARIO 5: ${isTest5Pass ? '✅ PASS' : '❌ FAIL'}\n`);
+
+    // =========================================================================
+    // SKENARIO 6: Uji IDEMPOTENSI Kasus 1 (Panggilan Ulang No-Show Beli Paket Baru)
+    // =========================================================================
+    console.log('--- SKENARIO 6: Uji IDEMPOTENSI Beli Paket Baru (Tandai No-Show Dua Kali) ---');
+    const resNoShowPaketBaru2 = await fetch(`${baseUrl}/api/v1/master/booking-tidak-hadir`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ kode_booking: KODE_BKG_PAKET_BARU }),
+    });
+
+    const jsonNoShowPaketBaru2 = await resNoShowPaketBaru2.json();
+    console.log('Respon No-Show Beli Paket Baru Kedua:', jsonNoShowPaketBaru2.message);
+
+    const bkgPaketBaruAfter2 = await DB('trx_booking')
+      .where('kode_booking', KODE_BKG_PAKET_BARU)
+      .first();
+
+    const isTest6Pass =
+      jsonNoShowPaketBaru2.data?.idempotent === true &&
+      bkgPaketBaruAfter2.status === 'tidak_hadir' &&
+      bkgPaketBaruAfter2.dp_status === 'hangus';
+
+    console.log(`HASIL SKENARIO 6: ${isTest6Pass ? '✅ PASS (IDEMPOTENT & AMAN)' : '❌ FAIL'}\n`);
+
+    // =========================================================================
     // KESIMPULAN AKHIR & CLEANUP
     // =========================================================================
     // Bersihkan data dummy test
     await DB('trx_pemakaian_paket_layanan')
       .whereIn('kode_detail_kepemilikan_paket_layanan', [KODE_DKPL_TEST])
       .delete();
+    await DB('trx_pemakaian_paket_layanan')
+      .whereIn('kode_booking', [KODE_BKG_HADIR, KODE_BKG_NOSHOW, KODE_BKG_PAKET_BARU])
+      .delete();
     await DB('trx_detail_booking')
-      .whereIn('kode_booking', [KODE_BKG_HADIR, KODE_BKG_NOSHOW])
+      .whereIn('kode_booking', [KODE_BKG_HADIR, KODE_BKG_NOSHOW, KODE_BKG_PAKET_BARU])
       .delete();
     await DB('trx_booking')
-      .whereIn('kode_booking', [KODE_BKG_HADIR, KODE_BKG_NOSHOW])
+      .whereIn('kode_booking', [KODE_BKG_HADIR, KODE_BKG_NOSHOW, KODE_BKG_PAKET_BARU])
       .delete();
     await DB('trx_detail_kepemilikan_paket_layanan')
       .where('kode_detail_kepemilikan_paket_layanan', KODE_DKPL_TEST)
       .delete();
     await DB('trx_kepemilikan_paket_layanan')
-      .where('kode_kepemilikan_paket_layanan', KODE_KPL_TEST)
+      .whereIn('kode_kepemilikan_paket_layanan', [KODE_KPL_TEST])
+      .delete();
+    await DB('trx_kepemilikan_paket_layanan')
+      .where('kode_transaksi', KODE_BKG_PAKET_BARU)
       .delete();
 
     testServer.close();
 
     console.log('🧹 Data test otomatis berhasil dibersihkan.');
     console.log('================================================================');
-    if (isTest1Pass && isTest2Pass && isTest3Pass && isTest4Pass) {
-      console.log('  🎉 SEMUA 4 SKENARIO PENGUJIAN OTOMATIS SUKSES 100% (ALL PASS)  ');
+    const allPass = isTest1Pass && isTest2Pass && isTest3Pass && isTest4Pass && isTest5Pass && isTest6Pass;
+    if (allPass) {
+      console.log('  🎉 SEMUA 6 SKENARIO PENGUJIAN OTOMATIS SUKSES 100% (ALL PASS)  ');
     } else {
       console.log('  ⚠️ ADA SKENARIO YANG GAGAL, PERIKSA LOG DI ATAS!               ');
     }
     console.log('================================================================');
 
-    process.exit(isTest1Pass && isTest2Pass && isTest3Pass && isTest4Pass ? 0 : 1);
+    process.exit(allPass ? 0 : 1);
   } catch (err) {
     console.error('Error saat menjalankan test:', err);
     testServer.close();

@@ -190,27 +190,13 @@ export const fetchRiwayatKunjungan = async (
   noRm: string,
   namaPasien?: string
 ): Promise<KunjunganRiwayat[]> => {
-  // Pasien baru eksplisit JOJO atau nama mengandung jojo
-  const isJojo = Boolean(
-    (namaPasien && namaPasien.trim().toUpperCase() === 'JOJO') ||
-    (namaPasien && namaPasien.toLowerCase().includes('jojo'))
-  );
-
-  if (isJojo) {
-    // Return empty list agar tampil Empty State "Belum ada riwayat kunjungan"
-    return [];
-  }
-
   try {
     const cleanNoRm = (noRm || '').replace(/^#/, '').trim();
     if (cleanNoRm) {
       // Panggil kedua endpoint secara paralel: rekam medis kunjungan & transaksi kasir
-      // Catatan: riwayat kunjungan hanya masuk saat pasien sudah melakukan pembayaran lunas di kasir
       const [resRekamMedis, resTransaksi] = await Promise.allSettled([
         postData('/master/pasien-rekam-medis', {
           no_rm: cleanNoRm,
-          only_selesai: true,
-          only_lunas: true,
           page: 1,
           perPage: 50,
         }),
@@ -223,7 +209,7 @@ export const fetchRiwayatKunjungan = async (
       const res = resRekamMedis.status === 'fulfilled' ? resRekamMedis.value : null;
       const resTrx = resTransaksi.status === 'fulfilled' ? resTransaksi.value : null;
 
-      // Index transaksi kasir berdasarkan kode_kunjungan
+      // Index transaksi kasir berdasarkan kode_kunjungan jika ada
       const mapTrx: Record<string, any> = {};
       if (resTrx?.data?.data && Array.isArray(resTrx.data.data)) {
         resTrx.data.data.forEach((trx: any) => {
@@ -241,14 +227,20 @@ export const fetchRiwayatKunjungan = async (
         const mapped: KunjunganRiwayat[] = [];
 
         rawData.forEach((item: any) => {
-          // SYARAT MUTLAK: Riwayat baru masuk saat pasien sudah melakukan pembayaran lunas di kasir
+          const statusKunj = String(item.status_kunjungan || '').toLowerCase();
+          // Jangan tampilkan kunjungan yang dibatalkan
+          if (statusKunj === 'batal') {
+            return;
+          }
+
           const trxMatch = item.kode_kunjungan ? mapTrx[item.kode_kunjungan] : null;
           const isLunas = Boolean(
             trxMatch &&
             ['lunas', 'selesai'].includes(String(trxMatch.status || '').toLowerCase())
           );
 
-          if (!isLunas) {
+          // Tampilkan jika status kunjungan sudah selesai atau transaksi kasir lunas/selesai
+          if (statusKunj !== 'selesai' && !isLunas) {
             return;
           }
           const layananList = Array.isArray(item.layanan) ? item.layanan : [];
@@ -439,8 +431,8 @@ export const fetchRiwayatKunjungan = async (
               },
               produk: [],
               totalBayarKasir: totalBiayaKunjungan,
-              metodeBayar: trxMatch?.metode_bayar,
-              statusTransaksi: trxMatch?.status,
+              metodeBayar: trxMatch?.metode_bayar || 'Tunai',
+              statusTransaksi: trxMatch?.status || (statusKunj === 'selesai' ? 'lunas' : statusKunj),
               catatan:
                 konsulLayanan.catatan_petugas ||
                 item.header_rekam_medis?.diagnosis ||
@@ -470,8 +462,8 @@ export const fetchRiwayatKunjungan = async (
               },
               produk: trxProducts,
               totalBayarKasir: totalBiayaKunjungan,
-              metodeBayar: trxMatch?.metode_bayar,
-              statusTransaksi: trxMatch?.status,
+              metodeBayar: trxMatch?.metode_bayar || 'Tunai',
+              statusTransaksi: trxMatch?.status || (statusKunj === 'selesai' ? 'lunas' : statusKunj),
               catatan:
                 primaryTreatment.catatan_hasil_treatment ||
                 primaryTreatment.catatan_tindakan ||
@@ -523,8 +515,8 @@ export const fetchRiwayatKunjungan = async (
               },
               produk: trxProducts,
               totalBayarKasir,
-              metodeBayar: trxMatch?.metode_bayar,
-              statusTransaksi: trxMatch?.status,
+              metodeBayar: trxMatch?.metode_bayar || 'Tunai',
+              statusTransaksi: trxMatch?.status || (statusKunj === 'selesai' ? 'lunas' : statusKunj),
               catatan:
                 item.header_rekam_medis?.diagnosis ||
                 konsulLayanan.catatan_petugas ||
@@ -568,8 +560,8 @@ export const fetchRiwayatKunjungan = async (
               },
               produk: trxProducts,
               totalBayarKasir,
-              metodeBayar: trxMatch?.metode_bayar,
-              statusTransaksi: trxMatch?.status,
+              metodeBayar: trxMatch?.metode_bayar || 'Tunai',
+              statusTransaksi: trxMatch?.status || (statusKunj === 'selesai' ? 'lunas' : statusKunj),
               catatan:
                 primaryTreatment.catatan_hasil_treatment ||
                 primaryTreatment.catatan_tindakan ||
@@ -613,8 +605,8 @@ export const fetchRiwayatKunjungan = async (
               },
               produk: trxProducts,
               totalBayarKasir,
-              metodeBayar: trxMatch?.metode_bayar,
-              statusTransaksi: trxMatch?.status,
+              metodeBayar: trxMatch?.metode_bayar || 'Tunai',
+              statusTransaksi: trxMatch?.status || (statusKunj === 'selesai' ? 'lunas' : statusKunj),
               catatan: item.header_rekam_medis?.diagnosis || item.catatan || '-',
               resep: resepList,
             });

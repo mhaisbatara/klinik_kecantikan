@@ -86,9 +86,26 @@ export const KasirSidebar: React.FC<KasirSidebarProps> = ({
     return statusMatch && searchMatch;
   });
 
+  const getEffectiveNominalLunas = (item: TransaksiListItem) => {
+    const isDpDraft = Boolean(item.kode_booking && !item.kode_kunjungan);
+    const totalBayar = parseFloat(String(item.total_bayar || 0));
+    const dp = parseFloat(String(item.dp_nominal || 0));
+    if (isDpDraft) {
+      return totalBayar;
+    }
+    if (dp > 0) {
+      return item.sisa_bayar !== undefined && item.sisa_bayar !== null
+        ? Math.min(parseFloat(String(item.sisa_bayar)), Math.max(0, totalBayar - dp))
+        : Math.max(0, totalBayar - dp);
+    }
+    return totalBayar;
+  };
+
   const totalDraft = list.filter((i) => i.status === 'draft').length;
   const totalLunas = list.filter((i) => i.status === 'lunas').length;
-  const totalPendapatan = list.filter((i) => i.status === 'lunas').reduce((s, i) => s + parseFloat(String(i.total_bayar || 0)), 0);
+  const totalPendapatan = list
+    .filter((i) => i.status === 'lunas')
+    .reduce((s, i) => s + getEffectiveNominalLunas(i), 0);
 
   return (
     <div className="flex flex-column h-full w-full user-select-none surface-card border-right-1 surface-border" style={{ minHeight: 0, minWidth: 0 }}>
@@ -212,11 +229,30 @@ export const KasirSidebar: React.FC<KasirSidebarProps> = ({
                 >
                   <div className="flex align-items-center justify-content-between mb-1">
                     <span className="font-extrabold text-xs text-teal-900">{item.kode_transaksi}</span>
-                    <Tag
-                      value={item.status.toUpperCase()}
-                      severity={isLunas ? 'success' : isBatal ? 'danger' : 'info'}
-                      className="text-[10px] font-bold px-2 py-0.5"
-                    />
+                    <div className="flex align-items-center gap-1">
+                      {item.kode_booking && !item.kode_kunjungan && (
+                        <Tag
+                          value="DP BOOKING"
+                          severity="warning"
+                          className="text-[9px] font-bold px-1.5 py-0.5"
+                        />
+                      )}
+                      {parseFloat(String(item.total_bayar || 0)) === 0 && (
+                        (item.nama_promo || '').toLowerCase().includes('klaim') ||
+                        Boolean(item.kode_kunjungan)
+                      ) && (
+                        <Tag
+                          value="KLAIM SESI"
+                          severity="info"
+                          className="text-[9px] font-bold px-1.5 py-0.5"
+                        />
+                      )}
+                      <Tag
+                        value={item.status.toUpperCase()}
+                        severity={isLunas ? 'success' : isBatal ? 'danger' : 'info'}
+                        className="text-[10px] font-bold px-2 py-0.5"
+                      />
+                    </div>
                   </div>
 
                   <div className="font-bold text-sm text-slate-800 mb-1 overflow-hidden text-ellipsis white-space-nowrap">
@@ -224,11 +260,25 @@ export const KasirSidebar: React.FC<KasirSidebarProps> = ({
                   </div>
 
                   <div className="flex align-items-center justify-content-between text-xs pt-1 border-top-1 surface-border">
-                    <span className="text-[11px] text-500">RM: {item.no_rm}</span>
+                    <span className="text-[11px] text-500">
+                      RM: {item.no_rm}
+                      {item.kode_booking && <span className="text-teal-600 font-semibold ml-1">({item.kode_booking})</span>}
+                    </span>
                     <div className="text-right">
                       {(() => {
+                        const isDpDraft = Boolean(item.kode_booking && !item.kode_kunjungan);
                         const totalBayar = parseFloat(String(item.total_bayar || 0));
                         const dp = parseFloat(String(item.dp_nominal || 0));
+                        
+                        // Jika draf DP booking, nominal yang ditagih kasir adalah total_bayar DP itu sendiri
+                        if (isDpDraft) {
+                          return (
+                            <span className="font-black text-teal-700 block">
+                              {formatRupiah(totalBayar)}
+                            </span>
+                          );
+                        }
+
                         const sisa = dp > 0
                           ? (item.sisa_bayar !== undefined && item.sisa_bayar !== null
                               ? Math.min(parseFloat(String(item.sisa_bayar)), Math.max(0, totalBayar - dp))

@@ -27,9 +27,19 @@ export const handleList = async (req, res) => {
     const baseQuery = DB("trx_transaksi as t")
       .leftJoin("mst_pasien as p", "t.no_rm", "p.no_rm")
       .leftJoin("trx_kunjungan as k", "t.kode_kunjungan", "k.kode_kunjungan")
-      .leftJoin("trx_booking as b", "k.kode_booking", "b.kode_booking")
+      .leftJoin("trx_booking as b", function () {
+        this.on("k.kode_booking", "=", "b.kode_booking")
+          .orOn("t.kode_booking", "=", "b.kode_booking");
+      })
       .leftJoin("mst_promo as pr", "t.kode_promo", "pr.kode_promo")
-      .whereRaw("DATE(t.tanggal_transaksi) = ?", [tanggal])
+      .where(function () {
+        this.whereRaw("DATE(t.tanggal_transaksi) = ?", [tanggal])
+          .orWhere(function () {
+            this.where("t.status", "draft")
+              .whereNotNull("t.kode_booking")
+              .whereNull("t.kode_kunjungan");
+          });
+      })
       .modify((qb) => {
         if (branchCode) qb.where("t.kode_cabang", branchCode);
         if (filterStatus) qb.where("t.status", filterStatus);
@@ -50,6 +60,7 @@ export const handleList = async (req, res) => {
     const vaData = await baseQuery.clone()
       .select(
         "t.kode_transaksi",
+        "t.kode_booking",
         "t.kode_kunjungan",
         "t.no_rm",
         "t.kode_rekam_medis",
@@ -61,9 +72,8 @@ export const handleList = async (req, res) => {
         "t.total_harga",
         "t.total_diskon",
         "t.total_bayar",
-        DB.raw("COALESCE(NULLIF(t.dp_nominal, 0), CASE WHEN b.dp_status IN ('sudah_bayar', 'lunas', 'dipotong_treatment') OR b.dp_nominal > 0 THEN b.dp_nominal ELSE 0 END, 0) as dp_nominal"),
-        DB.raw("COALESCE(t.metode_pembayaran_dp, b.metode_pembayaran_dp) as metode_pembayaran_dp"),
-        DB.raw("GREATEST(0, t.total_bayar - COALESCE(NULLIF(t.dp_nominal, 0), CASE WHEN b.dp_status IN ('sudah_bayar', 'lunas', 'dipotong_treatment') OR b.dp_nominal > 0 THEN b.dp_nominal ELSE 0 END, 0)) as sisa_bayar"),
+        "t.dp_nominal",
+        "t.sisa_bayar",
         "t.metode_bayar",
         "t.status",
         "t.created_at",
@@ -105,14 +115,16 @@ export const handleDetail = async (req, res) => {
     const trx = await DB("trx_transaksi as t")
       .leftJoin("mst_pasien as p", "t.no_rm", "p.no_rm")
       .leftJoin("trx_kunjungan as k", "t.kode_kunjungan", "k.kode_kunjungan")
-      .leftJoin("trx_booking as b", "k.kode_booking", "b.kode_booking")
+      .leftJoin("trx_booking as b", function () {
+        this.on("b.kode_booking", DB.raw("COALESCE(k.kode_booking, t.kode_booking)"));
+      })
       .leftJoin("mst_promo as pr", "t.kode_promo", "pr.kode_promo")
       .where("t.kode_transaksi", kode_transaksi)
       .select(
         "t.*",
         "p.nama as nama_pasien",
         "p.no_hp",
-        "k.kode_booking",
+        DB.raw("COALESCE(t.kode_booking, k.kode_booking) as kode_booking"),
         "b.dp_nominal as booking_dp_nominal",
         "b.dp_status as booking_dp_status",
         "b.metode_pembayaran_dp as booking_metode_dp",
@@ -126,11 +138,16 @@ export const handleDetail = async (req, res) => {
       return res.status(404).json({ status: status.BAD_REQUEST, message: "Transaksi tidak ditemukan", datetime: formatDateSystem() });
     }
 
-    const resolvedDpNominal = parseFloat(trx.dp_nominal || 0) > 0
-      ? parseFloat(trx.dp_nominal)
-      : (["sudah_bayar", "dipotong_treatment"].includes(trx.booking_dp_status) ? parseFloat(trx.booking_dp_nominal || 0) : 0);
+    const isBookingDpDraft = !trx.kode_kunjungan && Boolean(trx.kode_booking);
+    const resolvedDpNominal = isBookingDpDraft
+      ? 0
+      : (parseFloat(trx.dp_nominal || 0) > 0
+          ? parseFloat(trx.dp_nominal)
+          : (["sudah_bayar", "dipotong_treatment"].includes(trx.booking_dp_status) ? parseFloat(trx.booking_dp_nominal || 0) : 0));
     const resolvedMetodeDp = trx.metode_pembayaran_dp || (resolvedDpNominal > 0 ? trx.booking_metode_dp : null);
-    const resolvedSisaBayar = Math.max(0, parseFloat(trx.total_bayar || 0) - resolvedDpNominal);
+    const resolvedSisaBayar = isBookingDpDraft
+      ? parseFloat(trx.total_bayar || 0)
+      : Math.max(0, parseFloat(trx.total_bayar || 0) - resolvedDpNominal);
 
     trx.dp_nominal = resolvedDpNominal;
     trx.metode_pembayaran_dp = resolvedMetodeDp;

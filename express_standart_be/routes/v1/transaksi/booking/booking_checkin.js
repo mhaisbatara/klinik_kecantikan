@@ -67,6 +67,15 @@ router.post("/", async (req, res) => {
       });
     }
 
+    const dpNominalVal = parseFloat(booking.dp_nominal || 0);
+    if (dpNominalVal > 0 && booking.dp_status !== "sudah_bayar") {
+      return res.status(422).json({
+        status: status.BAD_REQUEST,
+        message: "Check-in tidak dapat dilakukan sebelum tagihan DP dilunasi di kasir",
+        datetime: formatDateSystem(),
+      });
+    }
+
     // 2. Ambil Info Jadwal & Ruangan Tujuan
     const jadwal = await DB("mst_jadwal_karyawan as j")
       .leftJoin("mst_ruangan as r", "j.kode_ruangan", "r.kode_ruangan")

@@ -39,6 +39,31 @@ export const KasirStrukModal: React.FC<KasirStrukModalProps> = ({ visible, resul
   const clinicPhone = config?.msTeleponPerusahaan?.trim() || '';
   const logoUrl = config?.msLogoPerusahaan?.trim() || '';
 
+  const isExplicitDpItem = (result?.items || []).some((item) =>
+    item.jenis_diskon === 'dp_booking' ||
+    (item.nama || '').toLowerCase().includes('uang muka') ||
+    (item.nama || '').toLowerCase().includes('(dp)')
+  );
+
+  const isDpTransaction = Boolean(
+    isExplicitDpItem ||
+    (!result?.kode_kunjungan && result?.is_dp_booking) ||
+    (!result?.kode_kunjungan && result?.kode_booking && (result.total_bayar || 0) > 0 && !result?.items?.some(it => it.is_klaim || it.is_klaim_paket || it.jenis_diskon === 'klaim_paket' || (it.nama_promo || '').toLowerCase().includes('klaim')))
+  );
+
+  const isKlaimTransaction = Boolean(
+    !isDpTransaction &&
+    (result?.items || []).some((item) =>
+      item.is_klaim ||
+      item.is_klaim_paket ||
+      (item.jenis as string) === 'klaim_paket' ||
+      item.jenis_diskon === 'klaim_paket' ||
+      (item.nama || '').toLowerCase().includes('klaim') ||
+      (item.nama_promo || '').toLowerCase().includes('klaim') ||
+      (Number(item.harga_satuan || 0) === 0 && Number(item.subtotal || 0) === 0 && !item.is_free_include && item.jenis_diskon !== 'include_treatment')
+    )
+  );
+
   // Footer message: bersihkan dari emoji dan gunakan dari profil klinik sistem jika ada
   const rawFooter = config?.msCatatanKasir?.trim() || printerSettings.footerMessage || 'Terima kasih atas kunjungan Anda';
   const footerMsg = rawFooter.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim();
@@ -77,7 +102,7 @@ export const KasirStrukModal: React.FC<KasirStrukModalProps> = ({ visible, resul
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Struk Transaksi ${result?.kode_transaksi}</title>
+          <title>${isDpTransaction ? 'Struk Pembayaran DP' : (isKlaimTransaction && (result?.total_bayar || 0) === 0 ? 'Struk Klaim Sesi' : 'Struk Transaksi')} ${result?.kode_transaksi}</title>
           ${styleTags}
           <style>
             @page { size: auto; margin: 0; }
@@ -193,6 +218,7 @@ export const KasirStrukModal: React.FC<KasirStrukModalProps> = ({ visible, resul
             @media print {
               * { color: #000000 !important; }
               .receipt-discount-text, .receipt-total-text, .receipt-item-discount { color: #000000 !important; }
+              .receipt-dp-note { border: 1px dashed #000000 !important; background: transparent !important; }
             }
           </style>
         </head>
@@ -228,23 +254,50 @@ export const KasirStrukModal: React.FC<KasirStrukModalProps> = ({ visible, resul
 
   const totalGrossSubtotal = (result.items || []).length > 0
     ? (result.items || []).reduce((sum, item) => {
+        const isDp = isDpTransaction && Boolean(
+          item.jenis_diskon === 'dp_booking' ||
+          (item.nama || '').toLowerCase().includes('uang muka') ||
+          (item.nama || '').toLowerCase().includes('(dp)') ||
+          (!result?.kode_kunjungan && result?.is_dp_booking)
+        );
+        if (isDp) {
+          return sum + (item.harga_satuan * item.qty);
+        }
         const isFree = Boolean(
           item.is_free_include ||
           item.jenis_diskon === 'include_treatment' ||
           (item.nama_promo && item.nama_promo.toLowerCase().includes('include')) ||
           ((item.nama || '').toLowerCase().includes('konsul') && (Number(item.harga_satuan || 0) === 0 || Number(item.subtotal || 0) === 0 || Number(item.nilai_diskon || 0) === 100))
         );
+        const isKlaim = !isFree && Boolean(
+          item.is_klaim ||
+          item.is_klaim_paket ||
+          (item.jenis as string) === 'klaim_paket' ||
+          item.jenis_diskon === 'klaim_paket' ||
+          (item.nama || '').toLowerCase().includes('klaim') ||
+          (item.nama_promo || '').toLowerCase().includes('klaim') ||
+          (Number(item.harga_satuan || 0) === 0 && Number(item.subtotal || 0) === 0)
+        );
         const grossPrice = isFree
           ? (item.harga_master || (item.harga_satuan > 0 ? item.harga_satuan : 30000))
-          : (item.harga_master && item.harga_master > item.harga_satuan
-              ? item.harga_master
-              : (item.diskon && item.diskon > 0 ? item.harga_satuan + (item.diskon / item.qty) : item.harga_satuan));
+          : isKlaim
+            ? (item.harga_master && item.harga_master > 0 ? item.harga_master : (item.harga_satuan || 0))
+            : (item.harga_master && item.harga_master > item.harga_satuan
+                ? item.harga_master
+                : (item.diskon && item.diskon > 0 ? item.harga_satuan + (item.diskon / item.qty) : item.harga_satuan));
         return sum + (grossPrice * item.qty);
       }, 0)
     : (result.total_harga !== undefined && result.total_harga > 0 ? result.total_harga : result.total_bayar);
 
-  const totalDiskonAll = (result.items || []).length > 0
+  const totalDiskonAll = isDpTransaction ? 0 : ((result.items || []).length > 0
     ? (result.items || []).reduce((sum, item) => {
+        const isDp = Boolean(
+          item.jenis_diskon === 'dp_booking' ||
+          (item.nama || '').toLowerCase().includes('uang muka') ||
+          (item.nama || '').toLowerCase().includes('(dp)')
+        );
+        if (isDp) return sum;
+
         const isFree = Boolean(
           item.is_free_include ||
           item.jenis_diskon === 'include_treatment' ||
@@ -255,12 +308,25 @@ export const KasirStrukModal: React.FC<KasirStrukModalProps> = ({ visible, resul
           const grossPrice = item.harga_master || (item.harga_satuan > 0 ? item.harga_satuan : 30000);
           return sum + (grossPrice * item.qty);
         }
+        const isKlaim = Boolean(
+          item.is_klaim ||
+          item.is_klaim_paket ||
+          (item.jenis as string) === 'klaim_paket' ||
+          item.jenis_diskon === 'klaim_paket' ||
+          (item.nama || '').toLowerCase().includes('klaim') ||
+          (item.nama_promo || '').toLowerCase().includes('klaim') ||
+          (Number(item.harga_satuan || 0) === 0 && Number(item.subtotal || 0) === 0)
+        );
+        if (isKlaim) {
+          const grossPrice = item.harga_master && item.harga_master > 0 ? item.harga_master : 0;
+          return sum + (grossPrice * item.qty);
+        }
         if (item.harga_master && item.harga_master > item.harga_satuan) {
           return sum + ((item.harga_master - item.harga_satuan) * item.qty);
         }
         return sum + parseFloat(String(item.diskon || 0));
       }, 0)
-    : (result.total_diskon !== undefined ? result.total_diskon : 0);
+    : (result.total_diskon !== undefined ? result.total_diskon : 0));
 
   return (
     <Dialog
@@ -304,7 +370,9 @@ export const KasirStrukModal: React.FC<KasirStrukModalProps> = ({ visible, resul
         }}>
           <i className="pi pi-check-circle text-white" style={{ fontSize: '28px' }} />
         </div>
-        <h3 style={{ fontSize: '20px', fontWeight: 900, margin: '0 0 4px 0', color: '#ffffff' }}>Pembayaran Berhasil!</h3>
+        <h3 style={{ fontSize: '20px', fontWeight: 900, margin: '0 0 4px 0', color: '#ffffff' }}>
+          {isDpTransaction ? 'Pembayaran DP Berhasil!' : (isKlaimTransaction && (result.total_bayar || 0) === 0 ? 'Klaim Sesi Berhasil!' : 'Pembayaran Berhasil!')}
+        </h3>
         <p style={{ fontSize: '13px', margin: 0, opacity: 0.85, fontFamily: 'monospace' }}>{result.kode_transaksi}</p>
       </div>
 
@@ -351,7 +419,7 @@ export const KasirStrukModal: React.FC<KasirStrukModalProps> = ({ visible, resul
               </div>
             )}
             <div className="receipt-title text-slate-600 font-bold uppercase tracking-wider mt-2.5" style={{ fontSize: '13px', lineHeight: '1.4' }}>
-              STRUK TRANSAKSI
+              {isDpTransaction ? 'BUKTI PEMBAYARAN UANG MUKA (DP)' : (isKlaimTransaction && (result.total_bayar || 0) === 0 ? 'STRUK TRANSAKSI (KLAIM SESI)' : 'STRUK TRANSAKSI')}
             </div>
           </div>
 
@@ -363,6 +431,12 @@ export const KasirStrukModal: React.FC<KasirStrukModalProps> = ({ visible, resul
               <span className="text-slate-500 font-normal">No. Transaksi</span>
               <span className="font-bold text-slate-900">{result.kode_transaksi}</span>
             </div>
+            {result.kode_booking && (
+              <div className="flex justify-content-between">
+                <span className="text-slate-500 font-normal">No. Booking</span>
+                <span className="font-bold text-slate-900">{result.kode_booking}</span>
+              </div>
+            )}
             <div className="flex justify-content-between">
               <span className="text-slate-500 font-normal">Pasien</span>
               <span className="font-semibold text-slate-800">{result.nama_pasien || '-'}</span>
@@ -403,33 +477,47 @@ export const KasirStrukModal: React.FC<KasirStrukModalProps> = ({ visible, resul
           {/* Cart Item Details (Gaya Minimarket: Item, Qty, Harga, Jumlah) */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', margin: '3px 0' }}>
             {(result.items || []).map((item: CartItem, i: number) => {
-              const isFreeInclude = Boolean(
+              const isDpItem = isDpTransaction && Boolean(
+                item.jenis_diskon === 'dp_booking' ||
+                (item.nama || '').toLowerCase().includes('uang muka') ||
+                (item.nama || '').toLowerCase().includes('(dp)') ||
+                (!result?.kode_kunjungan && result?.is_dp_booking)
+              );
+              const isFreeInclude = !isDpItem && Boolean(
                 item.is_free_include ||
                 item.jenis_diskon === 'include_treatment' ||
                 (item.nama_promo && item.nama_promo.toLowerCase().includes('include')) ||
                 ((item.nama || '').toLowerCase().includes('konsul') && (Number(item.harga_satuan || 0) === 0 || Number(item.subtotal || 0) === 0 || Number(item.nilai_diskon || 0) === 100))
               );
-              const grossUnitPrice = isFreeInclude
-                ? (item.harga_master || (item.harga_satuan > 0 ? item.harga_satuan : 30000))
-                : (item.harga_master && item.harga_master > item.harga_satuan
-                    ? item.harga_master
-                    : (item.diskon && item.diskon > 0
-                        ? item.harga_satuan + (item.diskon / item.qty)
-                        : item.harga_satuan));
-              const grossSubtotal = grossUnitPrice * item.qty;
-
-              const isKlaim = Boolean(
+              const isKlaim = !isDpItem && !isFreeInclude && Boolean(
                 item.is_klaim ||
                 item.is_klaim_paket ||
                 (item.jenis as string) === 'klaim_paket' ||
+                item.jenis_diskon === 'klaim_paket' ||
                 (item.nama || '').toLowerCase().includes('klaim') ||
-                (item.nama_promo || '').toLowerCase().includes('klaim')
+                (item.nama_promo || '').toLowerCase().includes('klaim') ||
+                item.kode_kepemilikan_paket_layanan ||
+                (Number(item.harga_satuan || 0) === 0 && Number(item.subtotal || 0) === 0)
               );
+              const grossUnitPrice = isDpItem
+                ? item.harga_satuan
+                : (isFreeInclude
+                    ? (item.harga_master || (item.harga_satuan > 0 ? item.harga_satuan : 30000))
+                    : isKlaim
+                      ? (item.harga_master && item.harga_master > 0 ? item.harga_master : (item.harga_satuan || 0))
+                      : (item.harga_master && item.harga_master > item.harga_satuan
+                          ? item.harga_master
+                          : (item.diskon && item.diskon > 0
+                              ? item.harga_satuan + (item.diskon / item.qty)
+                              : item.harga_satuan)));
+              const grossSubtotal = grossUnitPrice * item.qty;
 
               let itemDisc = 0;
               let itemDiscName = item.nama_promo || 'Diskon';
 
-              if (isFreeInclude) {
+              if (isDpItem) {
+                itemDisc = 0;
+              } else if (isFreeInclude) {
                 itemDisc = grossSubtotal;
                 itemDiscName = 'Gratis (Include Tindakan) (100%)';
               } else if (isKlaim) {
@@ -481,7 +569,17 @@ export const KasirStrukModal: React.FC<KasirStrukModalProps> = ({ visible, resul
                         overflowWrap: 'break-word',
                       }}
                     >
-                      {item.nama}
+                      <div>{item.nama}</div>
+                      {isKlaim && (
+                        <div style={{ fontSize: '11px', color: '#1d4ed8', fontWeight: 700, marginTop: '2px' }}>
+                          ✓ Klaim Sesi Paket
+                        </div>
+                      )}
+                      {isFreeInclude && (
+                        <div style={{ fontSize: '11px', color: '#0f766e', fontWeight: 600, marginTop: '2px' }}>
+                          ✓ Gratis (Include Tindakan)
+                        </div>
+                      )}
                     </div>
                     <div
                       className="text-slate-700 font-normal"
@@ -574,7 +672,14 @@ export const KasirStrukModal: React.FC<KasirStrukModalProps> = ({ visible, resul
               </div>
             )}
 
-            {result.dp_nominal != null && result.dp_nominal > 0 ? (
+            {isDpTransaction ? (
+              <div className="receipt-total-large flex justify-content-between font-bold text-slate-900 pt-1 border-top-1 border-slate-200 mt-0.5" style={{ fontSize: '16px', lineHeight: '1.4' }}>
+                <span>TOTAL DP DIBAYAR</span>
+                <span className="text-teal-700 receipt-total-text receipt-tabular" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                  {formatRupiah(result.total_bayar)}
+                </span>
+              </div>
+            ) : result.dp_nominal != null && result.dp_nominal > 0 ? (
               <>
                 <div className="flex justify-content-between text-slate-600 font-normal">
                   <span>Total Biaya</span>
@@ -638,9 +743,32 @@ export const KasirStrukModal: React.FC<KasirStrukModalProps> = ({ visible, resul
               className="receipt-lunas-badge inline-block py-1 px-3 border-1 border-emerald-300 text-emerald-800 font-bold tracking-wider uppercase bg-emerald-50 border-round-md"
               style={{ fontSize: '12px', lineHeight: '1.4' }}
             >
-              ✓ LUNAS
+              ✓ {isDpTransaction ? 'DP LUNAS' : (isKlaimTransaction && (result.total_bayar || 0) === 0 ? 'LUNAS (KLAIM SESI)' : 'LUNAS')}
             </span>
           </div>
+
+          {/* Catatan Khusus Bukti Pembayaran DP Booking */}
+          {isDpTransaction && (
+            <div
+              className="receipt-dp-note text-center text-slate-600 my-2.5 p-2.5 border-round-md bg-teal-50 border-1 border-teal-200"
+              style={{ fontSize: '11px', lineHeight: '1.4' }}
+            >
+              <div className="font-bold text-teal-800 mb-0.5">BUKTI PEMBAYARAN DP RESERVASI</div>
+              <div>Simpan struk ini sebagai bukti pembayaran uang muka booking.</div>
+              <div className="font-medium text-slate-700 mt-0.5">Sisa biaya tindakan dilunasi saat kedatangan di klinik.</div>
+            </div>
+          )}
+
+          {/* Catatan Khusus Klaim Sesi Paket */}
+          {isKlaimTransaction && (
+            <div
+              className="receipt-dp-note text-center text-slate-600 my-2.5 p-2.5 border-round-md bg-blue-50 border-1 border-blue-200"
+              style={{ fontSize: '11px', lineHeight: '1.4' }}
+            >
+              <div className="font-bold text-blue-800 mb-0.5">BUKTI KLAIM SESI PAKET</div>
+              <div>Layanan telah berhasil diklaim dan dikurangi dari paket aktif pasien.</div>
+            </div>
+          )}
 
           {/* Footer message */}
           {footerMsg && (

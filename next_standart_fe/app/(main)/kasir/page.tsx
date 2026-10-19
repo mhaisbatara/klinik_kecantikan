@@ -32,6 +32,8 @@ export interface CartItem {
   is_free_include?: boolean;
   is_klaim?: boolean;
   is_klaim_paket?: boolean;
+  kode_kepemilikan_paket_layanan?: string | null;
+  kode_detail_kepemilikan_paket_layanan?: string | null;
   // Info promo per-item dari pendaftaran (diskon diterapkan di kasir)
   kode_promo?: string | null;
   nama_promo?: string | null;
@@ -44,6 +46,7 @@ export interface CartItem {
 export interface TransaksiListItem {
   kode_transaksi: string;
   kode_kunjungan: string | null;
+  kode_booking?: string | null;
   no_rm: string;
   nama_pasien: string;
   no_hp: string;
@@ -62,6 +65,9 @@ export interface TransaksiListItem {
 
 export interface BayarResult {
   kode_transaksi: string;
+  kode_kunjungan?: string | null;
+  kode_booking?: string | null;
+  is_dp_booking?: boolean;
   metode_bayar: string;
   total_harga?: number;
   total_diskon?: number;
@@ -107,6 +113,9 @@ export default function KasirPage() {
   // Pending bayar payload (from POS panel)
   const [pendingBayarPayload, setPendingBayarPayload] = useState<{
     kode_transaksi: string;
+    kode_kunjungan?: string | null;
+    kode_booking?: string | null;
+    is_dp_booking?: boolean;
     total_bayar: number;
     total_harga?: number;
     dp_nominal?: number;
@@ -171,6 +180,9 @@ export default function KasirPage() {
       if (['00', '0000'].includes(res?.data?.status)) {
         const result: BayarResult = {
           ...res.data.data,
+          kode_kunjungan: res.data.data?.kode_kunjungan || pendingBayarPayload.kode_kunjungan || null,
+          kode_booking: res.data.data?.kode_booking || pendingBayarPayload.kode_booking || null,
+          is_dp_booking: pendingBayarPayload.is_dp_booking,
           nama_pasien: pendingBayarPayload.nama_pasien,
           no_rm: pendingBayarPayload.no_rm,
           items: pendingBayarPayload.items,

@@ -93,8 +93,20 @@ const routeMiddleware = async (searchUrl: string) => {
         urlFix = searchUrl.replace(new RegExp(/\/$/), '');
     }
 
-    // Selalu izinkan dashboard dan root untuk pengguna yang sudah login
-    if (!urlFix || urlFix === '/' || urlFix === '/dashboard' || urlFix.startsWith('/dashboard/') || urlFix === '/pendaftaran-antrean/jadwal-karyawan') {
+    const userRole = (session?.user?.role || '').toLowerCase();
+    const isSuperAdminOrManager = userRole === 'superadmin' || userRole === 'owner' || userRole === 'manager' || userRole === 'admin_pusat';
+
+    // Selalu izinkan dashboard, root, dan rute laporan untuk pengguna yang sudah login
+    if (
+        !urlFix ||
+        urlFix === '/' ||
+        urlFix === '/dashboard' ||
+        urlFix.startsWith('/dashboard/') ||
+        urlFix === '/pendaftaran-antrean/jadwal-karyawan' ||
+        urlFix === '/riwayat/rekam-medis' ||
+        urlFix.startsWith('/riwayat/rekam-medis') ||
+        isSuperAdminOrManager
+    ) {
         return '00';
     }
 

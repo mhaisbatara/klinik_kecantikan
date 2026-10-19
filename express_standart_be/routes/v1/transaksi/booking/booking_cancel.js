@@ -14,6 +14,7 @@ import { formatDateSystem } from "../../components/tools/date_tools.js";
 import { Logging, ChangesLog } from "../../components/tools/servertool.js";
 import { status } from "../../components/tools/general.js";
 import { getBranchScope } from "../../components/tools/branch_scope.js";
+import { cancelKasirDraftByBooking } from "../../master/kasir/kasir_sync_service.js";
 
 const router = express.Router();
 
@@ -91,17 +92,23 @@ router.post("/", async (req, res) => {
         : `[Batal: ${alasanBatal}]`;
     }
 
-    await DB("trx_booking")
-      .where("kode_booking", kodeBooking)
-      .update(updatePayload);
+    let cancelledKasirTrx = null;
+    await DB.transaction(async (trx) => {
+      await trx("trx_booking")
+        .where("kode_booking", kodeBooking)
+        .update(updatePayload);
 
-    await ChangesLog({
-      description: `Membatalkan booking ${kodeBooking}`,
-      tableName: "trx_booking",
-      referenceCode: kodeBooking,
-      action: "cancel",
-      dataAfter: { kode_booking: kodeBooking, status: "dibatalkan", alasan_batal: alasanBatal },
-      user: username,
+      // Batalkan draf kasir yang terikat dengan booking ini (jika ada)
+      cancelledKasirTrx = await cancelKasirDraftByBooking(trx, kodeBooking, username);
+
+      await ChangesLog({
+        description: `Membatalkan booking ${kodeBooking}${cancelledKasirTrx ? ` (draf kasir ${cancelledKasirTrx} ikut dibatalkan)` : ""}`,
+        tableName: "trx_booking",
+        referenceCode: kodeBooking,
+        action: "cancel",
+        dataAfter: { kode_booking: kodeBooking, status: "dibatalkan", alasan_batal: alasanBatal },
+        user: username,
+      }, trx);
     });
 
     return res.status(200).json({

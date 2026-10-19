@@ -73,6 +73,19 @@ router.post("/", async (req, res) => {
         updated_at: nowFormatted,
       });
 
+    // Sinkronisasi status draf transaksi kasir jika ada
+    await DB("trx_transaksi")
+      .where("kode_booking", kodeBooking)
+      .where("status", "draft")
+      .whereNull("kode_kunjungan")
+      .update({
+        status: "lunas",
+        sisa_bayar: 0,
+        metode_bayar: booking.metode_pembayaran_dp || "tunai",
+        updated_by: username,
+        updated_at: nowFormatted,
+      });
+
     await ChangesLog({
       description: `Update DP booking ${kodeBooking} menjadi sudah bayar`,
       tableName: "trx_booking",

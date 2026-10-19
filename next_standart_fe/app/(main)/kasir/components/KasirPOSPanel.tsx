@@ -106,6 +106,9 @@ interface KasirPOSPanelProps {
   onDraftSaved: (kode: string) => void;
   onOpenBayar: (payload: {
     kode_transaksi: string;
+    kode_kunjungan?: string | null;
+    kode_booking?: string | null;
+    is_dp_booking?: boolean;
     total_bayar: number;
     total_harga?: number;
     dp_nominal?: number;
@@ -142,6 +145,7 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
   const [cart, setCart] = useState<CartItem[]>([]);
   const [editingKodeTrx, setEditingKodeTrx] = useState<string | null>(null);
   const [trxStatus, setTrxStatus] = useState<'draft' | 'lunas' | 'batal' | null>(null);
+  const [trxMetodeBayar, setTrxMetodeBayar] = useState<string>('tunai');
   const [selectedPromos, setSelectedPromos] = useState<PromoOption[]>([]);
   const [showVoucherModal, setShowVoucherModal] = useState(false);
   const [dpNominal, setDpNominal] = useState<number>(0);
@@ -173,6 +177,7 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
     setCart([]);
     setEditingKodeTrx(null);
     setTrxStatus(null);
+    setTrxMetodeBayar('tunai');
     setSelectedPromos([]);
     setShowVoucherModal(false);
     setDpNominal(0);
@@ -259,11 +264,15 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
         const trx = res.data.data;
         setEditingKodeTrx(trx.kode_transaksi);
         setTrxStatus(trx.status);
+        setTrxMetodeBayar(trx.metode_bayar || 'tunai');
         setDpNominal(parseFloat(String(trx.dp_nominal || 0)));
         setMetodeDp(trx.metode_pembayaran_dp || null);
 
-        const kunjungan = kunjunganList.find((k) => k.kode_kunjungan === trx.kode_kunjungan) ||
-          ((trx.kode_kunjungan || trx.nama_pasien || trx.no_rm) ? {
+        const isDpBookingTrx = Boolean(trx.kode_booking && !trx.kode_kunjungan);
+
+        const kunjungan = (trx.kode_kunjungan ? kunjunganList.find((k) => k.kode_kunjungan === trx.kode_kunjungan) : null) ||
+          (trx.kode_booking ? kunjunganList.find((k) => k.kode_booking === trx.kode_booking) : null) ||
+          ((trx.kode_kunjungan || trx.kode_booking || trx.nama_pasien || trx.no_rm) ? {
             kode_kunjungan: trx.kode_kunjungan || '',
             kode_booking: trx.kode_booking || null,
             no_rm: trx.no_rm || '-',
@@ -277,6 +286,33 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
         setSelectedKunjungan(kunjungan);
 
         const cartItems: CartItem[] = (trx.details || []).map((d: any) => {
+          const isDp = isDpBookingTrx || d.jenis_diskon === 'dp_booking' || (d.nama || '').toLowerCase().includes('uang muka') || (d.nama || '').toLowerCase().includes('(dp)');
+          if (isDp) {
+            const hrg = parseFloat(d.harga_satuan || 0);
+            const sub = parseFloat(d.subtotal || hrg);
+            return {
+              jenis: d.jenis || 'layanan',
+              kode: d.kode,
+              nama: d.nama,
+              satuan: d.satuan || 'tindakan',
+              qty: d.qty || 1,
+              harga_satuan: hrg,
+              harga_master: hrg,
+              dal_harga: null,
+              subtotal: sub,
+              is_from_pendaftaran: true,
+              is_free_include: false,
+              is_klaim: false,
+              is_klaim_paket: false,
+              kode_promo: null,
+              nama_promo: null,
+              jenis_diskon: 'dp_booking',
+              nilai_diskon: null,
+              diskon: 0,
+              subtotal_setelah_diskon: sub,
+            };
+          }
+
           const isInclude = Boolean(
             d.is_free_include ||
             d.jenis_diskon === 'include_treatment' ||
@@ -313,6 +349,11 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
           };
         });
         setCart(cartItems);
+
+        if (isDpBookingTrx) {
+          setSelectedPromos([]);
+          return;
+        }
 
         // Rekonstruksi promo yang dipilih dari per-item snapshot atau kode_promo transaksi
         const promosFromItems: PromoOption[] = [];
@@ -534,10 +575,23 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
   // Auto-select promo aktif untuk produk dan layanan di keranjang yang belum memiliki promo terpilih
   useEffect(() => {
     if (promoList.length === 0 || cart.length === 0) return;
+    if (selectedKunjungan?.kode_booking && !selectedKunjungan?.kode_kunjungan) return;
+
     setSelectedPromos((prev) => {
       const currentItemCodes = new Set(prev.map((p) => p.kode_item));
       const newlySelected: PromoOption[] = [];
       for (const item of cart) {
+        if (
+          item.is_free_include ||
+          item.jenis_diskon === 'include_treatment' ||
+          item.jenis_diskon === 'dp_booking' ||
+          item.is_klaim ||
+          item.is_klaim_paket ||
+          (item.nama || '').toLowerCase().includes('uang muka') ||
+          (item.nama || '').toLowerCase().includes('(dp)')
+        ) {
+          continue;
+        }
         if (!currentItemCodes.has(item.kode)) {
           const promo = promoList.find((p) => p.kode_item === item.kode);
           if (promo) {
@@ -551,7 +605,7 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
       }
       return prev;
     });
-  }, [promoList, cart]);
+  }, [promoList, cart, selectedKunjungan]);
 
   // Hitung jumlah promo yang eligible dari promoList untuk keranjang saat ini
   const eligiblePromoCount = useMemo(() => {
@@ -766,12 +820,44 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
   };
 
   const getItemsPayload = (): CartItem[] => {
+    const isDpBooking = Boolean(selectedKunjungan?.kode_booking && !selectedKunjungan?.kode_kunjungan);
     return cart.map((c) => {
+      const isDp = isDpBooking || Boolean(
+        c.jenis_diskon === 'dp_booking' ||
+        (c.nama || '').toLowerCase().includes('uang muka') ||
+        (c.nama || '').toLowerCase().includes('(dp)')
+      );
+      if (isDp) {
+        return {
+          ...c,
+          is_free_include: false,
+          harga_master: c.harga_satuan,
+          subtotal: c.subtotal,
+          is_from_pendaftaran: true,
+          kode_promo: null,
+          nama_promo: null,
+          jenis_diskon: 'dp_booking',
+          nilai_diskon: null,
+          diskon: 0,
+          subtotal_setelah_diskon: c.subtotal,
+        };
+      }
+
       const disc = itemDiscounts[c.kode];
       const isInclude = Boolean(
         c.is_free_include ||
         c.jenis_diskon === 'include_treatment' ||
         (Number(c.subtotal || 0) === 0 && Number(c.harga_satuan || 0) === 0 && (c.nama || '').toLowerCase().includes('konsul'))
+      );
+      const isKlaim = !isInclude && Boolean(
+        c.is_klaim ||
+        c.is_klaim_paket ||
+        (c.jenis as string) === 'klaim_paket' ||
+        c.jenis_diskon === 'klaim_paket' ||
+        (c.nama || '').toLowerCase().includes('klaim') ||
+        (c.nama_promo || '').toLowerCase().includes('klaim') ||
+        c.kode_kepemilikan_paket_layanan ||
+        (Number(c.subtotal || 0) === 0 && Number(c.harga_satuan || 0) === 0)
       );
       const isLayanan = Boolean(c.is_from_pendaftaran) || c.jenis === 'layanan' || (c.jenis as string) === 'paket';
 
@@ -780,17 +866,19 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
         kode: c.kode,
         nama: c.nama,
         qty: c.qty,
-        harga_satuan: isInclude ? 0 : c.harga_satuan,
+        harga_satuan: isInclude || isKlaim ? 0 : c.harga_satuan,
         harga_master: c.harga_master || (isInclude ? 30000 : c.harga_satuan),
-        subtotal: isInclude ? 0 : c.subtotal,
+        subtotal: isInclude || isKlaim ? 0 : c.subtotal,
         is_from_pendaftaran: isLayanan,
         is_free_include: isInclude,
-        kode_promo: isInclude ? null : (disc?.promo?.kode_promo || c.kode_promo || null),
-        nama_promo: isInclude ? 'Gratis (Include Tindakan)' : (disc?.promo?.nama_promo || c.nama_promo || null),
-        jenis_diskon: isInclude ? 'include_treatment' : (disc?.promo?.jenis_diskon || c.jenis_diskon || null),
-        nilai_diskon: isInclude ? 100 : (disc?.promo?.nilai_diskon != null ? disc.promo.nilai_diskon : (c.nilai_diskon || null)),
-        diskon: isInclude ? 0 : (disc ? disc.diskon : (c.diskon || 0)),
-        subtotal_setelah_diskon: isInclude ? 0 : (disc ? disc.subtotal_setelah_diskon : (c.subtotal_setelah_diskon || c.subtotal)),
+        is_klaim: isKlaim,
+        is_klaim_paket: isKlaim,
+        kode_promo: isInclude || isKlaim ? null : (disc?.promo?.kode_promo || c.kode_promo || null),
+        nama_promo: isInclude ? 'Gratis (Include Tindakan)' : (isKlaim ? (c.nama_promo || 'Klaim Sesi') : (disc?.promo?.nama_promo || c.nama_promo || null)),
+        jenis_diskon: isInclude ? 'include_treatment' : (isKlaim ? 'klaim_paket' : (disc?.promo?.jenis_diskon || c.jenis_diskon || null)),
+        nilai_diskon: isInclude || isKlaim ? 100 : (disc?.promo?.nilai_diskon != null ? disc.promo.nilai_diskon : (c.nilai_diskon || null)),
+        diskon: isInclude || isKlaim ? 0 : (disc ? disc.diskon : (c.diskon || 0)),
+        subtotal_setelah_diskon: isInclude || isKlaim ? 0 : (disc ? disc.subtotal_setelah_diskon : (c.subtotal_setelah_diskon || c.subtotal)),
       };
     });
   };
@@ -889,8 +977,12 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
       if (['00', '0000'].includes(res?.data?.status)) {
         const kodeTrx = res.data.data.kode_transaksi;
         setEditingKodeTrx(kodeTrx);
+        const isDpBooking = Boolean(currentKunjungan.kode_booking && !currentKunjungan.kode_kunjungan);
         onOpenBayar({
           kode_transaksi: kodeTrx,
+          kode_kunjungan: currentKunjungan.kode_kunjungan || null,
+          kode_booking: currentKunjungan.kode_booking || null,
+          is_dp_booking: isDpBooking,
           total_bayar: totalBayar,
           total_harga: totalHarga,
           dp_nominal: dpNominal,
@@ -1323,39 +1415,72 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
                 severity="success"
                 onClick={() => {
                   if (onOpenStruk) {
+                    const isDpBooking = Boolean(selectedKunjungan?.kode_booking && !selectedKunjungan?.kode_kunjungan);
                     onOpenStruk({
                       kode_transaksi: editingKodeTrx || '',
-                      metode_bayar: 'tunai',
-                      total_harga: totalHarga,
-                      total_diskon: totalDiskon,
+                      kode_kunjungan: selectedKunjungan?.kode_kunjungan || null,
+                      kode_booking: selectedKunjungan?.kode_booking || null,
+                      is_dp_booking: isDpBooking,
+                      metode_bayar: trxMetodeBayar || 'tunai',
+                      total_harga: isDpBooking ? totalBayar : totalHarga,
+                      total_diskon: isDpBooking ? 0 : totalDiskon,
                       total_bayar: totalBayar,
-                      dp_nominal: dpNominal,
+                      dp_nominal: isDpBooking ? 0 : dpNominal,
                       metode_pembayaran_dp: metodeDp,
-                      sisa_bayar: sisaBayar,
+                      sisa_bayar: isDpBooking ? totalBayar : sisaBayar,
                       nominal_bayar: totalBayar,
                       kembalian: 0,
                       nama_pasien: selectedKunjungan?.nama_pasien,
                       no_rm: selectedKunjungan?.no_rm,
                       items: cart.map((c) => {
+                        const isDpItem = isDpBooking || Boolean(
+                          c.jenis_diskon === 'dp_booking' ||
+                          (c.nama || '').toLowerCase().includes('uang muka') ||
+                          (c.nama || '').toLowerCase().includes('(dp)')
+                        );
+                        if (isDpItem) {
+                          return {
+                            ...c,
+                            is_free_include: false,
+                            harga_master: c.harga_satuan,
+                            diskon: 0,
+                            subtotal_setelah_diskon: c.subtotal,
+                            nama_promo: null,
+                            jenis_diskon: 'dp_booking',
+                            nilai_diskon: null,
+                          };
+                        }
                         const disc = itemDiscounts[c.kode];
                         const isInclude = Boolean(
                           c.is_free_include ||
                           c.jenis_diskon === 'include_treatment' ||
                           (Number(c.subtotal || 0) === 0 && Number(c.harga_satuan || 0) === 0 && (c.nama || '').toLowerCase().includes('konsul'))
                         );
+                        const isKlaim = !isInclude && Boolean(
+                          c.is_klaim ||
+                          c.is_klaim_paket ||
+                          (c.jenis as string) === 'klaim_paket' ||
+                          c.jenis_diskon === 'klaim_paket' ||
+                          (c.nama || '').toLowerCase().includes('klaim') ||
+                          (c.nama_promo || '').toLowerCase().includes('klaim') ||
+                          c.kode_kepemilikan_paket_layanan ||
+                          (Number(c.subtotal || 0) === 0 && Number(c.harga_satuan || 0) === 0)
+                        );
                         return {
                           ...c,
                           is_free_include: isInclude,
+                          is_klaim: isKlaim,
+                          is_klaim_paket: isKlaim,
                           harga_master: c.harga_master || (isInclude ? 30000 : c.harga_satuan),
-                          diskon: isInclude ? 0 : (disc ? disc.diskon : (c.diskon || 0)),
-                          subtotal_setelah_diskon: isInclude ? 0 : (disc ? disc.subtotal_setelah_diskon : (c.subtotal_setelah_diskon || c.subtotal)),
-                          nama_promo: isInclude ? 'Gratis (Include Tindakan)' : (disc?.promo?.nama_promo || c.nama_promo || null),
-                          jenis_diskon: isInclude ? 'include_treatment' : (disc?.promo?.jenis_diskon || c.jenis_diskon || null),
-                          nilai_diskon: isInclude ? 100 : (disc?.promo?.nilai_diskon != null ? disc.promo.nilai_diskon : (c.nilai_diskon || null)),
+                          diskon: isInclude || isKlaim ? 0 : (disc ? disc.diskon : (c.diskon || 0)),
+                          subtotal_setelah_diskon: isInclude || isKlaim ? 0 : (disc ? disc.subtotal_setelah_diskon : (c.subtotal_setelah_diskon || c.subtotal)),
+                          nama_promo: isInclude ? 'Gratis (Include Tindakan)' : (isKlaim ? (c.nama_promo || 'Klaim Sesi') : (disc?.promo?.nama_promo || c.nama_promo || null)),
+                          jenis_diskon: isInclude ? 'include_treatment' : (isKlaim ? 'klaim_paket' : (disc?.promo?.jenis_diskon || c.jenis_diskon || null)),
+                          nilai_diskon: isInclude || isKlaim ? 100 : (disc?.promo?.nilai_diskon != null ? disc.promo.nilai_diskon : (c.nilai_diskon || null)),
                         };
                       }),
-                      kode_promo: [...new Set(selectedPromos.map((p) => p.kode_promo))].join(','),
-                      nama_promo: [...new Set(selectedPromos.map((p) => p.nama_promo))].join(', '),
+                      kode_promo: isDpBooking ? null : ([...new Set(selectedPromos.map((p) => p.kode_promo))].join(',') || null),
+                      nama_promo: isDpBooking ? null : ([...new Set(selectedPromos.map((p) => p.nama_promo))].join(', ') || (cart.some((c) => c.is_klaim || c.is_klaim_paket || (c.nama_promo || '').toLowerCase().includes('klaim')) ? 'Klaim Sesi' : null)),
                     });
                   }
                 }}
