@@ -66,6 +66,7 @@ interface BookingRow {
   dp_dibayar_at?: string;
   metode_pembayaran_dp?: string;
   alasan_bebas_dp?: string;
+  bukti_dp?: string | null;
   sumber: 'staff' | 'whatsapp' | 'mobile' | string;
   butuh_konsul?: number | boolean;
   created_at: string;
@@ -104,6 +105,8 @@ export const DaftarBookingTab: React.FC<Props> = ({ toast, onNavigateToCreate, r
   const [showCheckinDialog, setShowCheckinDialog] = useState(false);
   const [selectedBookingForDetail, setSelectedBookingForDetail] = useState<BookingRow | null>(null);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
+  const [selectedBuktiBooking, setSelectedBuktiBooking] = useState<BookingRow | null>(null);
+  const [showBuktiDialog, setShowBuktiDialog] = useState(false);
 
   // Auto scan loading
   const [loadingAutoScan, setLoadingAutoScan] = useState(false);
@@ -493,6 +496,80 @@ export const DaftarBookingTab: React.FC<Props> = ({ toast, onNavigateToCreate, r
         onHide={() => setShowDetailDialog(false)}
       />
 
+      {/* Dialog Bukti Pembayaran DP */}
+      <Dialog
+        header={
+          <div className="flex align-items-center gap-2">
+            <i className="pi pi-image text-primary" style={{ fontSize: '1.25rem' }} />
+            <span className="font-bold text-lg text-900">
+              Bukti Transfer DP - {selectedBuktiBooking?.kode_booking}
+            </span>
+          </div>
+        }
+        visible={showBuktiDialog}
+        onHide={() => setShowBuktiDialog(false)}
+        style={{ width: '480px', maxWidth: '95vw' }}
+        modal
+        dismissableMask
+        footer={
+          <div className="flex justify-content-between align-items-center w-full">
+            {selectedBuktiBooking?.bukti_dp && (
+              <a
+                href={selectedBuktiBooking.bukti_dp}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs font-semibold text-primary underline"
+              >
+                Buka Tab Baru ↗
+              </a>
+            )}
+            <Button
+              type="button"
+              label="Tutup"
+              icon="pi pi-times"
+              className="p-button-sm"
+              onClick={() => setShowBuktiDialog(false)}
+            />
+          </div>
+        }
+      >
+        <div className="pt-2">
+          {selectedBuktiBooking && (
+            <div className="flex flex-column gap-3">
+              <div className="p-3 bg-blue-50 border-round-lg border-1 border-blue-200 text-xs">
+                <div className="flex justify-content-between mb-1">
+                  <span className="text-600">Pasien:</span>
+                  <span className="font-bold text-900">{selectedBuktiBooking.nama_pasien} ({selectedBuktiBooking.no_rm})</span>
+                </div>
+                <div className="flex justify-content-between mb-1">
+                  <span className="text-600">Nominal DP:</span>
+                  <span className="font-bold text-emerald-700">{formatCurrency(selectedBuktiBooking.dp_nominal || 0)}</span>
+                </div>
+                <div className="flex justify-content-between">
+                  <span className="text-600">Metode:</span>
+                  <span className="font-bold text-slate-700 text-uppercase">{selectedBuktiBooking.metode_pembayaran_dp || 'Transfer'}</span>
+                </div>
+              </div>
+
+              <div className="text-center bg-gray-100 border-round-lg overflow-hidden border-1 surface-border p-2">
+                {selectedBuktiBooking.bukti_dp ? (
+                  <img
+                    src={selectedBuktiBooking.bukti_dp}
+                    alt={`Bukti DP ${selectedBuktiBooking.kode_booking}`}
+                    style={{ maxHeight: '420px', maxWidth: '100%', objectFit: 'contain' }}
+                    className="border-round shadow-1"
+                  />
+                ) : (
+                  <div className="p-4 text-500 text-xs italic">
+                    Tidak ada file bukti pembayaran DP.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </Dialog>
+
       {/* Dialog Pengaturan Toleransi Keterlambatan */}
       <Dialog
         header={
@@ -876,6 +953,20 @@ export const DaftarBookingTab: React.FC<Props> = ({ toast, onNavigateToCreate, r
                         />
                       )}
                     </div>
+                    {rowData.bukti_dp && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedBuktiBooking(rowData);
+                          setShowBuktiDialog(true);
+                        }}
+                        className="mt-1.5 inline-flex align-items-center gap-1 text-xs text-blue-700 font-semibold hover:bg-blue-100 border-1 border-blue-200 bg-blue-50 py-0.5 px-2 border-round cursor-pointer transition-colors"
+                        title="Klik untuk melihat bukti transfer DP"
+                      >
+                        <i className="pi pi-image" style={{ fontSize: '11px' }} />
+                        <span>Lihat Bukti DP</span>
+                      </button>
+                    )}
                     {rowData.dp_nominal === 0 && rowData.alasan_bebas_dp && (
                       <div className="text-xs text-500 mt-1 italic line-clamp-1" title={`Alasan: ${rowData.alasan_bebas_dp}`}>
                         {rowData.alasan_bebas_dp}

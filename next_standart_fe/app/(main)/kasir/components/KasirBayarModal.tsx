@@ -22,6 +22,7 @@ interface KasirBayarModalProps {
   totalTagihanAsli?: number;
   dpNominal?: number;
   metodeDp?: string | null;
+  buktiDp?: string | null;
   onHide: () => void;
   onConfirm: (metode: string, nominal: number) => Promise<void>;
 }
@@ -32,12 +33,14 @@ export const KasirBayarModal: React.FC<KasirBayarModalProps> = ({
   totalTagihanAsli,
   dpNominal = 0,
   metodeDp,
+  buktiDp,
   onHide,
   onConfirm,
 }) => {
   const [selectedMetode, setSelectedMetode] = useState('tunai');
   const [nominal, setNominal] = useState<number>(0);
   const [loading, setLoading] = useState(false);
+  const [showPreviewBukti, setShowPreviewBukti] = useState(false);
 
   const hasDp = dpNominal > 0;
   const kembalian = selectedMetode === 'tunai' ? Math.max(0, (nominal || 0) - totalBayar) : 0;
@@ -58,46 +61,80 @@ export const KasirBayarModal: React.FC<KasirBayarModalProps> = ({
   };
 
   return (
-    <Dialog
-      visible={visible}
-      onHide={onHide}
-      header={null}
-      style={{ width: '430px', borderRadius: '16px', overflow: 'hidden' }}
-      contentStyle={{ padding: 0 }}
-      closable={!loading}
-    >
-      {/* Header */}
-      <div style={{ background: 'linear-gradient(135deg,#0f172a,#1e293b)', padding: '20px 24px 16px' }}>
-        <div className="flex align-items-center gap-3 mb-3">
-          <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'linear-gradient(135deg,#0d9488,#059669)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <i className="pi pi-credit-card text-white" style={{ fontSize: '18px' }} />
+    <>
+      <Dialog
+        visible={visible}
+        onHide={onHide}
+        header={null}
+        style={{ width: '430px', borderRadius: '16px', overflow: 'hidden' }}
+        contentStyle={{ padding: 0 }}
+        closable={!loading}
+      >
+        {/* Header */}
+        <div style={{ background: 'linear-gradient(135deg,#0f172a,#1e293b)', padding: '20px 24px 16px' }}>
+          <div className="flex align-items-center gap-3 mb-3">
+            <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'linear-gradient(135deg,#0d9488,#059669)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <i className="pi pi-credit-card text-white" style={{ fontSize: '18px' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: '16px', fontWeight: 800, color: '#ffffff' }}>Proses Pembayaran Kasir</div>
+              <div style={{ fontSize: '12px', color: '#94a3b8' }}>Pilih metode & konfirmasi pelunasan</div>
+            </div>
           </div>
-          <div>
-            <div style={{ fontSize: '16px', fontWeight: 800, color: '#ffffff' }}>Proses Pembayaran Kasir</div>
-            <div style={{ fontSize: '12px', color: '#94a3b8' }}>Pilih metode & konfirmasi pelunasan</div>
+
+          <div style={{ background: 'rgba(255,255,255,0.07)', borderRadius: '12px', padding: '12px 16px', textAlign: 'center' }}>
+            {hasDp && (
+              <div className="flex justify-content-between align-items-center text-xs text-slate-400 mb-2 pb-2 border-bottom-1 border-white-alpha-10">
+                <span>Total Tindakan: <strong className="text-white">{formatRupiah(totalTagihanAsli || (totalBayar + dpNominal))}</strong></span>
+                <span className="text-teal-300 font-bold">DP {metodeDp ? `(${metodeDp.toUpperCase()})` : ''}: -{formatRupiah(dpNominal)}</span>
+              </div>
+            )}
+            <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              {hasDp ? 'Sisa Pelunasan Wajib Dibayar' : 'Total Tagihan'}
+            </div>
+            <div style={{ fontSize: '28px', fontWeight: 900, color: '#34d399' }}>{formatRupiah(totalBayar)}</div>
           </div>
         </div>
 
-        <div style={{ background: 'rgba(255,255,255,0.07)', borderRadius: '12px', padding: '12px 16px', textAlign: 'center' }}>
-          {hasDp && (
-            <div className="flex justify-content-between align-items-center text-xs text-slate-400 mb-2 pb-2 border-bottom-1 border-white-alpha-10">
-              <span>Total Tindakan: <strong className="text-white">{formatRupiah(totalTagihanAsli || (totalBayar + dpNominal))}</strong></span>
-              <span className="text-teal-300 font-bold">DP {metodeDp ? `(${metodeDp.toUpperCase()})` : ''}: -{formatRupiah(dpNominal)}</span>
+        <div style={{ padding: '20px 24px' }}>
+          {/* Banner Bukti DP Pasien (Jika ada) */}
+          {buktiDp && (
+            <div className="mb-3 p-2.5 bg-teal-50 border-1 border-teal-200 border-round-xl flex align-items-center justify-content-between">
+              <div className="flex align-items-center gap-2">
+                <div
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '8px',
+                    background: '#ccfbf1',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <i className="pi pi-image text-teal-700 text-sm" />
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-teal-900">Bukti Transfer DP Pasien</div>
+                  <div className="text-[11px] text-teal-700">Diunggah via Mobile</div>
+                </div>
+              </div>
+              <Button
+                type="button"
+                label="Lihat Foto"
+                icon="pi pi-eye"
+                size="small"
+                className="text-xs font-bold bg-teal-600 text-white border-none py-1 px-2.5 hover:bg-teal-700"
+                onClick={() => setShowPreviewBukti(true)}
+              />
             </div>
           )}
-          <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            {hasDp ? 'Sisa Pelunasan Wajib Dibayar' : 'Total Tagihan'}
-          </div>
-          <div style={{ fontSize: '28px', fontWeight: 900, color: '#34d399' }}>{formatRupiah(totalBayar)}</div>
-        </div>
-      </div>
 
-      <div style={{ padding: '20px 24px' }}>
-        {/* Pilih Metode */}
-        <div style={{ marginBottom: '18px' }}>
-          <div style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            Metode Pembayaran
-          </div>
+          {/* Pilih Metode */}
+          <div style={{ marginBottom: '18px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Metode Pembayaran
+            </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
             {METODE_LIST.map((m) => {
               const isActive = selectedMetode === m.value;
@@ -207,5 +244,40 @@ export const KasirBayarModal: React.FC<KasirBayarModalProps> = ({
         />
       </div>
     </Dialog>
+
+    {/* Dialog Preview Foto Bukti DP */}
+    <Dialog
+      visible={showPreviewBukti}
+      onHide={() => setShowPreviewBukti(false)}
+      header="Foto Bukti Pembayaran DP (Mobile)"
+      style={{ width: '440px', maxWidth: '95vw', borderRadius: '16px' }}
+      modal
+      dismissableMask
+    >
+      <div className="text-center bg-slate-900 border-round-xl p-2 overflow-hidden">
+        <img
+          src={buktiDp?.startsWith('http') || buktiDp?.startsWith('/') ? buktiDp : `/uploads/${buktiDp}`}
+          alt="Bukti Transfer DP"
+          className="w-full border-round-lg shadow-2"
+          style={{ maxHeight: '420px', objectFit: 'contain' }}
+          onError={(e: any) => {
+            e.target.onerror = null;
+            e.target.src = 'https://placehold.co/400x300?text=Gambar+Bukti+DP+Tidak+Ditemukan';
+          }}
+        />
+        <div className="flex justify-content-end w-full mt-2">
+          <a
+            href={buktiDp?.startsWith('http') || buktiDp?.startsWith('/') ? buktiDp : `/uploads/${buktiDp}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-teal-300 font-semibold no-underline hover:underline flex align-items-center gap-1"
+          >
+            <i className="pi pi-external-link text-[10px]" />
+            Buka Gambar Penuh
+          </a>
+        </div>
+      </div>
+    </Dialog>
+  </>
   );
 };

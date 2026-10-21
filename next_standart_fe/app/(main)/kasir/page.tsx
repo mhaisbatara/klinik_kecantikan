@@ -120,6 +120,7 @@ export default function KasirPage() {
     total_harga?: number;
     dp_nominal?: number;
     metode_pembayaran_dp?: string | null;
+    bukti_dp?: string | null;
     sisa_bayar?: number;
     nama_pasien: string;
     no_rm: string;
@@ -354,6 +355,7 @@ export default function KasirPage() {
           totalTagihanAsli={pendingBayarPayload?.total_bayar || 0}
           dpNominal={pendingBayarPayload?.dp_nominal || 0}
           metodeDp={pendingBayarPayload?.metode_pembayaran_dp || null}
+          buktiDp={pendingBayarPayload?.bukti_dp || null}
           onHide={() => setShowBayarModal(false)}
           onConfirm={handleBayarConfirm}
         />

@@ -40,7 +40,8 @@ router.post("/", async (req, res) => {
         "k.status as status_kunjungan",
         "b.dp_nominal",
         "b.dp_status",
-        "b.metode_pembayaran_dp"
+        "b.metode_pembayaran_dp",
+        "b.bukti_dp"
       )
       .orderBy("k.jam_datang", "asc");
 
@@ -96,6 +97,7 @@ router.post("/", async (req, res) => {
         dp_nominal: parseFloat(k.dp_nominal || 0),
         dp_status: k.dp_status || null,
         metode_pembayaran_dp: k.metode_pembayaran_dp || null,
+        bukti_dp: k.bukti_dp || null,
         layanan_pendaftaran: mappedItems,
       };
     });
@@ -121,7 +123,8 @@ router.post("/", async (req, res) => {
         DB.raw("'booking_dp' as status_kunjungan"),
         "b.dp_nominal",
         "b.dp_status",
-        "b.metode_pembayaran_dp"
+        "b.metode_pembayaran_dp",
+        "b.bukti_dp"
       );
 
     if (branchCode) {
@@ -173,6 +176,7 @@ router.post("/", async (req, res) => {
         dp_nominal: dpNom,
         dp_status: b.dp_status,
         metode_pembayaran_dp: b.metode_pembayaran_dp,
+        bukti_dp: b.bukti_dp || null,
         layanan_pendaftaran: [dpItem],
       };
     });

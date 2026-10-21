@@ -120,6 +120,7 @@ router.post("/", async (req, res) => {
       "b.dp_status",
       "b.dp_dibayar_at",
       "b.metode_pembayaran_dp",
+      "b.bukti_dp",
       "b.alasan_bebas_dp",
       "b.sumber",
       "b.butuh_konsul",
