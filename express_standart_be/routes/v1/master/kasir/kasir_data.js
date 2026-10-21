@@ -153,8 +153,9 @@ export const handleDetail = async (req, res) => {
     trx.metode_pembayaran_dp = resolvedMetodeDp;
     trx.sisa_bayar = resolvedSisaBayar;
 
-    // Cek kolom diskon snapshot secara aman
+    // Cek kolom diskon snapshot & nama_item secara aman
     const hasDiscountCols = await DB.schema.hasColumn("trx_detail_transaksi", "kode_promo");
+    const hasNamaItemCol = await DB.schema.hasColumn("trx_detail_transaksi", "nama_item");
     const promoSelectCols = hasDiscountCols ? [
       "dt.kode_promo",
       "dt.nama_promo",
@@ -173,6 +174,7 @@ export const handleDetail = async (req, res) => {
         "dt.kode_detail_transaksi",
         "dt.kode_layanan",
         "dt.kode_produk",
+        hasNamaItemCol ? "dt.nama_item" : DB.raw("NULL as nama_item"),
         "l.nama as nama_layanan",
         "prod.nama as nama_produk",
         "prod.satuan",
@@ -185,20 +187,24 @@ export const handleDetail = async (req, res) => {
       .orderBy("dt.is_from_pendaftaran", "desc")
       .orderBy("dt.id", "asc");
 
-    const detailsMapped = details.map((d) => ({
-      ...d,
-      jenis: d.kode_layanan ? "layanan" : "produk",
-      kode: d.kode_layanan || d.kode_produk,
-      nama: d.nama_layanan || d.nama_produk || "-",
-      satuan: d.satuan || (d.kode_layanan ? "tindakan" : "pcs"),
-      is_from_pendaftaran: Boolean(d.is_from_pendaftaran),
-      kode_promo: d.kode_promo || null,
-      nama_promo: d.nama_promo || null,
-      jenis_diskon: d.jenis_diskon || null,
-      nilai_diskon: d.nilai_diskon != null ? parseFloat(d.nilai_diskon) : null,
-      diskon: d.diskon != null ? parseFloat(d.diskon) : 0,
-      subtotal_setelah_diskon: d.subtotal_setelah_diskon != null ? parseFloat(d.subtotal_setelah_diskon) : parseFloat(d.subtotal),
-    }));
+    const detailsMapped = details.map((d) => {
+      const isCustom = String(d.kode_produk || "").startsWith("CUSTOM-") || String(d.kode_produk || "").startsWith("CST-");
+      const resolvedNama = d.nama_item || d.nama_layanan || d.nama_produk || (isCustom ? d.nama_promo : null) || (isCustom ? "Biaya Custom" : "-");
+      return {
+        ...d,
+        jenis: isCustom ? "custom" : (d.kode_layanan ? "layanan" : "produk"),
+        kode: d.kode_layanan || d.kode_produk,
+        nama: resolvedNama,
+        satuan: d.satuan || (isCustom ? "item" : (d.kode_layanan ? "tindakan" : "pcs")),
+        is_from_pendaftaran: Boolean(d.is_from_pendaftaran),
+        kode_promo: d.kode_promo || null,
+        nama_promo: d.nama_promo || null,
+        jenis_diskon: d.jenis_diskon || null,
+        nilai_diskon: d.nilai_diskon != null ? parseFloat(d.nilai_diskon) : null,
+        diskon: d.diskon != null ? parseFloat(d.diskon) : 0,
+        subtotal_setelah_diskon: d.subtotal_setelah_diskon != null ? parseFloat(d.subtotal_setelah_diskon) : parseFloat(d.subtotal),
+      };
+    });
 
     return res.status(200).json({
       status: status.SUKSES,

@@ -392,6 +392,11 @@ class _BookingScreenState extends State<BookingScreen> {
   }
 
   Future<void> _handleSubmitBooking() async {
+    final noRm = _currentUser?['no_rm'];
+    if (noRm == null || noRm.toString().trim().isEmpty) {
+      _showToast('Akun Anda belum terhubung dengan Rekam Medis (No. RM). Silakan lengkapi pendaftaran pasien terlebih dahulu.', isError: true);
+      return;
+    }
     if (_selectedItems.isEmpty) {
       _showToast('Pilih minimal satu layanan perawatan di Langkah 2', isError: true);
       return;

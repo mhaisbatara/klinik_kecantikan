@@ -47,6 +47,7 @@ router.post("/login", async (req, res) => {
         "u.fullname",
         "u.telp",
         "u.role",
+        "u.no_rm",
         "u.password",
         "u.status",
         "u.kode_cabang",
@@ -54,22 +55,25 @@ router.post("/login", async (req, res) => {
       )
       .first();
 
-    // 2. Jika tidak ditemukan di user_credential, cari apakah no_rm atau email terdaftar di mst_pasien
-    let patientData = null;
+    // 2. Jika tidak ditemukan langsung, cek apakah no_rm dimasukkan dan ada user_credential yang terhubung
     if (!user) {
-      patientData = await DB("mst_pasien")
-        .where("no_rm", cleanUser)
-        .orWhere("no_hp", cleanUser)
-        .orWhere("email", cleanUser)
+      user = await DB("user_credential as u")
+        .leftJoin("mst_cabang as c", "u.kode_cabang", "c.kode_cabang")
+        .where("u.no_rm", cleanUser)
+        .select(
+          "u.id",
+          "u.user_code",
+          "u.username",
+          "u.fullname",
+          "u.telp",
+          "u.role",
+          "u.no_rm",
+          "u.password",
+          "u.status",
+          "u.kode_cabang",
+          "c.nama_cabang"
+        )
         .first();
-
-      if (patientData) {
-        // Cek apakah pasien punya user_credential yang terhubung via no_hp / email
-        user = await DB("user_credential")
-          .where("telp", patientData.no_hp)
-          .orWhere("username", patientData.email)
-          .first();
-      }
     }
 
     if (!user) {
@@ -101,20 +105,21 @@ router.post("/login", async (req, res) => {
       return sendError(res, "Password salah", 400, status.GAGAL);
     }
 
-    // 4. Jika user adalah pasien, ambil info tambahan dari mst_pasien
-    let noRm = null;
+    // 4. Ambil info rekam medis pasien secara eksplisit dari user_credential.no_rm
+    let noRm = user.no_rm || null;
     let fotoPasien = null;
     let detailPasien = null;
 
-    if (user.role === "pasien" || !user.role) {
+    if (noRm) {
       detailPasien = await DB("mst_pasien")
-        .where("no_hp", user.telp)
-        .orWhere("email", user.username)
+        .where("no_rm", noRm)
         .first();
 
       if (detailPasien) {
-        noRm = detailPasien.no_rm;
-        fotoPasien = detailPasien.foto;
+        fotoPasien = detailPasien.foto || null;
+      } else {
+        // Jika no_rm di user_credential tidak ditemukan di mst_pasien, reset ke null
+        noRm = null;
       }
     }
 
@@ -145,6 +150,7 @@ router.post("/login", async (req, res) => {
         role: user.role || "pasien",
         telp: user.telp,
         no_rm: noRm,
+        is_patient: Boolean(noRm),
         foto: fotoPasien,
         kode_cabang: user.kode_cabang || "CBG-001",
         nama_cabang: user.nama_cabang || "Klinik Utama",
@@ -166,39 +172,45 @@ router.post("/login", async (req, res) => {
 
 /**
  * POST /api/v1/auth/register
- * Pendaftaran Pasien Baru Mandiri dari Aplikasi Mobile Flutter
+ * Pendaftaran Akun Akses Pengguna Mobile (MURNI USER AUTH)
+ * Tidak otomatis menerbitkan Rekam Medis (no_rm = null)
  */
 router.post("/register", async (req, res) => {
   const body = req.body || {};
 
-  // Validasi input registrasi
+  // Normalisasi payload agar mendukung field 'nama'/'fullname' dan 'no_hp'/'telp'
+  const payloadToValidate = {
+    fullname: (body.fullname || body.nama || "").trim(),
+    telp: (body.telp || body.no_hp || "").trim(),
+    email: (body.email || "").trim(),
+    password: body.password,
+    kode_cabang: body.kode_cabang || "CBG-001",
+  };
+
   const schema = Joi.object({
-    nama: Joi.string().max(100).required().label("Nama Lengkap"),
-    no_hp: Joi.string()
+    fullname: Joi.string().max(100).required().label("Nama Lengkap"),
+    telp: Joi.string()
       .pattern(/^[0-9+]+$/)
       .min(10)
       .max(15)
       .required()
       .label("Nomor HP"),
     password: Joi.string().min(6).required().label("Password"),
-    email: Joi.string().email().allow("", null).label("Email"),
-    nik: Joi.string().pattern(/^\d{16}$/).allow("", null).label("NIK"),
-    tanggal_lahir: Joi.string().allow("", null).label("Tanggal Lahir"),
-    jenis_kelamin: Joi.string().valid("L", "P").default("P").label("Jenis Kelamin"),
-    alamat: Joi.string().allow("", null).label("Alamat"),
+    email: Joi.string().email().allow("", null).optional().label("Email"),
     kode_cabang: Joi.string().allow("", null).default("CBG-001").label("Cabang"),
   });
 
-  const { error, value } = schema.validate(body);
+  const { error, value } = schema.validate(payloadToValidate);
   if (error) {
     return sendError(res, error.details[0].message, 422, status.BAD_REQUEST);
   }
 
-  const cleanPhone = value.no_hp.replace(/[\s-]/g, "");
+  const cleanPhone = value.telp.replace(/[\s-]/g, "");
   const branchCode = value.kode_cabang || "CBG-001";
+  const userEmail = value.email && value.email.trim().length > 0 ? value.email.trim() : null;
 
   try {
-    // 1. Cek apakah nomor HP sudah terdaftar
+    // 1. Cek apakah nomor HP sudah terdaftar di user_credential
     const existingPhone = await DB("user_credential")
       .where("telp", cleanPhone)
       .first();
@@ -212,9 +224,10 @@ router.post("/register", async (req, res) => {
       );
     }
 
-    if (value.email) {
+    // 2. Cek apakah email sudah terdaftar di user_credential
+    if (userEmail) {
       const existingEmail = await DB("user_credential")
-        .where("username", value.email)
+        .where("username", userEmail)
         .first();
 
       if (existingEmail) {
@@ -227,93 +240,75 @@ router.post("/register", async (req, res) => {
       }
     }
 
-    // 2. Transaksi pembuatan Rekam Medis (mst_pasien) + Akun (user_credential)
-    let newUserInfo = null;
+    // 3. Generate User Code unik (USR000001 dst)
+    const lastUser = await DB("user_credential")
+      .where("user_code", "like", "USR%")
+      .orderBy("user_code", "desc")
+      .first();
 
-    await DB.transaction(async (trx) => {
-      // a. Generate No RM (RM-000001 dst)
-      const lastPasien = await trx("mst_pasien")
-        .where("no_rm", "like", "RM-%")
-        .orderBy("id", "desc")
-        .first();
+    let nextUserSeq = 1;
+    if (lastUser && lastUser.user_code) {
+      const numPart = parseInt(lastUser.user_code.replace("USR", ""), 10);
+      if (!isNaN(numPart)) nextUserSeq = numPart + 1;
+    }
+    const cUserCode = `USR${String(nextUserSeq).padStart(6, "0")}`;
 
-      let nextRmSeq = 1;
-      if (lastPasien && lastPasien.no_rm) {
-        const parts = lastPasien.no_rm.split("-");
-        const num = parseInt(parts[1], 10);
-        if (!isNaN(num)) nextRmSeq = num + 1;
-      }
-      const cNoRm = `RM-${String(nextRmSeq).padStart(6, "0")}`;
+    // 4. Hash password & Insert ke user_credential (no_rm = null)
+    const hashedPassword = hashClinicPassword(cUserCode, value.password);
+    const userRecord = {
+      user_code: cUserCode,
+      username: userEmail || cleanPhone,
+      fullname: value.fullname,
+      telp: cleanPhone,
+      role: "pasien",
+      no_rm: null, // Murni User Auth, belum memiliki rekam medis
+      password: hashedPassword,
+      status: "1",
+      kode_cabang: branchCode,
+      tz: process.env.APP_TZ || "Asia/Jakarta",
+      created_by: "mobile_register",
+      created_at: formatDateSystem(),
+    };
 
-      // b. Generate User Code (USR000001 dst)
-      const lastUser = await trx("user_credential")
-        .where("user_code", "like", "USR%")
-        .orderBy("user_code", "desc")
-        .first();
+    await DB("user_credential").insert(userRecord);
 
-      let nextUserSeq = 1;
-      if (lastUser && lastUser.user_code) {
-        const numPart = parseInt(lastUser.user_code.replace("USR", ""), 10);
-        if (!isNaN(numPart)) nextUserSeq = numPart + 1;
-      }
-      const cUserCode = `USR${String(nextUserSeq).padStart(6, "0")}`;
+    // Ambil nama cabang untuk info respons
+    const branchRow = await DB("mst_cabang").where("kode_cabang", branchCode).first();
+    const namaCabang = branchRow?.nama_cabang || "Klinik Utama";
 
-      // c. Insert ke mst_pasien
-      const patientRecord = {
-        kode_cabang: branchCode,
-        no_rm: cNoRm,
-        nama: value.nama,
-        nik: value.nik || null,
-        tanggal_lahir: value.tanggal_lahir || "2000-01-01",
-        jenis_kelamin: value.jenis_kelamin || "P",
-        no_hp: cleanPhone,
-        email: value.email || null,
-        patokan: value.alamat || null,
-        status: "aktif",
-        tz: process.env.APP_TZ || "Asia/Jakarta",
-        created_by: "mobile_register",
-        created_at: formatDateSystem(),
-      };
-      await trx("mst_pasien").insert(patientRecord);
+    // 5. Generate Mobile JWT Token (no_rm = null)
+    const tokenPayload = {
+      user_code: cUserCode,
+      username: userRecord.username,
+      role: "pasien",
+      fullname: value.fullname,
+      nama: value.fullname,
+      no_rm: null,
+      kode_cabang: branchCode,
+      nama_cabang: namaCabang,
+    };
 
-      // d. Insert ke user_credential
-      const hashedPassword = hashClinicPassword(cUserCode, value.password);
-      const userRecord = {
-        user_code: cUserCode,
-        username: value.email || cleanPhone,
-        fullname: value.nama,
-        telp: cleanPhone,
-        role: "pasien",
-        password: hashedPassword,
-        status: "1",
-        kode_cabang: branchCode,
-        tz: process.env.APP_TZ || "Asia/Jakarta",
-        created_by: "mobile_register",
-        created_at: formatDateSystem(),
-      };
-      await trx("user_credential").insert(userRecord);
-
-      newUserInfo = {
-        user_code: cUserCode,
-        no_rm: cNoRm,
-        username: userRecord.username,
-        fullname: value.nama,
-        telp: cleanPhone,
-        role: "pasien",
-        kode_cabang: branchCode,
-      };
-    });
-
-    // 3. Generate tokens langsung setelah registrasi
-    const tokens = await generateMobileTokens(newUserInfo, true);
+    const tokens = await generateMobileTokens(tokenPayload, true);
 
     return sendSuccess(
       res,
-      "Registrasi berhasil! Selamat datang di aplikasi klinik kecantikan.",
+      "Akun berhasil didaftarkan! Selamat datang di aplikasi klinik.",
       {
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,
-        user_info: newUserInfo,
+        user_info: {
+          user_code: cUserCode,
+          username: userRecord.username,
+          fullname: value.fullname,
+          role: "pasien",
+          telp: cleanPhone,
+          no_rm: null,
+          is_patient: false,
+          foto: null,
+          kode_cabang: branchCode,
+          nama_cabang: namaCabang,
+          pasien_profile: null,
+        },
       },
       201
     );
@@ -322,8 +317,8 @@ router.post("/register", async (req, res) => {
     return sendError(
       res,
       process.env.APP_DEBUG === "true"
-        ? `Gagal mendaftar: ${error.message}`
-        : "Terjadi kesalahan saat pendaftaran akun",
+        ? `Error: ${error.message}`
+        : "Terjadi kesalahan sistem saat proses registrasi",
       500,
       status.BAD_REQUEST
     );
@@ -337,21 +332,35 @@ router.post("/register", async (req, res) => {
 router.get("/me", authenticateMobile, async (req, res) => {
   try {
     const auth = req.auth;
-    let patientDetails = null;
+    const cred = await DB("user_credential as u")
+      .leftJoin("mst_cabang as c", "u.kode_cabang", "c.kode_cabang")
+      .where("u.user_code", auth.user_code)
+      .select("u.*", "c.nama_cabang")
+      .first();
 
-    if (auth.no_rm) {
+    if (!cred) {
+      return sendError(res, "User tidak ditemukan", 404, status.NOT_FOUND);
+    }
+
+    let patientDetails = null;
+    const noRm = cred.no_rm || null;
+    if (noRm) {
       patientDetails = await DB("mst_pasien")
-        .where("no_rm", auth.no_rm)
-        .first();
-    } else {
-      patientDetails = await DB("mst_pasien")
-        .where("no_hp", auth.username)
-        .orWhere("email", auth.username)
+        .where("no_rm", noRm)
         .first();
     }
 
     return sendSuccess(res, "Profil berhasil dimuat", {
-      ...auth,
+      user_code: cred.user_code,
+      username: cred.username,
+      fullname: cred.fullname,
+      role: cred.role,
+      telp: cred.telp,
+      no_rm: noRm,
+      is_patient: Boolean(noRm),
+      kode_cabang: cred.kode_cabang || "CBG-001",
+      nama_cabang: cred.nama_cabang || "Klinik Utama",
+      foto: patientDetails?.foto || null,
       pasien_profile: patientDetails || null,
     });
   } catch (err) {

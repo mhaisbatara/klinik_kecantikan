@@ -272,12 +272,20 @@ router.post("/detail", async (req, res) => {
  * 3. DROPDOWN LIST KASIR (UNTUK FILTER TRACKING OLEH MANAGER)
  */
 router.post("/kasir-options", async (req, res) => {
-  const rawBranch = getBranchScope(req, req.body?.kode_cabang);
-  const branchCode = sanitizeFilterString(rawBranch);
-
+  const username = req?.auth?.username || "";
   try {
+    const rawBranch = getBranchScope(req, req.body?.kode_cabang);
+    const branchCode = sanitizeFilterString(rawBranch);
+
     const query = DB("mst_karyawan as k")
-      .where("k.jabatan", "kasir")
+      .where(function () {
+        this.whereRaw("LOWER(TRIM(k.jabatan)) = ?", ["kasir"])
+          .orWhereRaw("LOWER(k.jabatan) LIKE ?", ["%kasir%"]);
+      })
+      .where(function () {
+        this.where("k.status", "aktif")
+          .orWhereNull("k.status");
+      })
       .select("k.no_sip", "k.nama", "k.kode_karyawan", "k.kode_user", "k.email", "k.kode_cabang")
       .orderBy("k.nama", "asc");
 
@@ -291,9 +299,10 @@ router.post("/kasir-options", async (req, res) => {
       status: status.SUKSES,
       message: "Daftar kasir berhasil diambil",
       datetime: formatDateSystem(),
-      data: rows,
+      data: rows || [],
     });
   } catch (error) {
+    Logging(error, { file: "kasir_tracking_kas.js", func: "kasir-options", user: username });
     return res.status(500).json({
       status: status.BAD_REQUEST,
       message: error.message || "Gagal mengambil opsi kasir",

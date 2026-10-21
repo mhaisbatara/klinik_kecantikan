@@ -21,11 +21,12 @@ const app = express();
 // ── 1. Konfigurasi CORS (Ramah Mobile & Web) ───────────────────────────
 app.use(
   cors({
-    origin: "*",
+    origin: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: [
       "Content-Type",
       "Authorization",
+      "Accept",
       "X-Timestamp",
       "X-Kode-Cabang",
       "X-UniqueId",
@@ -36,6 +37,7 @@ app.use(
     credentials: true,
   })
 );
+app.options("*", cors({ origin: true, credentials: true }));
 
 // ── 2. Request Logging & Body Parsers ─────────────────────────────────
 if (process.env.NODE_ENV !== "test") {

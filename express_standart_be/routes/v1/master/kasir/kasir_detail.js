@@ -125,6 +125,8 @@ router.post("/", async (req, res) => {
       DB.raw("MAX(dal.nama_layanan) as dal_nama_layanan"),
     ];
 
+    const hasNamaItemCol = await DB.schema.hasColumn("trx_detail_transaksi", "nama_item");
+
     // Ambil detail item dengan flag is_from_pendaftaran
     const details = await DB("trx_detail_transaksi as dt")
       .leftJoin("trx_transaksi as t", "t.kode_transaksi", "dt.kode_transaksi")
@@ -147,6 +149,7 @@ router.post("/", async (req, res) => {
         "dt.kode_detail_transaksi",
         "dt.kode_layanan",
         "dt.kode_produk",
+        hasNamaItemCol ? "dt.nama_item" : DB.raw("NULL as nama_item"),
         "l.nama as nama_layanan_single",
         "pl.nama as nama_paket_layanan",
         "prod.nama as nama_produk",
@@ -167,6 +170,7 @@ router.post("/", async (req, res) => {
 
     const detailsMapped = details.map((d) => {
       const isDp = isBookingDpDraft || d.jenis_diskon === "dp_booking" || (d.nama_promo || "").toLowerCase().includes("uang muka");
+      const isCustom = String(d.kode_produk || "").startsWith("CUSTOM-") || String(d.kode_produk || "").startsWith("CST-");
       const hrg = parseFloat(d.harga_satuan || 0);
       const masterHrg = isDp ? hrg : parseFloat(d.master_harga_layanan || d.master_harga_paket || d.master_harga_produk || d.harga_satuan || 0);
       const dalHrg = d.dal_harga != null ? parseFloat(d.dal_harga) : null;
@@ -195,14 +199,16 @@ router.post("/", async (req, res) => {
         Boolean(d.is_klaim_paket) ||
         (isPendaftaran && hrg === 0 && !isInclude));
 
+      const resolvedNama = isDp
+        ? (d.nama_promo || `Uang Muka (DP) - ${d.nama_layanan_single || d.nama_paket_layanan || "Booking"}`)
+        : (d.nama_item || d.nama_layanan_single || d.nama_paket_layanan || d.nama_produk || (isCustom ? d.nama_promo : null) || (isCustom ? "Biaya Custom" : "-"));
+
       return {
         ...d,
         jenis: d.kode_layanan ? "layanan" : "produk",
         kode: d.kode_layanan || d.kode_produk,
-        nama: isDp
-          ? (d.nama_promo || `Uang Muka (DP) - ${d.nama_layanan_single || d.nama_paket_layanan || "Booking"}`)
-          : (d.nama_layanan_single || d.nama_paket_layanan || d.nama_produk || "-"),
-        satuan: d.satuan || (d.kode_layanan ? "tindakan" : "pcs"),
+        nama: resolvedNama,
+        satuan: d.satuan || (isCustom ? "item" : (d.kode_layanan ? "tindakan" : "pcs")),
         harga_satuan: hrg,
         harga_master: masterHrg,
         dal_harga: dalHrg,

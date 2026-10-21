@@ -207,4 +207,26 @@ class BookingService {
       return {'success': false, 'message': 'Gagal terhubung ke server ($e)'};
     }
   }
+
+  // 6. Ambil Daftar Paket Perawatan Pasien (Kartu Stempel Multi-Sesi)
+  static Future<List<dynamic>> getMyPackages() async {
+    try {
+      final token = await AuthService.getToken();
+      final response = await http.get(
+        Uri.parse(ApiConstants.myPackages),
+        headers: {
+          'Accept': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+      if (data['status'] == '00') {
+        return data['data'] ?? [];
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
 }

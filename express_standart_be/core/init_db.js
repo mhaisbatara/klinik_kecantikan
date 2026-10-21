@@ -22,6 +22,7 @@ export async function ensureRequiredColumnsExist() {
     const hasTrxDetail = await DB.schema.hasTable("trx_detail_transaksi");
     if (hasTrxDetail) {
       const detailCols = [
+        { name: "nama_item", type: (t) => t.string("nama_item", 255).nullable() },
         { name: "kode_cabang", type: (t) => t.string("kode_cabang", 20).nullable().defaultTo("CBG-001") },
         { name: "kode_promo", type: (t) => t.string("kode_promo", 50).nullable() },
         { name: "nama_promo", type: (t) => t.string("nama_promo", 150).nullable() },
@@ -67,6 +68,44 @@ export async function ensureRequiredColumnsExist() {
           table.string("kode_shift", 50).nullable().after("kode_transaksi");
         });
         console.log("✅ Column 'kode_shift' added to trx_transaksi");
+      }
+
+      const hasKodeBooking = await DB.schema.hasColumn("trx_transaksi", "kode_booking");
+      if (!hasKodeBooking) {
+        await DB.schema.alterTable("trx_transaksi", (table) => {
+          table.string("kode_booking", 50).nullable().after("kode_kunjungan");
+          table.index("kode_booking");
+        });
+        console.log("✅ Column 'kode_booking' added to trx_transaksi");
+      }
+    }
+
+    const hasBookingTable = await DB.schema.hasTable("trx_booking");
+    if (hasBookingTable) {
+      try {
+        await DB.raw("ALTER TABLE trx_booking MODIFY COLUMN sumber VARCHAR(50) NOT NULL DEFAULT 'staff'");
+      } catch (err) {
+        // Kolom sumber sudah kompatibel atau alter dilewati
+      }
+
+      const hasBuktiDp = await DB.schema.hasColumn("trx_booking", "bukti_dp");
+      if (!hasBuktiDp) {
+        await DB.schema.alterTable("trx_booking", (table) => {
+          table.string("bukti_dp", 255).nullable().after("metode_pembayaran_dp");
+        });
+        console.log("✅ Column 'bukti_dp' added to trx_booking");
+      }
+    }
+
+    const hasUserCred = await DB.schema.hasTable("user_credential");
+    if (hasUserCred) {
+      const hasNoRm = await DB.schema.hasColumn("user_credential", "no_rm");
+      if (!hasNoRm) {
+        await DB.schema.alterTable("user_credential", (table) => {
+          table.string("no_rm", 50).nullable().after("role");
+          table.index("no_rm");
+        });
+        console.log("✅ Column 'no_rm' added to user_credential");
       }
     }
 

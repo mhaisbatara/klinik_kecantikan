@@ -6,6 +6,7 @@ import { status } from "../../../utils/general.js";
 import { formatDateSystem } from "../../../utils/date_tools.js";
 import { authenticateMobile } from "../../../middleware/auth_middleware.js";
 import { upload } from "../../../middleware/upload_middleware.js";
+import { syncBookingToKasirDraft, cancelKasirDraftByBooking } from "../../../services/kasir_sync_service.js";
 
 const router = express.Router();
 
@@ -293,6 +294,23 @@ router.post("/create", authenticateMobile, upload.single("bukti_dp"), async (req
         await trx("trx_detail_booking").insert(detailsToInsert);
       }
 
+      // Integrasi Kasir: Buat draf kasir jika ada DP
+      if (dpNominal > 0) {
+        try {
+          await syncBookingToKasirDraft(trx, {
+            kodeBooking: cKodeBooking,
+            noRm: noRm,
+            kodeCabang: bookingRecord.kode_cabang,
+            dpNominal: dpNominal,
+            metodePembayaranDp: bookingRecord.metode_pembayaran_dp,
+            username: user.username || "mobile_app",
+            tz: process.env.APP_TZ || "Asia/Jakarta",
+          });
+        } catch (syncErr) {
+          console.error(`[BOOKING_MOBILE] Gagal sinkronisasi draf kasir untuk ${cKodeBooking}:`, syncErr.message);
+        }
+      }
+
       createdBooking = {
         kode_booking: cKodeBooking,
         tanggal_booking: value.tanggal_booking,
@@ -464,6 +482,13 @@ router.post("/:kode/cancel", authenticateMobile, async (req, res) => {
           : booking.catatan_pasien,
         updated_at: formatDateSystem(),
       });
+
+    // Batalkan juga draf kasir jika ada
+    try {
+      await cancelKasirDraftByBooking(DB, kode, user.username || "mobile_app");
+    } catch (cancelErr) {
+      console.warn(`[BOOKING_MOBILE] Gagal membatalkan draf kasir untuk ${kode}:`, cancelErr.message);
+    }
 
     return sendSuccess(res, "Reservasi booking berhasil dibatalkan");
   } catch (err) {

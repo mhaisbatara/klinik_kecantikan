@@ -83,15 +83,12 @@ class AuthService {
     }
   }
 
-  // 2. Register Pasien Baru
+  // 2. Register Akun Akses Mobile (User Auth Murni)
   static Future<Map<String, dynamic>> register({
     required String nama,
     required String noHp,
     String? email,
     required String password,
-    String? tanggalLahir,
-    String? jenisKelamin,
-    String? alamat,
     String? kodeCabang,
   }) async {
     try {
@@ -106,9 +103,6 @@ class AuthService {
           'no_hp': noHp.trim(),
           'email': email != null && email.trim().isNotEmpty ? email.trim() : null,
           'password': password,
-          'tanggal_lahir': tanggalLahir,
-          'jenis_kelamin': jenisKelamin ?? 'P',
-          'alamat': alamat,
           'kode_cabang': kodeCabang ?? 'CBG-001',
         }),
       ).timeout(const Duration(seconds: 15));
@@ -139,6 +133,145 @@ class AuthService {
         'success': false,
         'message': 'Gagal terhubung ke server ($e). Pastikan server backend aktif.',
       };
+    }
+  }
+
+  // 3. Register Pasien Baru (Opsi A: Menerbitkan Rekam Medis Baru)
+  static Future<Map<String, dynamic>> registerPatient({
+    required String nik,
+    required String tempatLahir,
+    required String tanggalLahir,
+    required String jenisKelamin,
+    required String alamat,
+    String? alergi,
+    String? nama,
+    String? noHp,
+  }) async {
+    try {
+      final token = await getToken();
+      final response = await http.post(
+        Uri.parse(ApiConstants.registerPatient),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'nik': nik.trim(),
+          'tempat_lahir': tempatLahir.trim(),
+          'tanggal_lahir': tanggalLahir.trim(),
+          'jenis_kelamin': jenisKelamin,
+          'alamat': alamat.trim(),
+          'alergi': alergi?.trim(),
+          if (nama != null && nama.trim().isNotEmpty) 'nama': nama.trim(),
+          if (noHp != null && noHp.trim().isNotEmpty) 'no_hp': noHp.trim(),
+        }),
+      ).timeout(const Duration(seconds: 15));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['status'] == '00') {
+        final newToken = data['data']['access_token'];
+        final refreshToken = data['data']['refresh_token'];
+        final userInfo = data['data']['user_info'];
+
+        await saveSession(
+          token: newToken,
+          refreshToken: refreshToken,
+          user: userInfo,
+        );
+
+        return {'success': true, 'message': data['message'], 'data': userInfo};
+      } else {
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Pendaftaran pasien baru gagal',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Gagal terhubung ke server ($e)',
+      };
+    }
+  }
+
+  // 4. Klaim Pasien Lama (Opsi B: Sinkronisasi Rekam Medis)
+  static Future<Map<String, dynamic>> claimPatient({
+    required String noRm,
+    required String tanggalLahir,
+    String? noHp,
+    String? nik,
+  }) async {
+    try {
+      final token = await getToken();
+      final response = await http.post(
+        Uri.parse(ApiConstants.claimPatient),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'no_rm': noRm.trim(),
+          'tanggal_lahir': tanggalLahir.trim(),
+          if (noHp != null && noHp.trim().isNotEmpty) 'no_hp': noHp.trim(),
+          if (nik != null && nik.trim().isNotEmpty) 'nik': nik.trim(),
+        }),
+      ).timeout(const Duration(seconds: 15));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['status'] == '00') {
+        final newToken = data['data']['access_token'];
+        final refreshToken = data['data']['refresh_token'];
+        final userInfo = data['data']['user_info'];
+
+        await saveSession(
+          token: newToken,
+          refreshToken: refreshToken,
+          user: userInfo,
+        );
+
+        return {'success': true, 'message': data['message'], 'data': userInfo};
+      } else {
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Sinkronisasi rekam medis gagal',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Gagal terhubung ke server ($e)',
+      };
+    }
+  }
+
+  // 5. Fetch Profil Terbaru dari Server
+  static Future<Map<String, dynamic>?> fetchProfile() async {
+    try {
+      final token = await getToken();
+      if (token == null || token.isEmpty) return null;
+
+      final response = await http.get(
+        Uri.parse(ApiConstants.me),
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200 && data['status'] == '00') {
+        final userInfo = data['data'];
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(keyUser, jsonEncode(userInfo));
+        return userInfo;
+      }
+      return null;
+    } catch (_) {
+      return null;
     }
   }
 

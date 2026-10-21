@@ -201,7 +201,7 @@ router.post("/penjualan", async (req, res) => {
           "dt.qty",
           "dt.harga_satuan",
           "dt.subtotal",
-          DB.raw("COALESCE(prod.nama, l.nama, pl.nama, 'Item') as item_nama")
+          DB.raw("COALESCE(dt.nama_item, dt.nama_promo, prod.nama, l.nama, pl.nama, 'Item') as item_nama")
         );
 
       details.forEach((item) => {
@@ -398,6 +398,7 @@ router.post("/produk", async (req, res) => {
       .leftJoin("trx_detail_transaksi as dt", "p.kode_produk", "dt.kode_produk")
       .leftJoin("trx_transaksi as tr", "dt.kode_transaksi", "tr.kode_transaksi")
       .modify((qb) => {
+        qb.whereRaw("p.kode_produk NOT LIKE 'CUSTOM-%' AND p.kode_produk NOT LIKE 'CST-%'");
         if (branchCode) {
           qb.where("p.kode_cabang", branchCode);
         }
@@ -905,6 +906,7 @@ router.post("/inventory", async (req, res) => {
       .leftJoin("mst_kategori_produk as kp", "p.kode_kategori_produk", "kp.kode_kategori_produk")
       .leftJoin("mst_supplier as s", "p.kode_supplier", "s.kode_supplier")
       .modify((qb) => {
+        qb.whereRaw("p.kode_produk NOT LIKE 'CUSTOM-%' AND p.kode_produk NOT LIKE 'CST-%'").where("p.status", "aktif");
         if (branchCode) {
           qb.where("p.kode_cabang", branchCode);
         }

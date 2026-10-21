@@ -60,6 +60,7 @@ export const POST = async (request: NextRequest) => {
 };
 
 async function postCRUD(request: NextRequest, accessToken: string) {
+    const endpoint = request.headers.get('x-endpoint');
     try {
         const headers: CustomHeaders = {};
 
@@ -69,7 +70,6 @@ async function postCRUD(request: NextRequest, accessToken: string) {
             }
         });
 
-        const endpoint = headers['x-endpoint'];
         if (!endpoint) {
             return NextResponse.json(
                 { status: '99', message: 'Endpoint not specified', datetime: formatDateSystem(new Date()) },
@@ -77,7 +77,7 @@ async function postCRUD(request: NextRequest, accessToken: string) {
             );
         }
 
-        const body = await request.json();
+        const body = await request.json().catch(() => ({}));
 
         let customHeader: Record<string, any> = {};
         if (headers['x-custom-header']) {
@@ -95,7 +95,6 @@ async function postCRUD(request: NextRequest, accessToken: string) {
             ...customHeader,
         };
 
-
         delete requestHeaders['X-Level'];
         const apiUrl = getBackendApiUrl();
         const result = await axios.post(
@@ -107,6 +106,7 @@ async function postCRUD(request: NextRequest, accessToken: string) {
         return NextResponse.json(result.data);
 
     } catch (err: any) {
+        console.error(`BFF Interceptor postCRUD error [${endpoint}]:`, err?.response?.status, err?.response?.data || err?.message);
         if (err?.response?.status === 401) {
             await clearSessionCookies();
             return NextResponse.json(
@@ -115,9 +115,13 @@ async function postCRUD(request: NextRequest, accessToken: string) {
             );
         }
 
-        return NextResponse.json(
-            err?.response?.data || { error: 'Internal server error' },
-            { status: err?.response?.status || 500 }
-        );
+        const resStatus = err?.response?.status || 500;
+        const resData = err?.response?.data || {
+            status: '99',
+            message: err?.message || 'Internal server error',
+            datetime: formatDateSystem(new Date()),
+        };
+
+        return NextResponse.json(resData, { status: resStatus });
     }
 }

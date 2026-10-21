@@ -27,8 +27,6 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   final _regEmailCtrl = TextEditingController();
   final _regPassCtrl = TextEditingController();
   final _regConfirmPassCtrl = TextEditingController();
-  DateTime? _selectedBirthDate;
-  String _selectedGender = 'P'; // Default P (Perempuan)
   bool _regShowPass = false;
   bool _regLoading = false;
   List<Map<String, dynamic>> _cabangList = [];
@@ -184,12 +182,6 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       return;
     }
 
-    String? birthDateStr;
-    if (_selectedBirthDate != null) {
-      birthDateStr =
-          "${_selectedBirthDate!.year}-${_selectedBirthDate!.month.toString().padLeft(2, '0')}-${_selectedBirthDate!.day.toString().padLeft(2, '0')}";
-    }
-
     setState(() => _regLoading = true);
 
     final result = await AuthService.register(
@@ -197,8 +189,6 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       noHp: phone,
       email: email,
       password: pass,
-      tanggalLahir: birthDateStr,
-      jenisKelamin: _selectedGender,
       kodeCabang: _selectedCabang ?? 'CBG-001',
     );
 
@@ -206,7 +196,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     setState(() => _regLoading = false);
 
     if (result['success'] == true) {
-      _showCustomToast('Pendaftaran Berhasil! Selamat datang di klinik kami.');
+      _showCustomToast('Pendaftaran Akun Berhasil! Selamat datang di klinik kami.');
       await Future.delayed(const Duration(milliseconds: 600));
       if (!mounted) return;
       Navigator.pushReplacement(
@@ -215,31 +205,6 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       );
     } else {
       _showCustomToast(result['message'] ?? 'Registrasi gagal', isSuccess: false);
-    }
-  }
-
-  void _pickBirthDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedBirthDate ?? DateTime(2000, 1, 1),
-      firstDate: DateTime(1940),
-      lastDate: DateTime.now(),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: AppColors.primary,
-              onPrimary: Colors.white,
-              onSurface: AppColors.textDark,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-
-    if (picked != null) {
-      setState(() => _selectedBirthDate = picked);
     }
   }
 
@@ -400,30 +365,35 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                   ),
                   child: Column(
                     children: [
-                      // Brand Logo Box
+                      // Brand Logo Box (Identik dengan Web Login)
                       Container(
                         width: 48,
                         height: 48,
                         decoration: BoxDecoration(
-                          gradient: AppColors.primaryGradient,
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF10B981), Color(0xFF059669)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
                           borderRadius: BorderRadius.circular(14),
                           boxShadow: [
                             BoxShadow(
-                              color: AppColors.primary.withValues(alpha: 0.3),
-                              blurRadius: 12,
+                              color: const Color(0xFF10B981).withValues(alpha: 0.25),
+                              blurRadius: 14,
                               offset: const Offset(0, 4),
                             ),
                           ],
                         ),
-                        child: const Icon(Icons.spa_rounded, color: Colors.white, size: 26),
+                        child: const Icon(Icons.spa_rounded, color: Colors.white, size: 28),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         'Klinik Kecantikan',
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: 16,
+                          fontSize: 17,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.primaryDark,
+                          color: const Color(0xFF059669),
+                          letterSpacing: -0.2,
                         ),
                       ),
                       const SizedBox(height: 20),
@@ -616,7 +586,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           child: Column(
             children: [
               Text(
-                'Daftar Pasien Baru',
+                'Daftar Akun Baru',
                 style: GoogleFonts.playfairDisplay(
                   fontSize: 22,
                   fontWeight: FontWeight.w700,
@@ -625,7 +595,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
               ),
               const SizedBox(height: 4),
               Text(
-                'Buat akun untuk booking perawatan & pantau antrean',
+                'Buat akun login untuk akses fitur reservasi & info klinik',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 12,
@@ -696,7 +666,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         // Nama Lengkap
         _buildInputField(
           controller: _regNamaCtrl,
-          label: 'Nama Lengkap Pasien',
+          label: 'Nama Lengkap',
           hint: 'Contoh: Dewi Safitri',
           icon: Icons.person_outline_rounded,
         ),
@@ -719,149 +689,6 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           hint: 'Contoh: dewi@gmail.com',
           icon: Icons.mail_outline_rounded,
           keyboardType: TextInputType.emailAddress,
-        ),
-        const SizedBox(height: 12),
-
-        // Tanggal Lahir (Picker)
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Tanggal Lahir',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textDark,
-              ),
-            ),
-            const SizedBox(height: 6),
-            InkWell(
-              onTap: _pickBirthDate,
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                height: 46,
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                decoration: BoxDecoration(
-                  color: AppColors.inputBg,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.inputBorder, width: 1.5),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.calendar_today_outlined, size: 19, color: AppColors.primary),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        _selectedBirthDate != null
-                            ? "${_selectedBirthDate!.day.toString().padLeft(2, '0')}/${_selectedBirthDate!.month.toString().padLeft(2, '0')}/${_selectedBirthDate!.year}"
-                            : 'Pilih tanggal lahir Anda',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 13,
-                          color: _selectedBirthDate != null ? AppColors.textDark : AppColors.textLight,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-
-        // Jenis Kelamin Selector
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Jenis Kelamin',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textDark,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Expanded(
-                  child: InkWell(
-                    onTap: () => setState(() => _selectedGender = 'P'),
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      height: 44,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: _selectedGender == 'P' ? AppColors.bgMintLight : AppColors.inputBg,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: _selectedGender == 'P' ? AppColors.primary : AppColors.inputBorder,
-                          width: 1.5,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.female_rounded,
-                            size: 18,
-                            color: _selectedGender == 'P' ? AppColors.primaryDark : AppColors.textMuted,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Perempuan',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 13,
-                              fontWeight: _selectedGender == 'P' ? FontWeight.w700 : FontWeight.w500,
-                              color: _selectedGender == 'P' ? AppColors.primaryDark : AppColors.textMuted,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: InkWell(
-                    onTap: () => setState(() => _selectedGender = 'L'),
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      height: 44,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: _selectedGender == 'L' ? AppColors.bgMintLight : AppColors.inputBg,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: _selectedGender == 'L' ? AppColors.primary : AppColors.inputBorder,
-                          width: 1.5,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.male_rounded,
-                            size: 18,
-                            color: _selectedGender == 'L' ? AppColors.primaryDark : AppColors.textMuted,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Laki-laki',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 13,
-                              fontWeight: _selectedGender == 'L' ? FontWeight.w700 : FontWeight.w500,
-                              color: _selectedGender == 'L' ? AppColors.primaryDark : AppColors.textMuted,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
         ),
         const SizedBox(height: 12),
 
@@ -895,7 +722,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
 
         // Submit Button
         _buildSubmitButton(
-          label: 'Daftar Akun Pasien',
+          label: 'Daftar Akun Sekarang',
           loading: _regLoading,
           onTap: _handleRegister,
         ),

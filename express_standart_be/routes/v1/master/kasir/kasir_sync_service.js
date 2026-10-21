@@ -364,6 +364,7 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
   }
 
   const hasDiscountCols = await trx.schema.hasColumn("trx_detail_transaksi", "kode_promo");
+  const hasNamaItemCol = await trx.schema.hasColumn("trx_detail_transaksi", "nama_item");
 
   // Masukkan / Perbarui completedItems dari antrean layanan
   for (const item of completedItems) {
@@ -384,6 +385,9 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
           updated_by: username,
           updated_at: formatDateSystem(),
         };
+        if (hasNamaItemCol) {
+          updatePayload.nama_item = item.nama_layanan || item.nama;
+        }
         if (hasDiscountCols) {
           updatePayload.kode_promo = item.kode_promo || null;
           updatePayload.nama_promo = item.nama_promo || null;
@@ -415,6 +419,9 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
           updated_by: username,
           updated_at: formatDateSystem(),
         };
+        if (hasNamaItemCol) {
+          insertPayload.nama_item = item.nama_layanan || item.nama;
+        }
         if (hasDiscountCols) {
           insertPayload.kode_promo = item.kode_promo || null;
           insertPayload.nama_promo = item.nama_promo || null;
@@ -452,6 +459,9 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
           updated_by: username,
           updated_at: formatDateSystem(),
         };
+        if (hasNamaItemCol) {
+          updatePayload.nama_item = item.nama_layanan || item.nama;
+        }
         if (hasDiscountCols) {
           updatePayload.kode_promo = itemKodePromo;
           updatePayload.nama_promo = itemNamaPromo;
@@ -481,6 +491,9 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
           updated_by: username,
           updated_at: formatDateSystem(),
         };
+        if (hasNamaItemCol) {
+          insertPayload.nama_item = item.nama_layanan || item.nama;
+        }
         if (hasDiscountCols) {
           insertPayload.kode_promo = itemKodePromo;
           insertPayload.nama_promo = itemNamaPromo;
@@ -499,8 +512,10 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
   if (Array.isArray(extraProdukItems) && extraProdukItems.length > 0) {
     const freshDetails = await trx("trx_detail_transaksi").where("kode_transaksi", createdTransaksiKode);
 
-    // Pre-fetch harga jual dari mst_produk
-    const kodeProdukList = extraProdukItems.map((i) => i.kode || i.kode_produk).filter(Boolean);
+    // Pre-fetch harga jual dari mst_produk (hanya untuk produk katalog yang bukan custom)
+    const kodeProdukList = extraProdukItems
+      .map((i) => i.kode || i.kode_produk)
+      .filter((kd) => kd && !String(kd).startsWith("CUSTOM-") && !String(kd).startsWith("CST-"));
     let produkPriceMap = {};
     if (kodeProdukList.length > 0) {
       const mstProdukList = await trx("mst_produk")
@@ -511,7 +526,7 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
       });
     }
 
-    // Pre-fetch promo aktif untuk produk
+    // Pre-fetch promo aktif untuk produk katalog
     let productPromoMap = {};
     if (kodeProdukList.length > 0) {
       const activeProductPromos = await trx("mst_promo as p")
@@ -545,31 +560,9 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
     for (const prd of extraProdukItems) {
       const kdProduk = prd.kode || prd.kode_produk;
       if (kdProduk) {
-        // Cek jika produk kustom
+        // Cek jika biaya / item kustom (BUKAN produk inventori, jangan pernah di-insert ke mst_produk!)
         const isCustom = String(kdProduk).startsWith("CUSTOM-") || String(kdProduk).startsWith("CST-");
-        if (isCustom && prd.nama) {
-          const existP = await trx("mst_produk").where("kode_produk", kdProduk).first();
-          if (!existP) {
-            const kat = await trx("mst_kategori_produk").where("status", "aktif").first();
-            const defaultKatKode = kat?.kode_kategori_produk || "KATPRD-001";
-
-            await trx("mst_produk").insert({
-              kode_produk: kdProduk,
-              kode_kategori_produk: defaultKatKode,
-              nama: prd.nama,
-              satuan: prd.satuan || "item",
-              harga_beli: 0,
-              harga_jual: parseFloat(prd.harga || prd.harga_satuan || prd.harga_jual || 0),
-              stok_minimum: 0,
-              stok_tersedia: 999,
-              status: "nonaktif",
-              tz: tz || "Asia/Jakarta",
-              created_by: username,
-              created_at: formatDateSystem(),
-              updated_by: username,
-              updated_at: formatDateSystem(),
-            });
-          }
+        if (isCustom) {
           produkPriceMap[kdProduk] = parseFloat(prd.harga || prd.harga_satuan || prd.harga_jual || 0);
         }
 
@@ -614,9 +607,12 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
             updated_by: username,
             updated_at: formatDateSystem(),
           };
+          if (hasNamaItemCol) {
+            updatePayload.nama_item = prd.nama || prd.nama_produk || null;
+          }
           if (hasDiscountCols) {
             updatePayload.kode_promo = promo?.kode_promo || null;
-            updatePayload.nama_promo = promo?.nama_promo || null;
+            updatePayload.nama_promo = isCustom ? (prd.nama || prd.nama_produk) : (promo?.nama_promo || null);
             updatePayload.jenis_diskon = promo?.jenis_diskon || null;
             updatePayload.nilai_diskon = promo?.nilai_diskon != null ? parseFloat(promo.nilai_diskon) : null;
             updatePayload.diskon = itemDiskon;
@@ -647,9 +643,12 @@ export const syncCompletedItemsToKasirDraft = async (trx, {
             updated_by: username,
             updated_at: formatDateSystem(),
           };
+          if (hasNamaItemCol) {
+            insertPayload.nama_item = prd.nama || prd.nama_produk || null;
+          }
           if (hasDiscountCols) {
             insertPayload.kode_promo = promo?.kode_promo || null;
-            insertPayload.nama_promo = promo?.nama_promo || null;
+            insertPayload.nama_promo = isCustom ? (prd.nama || prd.nama_produk) : (promo?.nama_promo || null);
             insertPayload.jenis_diskon = promo?.jenis_diskon || null;
             insertPayload.nilai_diskon = promo?.nilai_diskon != null ? parseFloat(promo.nilai_diskon) : null;
             insertPayload.diskon = itemDiskon;
@@ -1051,10 +1050,28 @@ export const syncBookingToKasirDraft = async (trx, {
 export const cancelKasirDraftByBooking = async (trx, kodeBooking, username = "system") => {
   if (!kodeBooking) return null;
 
-  const draftTrx = await trx("trx_transaksi")
-    .where("kode_booking", kodeBooking)
-    .where("status", "draft")
-    .first();
+  const hasKodeBookingCol = await trx.schema.hasColumn("trx_transaksi", "kode_booking");
+  let draftTrx = null;
+
+  if (hasKodeBookingCol) {
+    draftTrx = await trx("trx_transaksi")
+      .where("kode_booking", kodeBooking)
+      .where("status", "draft")
+      .first();
+  }
+
+  if (!draftTrx) {
+    // Coba cari melalui relasi trx_kunjungan
+    const kunjungan = await trx("trx_kunjungan")
+      .where("kode_booking", kodeBooking)
+      .first();
+    if (kunjungan?.kode_kunjungan) {
+      draftTrx = await trx("trx_transaksi")
+        .where("kode_kunjungan", kunjungan.kode_kunjungan)
+        .where("status", "draft")
+        .first();
+    }
+  }
 
   if (!draftTrx) {
     console.log(`[CANCEL_KASIR_DRAFT] Tidak ada draf kasir untuk booking ${kodeBooking}. Skip.`);

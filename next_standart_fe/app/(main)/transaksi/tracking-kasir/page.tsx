@@ -258,15 +258,16 @@ export default function TrackingKasKasirPage() {
   const loadKasirOptions = async () => {
     try {
       const res = await postData('/master/kasir-tracking-kas/kasir-options', {});
-      const list = (res.data?.data || []).map((k: any) => ({
+      const list = (res?.data?.data || []).map((k: any) => ({
         label: `${k.nama} (${k.kode_karyawan || k.kode_user || '-'})`,
-        value: k.kode_user || k.no_sip,
+        value: k.kode_user || k.no_sip || k.kode_karyawan,
         nama: k.nama,
         kode: k.kode_karyawan || k.kode_user || '-',
       }));
       setKasirOptions([{ label: 'Semua Kasir', value: '', nama: 'Semua Kasir', kode: '' }, ...list]);
     } catch (error) {
       console.error('Gagal memuat opsi kasir:', error);
+      setKasirOptions([{ label: 'Semua Kasir', value: '', nama: 'Semua Kasir', kode: '' }]);
     }
   };
 
@@ -300,7 +301,7 @@ export default function TrackingKasKasirPage() {
       };
 
       const res = await postData('/master/kasir-tracking-kas/data', payload);
-      const resData = res.data?.data;
+      const resData = res?.data?.data;
       if (resData) {
         setData(resData.records || []);
         setTotalRecords(resData.totalRecords || 0);
@@ -346,7 +347,7 @@ export default function TrackingKasKasirPage() {
       };
 
       const res = await postData('/master/kasir-tracking-kas/mutasi-data', payload);
-      const resData = res.data?.data;
+      const resData = res?.data?.data;
       if (resData) {
         setMutasiData(resData.records || []);
         setTotalMutasiRecords(resData.totalRecords || 0);

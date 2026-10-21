@@ -249,6 +249,7 @@ router.post("/", async (req, res) => {
 
     const hasNamaPromoTrx = await trx.schema.hasColumn("trx_transaksi", "nama_promo");
     const hasDiscountCols = await trx.schema.hasColumn("trx_detail_transaksi", "kode_promo");
+    const hasNamaItemCol = await trx.schema.hasColumn("trx_detail_transaksi", "nama_item");
 
     if (kode_trx) {
       // UPDATE existing draft
@@ -374,9 +375,14 @@ router.post("/", async (req, res) => {
         updated_at: DB.fn.now(),
       };
 
+      if (hasNamaItemCol) {
+        detailRow.nama_item = item.nama || item.nama_produk || item.nama_layanan || item.nama_item || null;
+      }
+
       if (hasDiscountCols) {
+        const isCustomItem = String(item.kode || item.kode_produk || "").startsWith("CUSTOM-") || String(item.kode || item.kode_produk || "").startsWith("CST-");
         detailRow.kode_promo = item.kode_promo || null;
-        detailRow.nama_promo = item.nama_promo || null;
+        detailRow.nama_promo = isCustomItem ? (item.nama || item.nama_promo) : (item.nama_promo || null);
         detailRow.jenis_diskon = item.jenis_diskon || null;
         detailRow.nilai_diskon = item.nilai_diskon != null ? parseFloat(item.nilai_diskon) : null;
         detailRow.diskon = itemDiskon;

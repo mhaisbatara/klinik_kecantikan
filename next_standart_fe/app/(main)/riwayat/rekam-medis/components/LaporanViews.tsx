@@ -920,7 +920,10 @@ export const LaporanProdukView: React.FC = () => {
       if (sStatus) payload.status = sStatus;
       const res = await postData('/master/laporan/produk', payload);
       if (['00', '0000'].includes(res?.data?.status)) {
-        setData(res.data.data || []);
+        const cleanList = (res.data.data || []).filter(
+          (r: any) => !String(r.kode_produk || '').startsWith('CUSTOM-') && !String(r.kode_produk || '').startsWith('CST-')
+        );
+        setData(cleanList);
         setSummary(res.data.summary || {});
       }
     } catch (err: any) {
@@ -2457,7 +2460,10 @@ export const LaporanInventoryView: React.FC = () => {
       if (sStok) payload.status_stok = sStok;
       const res = await postData('/master/laporan/inventory', payload);
       if (['00', '0000'].includes(res?.data?.status)) {
-        setData(res.data.data || []);
+        const cleanList = (res.data.data || []).filter(
+          (r: any) => !String(r.kode_produk || '').startsWith('CUSTOM-') && !String(r.kode_produk || '').startsWith('CST-')
+        );
+        setData(cleanList);
         setSummary(res.data.summary || {});
       }
     } catch (err: any) {
