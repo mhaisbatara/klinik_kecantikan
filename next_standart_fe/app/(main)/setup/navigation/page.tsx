@@ -525,6 +525,11 @@ export default function ManajemenMenuRolePage() {
 
     // Open Modal Atur Hak Akses Role
     const handleOpenPermissionModal = async (role: RoleItem) => {
+        if (role.role_key === 'superadmin' || role.kode_role === 'ROLE-006') {
+            showError(toast, 'Hak akses role Superadmin bersifat permanen dan tidak dapat diubah-ubah.');
+            return;
+        }
+
         if (!isSuperAdmin && (isProtectedRole(role.role_key) || isProtectedRole(role.kode_role))) {
             showError(toast, 'Akses ditolak: Hanya Superadmin yang berhak mengatur hak akses role Superadmin dan Owner/Manager.');
             return;
@@ -634,6 +639,11 @@ export default function ManajemenMenuRolePage() {
     // Save Role Permissions from Modal
     const handleSavePermissions = async () => {
         if (!activeRole) return;
+
+        if (activeRole.role_key === 'superadmin' || activeRole.kode_role === 'ROLE-006') {
+            showError(toast, 'Hak akses role Superadmin bersifat permanen dan tidak dapat diubah.');
+            return;
+        }
 
         if (!isSuperAdmin && (isProtectedRole(activeRole.role_key) || isProtectedRole(activeRole.kode_role))) {
             showError(toast, 'Akses ditolak: Hanya Superadmin yang berhak mengubah hak akses role ini.');

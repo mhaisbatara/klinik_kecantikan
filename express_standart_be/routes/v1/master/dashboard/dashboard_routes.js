@@ -108,7 +108,12 @@ router.post("/role-data", async (req, res) => {
 
     const unionSql = `
       SELECT
-        LOWER(TRIM(metode)) as metode_bayar,
+        CASE
+          WHEN LOWER(TRIM(metode)) IN ('tunai', 'cash') THEN 'Tunai'
+          WHEN LOWER(TRIM(metode)) IN ('debit', 'transfer') THEN 'Debit'
+          WHEN LOWER(TRIM(metode)) LIKE '%qris%' THEN 'QRIS'
+          ELSE UPPER(TRIM(metode))
+        END as metode_bayar,
         COUNT(id) as jumlah_trx,
         SUM(nominal) as nominal
       FROM (
@@ -139,7 +144,7 @@ router.post("/role-data", async (req, res) => {
         FROM trx_booking as b
         WHERE ${qDpHangusWhere}
       ) as combined
-      GROUP BY LOWER(TRIM(metode))
+      GROUP BY 1
     `;
 
     const allBindings = [...pelunasanBindings, ...dpBookingBindings, ...dpHangusBindings];
@@ -423,12 +428,17 @@ router.post("/role-data", async (req, res) => {
     if (branchCode) qRecentKunjungan.where("k.kode_cabang", branchCode);
     const recentKunjunganList = await qRecentKunjungan;
 
+    const allBranches = await DB("mst_cabang")
+      .select("kode_cabang", "nama_cabang", "alamat", "no_telp", "status")
+      .orderBy("id", "asc");
+
     return res.status(200).json({
       status: status.SUKSES,
       message: "Data Dashboard Role-Based berhasil dimuat",
       datetime: formatDateSystem(),
       data: {
         active_role: role,
+        all_cabang: allBranches,
         owner: {
           kpi: {
             kunjungan_hari_ini: parseInt(kunjunganToday?.count || 0, 10),
@@ -779,5 +789,354 @@ router.post("/cabang-detail", async (req, res) => {
     return res.status(500).json({ status: status.BAD_REQUEST, message: err.message });
   }
 });
+
+/**
+ * GET & POST /master/dashboard/perbandingan-cabang
+ * Khusus Superadmin: Mengambil komparasi performa dan metrik seluruh cabang
+ * Params/Body: periode = 'today' | '7d' | '30d' | 'this_month' | 'all'
+ */
+const perbandinganCabangHandler = async (req, res) => {
+  const oPayload = { ...req.query, ...req.body };
+  const role = (req?.auth?.role || oPayload.role || "").toLowerCase();
+  const isSuperAdmin = role === "superadmin" || role === "admin_pusat" || role === "dev" || req?.auth?.is_superadmin;
+
+  if (!isSuperAdmin) {
+    return res.status(403).json({
+      status: status.GAGAL,
+      message: "Akses ditolak: Data perbandingan cabang hanya dapat diakses oleh Superadmin.",
+    });
+  }
+
+  const periode = oPayload.periode || "today";
+  try {
+    const todayStr = formatDateSystem(new Date(), "yyyy-MM-dd");
+    let startDate = null;
+    let endDate = todayStr;
+
+    if (periode === "today") {
+      startDate = todayStr;
+      endDate = todayStr;
+    } else if (periode === "7d") {
+      const d = new Date();
+      d.setDate(d.getDate() - 6);
+      startDate = formatDateSystem(d, "yyyy-MM-dd");
+    } else if (periode === "30d") {
+      const d = new Date();
+      d.setDate(d.getDate() - 29);
+      startDate = formatDateSystem(d, "yyyy-MM-dd");
+    } else if (periode === "this_month") {
+      startDate = `${todayStr.slice(0, 7)}-01`;
+    } else if (periode === "all") {
+      startDate = null;
+      endDate = null;
+    }
+
+    // 1. Ambil seluruh cabang
+    const allBranches = await DB("mst_cabang")
+      .select("id", "kode_cabang", "nama_cabang", "alamat", "no_telp", "status")
+      .orderBy("id", "asc");
+    const branchCodes = allBranches.map((b) => b.kode_cabang);
+
+    // 2. Omzet & Transaksi Pelunasan Kasir
+    let qTrx = DB("trx_transaksi")
+      .whereIn("kode_cabang", branchCodes)
+      .whereIn("status", ["lunas", "selesai"]);
+    if (startDate) qTrx.whereRaw("DATE(tanggal_transaksi) >= ?", [startDate]);
+    if (endDate) qTrx.whereRaw("DATE(tanggal_transaksi) <= ?", [endDate]);
+
+    const trxByBranch = await qTrx
+      .select("kode_cabang")
+      .sum("total_bayar as omzet")
+      .count("id as total_transaksi")
+      .groupBy("kode_cabang");
+
+    const trxMap = {};
+    trxByBranch.forEach((r) => {
+      trxMap[r.kode_cabang] = {
+        omzet: parseFloat(r.omzet || 0),
+        transaksi: parseInt(r.total_transaksi || 0, 10),
+      };
+    });
+
+    // 3. Omzet DP Booking (bila ada)
+    let qDp = DB("trx_booking")
+      .whereIn("kode_cabang", branchCodes)
+      .whereIn("dp_status", ["sudah_bayar", "dipotong_treatment", "hangus"]);
+    if (startDate) qDp.whereRaw("DATE(COALESCE(dp_dibayar_at, created_at)) >= ?", [startDate]);
+    if (endDate) qDp.whereRaw("DATE(COALESCE(dp_dibayar_at, created_at)) <= ?", [endDate]);
+
+    const dpByBranch = await qDp
+      .select("kode_cabang")
+      .sum("dp_nominal as omzet")
+      .groupBy("kode_cabang");
+
+    const dpMap = {};
+    dpByBranch.forEach((r) => {
+      dpMap[r.kode_cabang] = parseFloat(r.omzet || 0);
+    });
+
+    // 4. Total Pasien Terdaftar
+    const pasienByBranch = await DB("mst_pasien")
+      .whereIn("kode_cabang", branchCodes)
+      .select("kode_cabang")
+      .count("no_rm as total_pasien")
+      .groupBy("kode_cabang");
+
+    const pasienMap = {};
+    pasienByBranch.forEach((p) => {
+      pasienMap[p.kode_cabang] = parseInt(p.total_pasien || 0, 10);
+    });
+
+    // 5. Kunjungan Hari Ini & Kunjungan Periode
+    const kunjunganTodayByBranch = await DB("trx_kunjungan")
+      .whereIn("kode_cabang", branchCodes)
+      .whereRaw("DATE(tanggal_kunjungan) = ?", [todayStr])
+      .select("kode_cabang")
+      .count("id as total")
+      .groupBy("kode_cabang");
+
+    const kunjunganTodayMap = {};
+    kunjunganTodayByBranch.forEach((k) => {
+      kunjunganTodayMap[k.kode_cabang] = parseInt(k.total || 0, 10);
+    });
+
+    // 6. Staf Aktif (Dokter & Beautician/Terapis)
+    const stafByBranch = await DB("mst_karyawan")
+      .whereIn("kode_cabang", branchCodes)
+      .where("status", "aktif")
+      .select(
+        "kode_cabang",
+        DB.raw("COUNT(id) as total_staf"),
+        DB.raw("SUM(CASE WHEN LOWER(jabatan) LIKE '%dokter%' THEN 1 ELSE 0 END) as total_dokter"),
+        DB.raw("SUM(CASE WHEN LOWER(jabatan) LIKE '%terapis%' OR LOWER(jabatan) LIKE '%beautician%' THEN 1 ELSE 0 END) as total_beautician")
+      )
+      .groupBy("kode_cabang");
+
+    const stafMap = {};
+    stafByBranch.forEach((s) => {
+      stafMap[s.kode_cabang] = {
+        total_staf: parseInt(s.total_staf || 0, 10),
+        total_dokter: parseInt(s.total_dokter || 0, 10),
+        total_beautician: parseInt(s.total_beautician || 0, 10),
+      };
+    });
+
+    // 7. Status Shift Kasir Hari Ini
+    const openShifts = await DB("trx_kasir_shift")
+      .where("status", "open")
+      .whereIn("kode_cabang", branchCodes)
+      .select("kode_cabang", "user_code", "created_at");
+
+    const shiftMap = {};
+    openShifts.forEach((s) => {
+      shiftMap[s.kode_cabang] = true;
+    });
+
+    // 8. Komposisi Metode Pembayaran (Tunai, QRIS, Debit)
+    let qMetodeTrx = DB("trx_transaksi")
+      .whereIn("kode_cabang", branchCodes)
+      .whereIn("status", ["lunas", "selesai"]);
+    if (startDate) qMetodeTrx.whereRaw("DATE(tanggal_transaksi) >= ?", [startDate]);
+    if (endDate) qMetodeTrx.whereRaw("DATE(tanggal_transaksi) <= ?", [endDate]);
+
+    const metodeTrxRows = await qMetodeTrx
+      .select("kode_cabang", DB.raw("LOWER(TRIM(metode_bayar)) as metode"))
+      .sum("total_bayar as nominal")
+      .groupBy("kode_cabang", DB.raw("LOWER(TRIM(metode_bayar))"));
+
+    let qMetodeDp = DB("trx_booking")
+      .whereIn("kode_cabang", branchCodes)
+      .whereIn("dp_status", ["sudah_bayar", "dipotong_treatment", "hangus"]);
+    if (startDate) qMetodeDp.whereRaw("DATE(COALESCE(dp_dibayar_at, created_at)) >= ?", [startDate]);
+    if (endDate) qMetodeDp.whereRaw("DATE(COALESCE(dp_dibayar_at, created_at)) <= ?", [endDate]);
+
+    const metodeDpRows = await qMetodeDp
+      .select("kode_cabang", DB.raw("LOWER(TRIM(metode_pembayaran_dp)) as metode"))
+      .sum("dp_nominal as nominal")
+      .groupBy("kode_cabang", DB.raw("LOWER(TRIM(metode_pembayaran_dp))"));
+
+    const normalizeMethodName = (m) => {
+      const s = (m || "").toLowerCase();
+      if (s.includes("qris")) return "QRIS";
+      if (s.includes("tunai") || s.includes("cash")) return "Tunai";
+      if (s.includes("debit") || s.includes("transfer") || s.includes("bank")) return "Debit";
+      return "Lainnya";
+    };
+
+    const branchMetodeMap = {};
+    branchCodes.forEach((code) => {
+      branchMetodeMap[code] = { Tunai: 0, QRIS: 0, Debit: 0, Lainnya: 0 };
+    });
+
+    [...metodeTrxRows, ...metodeDpRows].forEach((row) => {
+      const code = row.kode_cabang;
+      if (branchMetodeMap[code]) {
+        const cat = normalizeMethodName(row.metode);
+        branchMetodeMap[code][cat] = (branchMetodeMap[code][cat] || 0) + parseFloat(row.nominal || 0);
+      }
+    });
+
+    // 9. Top 5 Treatment per Cabang
+    let qTreatment = DB("trx_detail_antrian_layanan as dal")
+      .join("trx_antrian_layanan as al", "dal.kode_antrian_layanan", "al.kode_antrian_layanan")
+      .whereIn("al.kode_cabang", branchCodes)
+      .whereNotNull("dal.nama_layanan")
+      .where("dal.nama_layanan", "!=", "");
+    if (startDate) qTreatment.whereRaw("DATE(al.created_at) >= ?", [startDate]);
+    if (endDate) qTreatment.whereRaw("DATE(al.created_at) <= ?", [endDate]);
+
+    const treatmentRows = await qTreatment
+      .select("al.kode_cabang", "dal.nama_layanan")
+      .count("dal.id as total_sesi")
+      .groupBy("al.kode_cabang", "dal.nama_layanan")
+      .orderBy(DB.raw("COUNT(dal.id)"), "desc");
+
+    const branchTreatmentMap = {};
+    branchCodes.forEach((code) => {
+      branchTreatmentMap[code] = [];
+    });
+    treatmentRows.forEach((tr) => {
+      const code = tr.kode_cabang;
+      if (branchTreatmentMap[code] && branchTreatmentMap[code].length < 5) {
+        branchTreatmentMap[code].push({
+          nama_layanan: tr.nama_layanan,
+          total_sesi: parseInt(tr.total_sesi || 0, 10),
+        });
+      }
+    });
+
+    // 10. Agregasi Total & Perankingan
+    let totalOmzetAll = 0;
+    let totalPasienAll = 0;
+    let totalKunjunganTodayAll = 0;
+    let totalTransaksiAll = 0;
+    let totalStafAll = 0;
+
+    const branchResults = allBranches.map((b) => {
+      const omzetTrx = trxMap[b.kode_cabang]?.omzet || 0;
+      const omzetDp = dpMap[b.kode_cabang] || 0;
+      const totalOmzet = omzetTrx + omzetDp;
+      const transaksi = trxMap[b.kode_cabang]?.transaksi || 0;
+      const pasien = pasienMap[b.kode_cabang] || 0;
+      const kunjunganToday = kunjunganTodayMap[b.kode_cabang] || 0;
+      const stafInfo = stafMap[b.kode_cabang] || { total_staf: 0, total_dokter: 0, total_beautician: 0 };
+      const hasShift = !!shiftMap[b.kode_cabang];
+
+      totalOmzetAll += totalOmzet;
+      totalPasienAll += pasien;
+      totalKunjunganTodayAll += kunjunganToday;
+      totalTransaksiAll += transaksi;
+      totalStafAll += stafInfo.total_staf;
+
+      return {
+        id: b.id,
+        kode_cabang: b.kode_cabang,
+        nama_cabang: b.nama_cabang,
+        alamat: b.alamat,
+        no_telp: b.no_telp,
+        status: b.status,
+        total_omzet: totalOmzet,
+        total_transaksi: transaksi,
+        total_pasien: pasien,
+        kunjungan_hari_ini: kunjunganToday,
+        total_staf: stafInfo.total_staf,
+        total_dokter: stafInfo.total_dokter,
+        total_beautician: stafInfo.total_beautician,
+        status_shift: hasShift ? "Shift Aktif" : "Tutup",
+        has_active_shift: hasShift,
+        metode_komposisi: branchMetodeMap[b.kode_cabang] || { Tunai: 0, QRIS: 0, Debit: 0 },
+        top_treatments: branchTreatmentMap[b.kode_cabang] || [],
+      };
+    });
+
+    // Hitung persentase kontribusi & perankingan
+    const sortedForRank = [...branchResults].sort((a, b) => b.total_omzet - a.total_omzet);
+    const rankMap = {};
+    sortedForRank.forEach((item, idx) => {
+      rankMap[item.kode_cabang] = idx + 1;
+    });
+
+    const enrichedBranches = branchResults.map((b) => {
+      const pct = totalOmzetAll > 0 ? parseFloat(((b.total_omzet / totalOmzetAll) * 100).toFixed(1)) : 0;
+      const rank = rankMap[b.kode_cabang] || 1;
+      return {
+        ...b,
+        persentase_kontribusi: pct,
+        rank,
+        is_top_performer: rank === 1 && b.total_omzet > 0,
+      };
+    });
+
+    const topBranchObj = enrichedBranches.find((b) => b.is_top_performer) || enrichedBranches[0] || null;
+    const topBranch = topBranchObj?.nama_cabang || "-";
+
+    // Chart Data Preparation
+    const chartLabels = enrichedBranches.map((b) => b.nama_cabang.replace(/^Klinik\s+/i, ""));
+    const chartOmzet = {
+      labels: chartLabels,
+      values: enrichedBranches.map((b) => b.total_omzet),
+    };
+
+    const chartMetode = {
+      labels: chartLabels,
+      datasets: [
+        {
+          label: "Tunai",
+          data: enrichedBranches.map((b) => b.metode_komposisi.Tunai || 0),
+          backgroundColor: "#34d399",
+          borderRadius: 6,
+        },
+        {
+          label: "QRIS",
+          data: enrichedBranches.map((b) => b.metode_komposisi.QRIS || 0),
+          backgroundColor: "#10b981",
+          borderRadius: 6,
+        },
+        {
+          label: "Debit",
+          data: enrichedBranches.map((b) => b.metode_komposisi.Debit || 0),
+          backgroundColor: "#B3873F",
+          borderRadius: 6,
+        },
+      ],
+    };
+
+    return res.status(200).json({
+      status: status.SUKSES,
+      message: "Data perbandingan semua cabang berhasil dimuat",
+      datetime: formatDateSystem(),
+      data: {
+        periode,
+        tanggal_mulai: startDate,
+        tanggal_akhir: endDate,
+        branches: enrichedBranches,
+        cabang: enrichedBranches,
+        summary: {
+          total_cabang: enrichedBranches.length,
+          total_omzet: totalOmzetAll,
+          total_pasien: totalPasienAll,
+          total_kunjungan_hari_ini: totalKunjunganTodayAll,
+          total_transaksi: totalTransaksiAll,
+          total_staf: totalStafAll,
+          top_cabang: topBranchObj ? {
+            kode_cabang: topBranchObj.kode_cabang,
+            nama_cabang: topBranchObj.nama_cabang,
+            omzet: topBranchObj.total_omzet,
+          } : null,
+          top_cabang_nama: topBranch,
+        },
+        chart_omzet: chartOmzet,
+        chart_metode: chartMetode,
+      },
+    });
+  } catch (err) {
+    console.error("PERBANDINGAN_CABANG_ERR:", err);
+    Logging(err, { file: "dashboard_routes.js", func: "perbandingan-cabang", request: oPayload });
+    return res.status(500).json({ status: status.BAD_REQUEST, message: err.message });
+  }
+};
+
+router.get("/perbandingan-cabang", perbandinganCabangHandler);
+router.post("/perbandingan-cabang", perbandinganCabangHandler);
 
 export default router;

@@ -84,6 +84,17 @@ router.post("/", async (req, res) => {
       });
     }
 
+    const hasSuperAdminUser = oDataBefore.some((u) =>
+      ["superadmin"].includes(String(u.role).toLowerCase()) || u.user_code === "USR000000"
+    );
+    if (hasSuperAdminUser) {
+      return res.status(403).json({
+        status: status.GAGAL,
+        message: "Akun Superadmin terkunci permanen dan tidak dapat dihapus",
+        datetime: formatDateSystem(),
+      });
+    }
+
     const currentRole = (req.auth?.role || "").toLowerCase();
     const hasProtectedUser = oDataBefore.some((u) =>
       ["superadmin", "owner", "manager"].includes(String(u.role).toLowerCase())

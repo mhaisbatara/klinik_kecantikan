@@ -98,6 +98,7 @@ export default function KasirPage() {
   // State shift & schedule kasir
   const [isAccessAllowed, setIsAccessAllowed] = useState(true);
   const [isShiftOpen, setIsShiftOpen] = useState(false);
+  const [activeShift, setActiveShift] = useState<any>(null);
   const [shiftRefreshKey, setShiftRefreshKey] = useState(0);
 
   // State sidebar
@@ -130,9 +131,14 @@ export default function KasirPage() {
     total_diskon?: number;
   } | null>(null);
 
-  const handleShiftStateChange = useCallback((allowed: boolean, isOpen: boolean) => {
+  const handleShiftStateChange = useCallback((allowed: boolean, isOpen: boolean, shiftData?: any) => {
     setIsAccessAllowed((prev) => (prev !== allowed ? allowed : prev));
     setIsShiftOpen((prev) => (prev !== isOpen ? isOpen : prev));
+    if (shiftData !== undefined) {
+      setActiveShift(shiftData);
+    } else if (!isOpen) {
+      setActiveShift(null);
+    }
   }, []);
 
   const refreshList = useCallback(() => {
@@ -330,6 +336,7 @@ export default function KasirPage() {
             onNewTrx={handleNewTrx}
             onListChange={handleListChange}
             isShiftOpen={isShiftOpen}
+            activeShift={activeShift}
           />
         </div>
 

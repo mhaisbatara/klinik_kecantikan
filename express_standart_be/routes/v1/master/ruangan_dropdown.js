@@ -35,6 +35,7 @@ const handleRuanganDropdown = async (req, res) => {
         "r.kode_ruangan",
         "r.nama_ruangan",
         "r.is_konsultasi",
+        "r.kode_cabang",
         DB.raw(`(
           SELECT COUNT(*) 
           FROM mst_jadwal_karyawan j 

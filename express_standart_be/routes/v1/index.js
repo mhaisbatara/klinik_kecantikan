@@ -23,6 +23,7 @@ import Contoh from "./contoh/index.js";
 import Function from "./components/index.js";
 import Master from "./master/index.js";
 import Transaksi from "./transaksi/index.js";
+import Dashboard from "./master/dashboard/dashboard_routes.js";
 
 import {
   contextMiddleware,
@@ -47,6 +48,13 @@ router.use(
   "/master",
   [validateAccessToken, contextMiddleware],
   Master
+);
+
+// Dashboard (Direct alias)
+router.use(
+  "/dashboard",
+  [validateAccessToken, contextMiddleware],
+  Dashboard
 );
 
 // Transaksi
