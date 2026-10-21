@@ -472,13 +472,23 @@ export default function ManajemenUserPage() {
   const [selectedTindakanRooms, setSelectedTindakanRooms] = useState<Set<string>>(new Set());
   const [selectedKonsulRooms, setSelectedKonsulRooms] = useState<Set<string>>(new Set());
 
+  // Filter ruangan per cabang sesuai cabang aktif dari akun pengguna
+  const activeBranchCode = useMemo(() => {
+    return formData.kode_cabang || session?.user?.kode_cabang || branchOptions.find((b) => b.value)?.value || 'CBG-001';
+  }, [formData.kode_cabang, session?.user?.kode_cabang, branchOptions]);
+
+  const branchRuanganList = useMemo(() => {
+    if (!activeBranchCode) return ruanganList;
+    return ruanganList.filter((r) => r.kode_cabang === activeBranchCode);
+  }, [ruanganList, activeBranchCode]);
+
   const tindakanRooms = useMemo(
-    () => ruanganList.filter((r) => !r.is_konsultasi || r.is_konsultasi === 0),
-    [ruanganList]
+    () => branchRuanganList.filter((r) => !r.is_konsultasi || r.is_konsultasi === 0),
+    [branchRuanganList]
   );
   const konsulRooms = useMemo(
-    () => ruanganList.filter((r) => r.is_konsultasi === 1),
-    [ruanganList]
+    () => branchRuanganList.filter((r) => r.is_konsultasi === 1),
+    [branchRuanganList]
   );
 
   const fetchBranches = async () => {
@@ -510,13 +520,24 @@ export default function ManajemenUserPage() {
     } catch (_) {}
   };
 
-  const fetchRuangan = async () => {
+  const fetchRuangan = async (targetCabang?: string | null): Promise<any[]> => {
     try {
-      const res = await postData('/master/ruangan-dropdown', {});
+      const branchToUse = targetCabang || formData.kode_cabang || session?.user?.kode_cabang || 'CBG-001';
+      const payload: any = {};
+      if (branchToUse) {
+        payload.kode_cabang = branchToUse;
+      }
+      const res = await postData('/master/ruangan-dropdown', payload);
       if (res?.data?.data) {
-        setRuanganList(res.data.data || []);
+        const mapped = (res.data.data || []).map((r: any) => ({
+          ...r,
+          kode_cabang: r.kode_cabang || branchToUse,
+        }));
+        setRuanganList(mapped);
+        return mapped;
       }
     } catch (_) {}
+    return [];
   };
 
   const fetchUsers = async () => {
@@ -560,7 +581,7 @@ export default function ManajemenUserPage() {
     fetchUsers();
   }, [page, rows, keyword, selectedRole, selectedCabang]);
 
-  const handleSelectKaryawan = (kodeKaryawan: string | null) => {
+  const handleSelectKaryawan = async (kodeKaryawan: string | null) => {
     setSelectedKaryawanId(kodeKaryawan);
     if (!kodeKaryawan) return;
     const emp = karyawanList.find((k) => k.kode_karyawan === kodeKaryawan);
@@ -586,6 +607,8 @@ export default function ManajemenUserPage() {
 
     const empEmail = emp.email || `${(emp.nama || 'staf').toLowerCase().replace(/[^a-z0-9]/g, '.')}@klinik.com`;
 
+    const targetCabang = emp.kode_cabang || formData.kode_cabang || session?.user?.kode_cabang || 'CBG-001';
+
     setFormData((prev: any) => ({
       ...prev,
       fullname: emp.nama || '',
@@ -593,8 +616,13 @@ export default function ManajemenUserPage() {
       telp: emp.no_hp || '',
       role: mappedRole,
       kode_karyawan: emp.kode_karyawan,
-      kode_cabang: emp.kode_cabang || prev.kode_cabang,
+      kode_cabang: targetCabang,
     }));
+
+    const branchRooms = await fetchRuangan(targetCabang);
+    const roomsToUse = branchRooms && branchRooms.length > 0 ? branchRooms : ruanganList.filter((r: any) => r.kode_cabang === targetCabang);
+    const empTindakan = roomsToUse.filter((r: any) => !r.is_konsultasi || r.is_konsultasi === 0);
+    const empKonsul = roomsToUse.filter((r: any) => r.is_konsultasi === 1);
 
     if (mappedRole === 'superadmin') {
       const all = new Set<string>();
@@ -602,45 +630,50 @@ export default function ManajemenUserPage() {
         cat.items.forEach((it) => all.add(it.to));
       });
       setSelectedPermissions(all);
-      setSelectedTindakanRooms(new Set(tindakanRooms.map((r) => r.kode_ruangan)));
-      setSelectedKonsulRooms(new Set(konsulRooms.map((r) => r.kode_ruangan)));
+      setSelectedTindakanRooms(new Set(empTindakan.map((r: any) => r.kode_ruangan)));
+      setSelectedKonsulRooms(new Set(empKonsul.map((r: any) => r.kode_ruangan)));
     } else {
       const preset = ROLE_PRESET_PATHS[mappedRole] || (mappedRole === 'manager' ? ROLE_PRESET_PATHS['owner'] : []);
       setSelectedPermissions(new Set(preset));
 
       if (mappedRole === 'beautician' || mappedRole === 'dokter') {
-        setSelectedTindakanRooms(new Set(tindakanRooms.map((r) => r.kode_ruangan)));
+        setSelectedTindakanRooms(new Set(empTindakan.map((r: any) => r.kode_ruangan)));
       } else {
         setSelectedTindakanRooms(new Set());
       }
       if (mappedRole === 'dokter') {
-        setSelectedKonsulRooms(new Set(konsulRooms.map((r) => r.kode_ruangan)));
+        setSelectedKonsulRooms(new Set(empKonsul.map((r: any) => r.kode_ruangan)));
       } else {
         setSelectedKonsulRooms(new Set());
       }
     }
   };
 
-  const handleOpenCreate = () => {
+  const handleOpenCreate = async () => {
     setIsEdit(false);
     setActiveTab(0);
     setSelectedKaryawanId(null);
     const defaultRole = isSuperAdmin ? 'owner' : 'beautician';
+    const initialCabang = session?.user?.kode_cabang || branchOptions.find((b) => b.value)?.value || 'CBG-001';
     setFormData({
       user_code: '',
       fullname: '',
       username: '',
       telp: '',
       role: defaultRole,
-      kode_cabang: session?.user?.kode_cabang || null,
+      kode_cabang: initialCabang,
       password: '',
       status: '1',
       kode_karyawan: null,
     });
     const preset = ROLE_PRESET_PATHS[defaultRole] || [];
     setSelectedPermissions(new Set(preset));
-    setSelectedTindakanRooms(new Set(tindakanRooms.map((r) => r.kode_ruangan)));
-    setSelectedKonsulRooms(new Set(konsulRooms.map((r) => r.kode_ruangan)));
+    const branchRooms = await fetchRuangan(initialCabang);
+    const roomsToUse = branchRooms && branchRooms.length > 0 ? branchRooms : ruanganList.filter((r: any) => r.kode_cabang === initialCabang);
+    const initialTindakan = roomsToUse.filter((r: any) => !r.is_konsultasi || r.is_konsultasi === 0);
+    const initialKonsul = roomsToUse.filter((r: any) => r.is_konsultasi === 1);
+    setSelectedTindakanRooms(new Set(initialTindakan.map((r: any) => r.kode_ruangan)));
+    setSelectedKonsulRooms(new Set(initialKonsul.map((r: any) => r.kode_ruangan)));
     setPermissionFilter('');
     setShowModal(true);
   };
@@ -659,13 +692,15 @@ export default function ManajemenUserPage() {
     );
     setSelectedKaryawanId(matchedKaryawan ? matchedKaryawan.kode_karyawan : null);
 
+    const userCabang = u.kode_cabang || session?.user?.kode_cabang || branchOptions.find((b) => b.value)?.value || 'CBG-001';
+
     setFormData({
       user_code: u.user_code,
       fullname: u.fullname || '',
       username: u.username || '',
       telp: u.telp || '',
       role: u.role || 'beautician',
-      kode_cabang: u.kode_cabang || null,
+      kode_cabang: userCabang,
       password: '',
       status: String(u.status) === '1' || u.status === 1 ? '1' : '0',
       kode_karyawan: matchedKaryawan ? matchedKaryawan.kode_karyawan : null,
@@ -673,6 +708,24 @@ export default function ManajemenUserPage() {
     setPermissionFilter('');
     setShowModal(true);
     setLoadingPermissions(true);
+
+    const branchRooms = await fetchRuangan(userCabang);
+    const roomsToUse = branchRooms && branchRooms.length > 0 ? branchRooms : ruanganList.filter((r: any) => r.kode_cabang === userCabang);
+    const targetBranchTindakan = roomsToUse.filter((r: any) => !r.is_konsultasi || r.is_konsultasi === 0);
+    const targetBranchKonsul = roomsToUse.filter((r: any) => r.is_konsultasi === 1);
+
+    // Jika akun adalah Superadmin: Hak akses otomatis terkunci penuh tanpa bisa diubah-ubah
+    if (String(u.role || '').toLowerCase() === 'superadmin' || u.user_code === 'USR000000') {
+      const allPaths = new Set<string>();
+      AVAILABLE_MODULE_CATEGORIES.forEach((cat) => {
+        cat.items.forEach((it) => allPaths.add(it.to));
+      });
+      setSelectedPermissions(allPaths);
+      setSelectedTindakanRooms(new Set(targetBranchTindakan.map((r: any) => r.kode_ruangan)));
+      setSelectedKonsulRooms(new Set(targetBranchKonsul.map((r: any) => r.kode_ruangan)));
+      setLoadingPermissions(false);
+      return;
+    }
 
     try {
       const resNav = await postData('/setup/nav/user-data', { user_code: u.user_code });
@@ -728,27 +781,39 @@ export default function ManajemenUserPage() {
         setSelectedPermissions(paths);
 
         if (hasTindakanConfig && loadedTindakanRooms.size > 0) {
-          setSelectedTindakanRooms(loadedTindakanRooms);
+          const branchTindakanCodes = new Set(targetBranchTindakan.map((r: any) => r.kode_ruangan));
+          const validLoadedTindakan = new Set(
+            Array.from(loadedTindakanRooms).filter((code) => branchTindakanCodes.has(code))
+          );
+          setSelectedTindakanRooms(
+            validLoadedTindakan.size > 0 ? validLoadedTindakan : new Set(targetBranchTindakan.map((r: any) => r.kode_ruangan))
+          );
         } else {
-          setSelectedTindakanRooms(new Set(tindakanRooms.map((r) => r.kode_ruangan)));
+          setSelectedTindakanRooms(new Set(targetBranchTindakan.map((r: any) => r.kode_ruangan)));
         }
 
         if (hasKonsulConfig && loadedKonsulRooms.size > 0) {
-          setSelectedKonsulRooms(loadedKonsulRooms);
+          const branchKonsulCodes = new Set(targetBranchKonsul.map((r: any) => r.kode_ruangan));
+          const validLoadedKonsul = new Set(
+            Array.from(loadedKonsulRooms).filter((code) => branchKonsulCodes.has(code))
+          );
+          setSelectedKonsulRooms(
+            validLoadedKonsul.size > 0 ? validLoadedKonsul : new Set(targetBranchKonsul.map((r: any) => r.kode_ruangan))
+          );
         } else {
-          setSelectedKonsulRooms(new Set(konsulRooms.map((r) => r.kode_ruangan)));
+          setSelectedKonsulRooms(new Set(targetBranchKonsul.map((r: any) => r.kode_ruangan)));
         }
       } else {
         const defaultPaths = ROLE_PRESET_PATHS[u.role] || [];
         setSelectedPermissions(new Set(defaultPaths));
-        setSelectedTindakanRooms(new Set(tindakanRooms.map((r) => r.kode_ruangan)));
-        setSelectedKonsulRooms(new Set(konsulRooms.map((r) => r.kode_ruangan)));
+        setSelectedTindakanRooms(new Set(targetBranchTindakan.map((r: any) => r.kode_ruangan)));
+        setSelectedKonsulRooms(new Set(targetBranchKonsul.map((r: any) => r.kode_ruangan)));
       }
     } catch (_) {
       const defaultPaths = ROLE_PRESET_PATHS[u.role] || [];
       setSelectedPermissions(new Set(defaultPaths));
-      setSelectedTindakanRooms(new Set(tindakanRooms.map((r) => r.kode_ruangan)));
-      setSelectedKonsulRooms(new Set(konsulRooms.map((r) => r.kode_ruangan)));
+      setSelectedTindakanRooms(new Set(targetBranchTindakan.map((r: any) => r.kode_ruangan)));
+      setSelectedKonsulRooms(new Set(targetBranchKonsul.map((r: any) => r.kode_ruangan)));
     } finally {
       setLoadingPermissions(false);
     }
@@ -939,6 +1004,15 @@ export default function ManajemenUserPage() {
 
     setFormLoading(true);
     try {
+      if (formData.role === 'superadmin' || formData.user_code === 'USR000000') {
+        const allPaths = new Set<string>();
+        AVAILABLE_MODULE_CATEGORIES.forEach((cat) => {
+          cat.items.forEach((it) => allPaths.add(it.to));
+        });
+        selectedPermissions.clear();
+        allPaths.forEach((p) => selectedPermissions.add(p));
+      }
+
       const customMenu = buildMenuFromSelectedPaths(
         selectedPermissions,
         selectedTindakanRooms,
@@ -1015,11 +1089,19 @@ export default function ManajemenUserPage() {
 
   const handleDelete = (codes: string[], names?: string) => {
     const targetUsers = users.filter((u) => codes.includes(u.user_code));
+    const hasSuperAdminUser = targetUsers.some((u) =>
+      ['superadmin'].includes(String(u.role || '').toLowerCase()) || u.user_code === 'USR000000'
+    );
+    if (hasSuperAdminUser) {
+      showError(toast, 'Akun Superadmin terkunci permanen dan tidak dapat dihapus.');
+      return;
+    }
+
     const hasProtectedUser = targetUsers.some((u) =>
-      ['superadmin', 'owner', 'manager'].includes(String(u.role || '').toLowerCase())
+      ['owner', 'manager'].includes(String(u.role || '').toLowerCase())
     );
     if (!isSuperAdmin && hasProtectedUser) {
-      showError(toast, 'Akses ditolak: Hanya Superadmin yang berhak menghapus akun Superadmin atau Owner/Manager.');
+      showError(toast, 'Akses ditolak: Hanya Superadmin yang berhak menghapus akun Owner/Manager.');
       return;
     }
 
@@ -1049,6 +1131,8 @@ export default function ManajemenUserPage() {
       },
     });
   };
+
+  const isFormSuperAdmin = formData.role === 'superadmin' || formData.user_code === 'USR000000';
 
   return (
     <div className="w-full">
@@ -1133,7 +1217,9 @@ export default function ManajemenUserPage() {
           onSelectionChange={(e: any) => setSelectedRows(e.value)}
           dataKey="user_code"
           isDataSelectable={(e) =>
-            isSuperAdmin || !['superadmin', 'owner', 'manager'].includes(String(e.data.role || '').toLowerCase())
+            String(e.data.role || '').toLowerCase() !== 'superadmin' &&
+            e.data.user_code !== 'USR000000' &&
+            (isSuperAdmin || !['owner', 'manager'].includes(String(e.data.role || '').toLowerCase()))
           }
           className="p-datatable-sm"
           emptyMessage="Data pengguna tidak ditemukan."
@@ -1286,9 +1372,10 @@ export default function ManajemenUserPage() {
             align="center"
             headerStyle={{ width: '8rem', textAlign: 'center', fontWeight: 'bold' }}
             body={(r: UserRecord) => {
-              const isTargetProtected = ['superadmin', 'owner', 'manager'].includes(String(r.role || '').toLowerCase());
+              const isSuperAdminAccount = String(r.role || '').toLowerCase() === 'superadmin' || r.user_code === 'USR000000';
+              const isTargetProtected = ['owner', 'manager'].includes(String(r.role || '').toLowerCase());
               const canEdit = isSuperAdmin || !isTargetProtected;
-              const canDelete = isSuperAdmin || !isTargetProtected;
+              const canDelete = !isSuperAdminAccount && (isSuperAdmin || !isTargetProtected);
 
               return (
                 <div className="flex align-items-center justify-content-center gap-2">
@@ -1297,7 +1384,13 @@ export default function ManajemenUserPage() {
                     outlined
                     severity={canEdit ? 'success' : 'secondary'}
                     className="p-button-sm border-round-md"
-                    tooltip={canEdit ? 'Edit Pengguna & Hak Akses' : 'Hanya Superadmin yang dapat mengedit akun ini'}
+                    tooltip={
+                      isSuperAdminAccount
+                        ? 'Edit Profil Pengguna (Hak Akses Terkunci)'
+                        : canEdit
+                        ? 'Edit Pengguna & Hak Akses'
+                        : 'Hanya Superadmin yang dapat mengedit akun ini'
+                    }
                     tooltipOptions={{ position: 'top' }}
                     disabled={!canEdit}
                     onClick={() => canEdit && handleOpenEdit(r)}
@@ -1307,7 +1400,13 @@ export default function ManajemenUserPage() {
                     outlined
                     severity={canDelete ? 'danger' : 'secondary'}
                     className="p-button-sm border-round-md"
-                    tooltip={canDelete ? 'Hapus Pengguna' : 'Hanya Superadmin yang dapat menghapus akun ini'}
+                    tooltip={
+                      isSuperAdminAccount
+                        ? 'Akun Superadmin terkunci permanen dan tidak dapat dihapus'
+                        : canDelete
+                        ? 'Hapus Pengguna'
+                        : 'Hanya Superadmin yang dapat menghapus akun ini'
+                    }
                     tooltipOptions={{ position: 'top' }}
                     disabled={!canDelete}
                     onClick={() => canDelete && handleDelete([r.user_code], `${r.fullname} (${r.username})`)}
@@ -1342,12 +1441,16 @@ export default function ManajemenUserPage() {
         onHide={() => setShowModal(false)}
         footer={
           <div className="flex justify-content-between align-items-center pt-2 border-top-1 surface-border">
-            <div className="text-xs text-600 font-medium flex align-items-center gap-2">
-              <i className="pi pi-shield text-purple-600" />
-              <span>
-                Total modul aktif: <strong className="text-purple-700">{selectedPermissions.size} modul</strong> terpilih
-              </span>
-            </div>
+            {!isFormSuperAdmin ? (
+              <div className="text-xs text-600 font-medium flex align-items-center gap-2">
+                <i className="pi pi-shield text-purple-600" />
+                <span>
+                  Total modul aktif: <strong className="text-purple-700">{selectedPermissions.size} modul</strong> terpilih
+                </span>
+              </div>
+            ) : (
+              <div />
+            )}
             <div className="flex gap-2">
               <Button
                 label="Batal"
@@ -1457,7 +1560,11 @@ export default function ManajemenUserPage() {
                     onChange={(e) => handleRoleChange(e.value)}
                     placeholder="Pilih Role Operasional"
                     className="w-full text-sm"
+                    disabled={isEdit && (formData.role === 'superadmin' || formData.user_code === 'USR000000')}
                   />
+                  {isEdit && (formData.role === 'superadmin' || formData.user_code === 'USR000000') && (
+                    <small className="text-teal-700 font-medium mt-1 block">Role Superadmin terkunci permanen.</small>
+                  )}
                 </div>
 
                 <div className="col-12 md:col-6 field mb-3">
@@ -1465,11 +1572,25 @@ export default function ManajemenUserPage() {
                   <Dropdown
                     value={formData.kode_cabang}
                     options={branchOptions.filter((b) => b.value !== null)}
-                    onChange={(e) => setFormData({ ...formData, kode_cabang: e.value })}
+                    onChange={async (e) => {
+                      const newCabang = e.value;
+                      setFormData((prev: any) => ({ ...prev, kode_cabang: newCabang }));
+                      if (newCabang) {
+                        const branchRooms = await fetchRuangan(newCabang);
+                        const roomsToUse = branchRooms && branchRooms.length > 0 ? branchRooms : ruanganList.filter((r: any) => r.kode_cabang === newCabang);
+                        const newTindakan = roomsToUse.filter((r: any) => !r.is_konsultasi || r.is_konsultasi === 0);
+                        const newKonsul = roomsToUse.filter((r: any) => r.is_konsultasi === 1);
+                        setSelectedTindakanRooms(new Set(newTindakan.map((r: any) => r.kode_ruangan)));
+                        setSelectedKonsulRooms(new Set(newKonsul.map((r: any) => r.kode_ruangan)));
+                      }
+                    }}
                     placeholder="Pusat / Semua Cabang"
                     className="w-full text-sm"
-                    disabled={!isSuperAdmin && Boolean(session?.user?.kode_cabang)}
+                    disabled={formData.role === 'superadmin' || formData.user_code === 'USR000000' || (!isSuperAdmin && Boolean(session?.user?.kode_cabang))}
                   />
+                  {(formData.role === 'superadmin' || formData.user_code === 'USR000000') && (
+                    <small className="text-teal-700 font-medium mt-1 block">Superadmin memiliki akses pusat ke seluruh cabang.</small>
+                  )}
                   {!isSuperAdmin && session?.user?.kode_cabang && (
                     <small className="text-500 mt-1 block">Terikat otomatis pada cabang Anda.</small>
                   )}
@@ -1500,25 +1621,55 @@ export default function ManajemenUserPage() {
                 </div>
               </div>
 
-              {/* Tombol Navigasi ke Tab Hak Akses */}
-              <div className="flex justify-content-end mt-3 pt-2 border-top-1 surface-border">
-                <Button
-                  type="button"
-                  label="Lanjut ke Hak Akses & Menu Modul"
-                  icon="pi pi-arrow-right"
-                  iconPos="right"
-                  outlined
-                  severity="success"
-                  className="text-sm font-medium"
-                  onClick={() => setActiveTab(1)}
-                />
-              </div>
+              {/* Tombol Navigasi ke Tab Hak Akses (Hanya untuk non-superadmin) */}
+              {!isFormSuperAdmin && (
+                <div className="flex justify-content-end mt-3 pt-2 border-top-1 surface-border">
+                  <Button
+                    type="button"
+                    label="Lanjut ke Hak Akses & Menu Modul"
+                    icon="pi pi-arrow-right"
+                    iconPos="right"
+                    outlined
+                    severity="success"
+                    className="text-sm font-medium"
+                    onClick={() => setActiveTab(1)}
+                  />
+                </div>
+              )}
             </div>
           </TabPanel>
 
-          {/* TAB 2: HAK AKSES & MENU OPERASIONAL */}
-          <TabPanel header="Hak Akses & Menu Operasional" leftIcon="pi pi-shield mr-2">
+          {/* TAB 2: HAK AKSES & MENU OPERASIONAL (Hanya untuk non-superadmin) */}
+          {!isFormSuperAdmin && (
+            <TabPanel header="Hak Akses & Menu Operasional" leftIcon="pi pi-shield mr-2">
             <div className="p-1">
+              {/* Banner Hak Akses Terkunci jika akun Superadmin */}
+              {(formData.role === 'superadmin' || formData.user_code === 'USR000000') && (
+                <div className="surface-50 border-1 border-teal-200 border-round-lg p-3 mb-3 flex align-items-center gap-3">
+                  <div
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '8px',
+                      backgroundColor: '#ccfbf1',
+                      color: '#0f766e',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <i className="pi pi-lock text-lg" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-sm text-teal-900">Hak Akses Superadmin Terkunci Permanen</div>
+                    <div className="text-xs text-600 mt-0.5">
+                      Akun Superadmin memiliki hak akses permanen dan tidak dapat diubah-ubah. Seluruh fitur dan menu sistem aktif penuh tanpa batasan.
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Header Action Bar */}
               <div className="flex flex-column sm:flex-row justify-content-between align-items-stretch sm:align-items-center gap-2 mb-3 pb-2 border-bottom-1 surface-border">
                 <IconField iconPosition="left" className="w-full sm:w-20rem">
@@ -1541,6 +1692,7 @@ export default function ManajemenUserPage() {
                     severity="info"
                     className="text-xs py-1.5 px-2.5 border-round-md"
                     onClick={applyPreset}
+                    disabled={formData.role === 'superadmin' || formData.user_code === 'USR000000'}
                     tooltip={`Terapkan preset rekomendasi untuk role ${formData.role}`}
                     tooltipOptions={{ position: 'bottom' }}
                   />
@@ -1553,6 +1705,7 @@ export default function ManajemenUserPage() {
                     severity="success"
                     className="text-xs py-1.5 px-2.5 border-round-md"
                     onClick={selectAllPermissions}
+                    disabled={formData.role === 'superadmin' || formData.user_code === 'USR000000'}
                   />
                   <Button
                     type="button"
@@ -1563,6 +1716,7 @@ export default function ManajemenUserPage() {
                     severity="secondary"
                     className="text-xs py-1.5 px-2.5 border-round-md"
                     onClick={deselectAllPermissions}
+                    disabled={formData.role === 'superadmin' || formData.user_code === 'USR000000'}
                   />
                 </div>
               </div>
@@ -1601,12 +1755,13 @@ export default function ManajemenUserPage() {
                         {/* Header Kategori */}
                         <div className="flex align-items-center justify-content-between mb-2 pb-2 border-bottom-1 surface-border">
                           <div
-                            className="flex align-items-center gap-2 cursor-pointer select-none"
-                            onClick={() => toggleCategory(cat)}
+                            className={`flex align-items-center gap-2 ${(formData.role === 'superadmin' || formData.user_code === 'USR000000') ? 'opacity-80' : 'cursor-pointer'} select-none`}
+                            onClick={() => !(formData.role === 'superadmin' || formData.user_code === 'USR000000') && toggleCategory(cat)}
                           >
                             <Checkbox
-                              checked={isCatAllChecked}
+                              checked={isCatAllChecked || formData.role === 'superadmin' || formData.user_code === 'USR000000'}
                               readOnly
+                              disabled={formData.role === 'superadmin' || formData.user_code === 'USR000000'}
                               className="pointer-events-none"
                             />
                             <span className="font-bold text-sm text-900 flex align-items-center gap-2">
@@ -1615,14 +1770,15 @@ export default function ManajemenUserPage() {
                             </span>
                           </div>
                           <span className="text-xs text-500 font-semibold bg-white px-2 py-0.5 border-round border-1 surface-border">
-                            {checkedCount}/{cat.items.length} Modul Aktif
+                            {(formData.role === 'superadmin' || formData.user_code === 'USR000000') ? `${cat.items.length}/${cat.items.length} Modul Aktif` : `${checkedCount}/${cat.items.length} Modul Aktif`}
                           </span>
                         </div>
 
                         {/* Items dalam Kategori */}
                         <div className="flex flex-column gap-2">
                           {filteredItems.map((item) => {
-                            const isChecked = selectedPermissions.has(item.to);
+                            const isSuperAdminAccount = formData.role === 'superadmin' || formData.user_code === 'USR000000';
+                            const isChecked = selectedPermissions.has(item.to) || isSuperAdminAccount;
                             const isTindakanModule = item.to.includes('type=layanan');
                             const isKonsulModule = item.to.includes('type=konsul');
 
@@ -1636,17 +1792,18 @@ export default function ManajemenUserPage() {
                                 }`}
                               >
                                 <div
-                                  className="p-3 flex align-items-start gap-3 cursor-pointer select-none"
-                                  onClick={() => togglePermission(item.to)}
+                                  className={`p-3 flex align-items-start gap-3 ${isSuperAdminAccount ? 'opacity-90' : 'cursor-pointer'} select-none`}
+                                  onClick={() => !isSuperAdminAccount && togglePermission(item.to)}
                                 >
                                   <Checkbox
                                     checked={isChecked}
                                     readOnly
+                                    disabled={isSuperAdminAccount}
                                     className="mt-0.5 pointer-events-none"
                                   />
                                   <div className="flex-1">
                                     <div
-                                      className={`text-sm font-semibold cursor-pointer block ${
+                                      className={`text-sm font-semibold ${isSuperAdminAccount ? '' : 'cursor-pointer'} block ${
                                         isChecked ? 'text-purple-900' : 'text-800'
                                       }`}
                                     >
@@ -1670,7 +1827,7 @@ export default function ManajemenUserPage() {
                                             Akses Ruangan Tindakan
                                           </span>
                                           <span className="text-xs px-2 py-0.5 border-round-md font-semibold bg-purple-200/80 text-purple-900">
-                                            {selectedTindakanRooms.size}/{tindakanRooms.length} aktif
+                                            {tindakanRooms.filter((r) => selectedTindakanRooms.has(r.kode_ruangan)).length}/{tindakanRooms.length} aktif
                                           </span>
                                         </div>
                                         <div className="flex align-items-center gap-1.5">
@@ -1680,8 +1837,10 @@ export default function ManajemenUserPage() {
                                             text
                                             label="Pilih Semua"
                                             icon="pi pi-check"
+                                            disabled={isSuperAdminAccount}
                                             className="px-2 py-1 text-xs text-purple-700 font-bold hover:bg-purple-100 border-round-md"
                                             onClick={() =>
+                                              !isSuperAdminAccount &&
                                               setSelectedTindakanRooms(new Set(tindakanRooms.map((r) => r.kode_ruangan)))
                                             }
                                           />
@@ -1693,56 +1852,93 @@ export default function ManajemenUserPage() {
                                             label="Kosongkan"
                                             icon="pi pi-times"
                                             className="px-2 py-1 text-xs text-red-500 font-bold hover:bg-red-50 border-round-md"
-                                            onClick={() => setSelectedTindakanRooms(new Set())}
+                                            disabled={isSuperAdminAccount}
+                                            onClick={() => !isSuperAdminAccount && setSelectedTindakanRooms(new Set())}
                                           />
                                         </div>
                                       </div>
-                                      <div
-                                        className="w-full"
-                                        style={{
-                                          display: 'grid',
-                                          gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))',
-                                          gap: '10px',
-                                        }}
-                                      >
-                                        {tindakanRooms.map((room) => {
-                                          const isRoomChecked = selectedTindakanRooms.has(room.kode_ruangan);
-                                          return (
-                                            <div
-                                              key={room.kode_ruangan}
-                                              onClick={() => {
-                                                const next = new Set(selectedTindakanRooms);
-                                                if (isRoomChecked) next.delete(room.kode_ruangan);
-                                                else next.add(room.kode_ruangan);
-                                                setSelectedTindakanRooms(next);
-                                              }}
-                                              className={`cursor-pointer px-3 py-2.5 border-round-lg flex align-items-center gap-2.5 border-1 transition-all select-none ${
-                                                isRoomChecked
-                                                  ? 'bg-purple-100 border-purple-400 text-purple-950 font-semibold shadow-1'
-                                                  : 'bg-white border-200 text-700 hover:bg-purple-50/50 hover:border-purple-300'
-                                              }`}
-                                            >
-                                              <i
-                                                className={`pi ${
-                                                  isRoomChecked ? 'pi-check-circle text-purple-600' : 'pi-circle text-400'
-                                                } text-base flex-shrink-0`}
-                                              />
-                                              <span
-                                                className={`font-mono font-bold text-xs px-2 py-1 border-round flex-shrink-0 ${
+                                      {tindakanRooms.length === 0 ? (
+                                        <div className="text-xs text-500 italic p-3 text-center bg-white border-round-lg border-1 surface-border">
+                                          Tidak ada ruangan tindakan pada cabang ini.
+                                        </div>
+                                      ) : (
+                                        <div
+                                          className="w-full"
+                                          style={{
+                                            display: 'grid',
+                                            gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))',
+                                            gap: '10px',
+                                          }}
+                                        >
+                                          {tindakanRooms.map((room) => {
+                                            const isRoomChecked = selectedTindakanRooms.has(room.kode_ruangan);
+                                            return (
+                                              <div
+                                                key={room.kode_ruangan}
+                                                onClick={() => {
+                                                  if (isSuperAdminAccount) return;
+                                                  const next = new Set(selectedTindakanRooms);
+                                                  if (isRoomChecked) next.delete(room.kode_ruangan);
+                                                  else next.add(room.kode_ruangan);
+                                                  setSelectedTindakanRooms(next);
+                                                }}
+                                                className={`cursor-pointer py-2.5 pl-4 pr-3 border-round-xl flex align-items-center gap-3 border-1 transition-all select-none ${
                                                   isRoomChecked
-                                                    ? 'bg-purple-200 text-purple-900 border-1 border-purple-300'
-                                                    : 'bg-surface-200 text-600 border-1 border-200'
+                                                    ? 'shadow-xs'
+                                                    : 'hover:border-purple-300 hover:bg-purple-50/20'
                                                 }`}
+                                                style={{
+                                                  borderColor: isRoomChecked ? '#7c3aed' : '#cbd5e1',
+                                                  backgroundColor: isRoomChecked ? '#fbf9ff' : '#ffffff',
+                                                  minHeight: '58px',
+                                                }}
                                               >
-                                                {room.kode_ruangan}
-                                              </span>
-                                              <span className="text-sm font-medium white-space-nowrap overflow-hidden text-overflow-ellipsis flex-1">
-                                                {room.nama_ruangan}
-                                              </span>
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
+                                                {isRoomChecked ? (
+                                                  <div
+                                                    className="flex align-items-center justify-content-center flex-shrink-0"
+                                                    style={{
+                                                      width: '22px',
+                                                      height: '22px',
+                                                      borderRadius: '6px',
+                                                      backgroundColor: '#7c3aed',
+                                                      marginLeft: '6px',
+                                                    }}
+                                                  >
+                                                    <i className="pi pi-check text-white" style={{ fontSize: '11px', fontWeight: 'bold' }} />
+                                                  </div>
+                                                ) : (
+                                                  <div
+                                                    className="flex-shrink-0"
+                                                    style={{
+                                                      width: '22px',
+                                                      height: '22px',
+                                                      borderRadius: '6px',
+                                                      border: '2px solid #cbd5e1',
+                                                      backgroundColor: 'transparent',
+                                                      marginLeft: '6px',
+                                                    }}
+                                                  />
+                                                )}
+                                                <div className="flex flex-column overflow-hidden flex-1" style={{ minWidth: 0 }}>
+                                                  <span
+                                                    className="font-bold text-sm text-900 white-space-nowrap overflow-hidden text-overflow-ellipsis"
+                                                    title={room.nama_ruangan}
+                                                    style={{ lineHeight: '1.25' }}
+                                                  >
+                                                    {room.nama_ruangan}
+                                                  </span>
+                                                  <span
+                                                    className="text-xs text-500 mt-1 font-medium tracking-wide white-space-nowrap overflow-hidden text-overflow-ellipsis"
+                                                    style={{ lineHeight: '1' }}
+                                                  >
+                                                    {room.kode_ruangan}
+                                                  </span>
+                                                </div>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
                                     </div>
                                   </div>
                                 )}
@@ -1761,7 +1957,7 @@ export default function ManajemenUserPage() {
                                             Akses Ruangan Konsultasi
                                           </span>
                                           <span className="text-xs px-2 py-0.5 border-round-md font-semibold bg-purple-200/80 text-purple-900">
-                                            {selectedKonsulRooms.size}/{konsulRooms.length} aktif
+                                            {konsulRooms.filter((r) => selectedKonsulRooms.has(r.kode_ruangan)).length}/{konsulRooms.length} aktif
                                           </span>
                                         </div>
                                         <div className="flex align-items-center gap-1.5">
@@ -1788,52 +1984,88 @@ export default function ManajemenUserPage() {
                                           />
                                         </div>
                                       </div>
-                                      <div
-                                        className="w-full"
-                                        style={{
-                                          display: 'grid',
-                                          gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))',
-                                          gap: '10px',
-                                        }}
-                                      >
-                                        {konsulRooms.map((room) => {
-                                          const isRoomChecked = selectedKonsulRooms.has(room.kode_ruangan);
-                                          return (
-                                            <div
-                                              key={room.kode_ruangan}
-                                              onClick={() => {
-                                                const next = new Set(selectedKonsulRooms);
-                                                if (isRoomChecked) next.delete(room.kode_ruangan);
-                                                else next.add(room.kode_ruangan);
-                                                setSelectedKonsulRooms(next);
-                                              }}
-                                              className={`cursor-pointer px-3 py-2.5 border-round-lg flex align-items-center gap-2.5 border-1 transition-all select-none ${
-                                                isRoomChecked
-                                                  ? 'bg-purple-100 border-purple-400 text-purple-950 font-semibold shadow-1'
-                                                  : 'bg-white border-200 text-700 hover:bg-purple-50/50 hover:border-purple-300'
-                                              }`}
-                                            >
-                                              <i
-                                                className={`pi ${
-                                                  isRoomChecked ? 'pi-check-circle text-purple-600' : 'pi-circle text-400'
-                                                } text-base flex-shrink-0`}
-                                              />
-                                              <span
-                                                className={`font-mono font-bold text-xs px-2 py-1 border-round flex-shrink-0 ${
+                                      {konsulRooms.length === 0 ? (
+                                        <div className="text-xs text-500 italic p-3 text-center bg-white border-round-lg border-1 surface-border">
+                                          Tidak ada ruangan konsultasi pada cabang ini.
+                                        </div>
+                                      ) : (
+                                        <div
+                                          className="w-full"
+                                          style={{
+                                            display: 'grid',
+                                            gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))',
+                                            gap: '10px',
+                                          }}
+                                        >
+                                          {konsulRooms.map((room) => {
+                                            const isRoomChecked = selectedKonsulRooms.has(room.kode_ruangan);
+                                            return (
+                                              <div
+                                                key={room.kode_ruangan}
+                                                onClick={() => {
+                                                  if (isSuperAdminAccount) return;
+                                                  const next = new Set(selectedKonsulRooms);
+                                                  if (isRoomChecked) next.delete(room.kode_ruangan);
+                                                  else next.add(room.kode_ruangan);
+                                                  setSelectedKonsulRooms(next);
+                                                }}
+                                                className={`cursor-pointer py-2.5 pl-4 pr-3 border-round-xl flex align-items-center gap-3 border-1 transition-all select-none ${
                                                   isRoomChecked
-                                                    ? 'bg-purple-200 text-purple-900 border-1 border-purple-300'
-                                                    : 'bg-surface-200 text-600 border-1 border-200'
+                                                    ? 'shadow-xs'
+                                                    : 'hover:border-purple-300 hover:bg-purple-50/20'
                                                 }`}
+                                                style={{
+                                                  borderColor: isRoomChecked ? '#7c3aed' : '#cbd5e1',
+                                                  backgroundColor: isRoomChecked ? '#fbf9ff' : '#ffffff',
+                                                  minHeight: '58px',
+                                                }}
                                               >
-                                                {room.kode_ruangan}
-                                              </span>
-                                              <span className="text-sm font-medium white-space-nowrap overflow-hidden text-overflow-ellipsis flex-1">
-                                                {room.nama_ruangan}
-                                              </span>
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
+                                                {isRoomChecked ? (
+                                                  <div
+                                                    className="flex align-items-center justify-content-center flex-shrink-0"
+                                                    style={{
+                                                      width: '22px',
+                                                      height: '22px',
+                                                      borderRadius: '6px',
+                                                      backgroundColor: '#7c3aed',
+                                                      marginLeft: '6px',
+                                                    }}
+                                                  >
+                                                    <i className="pi pi-check text-white" style={{ fontSize: '11px', fontWeight: 'bold' }} />
+                                                  </div>
+                                                ) : (
+                                                  <div
+                                                    className="flex-shrink-0"
+                                                    style={{
+                                                      width: '22px',
+                                                      height: '22px',
+                                                      borderRadius: '6px',
+                                                      border: '2px solid #cbd5e1',
+                                                      backgroundColor: 'transparent',
+                                                      marginLeft: '6px',
+                                                    }}
+                                                  />
+                                                )}
+                                                <div className="flex flex-column overflow-hidden flex-1" style={{ minWidth: 0 }}>
+                                                  <span
+                                                    className="font-bold text-sm text-900 white-space-nowrap overflow-hidden text-overflow-ellipsis"
+                                                    title={room.nama_ruangan}
+                                                    style={{ lineHeight: '1.25' }}
+                                                  >
+                                                    {room.nama_ruangan}
+                                                  </span>
+                                                  <span
+                                                    className="text-xs text-500 mt-1 font-medium tracking-wide white-space-nowrap overflow-hidden text-overflow-ellipsis"
+                                                    style={{ lineHeight: '1' }}
+                                                  >
+                                                    {room.kode_ruangan}
+                                                  </span>
+                                                </div>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
                                     </div>
                                   </div>
                                 )}
@@ -1848,6 +2080,7 @@ export default function ManajemenUserPage() {
               )}
             </div>
           </TabPanel>
+          )}
         </TabView>
       </Dialog>
     </div>

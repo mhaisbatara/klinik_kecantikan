@@ -30,43 +30,60 @@ export const PaymentDonutPanel: React.FC<PaymentDonutPanelProps> = ({
           { metode_bayar: 'Tunai', nominal: 200000 },
         ];
 
-  const calculatedTotal = rawList.reduce(
-    (acc, cur) => acc + (parseFloat(String(cur.nominal || cur.amount || 0)) || 0),
+  const getMethodStyle = (name: string, idx: number) => {
+    const n = (name || '').toUpperCase();
+    if (n.includes('QRIS')) {
+      return { color: '#10b981', label: 'QRIS', order: 1 }; // Primary Emerald
+    }
+    if (n.includes('DEBIT') || n.includes('TRANSFER')) {
+      return { color: '#B3873F', label: 'Debit', order: 2 }; // Amber Gold
+    }
+    if (n.includes('TUNAI') || n.includes('CASH')) {
+      return { color: '#34d399', label: 'Tunai', order: 3 }; // Light Emerald Green
+    }
+    const fallbacks = ['#10b981', '#B3873F', '#34d399', '#059669', '#6366f1'];
+    return { color: fallbacks[idx % fallbacks.length], label: name, order: 4 };
+  };
+
+  // Merge identical payment methods (e.g. Tunai/Cash or multiple Debit entries)
+  const mergedMap = new Map<string, { metode_bayar: string; nominal: number; color: string; label: string; order: number }>();
+  rawList.forEach((item, idx) => {
+    const nominal = parseFloat(String(item.nominal || item.amount || 0)) || 0;
+    const style = getMethodStyle(item.metode_bayar || 'TUNAI', idx);
+    const existing = mergedMap.get(style.label);
+    if (existing) {
+      existing.nominal += nominal;
+    } else {
+      mergedMap.set(style.label, {
+        metode_bayar: item.metode_bayar,
+        nominal,
+        color: style.color,
+        label: style.label,
+        order: style.order,
+      });
+    }
+  });
+
+  const mergedList = Array.from(mergedMap.values()).sort((a, b) => a.order - b.order || b.nominal - a.nominal);
+
+  const calculatedTotal = mergedList.reduce(
+    (acc, cur) => acc + cur.nominal,
     0
   );
 
   const finalTotal = calculatedTotal > 0 ? calculatedTotal : totalOmzet || 8205000;
 
-  const getMethodStyle = (name: string, idx: number) => {
-    const n = name.toUpperCase();
-    if (n.includes('QRIS')) {
-      return { color: '#10b981', label: 'QRIS' }; // Primary Emerald
-    }
-    if (n.includes('DEBIT') || n.includes('TRANSFER')) {
-      return { color: '#B3873F', label: 'Debit' }; // Amber Gold
-    }
-    if (n.includes('TUNAI') || n.includes('CASH')) {
-      return { color: '#34d399', label: 'Tunai' }; // Light Emerald Green
-    }
-    const fallbacks = ['#10b981', '#B3873F', '#34d399', '#059669'];
-    return { color: fallbacks[idx % fallbacks.length], label: name };
-  };
-
-  const parsedItems = rawList.map((item, idx) => {
-    const nominal = parseFloat(String(item.nominal || item.amount || 0));
+  const parsedItems = mergedList.map((item) => {
     const realPct =
-      item.pct !== undefined
-        ? item.pct
-        : finalTotal > 0
-        ? Math.round((nominal / finalTotal) * 100)
+      finalTotal > 0
+        ? Math.round((item.nominal / finalTotal) * 100)
         : 0;
-    const style = getMethodStyle(item.metode_bayar || 'TUNAI', idx);
     return {
-      ...item,
-      nominal,
+      metode_bayar: item.metode_bayar,
+      nominal: item.nominal,
       realPct,
-      color: style.color,
-      displayName: style.label,
+      color: item.color,
+      displayName: item.label,
     };
   });
 

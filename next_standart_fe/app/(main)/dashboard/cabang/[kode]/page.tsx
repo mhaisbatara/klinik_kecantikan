@@ -10,6 +10,7 @@ import { showError } from '@/lib/tools/generalTools';
 import { formatRupiah } from '@/app/(main)/dashboard/components/RevenueHero';
 import PaymentDonutPanel from '@/app/(main)/dashboard/components/PaymentDonutPanel';
 import TopTreatmentsPanel from '@/app/(main)/dashboard/components/TopTreatmentsPanel';
+import BranchActivityFeed from '@/app/(main)/dashboard/components/BranchActivityFeed';
 
 interface PageProps {
   params: Promise<{ kode: string }>;
@@ -34,8 +35,15 @@ export default function DashboardCabangDetail({ params }: PageProps) {
 
   const [loading, setLoading] = useState<boolean>(true);
   const [data, setData] = useState<any>(null);
-  const [activeFilter, setActiveFilter] = useState<'all' | 'transaksi' | 'kunjungan' | 'booking'>('all');
   const [autoRefresh, setAutoRefresh] = useState<boolean>(true);
+  const [lastUpdated, setLastUpdated] = useState<string>('');
+
+  const formatCurrentTime = () => {
+    const now = new Date();
+    return (
+      now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).replace(/\./g, ':') + ' WIB'
+    );
+  };
 
   const userRole = (session?.user?.role || '').toLowerCase();
   const isSuperAdmin = userRole === 'superadmin' || userRole === 'admin_pusat';
@@ -48,6 +56,10 @@ export default function DashboardCabangDetail({ params }: PageProps) {
     }
   }, [authStatus, isSuperAdmin, router]);
 
+  useEffect(() => {
+    setLastUpdated(formatCurrentTime());
+  }, []);
+
   // 2. Fetch Data Aktivitas & Metrik Cabang dari Backend
   const fetchCabangDetail = async () => {
     setLoading(true);
@@ -59,6 +71,7 @@ export default function DashboardCabangDetail({ params }: PageProps) {
 
       if (['00', '0000', 200].includes(res?.data?.status) || res?.status === 200) {
         setData(res?.data?.data || null);
+        setLastUpdated(formatCurrentTime());
       } else {
         showError(toast, res?.data?.message || 'Gagal memuat detail dashboard cabang');
       }
@@ -87,7 +100,7 @@ export default function DashboardCabangDetail({ params }: PageProps) {
   // Loading skeleton screen
   if (authStatus === 'loading' || (loading && !data)) {
     return (
-      <div className="clinic-dashboard w-full" style={{ backgroundColor: '#FFFFFF', padding: '24px' }}>
+      <div className="clinic-dashboard w-full" style={{ backgroundColor: '#FFFFFF', padding: '0 24px 24px 24px' }}>
         <div className="flex justify-content-between align-items-center mb-4">
           <Skeleton width="320px" height="32px" />
           <Skeleton width="220px" height="36px" />
@@ -140,11 +153,6 @@ export default function DashboardCabangDetail({ params }: PageProps) {
   const allActivities = data?.activities || [];
   const activeShift = data?.active_shift || null;
 
-  const filteredActivities = allActivities.filter((act: any) => {
-    if (activeFilter === 'all') return true;
-    return act.kategori === activeFilter;
-  });
-
   const paymentDataFormatted = (data?.metode_bayar || []).map((m: any) => ({
     metode_bayar: m.metode_bayar,
     nominal: parseFloat(m.total || 0),
@@ -160,121 +168,74 @@ export default function DashboardCabangDetail({ params }: PageProps) {
       className="clinic-dashboard w-full"
       style={{
         backgroundColor: '#FFFFFF',
-        padding: '24px',
+        padding: '0 24px 24px 24px',
       }}
     >
       <Toast ref={toast} />
 
       {/* ─── 1. TOPBAR & CABANG SELECTOR ─── */}
       <div
-        className="flex flex-column lg:flex-row justify-content-between align-items-start lg:align-items-center gap-3"
-        style={{ marginBottom: '24px' }}
+        className="card border-round-xl border-1 surface-border bg-white shadow-1 flex flex-column lg:flex-row justify-content-between align-items-start lg:align-items-center mb-4"
+        style={{
+          padding: '16px 22px',
+          gap: '16px',
+        }}
       >
-        <div>
-          <div className="flex flex-wrap align-items-center gap-2 mb-1.5">
-            <span className="clinic-pill clinic-pill-emerald">
-              <i className="pi pi-building text-xs mr-1.5" />
-              Monitoring Cabang Superadmin
-            </span>
-            <span className="clinic-pill clinic-pill-gold font-bold">
-              {cabang.kode_cabang || kodeCabang}
-            </span>
-            <span
-              className={`clinic-pill ${
-                cabang.status === 'tidak_aktif'
-                  ? 'bg-red-50 text-red-700 border-1 border-red-200'
-                  : 'clinic-pill-emerald'
-              }`}
-            >
-              <span
-                className="w-1.5 h-1.5 border-circle mr-1.5"
-                style={{
-                  backgroundColor: cabang.status === 'tidak_aktif' ? '#ef4444' : '#10b981',
-                }}
-              />
-              {cabang.status ? String(cabang.status).toUpperCase() : 'AKTIF'}
-            </span>
-          </div>
-
-          <h1 className="text-2xl md:text-3xl font-bold text-900 m-0 tracking-tight">
+        {/* Kolom Kiri: Detail Cabang */}
+        <div className="flex flex-column min-w-0">
+          {/* Judul Cabang */}
+          <h1 className="text-2xl md:text-3xl font-bold text-900 m-0 tracking-tight text-overflow-ellipsis overflow-hidden white-space-nowrap">
             {cabang.nama_cabang || (kodeCabang === 'CBG-001' ? 'Klinik Cabang Utama' : 'Klinik Cabang Surabaya')}
           </h1>
 
-          <p
-            className="text-xs md:text-sm m-0 mt-1.5 flex flex-wrap align-items-center gap-2.5"
+          {/* Meta Info: Alamat (Jalan), Telp, PJ */}
+          <div
+            className="flex flex-wrap align-items-center gap-3 text-xs md:text-sm m-0 mt-1"
             style={{ color: '#6F7A74' }}
           >
-            <span className="flex align-items-center">
-              <i className="pi pi-map-marker text-xs mr-1" style={{ color: 'var(--primary-color, #10b981)' }} />
-              {cabang.alamat || 'Alamat cabang'}
+            <span className="flex align-items-center gap-1.5">
+              <i className="pi pi-map-marker text-sm" style={{ color: '#066F47' }} />
+              <span>{cabang.alamat || 'Alamat cabang'}</span>
             </span>
-            <span>•</span>
-            <span className="flex align-items-center">
-              <i className="pi pi-phone text-xs mr-1" style={{ color: 'var(--primary-color, #10b981)' }} />
-              {cabang.no_telp || '-'}
+            <span className="flex align-items-center gap-1.5">
+              <i className="pi pi-phone text-sm" style={{ color: '#066F47' }} />
+              <span>{cabang.no_telp || '-'}</span>
             </span>
-            <span>•</span>
-            <span className="flex align-items-center">
-              <i className="pi pi-user text-xs mr-1" style={{ color: 'var(--primary-color, #10b981)' }} />
-              PJ: <strong className="ml-1" style={{ color: '#202A26' }}>{cabang.pj_manager || managers[0]?.fullname || 'Manager Cabang'}</strong>
+            <span className="flex align-items-center gap-1.5">
+              <i className="pi pi-user text-sm" style={{ color: '#066F47' }} />
+              <span>
+                PJ: <strong style={{ color: '#202A26', fontWeight: 700 }}>{cabang.pj_manager || managers[0]?.fullname || 'Manager Cabang'}</strong>
+              </span>
             </span>
-          </p>
+          </div>
         </div>
 
-        {/* Action Controls & Branch Switcher */}
-        <div className="flex flex-wrap align-items-center gap-2">
-          {/* Segmented Switcher for Cabang */}
-          <div
-            className="flex p-1 border-round-lg"
-            style={{
-              backgroundColor: '#F3F4F6',
-              border: '1px solid #E5E7EB',
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => router.push('/dashboard')}
-              className="text-xs font-semibold px-3 py-1.5 border-round-md transition-all border-none cursor-pointer flex align-items-center gap-1.5"
-              style={{
-                backgroundColor: 'transparent',
-                color: '#6F7A74',
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.color = '#202A26'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = '#6F7A74'; }}
-              title="Dashboard Konsolidasi Kantor Pusat"
-            >
-              <i className="pi pi-home text-xs" />
-              <span>Kantor Pusat</span>
-            </button>
-            {allCabang.map((c: any) => {
-              const isSelected = c.kode_cabang === kodeCabang;
-              return (
-                <button
-                  key={c.kode_cabang}
-                  type="button"
-                  onClick={() => router.push(`/dashboard/cabang/${c.kode_cabang}`)}
-                  className="text-xs font-semibold px-3 py-1.5 border-round-md transition-all border-none cursor-pointer flex align-items-center gap-1.5"
-                  style={{
-                    backgroundColor: isSelected ? '#FFFFFF' : 'transparent',
-                    color: isSelected ? 'var(--primary-700, #047857)' : '#6F7A74',
-                    fontWeight: isSelected ? 700 : 500,
-                    boxShadow: isSelected ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-                  }}
-                >
-                  <i className="pi pi-building text-xs" />
-                  <span>{c.nama_cabang.replace(/^Klinik\s+/i, '')}</span>
-                </button>
-              );
-            })}
-          </div>
-
+        {/* Kolom Kanan: Tombol Refresh */}
+        <div className="flex align-items-center gap-2 flex-shrink-0">
+          {/* Tombol Refresh */}
           <button
             type="button"
-            className="btn-icon-clinic"
             title="Segarkan data aktivitas cabang"
             onClick={fetchCabangDetail}
+            style={{
+              width: '38px',
+              height: '38px',
+              borderRadius: '10px',
+              backgroundColor: '#FFFFFF',
+              border: '1px solid #DDE8E3',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+            }}
+            className="hover:surface-100"
           >
-            <i className={`pi pi-refresh text-xs ${loading ? 'pi-spin' : ''}`} />
+            <i
+              className={`pi pi-refresh text-xs ${loading ? 'pi-spin' : ''}`}
+              style={{ color: '#066F47' }}
+            />
           </button>
         </div>
       </div>
@@ -518,187 +479,11 @@ export default function DashboardCabangDetail({ params }: PageProps) {
       </div>
 
       {/* ─── 4. LIVE TRACKING SELURUH AKTIVITAS CABANG (REAL-TIME FEED) ─── */}
-      <div
-        className="clinic-panel bg-white"
-        style={{ padding: '24px', marginBottom: '24px' }}
-      >
-        <div className="flex flex-column md:flex-row justify-content-between align-items-start md:align-items-center gap-3 mb-4 pb-3 border-bottom-1 surface-border">
-          <div>
-            <div className="flex align-items-center gap-2 mb-1">
-              <span
-                style={{
-                  width: '8px',
-                  height: '8px',
-                  borderRadius: '50%',
-                  backgroundColor: '#10b981',
-                  boxShadow: '0 0 0 3px rgba(16, 185, 129, 0.2)',
-                  display: 'inline-block',
-                }}
-              />
-              <h2 className="clinic-card-title text-base font-bold text-900 m-0">
-                Tracking Seluruh Aktivitas Cabang
-              </h2>
-              <span className="clinic-pill clinic-pill-emerald ml-1">
-                Live Feed
-              </span>
-            </div>
-            <p className="text-xs m-0" style={{ color: '#6F7A74' }}>
-              Monitoring real-time transaksi kasir, kunjungan pasien &amp; reservasi booking di {cabang.nama_cabang || 'cabang ini'}
-            </p>
-          </div>
-
-          {/* Segmented Filter Pills */}
-          <div
-            className="flex p-1 border-round-lg"
-            style={{
-              backgroundColor: '#F3F4F6',
-              border: '1px solid #E5E7EB',
-            }}
-          >
-            {[
-              { id: 'all', label: `Semua (${allActivities.length})` },
-              { id: 'transaksi', label: 'Transaksi' },
-              { id: 'kunjungan', label: 'Kunjungan' },
-              { id: 'booking', label: 'Booking' },
-            ].map((tab) => {
-              const isTabActive = activeFilter === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveFilter(tab.id as any)}
-                  className="text-xs font-semibold px-3 py-1.5 border-round-md transition-all border-none cursor-pointer"
-                  style={{
-                    backgroundColor: isTabActive ? '#FFFFFF' : 'transparent',
-                    color: isTabActive ? 'var(--primary-700, #047857)' : '#6F7A74',
-                    fontWeight: isTabActive ? 700 : 500,
-                    boxShadow: isTabActive ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-                  }}
-                >
-                  {tab.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Activity Timeline List */}
-        {filteredActivities.length === 0 ? (
-          <div className="text-center py-6">
-            <div
-              className="w-3rem h-3rem border-round-circle mx-auto flex align-items-center justify-content-center mb-3"
-              style={{ backgroundColor: '#F3F4F6', color: '#9AA39D' }}
-            >
-              <i className="pi pi-inbox text-xl" />
-            </div>
-            <h4 className="text-sm font-semibold text-800 m-0 mb-1">Belum Ada Aktivitas</h4>
-            <p className="text-xs text-500 m-0">Belum ada aktivitas tercatat pada kategori ini di cabang.</p>
-          </div>
-        ) : (
-          <div
-            className="flex flex-column gap-2 overflow-y-auto pr-1"
-            style={{ maxHeight: '420px' }}
-          >
-            {filteredActivities.map((act: any) => {
-              let iconName = 'pi-clock';
-              let iconColor = '#6F7A74';
-              let iconBg = '#F3F4F6';
-              let pillClass = 'clinic-pill-emerald';
-
-              if (act.kategori === 'transaksi') {
-                iconName = 'pi-wallet';
-                iconColor = '#047857';
-                iconBg = '#ECFDF5';
-                pillClass = 'clinic-pill-emerald';
-              } else if (act.kategori === 'kunjungan') {
-                iconName = 'pi-user-check';
-                iconColor = '#1D4ED8';
-                iconBg = '#EFF6FF';
-                pillClass = 'clinic-pill-role-perawat';
-              } else if (act.kategori === 'booking') {
-                iconName = 'pi-calendar';
-                iconColor = '#6D28D9';
-                iconBg = '#F5F3FF';
-                pillClass = 'clinic-pill-role-terapis';
-              }
-
-              const formattedTime = act.waktu
-                ? new Date(act.waktu).toLocaleString('id-ID', {
-                    day: 'numeric',
-                    month: 'short',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })
-                : '-';
-
-              return (
-                <div
-                  key={act.id}
-                  className="clinic-table-row flex align-items-center justify-content-between p-3 border-round-lg transition-all"
-                  style={{
-                    border: '1px solid #F1F5F9',
-                    backgroundColor: '#FAFCFB',
-                  }}
-                >
-                  <div className="flex align-items-center gap-3">
-                    <div
-                      className="border-round-lg flex align-items-center justify-content-center flex-shrink-0"
-                      style={{
-                        width: '38px',
-                        height: '38px',
-                        backgroundColor: iconBg,
-                        color: iconColor,
-                      }}
-                    >
-                      <i className={`pi ${iconName} text-base`} />
-                    </div>
-                    <div>
-                      <div className="flex align-items-center gap-2 mb-1">
-                        <span className="font-bold text-xs" style={{ color: '#202A26' }}>
-                          {act.judul}
-                        </span>
-                        <span className={pillClass} style={{ height: '20px', fontSize: '10px', padding: '2px 8px' }}>
-                          {act.badge}
-                        </span>
-                      </div>
-                      <p className="text-xs m-0" style={{ color: '#6F7A74' }}>
-                        {act.deskripsi}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="text-right flex flex-column align-items-end flex-shrink-0 pl-3">
-                    <span className="text-xs font-semibold tabular-nums" style={{ color: '#202A26' }}>
-                      {formattedTime} WIB
-                    </span>
-                    <span
-                      className="text-xs font-medium capitalize mt-1 inline-flex align-items-center gap-1"
-                      style={{
-                        color: ['lunas', 'selesai', 'aktif'].includes(String(act.status).toLowerCase())
-                          ? '#047857'
-                          : '#B3873F',
-                      }}
-                    >
-                      <span
-                        style={{
-                          width: '5px',
-                          height: '5px',
-                          borderRadius: '50%',
-                          backgroundColor: ['lunas', 'selesai', 'aktif'].includes(String(act.status).toLowerCase())
-                            ? '#10b981'
-                            : '#f59e0b',
-                        }}
-                      />
-                      {act.status}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      <BranchActivityFeed
+        activities={allActivities}
+        subtitle={`Monitoring real-time transaksi kasir, kunjungan pasien & reservasi booking di ${cabang.nama_cabang || 'Klinik Cabang Utama'}`}
+        loading={loading}
+      />
 
       {/* ─── 5. DUA PANEL: TIM MEDIS/STAF & KETERSEDIAAN RUANGAN ─── */}
       <div className="clinic-two-col-grid">
@@ -780,7 +565,10 @@ export default function DashboardCabangDetail({ params }: PageProps) {
                       </div>
 
                       <div className="col-3 p-0 text-center">
-                        <span className={pillRole}>
+                        <span
+                          className={`clinic-pill ${pillRole}`}
+                          style={{ fontSize: '10px', height: '20px', padding: '2px 8px' }}
+                        >
                           {s.jabatan || 'Staf'}
                         </span>
                       </div>

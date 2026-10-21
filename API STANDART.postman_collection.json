@@ -158,6 +158,51 @@
 					"body": "{\n    \"status\": \"00\",\n    \"message\": \"Data ditemukan\",\n    \"datetime\": \"2026-01-05 15:39:26\",\n    \"data\": [\n        {\n            \"label\": \"HOME\",\n            \"items\": [\n                {\n                    \"label\": \"Dashboard\",\n                    \"icon\": \"pi pi-fw pi-home\",\n                    \"to\": \"/dashboard\"\n                }\n            ]\n        },\n        {\n            \"label\": \"SETUP\",\n            \"items\": [\n                {\n                    \"label\": \"Users\",\n                    \"icon\": \"pi pi-fw pi-users\",\n                    \"to\": \"/setup/users\"\n                },\n                {\n                    \"label\": \"Config\",\n                    \"icon\": \"pi pi-fw pi-wrench\",\n                    \"to\": \"/setup/config\"\n                }\n            ]\n        }\n    ]\n}"
 				}
 			]
+		},
+		{
+			"name": "DASHBOARD PERBANDINGAN CABANG",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "X-Timestamp",
+						"value": "{{Timestamp}}",
+						"type": "text"
+					},
+					{
+						"key": "X-UniqueId",
+						"value": "{{UniqueId}}",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n   \"role\": \"superadmin\",\r\n   \"periode\": \"today\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{URL}}v1/dashboard/perbandingan-cabang?periode=today",
+					"host": [
+						"{{URL}}v1"
+					],
+					"path": [
+						"dashboard",
+						"perbandingan-cabang"
+					],
+					"query": [
+						{
+							"key": "periode",
+							"value": "today",
+							"description": "Pilihan: today | 7d | 30d | this_month | all"
+						}
+					]
+				}
+			},
+			"response": []
 		}
 	],
 	"event": [
