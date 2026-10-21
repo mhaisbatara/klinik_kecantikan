@@ -46,6 +46,7 @@ router.post("/", async (req, res) => {
         "b.dp_nominal as booking_dp_nominal",
         "b.dp_status as booking_dp_status",
         "b.metode_pembayaran_dp as booking_metode_dp",
+        "b.bukti_dp as booking_bukti_dp",
         "pr.nama as nama_promo",
         "pr.jenis_diskon",
         "pr.nilai_diskon as nilai_diskon_promo"
@@ -72,6 +73,7 @@ router.post("/", async (req, res) => {
 
     trx.dp_nominal = resolvedDpNominal;
     trx.metode_pembayaran_dp = resolvedMetodeDp;
+    trx.bukti_dp = trx.booking_bukti_dp || null;
     trx.sisa_bayar = resolvedSisaBayar;
 
     if (isBookingDpDraft) {

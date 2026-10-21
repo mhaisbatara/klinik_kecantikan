@@ -5,6 +5,7 @@ import { sendSuccess, sendError } from "../../../utils/response.js";
 import { status } from "../../../utils/general.js";
 import { formatDateSystem } from "../../../utils/date_tools.js";
 import { authenticateMobile } from "../../../middleware/auth_middleware.js";
+import { upload } from "../../../middleware/upload_middleware.js";
 
 const router = express.Router();
 
@@ -107,9 +108,26 @@ router.get("/slots", async (req, res) => {
  * POST /api/v1/booking/create
  * Membuat Transaksi Booking Reservasi Appointment dari Aplikasi Mobile Pasien
  */
-router.post("/create", authenticateMobile, async (req, res) => {
-  const body = req.body || {};
+router.post("/create", authenticateMobile, upload.single("bukti_dp"), async (req, res) => {
+  let body = { ...(req.body || {}) };
   const user = req.auth;
+
+  // Handle items jika dikirimkan sebagai string JSON dari multipart form-data
+  if (typeof body.items === "string") {
+    try {
+      body.items = JSON.parse(body.items);
+    } catch (_) {
+      body.items = [];
+    }
+  }
+
+  // Handle upload bukti DP
+  let buktiDpUrl = null;
+  if (req.file) {
+    buktiDpUrl = `/uploads/${req.file.filename}`;
+  } else if (body.bukti_dp) {
+    buktiDpUrl = body.bukti_dp;
+  }
 
   // Pasien yang login: ambil no_rm dari auth atau dari request body
   const noRm = user.no_rm || body.no_rm;
@@ -139,6 +157,7 @@ router.post("/create", authenticateMobile, async (req, res) => {
     catatan_pasien: Joi.string().allow("", null).label("Keluhan / Catatan"),
     metode_pembayaran_dp: Joi.string().allow("", null).default("transfer").label("Metode DP"),
     kode_cabang: Joi.string().allow("", null).default("CBG-001"),
+    bukti_dp: Joi.string().allow("", null).optional().label("Bukti DP"),
   });
 
   const { error, value } = schema.validate(body);
@@ -245,6 +264,7 @@ router.post("/create", authenticateMobile, async (req, res) => {
         dp_nominal: dpNominal,
         dp_status: "belum_bayar",
         metode_pembayaran_dp: value.metode_pembayaran_dp || "transfer",
+        bukti_dp: buktiDpUrl,
         catatan_pasien: value.catatan_pasien || null,
         sumber: "mobile",
         tz: process.env.APP_TZ || "Asia/Jakarta",
@@ -285,6 +305,8 @@ router.post("/create", authenticateMobile, async (req, res) => {
         dp_nominal: dpNominal,
         status: "dikonfirmasi",
         dp_status: "belum_bayar",
+        metode_pembayaran_dp: value.metode_pembayaran_dp || "transfer",
+        bukti_dp: buktiDpUrl,
         items: bookingItems,
       };
     });
@@ -338,6 +360,8 @@ router.get("/history", authenticateMobile, async (req, res) => {
       "b.status",
       "b.dp_status",
       "b.dp_nominal",
+      "b.metode_pembayaran_dp",
+      "b.bukti_dp",
       "b.catatan_pasien",
       "b.sumber",
       "k.nama as nama_dokter",

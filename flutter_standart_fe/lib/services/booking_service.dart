@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
+import 'package:image_picker/image_picker.dart';
 import '../core/constants/api_constants.dart';
 import 'auth_service.dart';
 
@@ -65,9 +67,65 @@ class BookingService {
     List<Map<String, dynamic>>? items,
     String? catatan,
     String? metodeDp,
+    XFile? buktiDpFile,
   }) async {
     try {
       final token = await AuthService.getToken();
+
+      if (buktiDpFile != null) {
+        final request = http.MultipartRequest('POST', Uri.parse('${ApiConstants.booking}/create'));
+        if (token != null) request.headers['Authorization'] = 'Bearer $token';
+        request.headers['Accept'] = 'application/json';
+
+        request.fields['kode_jadwal'] = kodeJadwal;
+        request.fields['tanggal_booking'] = tanggalBooking;
+        request.fields['jam_booking'] = jamBooking;
+        if (kodeLayanan != null) {
+          request.fields['kode_layanan'] = kodeLayanan;
+        } else if (items?.isNotEmpty == true) {
+          request.fields['kode_layanan'] = items!.first['kode_layanan']?.toString() ?? '';
+        }
+        if (items != null && items.isNotEmpty) {
+          request.fields['items'] = jsonEncode(items);
+        }
+        if (catatan != null && catatan.isNotEmpty) {
+          request.fields['catatan_pasien'] = catatan;
+        }
+        request.fields['metode_pembayaran_dp'] = metodeDp ?? 'transfer';
+
+        final bytes = await buktiDpFile.readAsBytes();
+        final rawExt = buktiDpFile.name.contains('.') ? buktiDpFile.name.split('.').last.toLowerCase() : 'jpg';
+        MediaType contentType;
+        if (rawExt == 'png') {
+          contentType = MediaType('image', 'png');
+        } else if (rawExt == 'webp') {
+          contentType = MediaType('image', 'webp');
+        } else {
+          contentType = MediaType('image', 'jpeg');
+        }
+
+        final multipartFile = http.MultipartFile.fromBytes(
+          'bukti_dp',
+          bytes,
+          filename: buktiDpFile.name.isNotEmpty ? buktiDpFile.name : 'bukti_dp.jpg',
+          contentType: contentType,
+        );
+        request.files.add(multipartFile);
+
+        final streamedResponse = await request.send().timeout(const Duration(seconds: 25));
+        final response = await http.Response.fromStream(streamedResponse);
+        final data = jsonDecode(response.body);
+        if ((response.statusCode == 200 || response.statusCode == 201) &&
+            data['status'] == '00') {
+          return {'success': true, 'message': data['message'], 'data': data['data']};
+        } else {
+          return {
+            'success': false,
+            'message': data['message'] ?? 'Gagal membuat reservasi',
+          };
+        }
+      }
+
       final response = await http.post(
         Uri.parse('${ApiConstants.booking}/create'),
         headers: {

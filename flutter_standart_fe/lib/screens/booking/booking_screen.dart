@@ -1,5 +1,7 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../core/constants/colors.dart';
 import '../../core/constants/api_constants.dart';
 import '../../services/auth_service.dart';
@@ -39,6 +41,43 @@ class _BookingScreenState extends State<BookingScreen> {
   // DP & Metode Pembayaran
   String _metodeDp = 'transfer'; // 'transfer' | 'qris'
   bool _persetujuanDp = false;
+  XFile? _buktiDpImage;
+  Uint8List? _buktiDpBytes;
+  final ImagePicker _picker = ImagePicker();
+
+  Future<void> _pickBuktiDp(ImageSource source) async {
+    try {
+      final picked = await _picker.pickImage(
+        source: source,
+        imageQuality: 85,
+        maxWidth: 1200,
+        maxHeight: 1200,
+      );
+      if (picked != null) {
+        final bytes = await picked.readAsBytes();
+        setState(() {
+          _buktiDpImage = picked;
+          _buktiDpBytes = bytes;
+        });
+      }
+    } catch (e) {
+      if (e.toString().contains('MissingPluginException')) {
+        _showToast(
+          'Plugin gambar belum terdaftar pada server yang sedang berjalan. Silakan stop (Ctrl+C) lalu jalankan ulang "flutter run".',
+          isError: true,
+        );
+      } else {
+        _showToast('Gagal memilih gambar: $e', isError: true);
+      }
+    }
+  }
+
+  void _removeBuktiDp() {
+    setState(() {
+      _buktiDpImage = null;
+      _buktiDpBytes = null;
+    });
+  }
 
   // Catatan Keluhan
   final _catatanCtrl = TextEditingController();
@@ -369,6 +408,10 @@ class _BookingScreenState extends State<BookingScreen> {
       _showToast('Centang persetujuan uang muka (DP 20%) untuk melanjutkan', isError: true);
       return;
     }
+    if (_dpNominal > 0 && _buktiDpImage == null) {
+      _showToast('Silakan upload bukti pembayaran DP terlebih dahulu', isError: true);
+      return;
+    }
 
     final dateStr =
         "${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}";
@@ -392,6 +435,7 @@ class _BookingScreenState extends State<BookingScreen> {
       items: formattedItems,
       catatan: _catatanCtrl.text.trim(),
       metodeDp: _metodeDp,
+      buktiDpFile: _buktiDpImage,
     );
 
     if (!mounted) return;
@@ -492,6 +536,8 @@ class _BookingScreenState extends State<BookingScreen> {
                     _strukRow('Uang Muka (DP 20%)', _formatRupiah(data?['dp_nominal'] ?? _dpNominal), color: AppColors.primaryDark),
                     _strukRow('Sisa di Kasir (80%)', _formatRupiah(_sisaPelunasan), color: AppColors.textMuted),
                     _strukRow('Metode DP', _metodeDp.toUpperCase(), isBold: true),
+                    if (_buktiDpImage != null)
+                      _strukRow('Bukti DP', 'Terlampir ✓', color: AppColors.primary, isBold: true),
                   ],
                 ),
               ),
@@ -512,7 +558,7 @@ class _BookingScreenState extends State<BookingScreen> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Silakan konfirmasi transfer DP ke kasir/admin klinik untuk verifikasi pembayaran.',
+                        'Bukti pembayaran DP telah berhasil diunggah dan akan diverifikasi oleh kasir sebelum menyelesaikan pesanan Anda.',
                         style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.amber.shade900),
                       ),
                     ),
@@ -1517,6 +1563,10 @@ class _BookingScreenState extends State<BookingScreen> {
           ),
           const SizedBox(height: 12),
 
+          // Upload Bukti Pembayaran DP
+          _buildUploadBuktiDpSection(),
+          const SizedBox(height: 14),
+
           // Checkbox Persetujuan DP
           InkWell(
             onTap: () => setState(() => _persetujuanDp = !_persetujuanDp),
@@ -1659,6 +1709,249 @@ class _BookingScreenState extends State<BookingScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildUploadBuktiDpSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Instruksi Rekening / QRIS
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF0FDF4),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFBBF7D0)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.account_balance_wallet_rounded, size: 16, color: AppColors.primary),
+                  const SizedBox(width: 6),
+                  Text(
+                    _metodeDp == 'transfer' ? 'REKENING TUJUAN TRANSFER DP' : 'QRIS SCAN PEMBAYARAN DP',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.primaryDark,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              if (_metodeDp == 'transfer') ...[
+                _rekeningRow('Bank BCA', '873-092-1234', 'a.n Klinik Kecantikan'),
+                const SizedBox(height: 4),
+                _rekeningRow('Bank Mandiri', '142-00-1928-3344', 'a.n Klinik Kecantikan'),
+              ] else ...[
+                Text(
+                  'Silakan scan QRIS Klinik Kecantikan melalui Mobile Banking atau E-Wallet (GoPay, OVO, Dana, ShopeePay, BCA/Mandiri Mobile) sebesar ${_formatRupiah(_dpNominal)}.',
+                  style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textDark, height: 1.4),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // Judul Field Upload
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Upload Bukti Pembayaran DP (Wajib):',
+              style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textDark),
+            ),
+            if (_buktiDpImage != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.bgMintLight,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.check_circle_rounded, size: 12, color: AppColors.primary),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Terlampir',
+                      style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.primaryDark),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 6),
+
+        if (_buktiDpImage == null)
+          // Tampilan belum upload (Dropzone Style)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.inputBorder, style: BorderStyle.solid),
+            ),
+            child: Column(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppColors.bgMintLight,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.cloud_upload_outlined, color: AppColors.primary, size: 24),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Unggah Foto / Screenshot Bukti Transfer',
+                  style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textDark),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Format: JPG, PNG, WEBP (Maks 5 MB) agar diverifikasi kasir',
+                  style: GoogleFonts.plusJakartaSans(fontSize: 10.5, color: AppColors.textLight),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primary,
+                        side: const BorderSide(color: AppColors.primary),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      ),
+                      onPressed: () => _pickBuktiDp(ImageSource.camera),
+                      icon: const Icon(Icons.camera_alt_outlined, size: 16),
+                      label: Text('Kamera', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w700)),
+                    ),
+                    const SizedBox(width: 10),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      ),
+                      onPressed: () => _pickBuktiDp(ImageSource.gallery),
+                      icon: const Icon(Icons.photo_library_outlined, size: 16),
+                      label: Text('Pilih dari Galeri', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w700)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          )
+        else
+          // Tampilan sudah upload (Preview Card)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.primary, width: 1.2),
+            ),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: _buktiDpBytes != null
+                      ? Image.memory(
+                          _buktiDpBytes!,
+                          width: 46,
+                          height: 46,
+                          fit: BoxFit.cover,
+                        )
+                      : Container(
+                          width: 46,
+                          height: 46,
+                          color: AppColors.bgMintLight,
+                          child: const Icon(Icons.image_rounded, color: AppColors.primary),
+                        ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _buktiDpImage!.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textDark),
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.check_circle_rounded, size: 12, color: AppColors.primary),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              'Siap dikirim',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.plusJakartaSans(fontSize: 10.5, color: AppColors.primaryDark, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Ganti Gambar',
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.all(4),
+                  constraints: const BoxConstraints(),
+                  icon: const Icon(Icons.refresh_rounded, color: AppColors.primary, size: 20),
+                  onPressed: () => _pickBuktiDp(ImageSource.gallery),
+                ),
+                const SizedBox(width: 4),
+                IconButton(
+                  tooltip: 'Hapus',
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.all(4),
+                  constraints: const BoxConstraints(),
+                  icon: const Icon(Icons.delete_outline_rounded, color: AppColors.error, size: 20),
+                  onPressed: _removeBuktiDp,
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _rekeningRow(String bank, String norek, String an) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(bank, style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textDark)),
+            Text(an, style: GoogleFonts.plusJakartaSans(fontSize: 10, color: AppColors.textMuted)),
+          ],
+        ),
+        Text(
+          norek,
+          style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.primaryDark, letterSpacing: 0.5),
+        ),
+      ],
     );
   }
 

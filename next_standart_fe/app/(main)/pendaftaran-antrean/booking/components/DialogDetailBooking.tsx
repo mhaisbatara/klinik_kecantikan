@@ -398,6 +398,38 @@ export const DialogDetailBooking: React.FC<Props> = ({
             {'Terima kasih telah melakukan reservasi.\nSampai jumpa pada jadwal Anda! 🌸'}
           </div>
         </div>
+
+        {booking.bukti_dp && (
+          <div
+            style={{ maxWidth: paperWidthPx, margin: '14px auto 0' }}
+            className="bg-white p-3 border-round-xl border-1 surface-border shadow-2"
+          >
+            <div className="flex align-items-center justify-content-between mb-2 pb-1 border-bottom-1 surface-border">
+              <span className="text-xs font-bold text-slate-800 flex align-items-center gap-1.5">
+                <i className="pi pi-image text-primary" style={{ fontSize: '13px' }} />
+                <span>Bukti Transfer DP</span>
+              </span>
+              <a
+                href={booking.bukti_dp}
+                target="_blank"
+                rel="noreferrer"
+                className="text-[11px] text-blue-600 font-semibold hover:underline"
+              >
+                Ukuran Penuh ↗
+              </a>
+            </div>
+            <div className="text-center bg-slate-50 p-2 border-round-lg border-1 surface-border">
+              <img
+                src={booking.bukti_dp}
+                alt={`Bukti DP ${booking.kode_booking}`}
+                style={{ maxHeight: '180px', maxWidth: '100%', objectFit: 'contain' }}
+                className="cursor-pointer border-round hover:opacity-90 transition-duration-200"
+                onClick={() => window.open(booking.bukti_dp, '_blank')}
+                title="Klik untuk membuka di tab baru"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 3. MODAL ACTIONS FOOTER */}

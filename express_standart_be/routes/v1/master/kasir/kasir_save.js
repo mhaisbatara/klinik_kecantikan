@@ -39,6 +39,7 @@ router.post("/", async (req, res) => {
   const {
     kode_transaksi,       // jika ada = update, jika tidak = create baru
     kode_kunjungan,
+    kode_booking,
     no_rm,
     kode_promo,           // promo level transaksi (opsional)
     metode_bayar = "tunai",
@@ -275,6 +276,7 @@ router.post("/", async (req, res) => {
       const updateTrxPayload = {
         kode_cabang: currentTrxCabang,
         kode_kunjungan: kode_kunjungan || existing.kode_kunjungan,
+        kode_booking: kode_booking || existing.kode_booking || null,
         kode_promo: validKodePromoStr,
         total_harga,
         total_diskon,
@@ -302,6 +304,7 @@ router.post("/", async (req, res) => {
         kode_cabang: currentTrxCabang,
         kode_transaksi: kode_trx,
         kode_kunjungan: kode_kunjungan || null,
+        kode_booking: kode_booking || null,
         no_rm,
         kode_promo: validKodePromoStr,
         tanggal_transaksi,

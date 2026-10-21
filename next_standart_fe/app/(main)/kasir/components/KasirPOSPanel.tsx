@@ -7,6 +7,7 @@ import { ProgressSpinner } from 'primereact/progressspinner';
 import { ConfirmDialog, confirmDialog } from 'primereact/confirmdialog';
 import { Tooltip } from 'primereact/tooltip';
 import { Dialog } from 'primereact/dialog';
+import { Dropdown } from 'primereact/dropdown';
 import {
   ShoppingBag,
   Search,
@@ -88,15 +89,17 @@ const getEffectiveProdukPrice = (prod: { harga_jual: number; harga_promo?: numbe
 };
 
 interface KunjunganOption {
-  kode_kunjungan: string;
+  kode_kunjungan: string | null;
   kode_booking?: string | null;
   no_rm: string;
   nama_pasien: string;
   no_hp: string;
   jam_datang: string;
+  status_kunjungan?: string;
   dp_nominal?: number;
   dp_status?: string | null;
   metode_pembayaran_dp?: string | null;
+  bukti_dp?: string | null;
   layanan_pendaftaran?: CartItem[];
 }
 
@@ -113,6 +116,7 @@ interface KasirPOSPanelProps {
     total_harga?: number;
     dp_nominal?: number;
     metode_pembayaran_dp?: string | null;
+    bukti_dp?: string | null;
     sisa_bayar?: number;
     nama_pasien: string;
     no_rm: string;
@@ -142,6 +146,18 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
   const [layananList, setLayananList] = useState<any[]>([]);
 
   const [selectedKunjungan, setSelectedKunjungan] = useState<KunjunganOption | null>(null);
+
+  const kunjunganDropdownOptions = useMemo(() => {
+    return kunjunganList.map((k) => {
+      const isBookingDp = k.status_kunjungan === 'booking_dp' || (!k.kode_kunjungan && k.kode_booking);
+      const labelPrefix = isBookingDp ? `[DP BOOKING] ${k.kode_booking}` : `[KUNJUNGAN] ${k.kode_kunjungan}`;
+      const dpInfo = Number(k.dp_nominal || 0) > 0 ? ` • DP: ${formatRupiah(k.dp_nominal || 0)}` : '';
+      return {
+        label: `${labelPrefix} - ${k.nama_pasien} (${k.no_rm})${dpInfo}`,
+        value: k,
+      };
+    });
+  }, [kunjunganList]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [editingKodeTrx, setEditingKodeTrx] = useState<string | null>(null);
   const [trxStatus, setTrxStatus] = useState<'draft' | 'lunas' | 'batal' | null>(null);
@@ -150,6 +166,8 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
   const [showVoucherModal, setShowVoucherModal] = useState(false);
   const [dpNominal, setDpNominal] = useState<number>(0);
   const [metodeDp, setMetodeDp] = useState<string | null>(null);
+  const [buktiDp, setBuktiDp] = useState<string | null>(null);
+  const [showBuktiModal, setShowBuktiModal] = useState<boolean>(false);
 
   // State Popup Modal Produk & Draft Seleksi (Katalog Produk Walk-in / Tambahan)
   const [produkOptions, setProdukOptions] = useState<ProdukItem[]>([]);
@@ -182,6 +200,8 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
     setShowVoucherModal(false);
     setDpNominal(0);
     setMetodeDp(null);
+    setBuktiDp(null);
+    setShowBuktiModal(false);
   };
 
   const fetchProdukOptions = async () => {
@@ -282,8 +302,10 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
             dp_nominal: parseFloat(String(trx.dp_nominal || 0)),
             dp_status: trx.dp_status || null,
             metode_pembayaran_dp: trx.metode_pembayaran_dp || null,
+            bukti_dp: trx.bukti_dp || trx.booking_bukti_dp || null,
           } : null);
         setSelectedKunjungan(kunjungan);
+        setBuktiDp(trx.bukti_dp || trx.booking_bukti_dp || kunjungan?.bukti_dp || null);
 
         const cartItems: CartItem[] = (trx.details || []).map((d: any) => {
           const isDp = isDpBookingTrx || d.jenis_diskon === 'dp_booking' || (d.nama || '').toLowerCase().includes('uang muka') || (d.nama || '').toLowerCase().includes('(dp)');
@@ -424,11 +446,14 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
       setShowVoucherModal(false);
       setDpNominal(0);
       setMetodeDp(null);
+      setBuktiDp(null);
+      setShowBuktiModal(false);
       return;
     }
 
     setDpNominal(parseFloat(String(kunjungan.dp_nominal || 0)));
     setMetodeDp(kunjungan.metode_pembayaran_dp || null);
+    setBuktiDp(kunjungan.bukti_dp || null);
 
     if (!editingKodeTrx) {
       const itemsFromPendaftaran = (kunjungan.layanan_pendaftaran || []).map((item: any) => {
@@ -913,6 +938,7 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
       const payload = {
         kode_transaksi: editingKodeTrx || undefined,
         kode_kunjungan: currentKunjungan.kode_kunjungan || undefined,
+        kode_booking: currentKunjungan.kode_booking || undefined,
         no_rm: currentKunjungan.no_rm,
         items: itemsPayload,
         kode_promo: uniquePromoCodes || undefined,
@@ -964,6 +990,7 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
       const payload = {
         kode_transaksi: editingKodeTrx || undefined,
         kode_kunjungan: currentKunjungan.kode_kunjungan || undefined,
+        kode_booking: currentKunjungan.kode_booking || undefined,
         no_rm: currentKunjungan.no_rm,
         items: itemsPayload,
         kode_promo: uniquePromoCodes || undefined,
@@ -987,6 +1014,7 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
           total_harga: totalHarga,
           dp_nominal: dpNominal,
           metode_pembayaran_dp: metodeDp,
+          bukti_dp: buktiDp || currentKunjungan.bukti_dp || null,
           sisa_bayar: sisaBayar,
           nama_pasien: currentKunjungan.nama_pasien,
           no_rm: currentKunjungan.no_rm,
@@ -1021,12 +1049,86 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
       {/* RINCIAN TRANSAKSI KASIR */}
       <div className="flex flex-column h-full w-full surface-card border-round-xl border-1 surface-border shadow-1 overflow-hidden" style={{ minHeight: 0, minWidth: 0 }}>
         {/* Panel Header */}
-        <div className="p-3 border-bottom-1 surface-border bg-white flex-shrink-0 flex align-items-center justify-content-between gap-2">
-          <label className="text-xs font-extrabold text-teal-800 uppercase tracking-wider flex align-items-center gap-2 m-0 white-space-nowrap flex-shrink-0">
-            <i className="pi pi-user text-teal-600 text-sm" />
-            RINCIAN TRANSAKSI KASIR
-          </label>
+        <div className="p-3 border-bottom-1 surface-border bg-white flex-shrink-0 flex flex-wrap align-items-center justify-content-between gap-2">
+          <div className="flex align-items-center gap-2 flex-grow-1 min-w-0">
+            <label className="text-xs font-extrabold text-teal-800 uppercase tracking-wider flex align-items-center gap-1.5 m-0 white-space-nowrap flex-shrink-0">
+              <i className="pi pi-user text-teal-600 text-sm" />
+              RINCIAN TRANSAKSI KASIR
+            </label>
+
+            {/* Selector Kunjungan / Booking */}
+            {!editingKodeTrx ? (
+              <div className="flex-grow-1" style={{ maxWidth: '420px', minWidth: '220px' }}>
+                <Dropdown
+                  value={selectedKunjungan}
+                  options={kunjunganDropdownOptions}
+                  onChange={(e) => handleKunjunganChange(e.value || null)}
+                  placeholder="-- Pilih Pasien Kunjungan / Booking DP --"
+                  filter
+                  filterBy="label"
+                  showClear
+                  className="p-inputtext-sm w-full text-xs"
+                  itemTemplate={(opt) => {
+                    const item: KunjunganOption = opt.value;
+                    const isBooking = item.status_kunjungan === 'booking_dp' || (!item.kode_kunjungan && item.kode_booking);
+                    return (
+                      <div className="flex align-items-center justify-content-between gap-2 py-1">
+                        <div className="flex flex-column text-xs">
+                          <span className="font-bold text-slate-800">
+                            {item.nama_pasien} <span className="text-500 font-normal">({item.no_rm})</span>
+                          </span>
+                          <span className="text-500 text-[11px]">
+                            {isBooking ? `Booking: ${item.kode_booking}` : `Kunjungan: ${item.kode_kunjungan}`}
+                            {item.jam_datang ? ` • Jam: ${item.jam_datang}` : ''}
+                          </span>
+                        </div>
+                        <div className="flex align-items-center gap-1 flex-shrink-0">
+                          {item.bukti_dp && (
+                            <span className="bg-blue-100 text-blue-700 font-bold px-1.5 py-0.5 border-round text-[10px] flex align-items-center gap-1">
+                              <i className="pi pi-image text-[10px]" /> Bukti DP
+                            </span>
+                          )}
+                          <span className={`px-1.5 py-0.5 border-round text-[10px] font-bold ${isBooking ? 'bg-amber-100 text-amber-800' : 'bg-teal-100 text-teal-800'}`}>
+                            {isBooking ? 'BOOKING DP' : 'KUNJUNGAN'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  }}
+                  valueTemplate={(opt, props) => {
+                    if (!opt) return <span className="text-500 text-xs">{props.placeholder}</span>;
+                    const item: KunjunganOption = opt.value;
+                    const isBooking = item.status_kunjungan === 'booking_dp' || (!item.kode_kunjungan && item.kode_booking);
+                    return (
+                      <div className="flex align-items-center gap-1.5 text-xs font-semibold text-slate-800">
+                        <span className={`px-1 py-0.5 border-round text-[9px] font-bold ${isBooking ? 'bg-amber-100 text-amber-800' : 'bg-teal-100 text-teal-800'}`}>
+                          {isBooking ? 'DP' : 'KJ'}
+                        </span>
+                        <span className="truncate">{item.nama_pasien} ({item.no_rm})</span>
+                      </div>
+                    );
+                  }}
+                />
+              </div>
+            ) : (
+              selectedKunjungan && (
+                <span className="text-xs font-semibold text-slate-700 bg-slate-100 px-2 py-1 border-round text-ellipsis overflow-hidden white-space-nowrap" title={`${selectedKunjungan.nama_pasien} (${selectedKunjungan.no_rm})`}>
+                  {selectedKunjungan.nama_pasien} ({selectedKunjungan.no_rm})
+                </span>
+              )
+            )}
+          </div>
           <div className="flex align-items-center gap-2 flex-shrink-0">
+            {(buktiDp || selectedKunjungan?.bukti_dp) && (
+              <Button
+                type="button"
+                label="Lihat Bukti DP"
+                icon="pi pi-image"
+                size="small"
+                className="text-xs font-bold py-1 px-2.5 border-round-lg bg-teal-50 text-teal-700 border-1 border-teal-500 hover:bg-teal-100 transition-all white-space-nowrap"
+                onClick={() => setShowBuktiModal(true)}
+              />
+            )}
             {editingKodeTrx && (
               <span className="text-xs font-medium text-slate-600 mr-2 white-space-nowrap">
                 {editingKodeTrx}
@@ -1361,9 +1463,20 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
 
             {dpNominal > 0 && (
               <div className="flex justify-content-between align-items-center text-xs text-teal-700 font-medium">
-                <span className="flex align-items-center" style={{ gap: '6px' }}>
+                <span className="flex align-items-center flex-wrap" style={{ gap: '6px' }}>
                   <i className="pi pi-check-circle text-xs text-teal-600" />
-                  Uang Muka (DP {metodeDp ? metodeDp.toUpperCase() : 'Terbayar'})
+                  <span>Uang Muka (DP {metodeDp ? metodeDp.toUpperCase() : 'Terbayar'})</span>
+                  {(buktiDp || selectedKunjungan?.bukti_dp) && (
+                    <button
+                      type="button"
+                      onClick={() => setShowBuktiModal(true)}
+                      className="text-[11px] text-teal-700 font-bold hover:text-teal-900 cursor-pointer border-none bg-teal-50 px-2 py-0.5 border-round hover:bg-teal-100 flex align-items-center gap-1 transition-colors"
+                      title="Lihat Bukti Foto Transfer DP"
+                    >
+                      <i className="pi pi-image text-[10px]" />
+                      Lihat Bukti Foto
+                    </button>
+                  )}
                 </span>
                 <span className="font-semibold text-teal-800">-{formatRupiah(dpNominal)}</span>
               </div>
@@ -2204,6 +2317,87 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
           showWarning(toast, msg);
         }}
       />
+
+      {/* MODAL PREVIEW BUKTI PEMBAYARAN DP */}
+      <Dialog
+        visible={showBuktiModal}
+        onHide={() => setShowBuktiModal(false)}
+        header={
+          <div className="flex align-items-center gap-2">
+            <i className="pi pi-image text-teal-600 text-lg" />
+            <span className="font-bold text-slate-800">Bukti Pembayaran DP (Mobile)</span>
+          </div>
+        }
+        style={{ width: '480px', maxWidth: '95vw', borderRadius: '16px' }}
+        modal
+        dismissableMask
+      >
+        <div className="flex flex-column gap-3 p-1">
+          {/* Info Card */}
+          <div className="surface-ground border-round-lg p-3 text-xs flex flex-column gap-1 border-1 surface-border">
+            <div className="flex justify-content-between">
+              <span className="text-slate-500">Pasien:</span>
+              <span className="font-bold text-slate-800">{selectedKunjungan?.nama_pasien || '-'}</span>
+            </div>
+            {selectedKunjungan?.kode_booking && (
+              <div className="flex justify-content-between">
+                <span className="text-slate-500">No. Booking:</span>
+                <span className="font-bold text-teal-700">{selectedKunjungan.kode_booking}</span>
+              </div>
+            )}
+            <div className="flex justify-content-between">
+              <span className="text-slate-500">Nominal DP:</span>
+              <span className="font-bold text-teal-800">{formatRupiah(dpNominal || selectedKunjungan?.dp_nominal || 0)}</span>
+            </div>
+            <div className="flex justify-content-between">
+              <span className="text-slate-500">Metode Pembayaran:</span>
+              <span className="font-bold text-slate-800">{metodeDp?.toUpperCase() || selectedKunjungan?.metode_pembayaran_dp?.toUpperCase() || 'TRANSFER'}</span>
+            </div>
+          </div>
+
+          {/* Image Display */}
+          {(buktiDp || selectedKunjungan?.bukti_dp) ? (
+            <div className="text-center bg-slate-900 border-round-xl p-2 flex flex-column align-items-center justify-content-center overflow-hidden">
+              <img
+                src={
+                  (buktiDp || selectedKunjungan?.bukti_dp)!.startsWith('http') ||
+                  (buktiDp || selectedKunjungan?.bukti_dp)!.startsWith('/')
+                    ? (buktiDp || selectedKunjungan?.bukti_dp)!
+                    : `/uploads/${buktiDp || selectedKunjungan?.bukti_dp}`
+                }
+                alt="Bukti Transfer DP"
+                className="w-full border-round-lg shadow-2"
+                style={{ maxHeight: '420px', objectFit: 'contain' }}
+                onError={(e: any) => {
+                  e.target.onerror = null;
+                  e.target.src = 'https://placehold.co/400x300?text=Gambar+Bukti+DP+Tidak+Ditemukan';
+                }}
+              />
+              <div className="flex justify-content-end w-full mt-2 gap-2">
+                <a
+                  href={
+                    (buktiDp || selectedKunjungan?.bukti_dp)!.startsWith('http') ||
+                    (buktiDp || selectedKunjungan?.bukti_dp)!.startsWith('/')
+                      ? (buktiDp || selectedKunjungan?.bukti_dp)!
+                      : `/uploads/${buktiDp || selectedKunjungan?.bukti_dp}`
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-teal-300 font-semibold no-underline hover:underline flex align-items-center gap-1"
+                >
+                  <i className="pi pi-external-link text-[10px]" />
+                  Buka Gambar Penuh
+                </a>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-5 surface-ground border-round-xl text-slate-500 text-xs">
+              <i className="pi pi-info-circle text-2xl text-slate-400 mb-2 block" />
+              Tidak ada file foto bukti pembayaran DP yang diunggah untuk transaksi ini.
+            </div>
+          )}
+        </div>
+      </Dialog>
 
       <ConfirmDialog />
 
