@@ -43,6 +43,7 @@ router.post("/", async (req, res) => {
     no_rm,
     kode_promo,           // promo level transaksi (opsional)
     metode_bayar = "tunai",
+    kode_metode_pembayaran,
   } = body;
 
   // items perlu let agar bisa di-filter ulang untuk transaksi is_product_only
@@ -288,8 +289,13 @@ router.post("/", async (req, res) => {
         metode_bayar,
         is_product_only: existing.is_product_only || 0,
         updated_by: username,
-        updated_at: DB.fn.now(),
+        updated_at: formatDateSystem(),
       };
+      if (kode_metode_pembayaran !== undefined) {
+        updateTrxPayload.kode_metode_pembayaran = (metode_bayar === 'qris' || metode_bayar === 'transfer')
+          ? (kode_metode_pembayaran || null)
+          : null;
+      }
       if (hasNamaPromoTrx) {
         updateTrxPayload.nama_promo = validNamaPromoStr;
       }
@@ -316,12 +322,15 @@ router.post("/", async (req, res) => {
         metode_pembayaran_dp,
         sisa_bayar,
         metode_bayar,
+        kode_metode_pembayaran: (metode_bayar === 'qris' || metode_bayar === 'transfer')
+          ? (kode_metode_pembayaran || null)
+          : null,
         status: "draft",
         tz,
         created_by: username,
-        created_at: DB.fn.now(),
+        created_at: formatDateSystem(),
         updated_by: username,
-        updated_at: DB.fn.now(),
+        updated_at: formatDateSystem(),
       };
       if (hasNamaPromoTrx) {
         insertTrxPayload.nama_promo = validNamaPromoStr;

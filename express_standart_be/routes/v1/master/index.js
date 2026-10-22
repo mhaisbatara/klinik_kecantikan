@@ -97,6 +97,7 @@ import kasirSave from "./kasir/kasir_save.js";
 import kasirBayar from "./kasir/kasir_bayar.js";
 import kasirShift from "./kasir/kasir_shift.js";
 import kasirTrackingKas from "./kasir/kasir_tracking_kas.js";
+import kasirMetodePembayaran from "./kasir/kasir_metode_pembayaran.js";
 
 import rekamMedisPasien from "./rekam_medis/rekam_medis_pasien.js";
 import transaksiPasien from "./rekam_medis/transaksi_pasien.js";
@@ -222,6 +223,8 @@ router.use("/kasir-save", kasirSave);
 router.use("/kasir-bayar", kasirBayar);
 router.use("/kasir-shift", kasirShift);
 router.use("/kasir-tracking-kas", kasirTrackingKas);
+router.use("/kasir-metode-pembayaran", kasirMetodePembayaran);
+router.use("/metode-pembayaran-kasir", kasirMetodePembayaran);
 
 // Rekam Medis Pasien & Laporan Transaksi
 router.use("/pasien-rekam-medis", rekamMedisPasien);
@@ -260,4 +263,15 @@ router.use("/cabang-update", cabangUpdate);
 router.use("/cabang-delete", cabangDelete);
 router.use("/cabang-monitoring", cabangMonitoring);
 
+// Master Metode Pembayaran (Rekening Bank & QRIS Klinik)
+import metodePembayaranData from "./metode_pembayaran/metode_pembayaran_data.js";
+import metodePembayaranCreate from "./metode_pembayaran/metode_pembayaran_create.js";
+import metodePembayaranUpdate from "./metode_pembayaran/metode_pembayaran_update.js";
+import metodePembayaranDelete from "./metode_pembayaran/metode_pembayaran_delete.js";
+router.use("/metode-pembayaran-data", metodePembayaranData);
+router.use("/metode-pembayaran-create", metodePembayaranCreate);
+router.use("/metode-pembayaran-update", metodePembayaranUpdate);
+router.use("/metode-pembayaran-delete", metodePembayaranDelete);
+
 export default router;
+

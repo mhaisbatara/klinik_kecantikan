@@ -18,7 +18,7 @@ router.post("/", async (req, res) => {
   const username = req?.auth?.username || "";
   const branchCode = getBranchScope(req, body?.kode_cabang);
 
-  const { kode_transaksi, metode_bayar, nominal_bayar } = body;
+  const { kode_transaksi, metode_bayar, nominal_bayar, kode_metode_pembayaran } = body;
 
   if (!kode_transaksi) {
     return res.status(400).json({ status: status.BAD_REQUEST, message: "kode_transaksi wajib diisi", datetime: formatDateSystem() });
@@ -107,14 +107,19 @@ router.post("/", async (req, res) => {
       }
     }
 
+    const resolvedKodeMetode = (metode_bayar === "qris" || metode_bayar === "transfer")
+      ? (kode_metode_pembayaran || existing.kode_metode_pembayaran || null)
+      : null;
+
     // 2. Update status transaksi menjadi lunas
     await trx("trx_transaksi").where("kode_transaksi", kode_transaksi).update({
       metode_bayar,
+      kode_metode_pembayaran: resolvedKodeMetode,
       sisa_bayar: tagihanPelunasan,
       status: "lunas",
       kode_shift: activeShift ? activeShift.kode_shift : null,
       updated_by: username,
-      updated_at: DB.fn.now(),
+      updated_at: formatDateSystem(),
     });
 
     // 2b. Integrasi Sesi Shift Kasir: Catat ke shift aktif kasir
@@ -177,31 +182,6 @@ router.post("/", async (req, res) => {
           }
 
           await trx("trx_kasir_shift").where("id", effectiveShift.id).update(updateShiftObj);
-
-          // Catat juga ke log mutasi kas agar semua metode pembayaran ter-tracking kronologis
-          const countMut = await trx("trx_kasir_mutasi_kas")
-            .where("kode_shift", effectiveShift.kode_shift)
-            .count("id as total")
-            .first();
-          const nextMutSeq = (parseInt(countMut?.total || 0, 10) + 1).toString().padStart(3, "0");
-          const kodeMutasi = `MUT-${effectiveShift.kode_shift.replace("SFT-", "")}-${nextMutSeq}`;
-
-          await trx("trx_kasir_mutasi_kas").insert({
-            kode_mutasi: kodeMutasi,
-            kode_shift: effectiveShift.kode_shift,
-            user_code: effectiveShift.user_code,
-            nama_kasir: effectiveShift.nama_kasir,
-            kode_cabang: effectiveShift.kode_cabang,
-            tipe: `penjualan_${metode_bayar}`,
-            kategori: `Penjualan ${metode_bayar.toUpperCase()} (${kode_transaksi})`,
-            nominal: payNominal,
-            arus: "masuk",
-            saldo_setelah: effectiveShift.kas_diharapkan || effectiveShift.modal_awal,
-            referensi: kode_transaksi,
-            keterangan: `Pembayaran ${metode_bayar.toUpperCase()} transaksi ${kode_transaksi}`,
-            created_by: username,
-            created_at: nowWib,
-          });
         }
       }
     } catch (shiftErr) {
@@ -228,6 +208,13 @@ router.post("/", async (req, res) => {
       });
     }
 
+    let metodeDetail = null;
+    if (resolvedKodeMetode) {
+      metodeDetail = await trx("mst_metode_pembayaran")
+        .where("kode_metode", resolvedKodeMetode)
+        .first();
+    }
+
     await trx.commit();
 
     const isBookingDp = !existing.kode_kunjungan && Boolean(existing.kode_booking);
@@ -241,6 +228,10 @@ router.post("/", async (req, res) => {
         kode_kunjungan: existing.kode_kunjungan || null,
         kode_booking: existing.kode_booking || null,
         metode_bayar,
+        kode_metode_pembayaran: resolvedKodeMetode,
+        nama_bank: metodeDetail?.nama_bank || null,
+        no_rekening: metodeDetail?.no_rekening || null,
+        atas_nama: metodeDetail?.atas_nama || null,
         kode_promo: isBookingDp ? null : (existing.kode_promo || null),
         nama_promo: isBookingDp ? null : (existing.nama_promo || null),
         total_harga: isBookingDp ? totalBayar : parseFloat(existing.total_harga || 0),
