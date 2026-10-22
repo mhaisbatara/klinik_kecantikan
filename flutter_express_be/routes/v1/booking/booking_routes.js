@@ -145,6 +145,8 @@ router.post("/create", authenticateMobile, upload.single("bukti_dp"), async (req
     tanggal_booking: Joi.string().required().label("Tanggal Booking"),
     jam_booking: Joi.string().required().label("Jam Booking (HH:mm)"),
     kode_layanan: Joi.string().allow("", null).label("Kode Layanan"),
+    is_claim_packet: Joi.boolean().optional(),
+    kode_detail_kepemilikan_paket_layanan: Joi.string().allow("", null).optional(),
     items: Joi.array()
       .items(
         Joi.object({
@@ -152,6 +154,8 @@ router.post("/create", authenticateMobile, upload.single("bukti_dp"), async (req
           nama_layanan: Joi.string().optional(),
           harga: Joi.number().optional(),
           durasi_menit: Joi.number().optional(),
+          is_claim_packet: Joi.boolean().optional(),
+          kode_detail_kepemilikan_paket_layanan: Joi.string().allow("", null).optional(),
         })
       )
       .optional(),
@@ -221,6 +225,8 @@ router.post("/create", authenticateMobile, upload.single("bukti_dp"), async (req
           nama_layanan: lay.nama || lay.nama_layanan,
           harga: lay.harga,
           durasi_menit: lay.durasi_menit || 30,
+          is_claim_packet: value.is_claim_packet,
+          kode_detail_kepemilikan_paket_layanan: value.kode_detail_kepemilikan_paket_layanan,
         });
       }
     }
@@ -244,11 +250,16 @@ router.post("/create", authenticateMobile, upload.single("bukti_dp"), async (req
       }
       const cKodeBooking = `BKG-${datePart}-${String(nextNum).padStart(4, "0")}`;
 
-      const totalNominal = bookingItems.reduce(
-        (sum, item) => sum + (Number(item.harga) || 0),
-        0
+      const isClaim = Boolean(
+        value.is_claim_packet ||
+        bookingItems.some((it) => it.is_claim_packet || it.kode_detail_kepemilikan_paket_layanan)
       );
-      const dpNominal = Math.round(totalNominal * 0.2); // DP 20%
+
+      const totalNominal = isClaim
+        ? 0
+        : bookingItems.reduce((sum, item) => sum + (Number(item.harga) || 0), 0);
+      const dpNominal = isClaim ? 0 : Math.round(totalNominal * 0.2); // Klaim paket bebas DP (DP Rp0)
+      const dpStatus = isClaim ? "lunas" : (dpNominal === 0 ? "lunas" : "belum_bayar");
 
       const isButuhKonsul = (value.butuh_konsul === true || value.butuh_konsul === 1 || value.butuh_konsul === "1" || value.butuh_konsul === "true") ? 1 : 0;
       const firstItem = bookingItems[0] || {};
@@ -258,7 +269,7 @@ router.post("/create", authenticateMobile, upload.single("bukti_dp"), async (req
         no_rm: noRm,
         kode_ruangan: jadwal.kode_ruangan || null,
         kode_layanan: firstItem.kode_layanan || value.kode_layanan || null,
-        jenis_layanan: "layanan",
+        jenis_layanan: isClaim ? "klaim_paket" : "layanan",
         kode_jadwal: value.kode_jadwal,
         tanggal_booking: value.tanggal_booking,
         jam_booking: value.jam_booking,
@@ -266,38 +277,51 @@ router.post("/create", authenticateMobile, upload.single("bukti_dp"), async (req
         butuh_konsul: isButuhKonsul,
         status: "dikonfirmasi", // langsung muncul di web Daftar Booking sebagai Dikonfirmasi
         dp_nominal: dpNominal,
-        dp_status: "belum_bayar",
-        metode_pembayaran_dp: value.metode_pembayaran_dp || "transfer",
-        bukti_dp: buktiDpUrl,
-        catatan_pasien: value.catatan_pasien || null,
+        dp_status: dpStatus,
+        metode_pembayaran_dp: isClaim ? "klaim_paket" : (value.metode_pembayaran_dp || "transfer"),
+        bukti_dp: isClaim ? null : buktiDpUrl,
+        catatan_pasien: isClaim
+          ? (value.catatan_pasien ? `[Klaim Sisa Sesi Paket] ${value.catatan_pasien}` : "[Klaim Sisa Sesi Paket]")
+          : value.catatan_pasien || null,
         sumber: "mobile",
         tz: process.env.APP_TZ || "Asia/Jakarta",
         created_by: user.username || "mobile_app",
         created_at: formatDateSystem(),
       };
 
+      if (isClaim) {
+        bookingRecord.alasan_bebas_dp = "Klaim Paket (Kepemilikan Aktif)";
+      }
+
       await trx("trx_booking").insert(bookingRecord);
 
       // Insert detail booking items jika tabel ada
       const hasDetailTable = await trx.schema.hasTable("trx_detail_booking");
       if (hasDetailTable && bookingItems.length > 0) {
-        const detailsToInsert = bookingItems.map((item, idx) => ({
-          kode_detail_booking: `DBKG-${datePart}-${String(nextNum).padStart(4, "0")}-${String(idx + 1).padStart(2, "0")}`,
-          kode_booking: cKodeBooking,
-          jenis_layanan: "layanan",
-          jenis_item: "layanan_baru",
-          kode_layanan: item.kode_layanan,
-          nama_layanan: item.nama_layanan,
-          harga: item.harga || 0,
-          durasi_menit: item.durasi_menit || 30,
-          tz: process.env.APP_TZ || "Asia/Jakarta",
-          created_by: user.username || "mobile_app",
-          created_at: formatDateSystem(),
-        }));
+        const detailsToInsert = bookingItems.map((item, idx) => {
+          const isItemClaim = isClaim || Boolean(item.is_claim_packet || item.kode_detail_kepemilikan_paket_layanan);
+          return {
+            kode_detail_booking: `DBKG-${datePart}-${String(nextNum).padStart(4, "0")}-${String(idx + 1).padStart(2, "0")}`,
+            kode_booking: cKodeBooking,
+            jenis_layanan: isItemClaim ? "klaim_paket" : "layanan",
+            jenis_item: isItemClaim ? "klaim_paket" : "layanan_baru",
+            kode_layanan: item.kode_layanan,
+            nama_layanan: item.nama_layanan,
+            harga: isItemClaim ? 0 : (item.harga || 0),
+            durasi_menit: item.durasi_menit || 30,
+            kode_detail_kepemilikan_paket_layanan:
+              item.kode_detail_kepemilikan_paket_layanan ||
+              value.kode_detail_kepemilikan_paket_layanan ||
+              null,
+            tz: process.env.APP_TZ || "Asia/Jakarta",
+            created_by: user.username || "mobile_app",
+            created_at: formatDateSystem(),
+          };
+        });
         await trx("trx_detail_booking").insert(detailsToInsert);
       }
 
-      // Integrasi Kasir: Buat draf kasir jika ada DP
+      // Integrasi Kasir: Buat draf kasir jika ada DP berbayar
       if (dpNominal > 0) {
         try {
           await syncBookingToKasirDraft(trx, {
@@ -347,33 +371,69 @@ router.post("/create", authenticateMobile, upload.single("bukti_dp"), async (req
 });
 
 /**
+ * Helper membersihkan nama cabang
+ */
+function cleanNamaCabang(nama) {
+  if (!nama) return "Cabang Utama";
+  return nama.replace(/^Klinik\s+/i, "").trim();
+}
+
+/**
  * GET /api/v1/booking/history
- * Riwayat & Daftar Booking Pasien yang Sedang Login
+ * Riwayat & Daftar Booking Pasien yang Sedang Login (dengan Paginasi & Filter)
  */
 router.get("/history", authenticateMobile, async (req, res) => {
   const user = req.auth;
   const noRm = user.no_rm;
 
   if (!noRm) {
-    return sendSuccess(res, "Riwayat booking pasien", []);
+    return sendSuccess(res, "Riwayat booking pasien", {
+      items: [],
+      total: 0,
+      page: 1,
+      limit: 15,
+      hasMore: false,
+    });
   }
 
   try {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.max(1, Math.min(50, parseInt(req.query.limit) || 15));
+    const offset = (page - 1) * limit;
     const { status_filter } = req.query;
 
-    const query = DB("trx_booking as b")
+    const baseQuery = DB("trx_booking as b")
+      .where("b.no_rm", noRm)
+      .modify((qb) => {
+        if (status_filter && status_filter !== "semua") {
+          if (status_filter === "aktif") {
+            qb.whereIn("b.status", ["menunggu_konfirmasi", "dikonfirmasi"]);
+          } else if (status_filter === "batal" || status_filter === "dibatalkan") {
+            qb.whereIn("b.status", ["batal", "dibatalkan"]);
+          } else {
+            qb.where("b.status", status_filter);
+          }
+        }
+      });
+
+    // Hitung total data
+    const totalResult = await baseQuery.clone().count("b.id as total").first();
+    const total = parseInt(totalResult?.total || 0);
+
+    // Sorting: Mendatang/aktif urut dari terdekat (ASC), riwayat/selesai dari terbaru (DESC)
+    const isMendatang = status_filter === "aktif";
+
+    const query = baseQuery
+      .clone()
       .leftJoin("mst_jadwal_karyawan as j", "b.kode_jadwal", "j.kode_jadwal")
       .leftJoin("mst_karyawan as k", "j.no_sip", "k.no_sip")
       .leftJoin("mst_ruangan as r", "j.kode_ruangan", "r.kode_ruangan")
       .leftJoin("mst_cabang as c", DB.raw("b.kode_cabang = c.kode_cabang COLLATE utf8mb4_0900_ai_ci"))
-      .where("b.no_rm", noRm)
-      .modify((qb) => {
-        if (status_filter) {
-          qb.where("b.status", status_filter);
-        }
-      })
-      .orderBy("b.tanggal_booking", "desc")
-      .orderBy("b.jam_booking", "desc");
+      .orderBy("b.tanggal_booking", isMendatang ? "asc" : "desc")
+      .orderBy("b.jam_booking", isMendatang ? "asc" : "desc")
+      .orderBy("b.id", isMendatang ? "asc" : "desc")
+      .offset(offset)
+      .limit(limit);
 
     const bookings = await query.select(
       "b.id",
@@ -383,27 +443,45 @@ router.get("/history", authenticateMobile, async (req, res) => {
       "b.status",
       "b.dp_status",
       "b.dp_nominal",
+      "b.total_biaya",
+      "b.alasan_bebas_dp",
       "b.metode_pembayaran_dp",
       "b.bukti_dp",
       "b.catatan_pasien",
       "b.sumber",
+      "b.kode_cabang",
       "k.nama as nama_dokter",
       "r.nama_ruangan",
       "c.nama_cabang",
-      "b.created_at"
+      "b.created_at",
+      "b.updated_at"
     );
 
     // Ambil detail items untuk setiap booking
     const hasDetail = await DB.schema.hasTable("trx_detail_booking");
     if (hasDetail) {
       for (const b of bookings) {
+        b.nama_cabang = cleanNamaCabang(b.nama_cabang);
         b.items = await DB("trx_detail_booking")
           .where("kode_booking", b.kode_booking)
           .select("kode_layanan", "nama_layanan", "harga", "durasi_menit");
       }
+    } else {
+      for (const b of bookings) {
+        b.nama_cabang = cleanNamaCabang(b.nama_cabang);
+        b.items = [];
+      }
     }
 
-    return sendSuccess(res, "Riwayat booking berhasil dimuat", bookings);
+    const hasMore = offset + bookings.length < total;
+
+    return sendSuccess(res, "Riwayat booking berhasil dimuat", {
+      items: bookings,
+      total,
+      page,
+      limit,
+      hasMore,
+    });
   } catch (err) {
     return sendError(res, err.message, 500);
   }
@@ -411,20 +489,30 @@ router.get("/history", authenticateMobile, async (req, res) => {
 
 /**
  * GET /api/v1/booking/:kode
- * Detail Booking Reservasi Pasien
+ * Detail Booking Reservasi Pasien (DILINDUNGI KEAMANAN IDOR)
  */
 router.get("/:kode", authenticateMobile, async (req, res) => {
   try {
     const { kode } = req.params;
+    const user = req.auth;
+    const isSuperAdmin = (user.role || "").toLowerCase() === "superadmin";
 
-    const booking = await DB("trx_booking as b")
+    const query = DB("trx_booking as b")
       .leftJoin("mst_pasien as p", "b.no_rm", "p.no_rm")
       .leftJoin("mst_jadwal_karyawan as j", "b.kode_jadwal", "j.kode_jadwal")
       .leftJoin("mst_karyawan as k", "j.no_sip", "k.no_sip")
       .leftJoin("mst_ruangan as r", "j.kode_ruangan", "r.kode_ruangan")
       .leftJoin("mst_cabang as c", DB.raw("b.kode_cabang = c.kode_cabang COLLATE utf8mb4_0900_ai_ci"))
-      .where("b.kode_booking", kode)
-      .orWhere("b.id", kode)
+      .where(function () {
+        this.where("b.kode_booking", kode).orWhere("b.id", kode);
+      });
+
+    // 🔒 WAJIB KEAMANAN IDOR: Cegah Pasien A melihat data reservasi Pasien B
+    if (!isSuperAdmin) {
+      query.andWhere("b.no_rm", user.no_rm);
+    }
+
+    const booking = await query
       .select(
         "b.*",
         "p.nama as nama_pasien",
@@ -436,8 +524,10 @@ router.get("/:kode", authenticateMobile, async (req, res) => {
       .first();
 
     if (!booking) {
-      return sendError(res, "Data booking tidak ditemukan", 404);
+      return sendError(res, "Data booking tidak ditemukan atau akses tidak diizinkan", 404);
     }
+
+    booking.nama_cabang = cleanNamaCabang(booking.nama_cabang);
 
     // Ambil items detail
     const hasDetail = await DB.schema.hasTable("trx_detail_booking");
@@ -455,22 +545,27 @@ router.get("/:kode", authenticateMobile, async (req, res) => {
 
 /**
  * POST /api/v1/booking/:kode/cancel
- * Pasien Membatalkan Janji Temu Booking
+ * Pasien Membatalkan Janji Temu Booking (DILINDUNGI KEAMANAN IDOR & KONSEKUENSI DP)
  */
 router.post("/:kode/cancel", authenticateMobile, async (req, res) => {
   const { kode } = req.params;
   const { alasan_batal } = req.body || {};
+  const user = req.auth;
+  const isSuperAdmin = (user.role || "").toLowerCase() === "superadmin";
 
   try {
-    const booking = await DB("trx_booking")
-      .where("kode_booking", kode)
-      .first();
+    const query = DB("trx_booking").where("kode_booking", kode);
+    // 🔒 WAJIB KEAMANAN IDOR: Pasien hanya bisa membatalkan miliknya sendiri
+    if (!isSuperAdmin) {
+      query.andWhere("no_rm", user.no_rm);
+    }
+    const booking = await query.first();
 
     if (!booking) {
-      return sendError(res, "Data booking tidak ditemukan", 404);
+      return sendError(res, "Data booking tidak ditemukan atau akses tidak diizinkan", 404);
     }
 
-    if (["selesai", "batal"].includes(booking.status)) {
+    if (["selesai", "batal", "dibatalkan", "tidak_hadir"].includes(booking.status)) {
       return sendError(
         res,
         `Booking tidak dapat dibatalkan karena status saat ini: ${booking.status}`,
@@ -478,14 +573,27 @@ router.post("/:kode/cancel", authenticateMobile, async (req, res) => {
       );
     }
 
+    // Jika sudah bayar DP, catat dp_status menjadi 'hangus' sesuai data riil klinik
+    const newDpStatus =
+      booking.dp_status === "sudah_bayar" || booking.dp_status === "lunas"
+        ? "hangus"
+        : booking.dp_status;
+
+    const catatanBaru = [
+      booking.catatan_pasien,
+      `[DIBATALKAN PASIEN ${formatDateSystem()}] Alasan: ${alasan_batal || "Dibatalkan oleh pelanggan"}`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
     await DB("trx_booking")
       .where("kode_booking", kode)
       .update({
-        status: "batal",
-        catatan_pasien: alasan_batal
-          ? `${booking.catatan_pasien || ""}\nAlasan Batal: ${alasan_batal}`.trim()
-          : booking.catatan_pasien,
+        status: "dibatalkan",
+        dp_status: newDpStatus,
+        catatan_pasien: catatanBaru,
         updated_at: formatDateSystem(),
+        updated_by: user.username || "mobile_app",
       });
 
     // Batalkan juga draf kasir jika ada
@@ -495,7 +603,11 @@ router.post("/:kode/cancel", authenticateMobile, async (req, res) => {
       console.warn(`[BOOKING_MOBILE] Gagal membatalkan draf kasir untuk ${kode}:`, cancelErr.message);
     }
 
-    return sendSuccess(res, "Reservasi booking berhasil dibatalkan");
+    return sendSuccess(res, "Reservasi booking berhasil dibatalkan", {
+      kode_booking: kode,
+      status: "dibatalkan",
+      dp_status: newDpStatus,
+    });
   } catch (err) {
     return sendError(res, err.message, 500);
   }

@@ -31,3 +31,10 @@ Thumbs.db
 .idea/
 
 run_dev.sh
+
+# ========================
+# Local Environment & Secrets
+# ========================
+.env.local
+**/.env.local
+*.local

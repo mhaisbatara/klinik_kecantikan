@@ -11,6 +11,8 @@ import bookingRoutes from "./booking/booking_routes.js";
 import antreanRoutes from "./antrean/antrean_routes.js";
 import rekamMedisRoutes from "./rekam_medis/rekam_medis_routes.js";
 import profileRoutes from "./profile/profile_routes.js";
+import chatbotRoutes from "./chatbot/chatbot_routes.js";
+import kunjunganRoutes from "./kunjungan/kunjungan_routes.js";
 import metodePembayaranRoutes from "./metode_pembayaran/metode_pembayaran_routes.js";
 
 const router = express.Router();
@@ -29,5 +31,7 @@ router.use("/antrean", antreanRoutes);
 router.use("/rekam-medis", rekamMedisRoutes);
 router.use("/profile", profileRoutes);
 router.use("/metode-pembayaran", metodePembayaranRoutes);
+router.use("/chatbot", chatbotRoutes);
+router.use("/kunjungan", kunjunganRoutes);
 
 export default router;
