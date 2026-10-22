@@ -82,6 +82,7 @@ const DEFAULT_PENGATURAN_ITEMS: AppMenuItem[] = [
 
 const SUPERADMIN_MASTER_DATA_ITEMS: AppMenuItem[] = [
     { label: 'Manajemen Cabang', icon: 'pi pi-fw pi-building', to: '/setup/cabang' },
+    { label: 'Metode Pembayaran', icon: 'pi pi-fw pi-wallet', to: '/setup/metode-pembayaran' },
     { label: 'Manajemen User', icon: 'pi pi-fw pi-users', to: '/setup/users' },
     { label: 'Manajemen Role', icon: 'pi pi-fw pi-shield', to: '/setup/navigation' },
 ];
@@ -588,6 +589,7 @@ const AppMenu = () => {
                             if (to === '/setup/config') return { ...it, label: 'Pengaturan Klinik', icon: 'pi pi-fw pi-sliders-h' };
                             if (to === '/setup/monitoring-cabang') return { ...it, label: 'Monitoring Cabang', icon: 'pi pi-fw pi-chart-line' };
                             if (to === '/setup/cabang') return { ...it, label: 'Manajemen Cabang', icon: 'pi pi-fw pi-building' };
+                            if (to === '/setup/metode-pembayaran') return { ...it, label: 'Metode Pembayaran', icon: 'pi pi-fw pi-wallet' };
                             if (to === '/master-data-user/data-pasien') return { ...it, label: 'Data Pasien', icon: 'pi pi-fw pi-user' };
                             if (to === '/setup/users') return { ...it, label: 'Manajemen User', icon: 'pi pi-fw pi-users' };
                             if (to === '/setup/navigation') return { ...it, label: 'Manajemen Role', icon: 'pi pi-fw pi-shield' };
