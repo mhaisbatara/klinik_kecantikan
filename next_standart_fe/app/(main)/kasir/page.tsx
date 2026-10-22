@@ -69,6 +69,10 @@ export interface BayarResult {
   kode_booking?: string | null;
   is_dp_booking?: boolean;
   metode_bayar: string;
+  kode_metode_pembayaran?: string | null;
+  nama_bank?: string | null;
+  no_rekening?: string | null;
+  atas_nama?: string | null;
   total_harga?: number;
   total_diskon?: number;
   total_bayar: number;
@@ -171,7 +175,7 @@ export default function KasirPage() {
     setTransaksiList(list);
   }, []);
 
-  const handleBayarConfirm = useCallback(async (metode: string, nominal: number) => {
+  const handleBayarConfirm = useCallback(async (metode: string, nominal: number, kodeMetode?: string | null) => {
     if (!isShiftOpen) {
       showError(toast, 'Sesi shift kasir belum dibuka! Pembayaran tidak dapat diproses.');
       return;
@@ -182,11 +186,16 @@ export default function KasirPage() {
         kode_transaksi: pendingBayarPayload.kode_transaksi,
         metode_bayar: metode,
         nominal_bayar: nominal,
+        kode_metode_pembayaran: (metode === 'qris' || metode === 'transfer') ? (kodeMetode || null) : null,
       });
 
       if (['00', '0000'].includes(res?.data?.status)) {
         const result: BayarResult = {
           ...res.data.data,
+          kode_metode_pembayaran: res.data.data?.kode_metode_pembayaran || ((metode === 'qris' || metode === 'transfer') ? (kodeMetode || null) : null),
+          nama_bank: res.data.data?.nama_bank || null,
+          no_rekening: res.data.data?.no_rekening || null,
+          atas_nama: res.data.data?.atas_nama || null,
           kode_kunjungan: res.data.data?.kode_kunjungan || pendingBayarPayload.kode_kunjungan || null,
           kode_booking: res.data.data?.kode_booking || pendingBayarPayload.kode_booking || null,
           is_dp_booking: pendingBayarPayload.is_dp_booking,
@@ -363,6 +372,7 @@ export default function KasirPage() {
           dpNominal={pendingBayarPayload?.dp_nominal || 0}
           metodeDp={pendingBayarPayload?.metode_pembayaran_dp || null}
           buktiDp={pendingBayarPayload?.bukti_dp || null}
+          is_dp_booking={pendingBayarPayload?.is_dp_booking}
           onHide={() => setShowBayarModal(false)}
           onConfirm={handleBayarConfirm}
         />

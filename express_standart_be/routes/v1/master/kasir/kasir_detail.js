@@ -241,6 +241,22 @@ router.post("/", async (req, res) => {
       trx.sisa_bayar = Math.max(0, trx.total_bayar - resolvedDpNominal);
     }
 
+    if (trx.kode_metode_pembayaran) {
+      try {
+        const metodeRow = await DB("mst_metode_pembayaran")
+          .where("kode_metode", trx.kode_metode_pembayaran)
+          .first();
+        if (metodeRow) {
+          trx.nama_bank = metodeRow.nama_bank || null;
+          trx.no_rekening = metodeRow.no_rekening || null;
+          trx.atas_nama = metodeRow.atas_nama || null;
+          trx.gambar_qris = metodeRow.gambar_qris || null;
+        }
+      } catch {
+        // ignore
+      }
+    }
+
     return res.status(200).json({
       status: status.SUKSES,
       message: "Detail transaksi ditemukan",

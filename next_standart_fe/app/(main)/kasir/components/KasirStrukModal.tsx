@@ -717,7 +717,21 @@ export const KasirStrukModal: React.FC<KasirStrukModalProps> = ({ visible, resul
           <div className="receipt-body-text flex flex-column gap-1.5 my-2" style={{ fontSize: '13px', lineHeight: '1.4' }}>
             <div className="flex justify-content-between">
               <span className="text-slate-600 font-normal">Metode</span>
-              <span className="font-semibold text-slate-800">{METODE_LABEL[result.metode_bayar] || result.metode_bayar}</span>
+              <div className="text-right">
+                <span className="font-semibold text-slate-800">{METODE_LABEL[result.metode_bayar] || result.metode_bayar}</span>
+                {result.metode_bayar === 'transfer' && (result as any).nama_bank && (
+                  <div className="text-[11px] text-slate-600 font-normal mt-0.5">
+                    {(result as any).nama_bank}
+                    {(result as any).no_rekening ? ` • ${(result as any).no_rekening}` : ''}
+                    {(result as any).atas_nama ? ` (a.n. ${(result as any).atas_nama})` : ''}
+                  </div>
+                )}
+                {result.metode_bayar === 'qris' && (
+                  <div className="text-[11px] text-slate-600 font-normal mt-0.5">
+                    QRIS Klinik {(result as any).kode_metode_pembayaran ? `(${(result as any).kode_metode_pembayaran})` : ''}
+                  </div>
+                )}
+              </div>
             </div>
             {result.metode_bayar === 'tunai' && (
               <>
