@@ -9,16 +9,28 @@ import '../../services/booking_service.dart';
 
 class BookingScreen extends StatefulWidget {
   final Map<String, dynamic>? initialLayanan;
+  final Map<String, dynamic>? selectedCabang;
 
-  const BookingScreen({super.key, this.initialLayanan});
+  const BookingScreen({super.key, this.initialLayanan, this.selectedCabang});
 
   @override
   State<BookingScreen> createState() => _BookingScreenState();
 }
 
 class _BookingScreenState extends State<BookingScreen> {
-  // Data Pasien Login
+  // Multi-step Booking Flow:
+  // 1: Pengisian Layanan, Alur Kunjungan, Jadwal & Catatan (Gambar 2)
+  // 2: Rincian Reservasi & Pembayaran DP (Gambar 1)
+  int _currentStep = 1;
+  final ScrollController _scrollController = ScrollController();
+
+  // Data Pasien Login & Cabang Terpilih
   Map<String, dynamic>? _currentUser;
+  Map<String, dynamic>? _activeCabang;
+
+  // Pilihan Alur Konsultasi Pasien (Persis seperti di Web)
+  // false: Langsung Tindakan, true: Konsultasi Dokter Dulu
+  bool _pilihanKonsul = false;
 
   // Katalog Layanan & Ruangan
   List<dynamic> _allLayanan = [];
@@ -86,6 +98,7 @@ class _BookingScreenState extends State<BookingScreen> {
   @override
   void initState() {
     super.initState();
+    _activeCabang = widget.selectedCabang;
     _loadUser();
     _fetchLayanan();
   }
@@ -93,19 +106,76 @@ class _BookingScreenState extends State<BookingScreen> {
   @override
   void dispose() {
     _catatanCtrl.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  void _goToStep2() {
+    final noRm = _currentUser?['no_rm'];
+    if (noRm == null || noRm.toString().trim().isEmpty) {
+      _showToast('Akun Anda belum terhubung dengan Rekam Medis (No. RM). Silakan lengkapi pendaftaran pasien terlebih dahulu.', isError: true);
+      return;
+    }
+    if (_selectedItems.isEmpty) {
+      _showToast('Silakan pilih minimal 1 layanan treatment terlebih dahulu.', isError: true);
+      return;
+    }
+    if (_selectedSlot == null) {
+      _showToast('Silakan pilih sesi dokter yang bertugas terlebih dahulu.', isError: true);
+      return;
+    }
+    if (_selectedJamBooking == null || _selectedJamBooking!.isEmpty) {
+      _showToast('Silakan pilih jam kedatangan janji temu spesifik terlebih dahulu.', isError: true);
+      return;
+    }
+
+    setState(() => _currentStep = 2);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  void _goToStep1() {
+    setState(() => _currentStep = 1);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   Future<void> _loadUser() async {
     final user = await AuthService.getUser();
     if (mounted) {
-      setState(() => _currentUser = user);
+      setState(() {
+        _currentUser = user;
+        if (_activeCabang == null && user != null) {
+          _activeCabang = {
+            'kode_cabang': user['kode_cabang'] ?? 'CBG-001',
+            'nama_cabang': user['nama_cabang'] ?? 'Klinik Cabang Utama',
+          };
+        }
+      });
     }
   }
 
   Future<void> _fetchLayanan() async {
     setState(() => _loadingLayanan = true);
-    final list = await BookingService.getLayananList();
+    final list = await BookingService.getLayananList(
+      kodeCabang: _activeCabang?['kode_cabang'],
+    );
     if (!mounted) return;
 
     // Kumpulkan nama ruangan unik
@@ -237,6 +307,7 @@ class _BookingScreenState extends State<BookingScreen> {
       tanggal: dateStr,
       kodeRuangan: _activeKodeRuangan,
       kodeLayanan: _selectedItems.isNotEmpty ? _selectedItems.first['kode_layanan'] : null,
+      kodeCabang: _activeCabang?['kode_cabang'],
     );
 
     if (!mounted) return;
@@ -302,12 +373,25 @@ class _BookingScreenState extends State<BookingScreen> {
   num get _dpNominal => (_totalBiaya * 0.2).round();
   num get _sisaPelunasan => _totalBiaya - _dpNominal;
 
+  Map<String, bool> _getItemConsultType(Map<String, dynamic> item) {
+    final wk = (item['wajib_konsultasi'] ?? '').toString().trim().toLowerCase();
+    if (wk == 'wajib') return {'isWajib': true, 'isService': false, 'isOpsional': false};
+    if (wk == 'tidak') return {'isWajib': false, 'isService': true, 'isOpsional': false};
+    if (wk == 'opsional') return {'isWajib': false, 'isService': false, 'isOpsional': true};
+
+    final tp = (item['tipe'] ?? '').toString().trim().toUpperCase();
+    final isWajib = tp == 'MEDICAL TREATMENT';
+    final isService = tp == 'SERVICE TREATMENT';
+    final isOpsional = !isWajib && !isService;
+    return {'isWajib': isWajib, 'isService': isService, 'isOpsional': isOpsional};
+  }
+
   bool get _hasWajibKonsul {
-    return _selectedItems.any((it) {
-      final wk = (it['wajib_konsultasi'] ?? '').toString().toLowerCase();
-      final tp = (it['tipe'] ?? '').toString().toUpperCase();
-      return wk == 'wajib' || tp == 'MEDICAL TREATMENT';
-    });
+    return _selectedItems.any((it) => _getItemConsultType(it)['isWajib'] == true);
+  }
+
+  bool get _hasOpsionalKonsul {
+    return !_hasWajibKonsul && _selectedItems.any((it) => _getItemConsultType(it)['isOpsional'] == true);
   }
 
   List<Map<String, dynamic>> _generateTimeSlots() {
@@ -432,6 +516,8 @@ class _BookingScreenState extends State<BookingScreen> {
       };
     }).toList();
 
+    final effectiveButuhKonsul = _hasWajibKonsul ? true : (_hasOpsionalKonsul ? _pilihanKonsul : false);
+
     final result = await BookingService.createBooking(
       kodeJadwal: _selectedSlot!['kode_jadwal'],
       tanggalBooking: dateStr,
@@ -441,6 +527,8 @@ class _BookingScreenState extends State<BookingScreen> {
       catatan: _catatanCtrl.text.trim(),
       metodeDp: _metodeDp,
       buktiDpFile: _buktiDpImage,
+      kodeCabang: _activeCabang?['kode_cabang'] ?? _currentUser?['kode_cabang'] ?? 'CBG-001',
+      butuhKonsul: effectiveButuhKonsul,
     );
 
     if (!mounted) return;
@@ -531,8 +619,10 @@ class _BookingScreenState extends State<BookingScreen> {
                       ),
                     ),
                     const Divider(height: 18),
+                    _strukRow('Cabang', _activeCabang?['nama_cabang'] ?? _currentUser?['nama_cabang'] ?? 'Klinik Cabang Utama'),
                     _strukRow('Pasien', data?['nama_pasien'] ?? _currentUser?['nama'] ?? '-'),
                     _strukRow('Ruangan', data?['nama_ruangan'] ?? _activeNamaRuangan ?? '-'),
+                    _strukRow('Alur Kunjungan', (_hasWajibKonsul || (_hasOpsionalKonsul && _pilihanKonsul)) ? 'Konsultasi Dokter Dulu' : 'Langsung Tindakan', color: const Color(0xFF2563EB), isBold: true),
                     _strukRow('Tanggal', data?['tanggal_booking'] ?? '-'),
                     _strukRow('Jam', "${data?['jam_booking'] ?? _selectedJamBooking ?? '-'} WIB"),
                     _strukRow('Dokter', data?['nama_dokter'] ?? _selectedSlot?['nama_dokter'] ?? '-'),
@@ -649,67 +739,391 @@ class _BookingScreenState extends State<BookingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FCFA),
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textDark),
-          onPressed: () => Navigator.pop(context),
+    return PopScope(
+      canPop: _currentStep == 1,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (_currentStep == 2) {
+          _goToStep1();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF8FCFA),
+        appBar: AppBar(
+          elevation: 0,
+          backgroundColor: Colors.white,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textDark),
+            onPressed: () {
+              if (_currentStep == 2) {
+                _goToStep1();
+              } else {
+                Navigator.pop(context);
+              }
+            },
+          ),
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _currentStep == 1
+                    ? 'Buat Reservasi / Booking Baru'
+                    : 'Rincian Reservasi & DP',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 15.5,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primaryDarkest,
+                ),
+              ),
+              Text(
+                _currentStep == 1
+                    ? 'Langkah 1 dari 2: Isi layanan & jadwal dokter'
+                    : 'Langkah 2 dari 2: Rincian biaya & pembayaran DP',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11,
+                  color: AppColors.textMuted,
+                ),
+              ),
+            ],
+          ),
         ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Buat Reservasi / Booking Baru',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 15.5,
-                fontWeight: FontWeight.w700,
-                color: AppColors.primaryDarkest,
+        body: SingleChildScrollView(
+          controller: _scrollController,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          child: _currentStep == 1 ? _buildStep1Content() : _buildStep2Content(),
+        ),
+      ),
+    );
+  }
+
+  // ── INDIKATOR LANGKAH MULTI-STEP ──
+  Widget _buildStepIndicator() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.inputBorder),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Langkah 1
+          Expanded(
+            child: InkWell(
+              onTap: _currentStep == 2 ? _goToStep1 : null,
+              borderRadius: BorderRadius.circular(10),
+              child: Row(
+                children: [
+                  Container(
+                    width: 26,
+                    height: 26,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _currentStep == 1
+                          ? AppColors.primary
+                          : const Color(0xFF10B981),
+                    ),
+                    child: Center(
+                      child: _currentStep > 1
+                          ? const Icon(Icons.check_rounded, size: 16, color: Colors.white)
+                          : Text(
+                              '1',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                              ),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'LANGKAH 1',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w800,
+                            color: _currentStep == 1 ? AppColors.primary : AppColors.textMuted,
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                        Text(
+                          'Layanan & Jadwal',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11.5,
+                            fontWeight: _currentStep == 1 ? FontWeight.w700 : FontWeight.w600,
+                            color: _currentStep == 1 ? AppColors.textDark : AppColors.textMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
-            Text(
-              'Pilih layanan, jadwal dokter, dan konfirmasi DP',
+          ),
+
+          // Divider Icon / Panah
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Icon(
+              Icons.chevron_right_rounded,
+              size: 20,
+              color: _currentStep == 2 ? AppColors.primary : const Color(0xFFCBD5E1),
+            ),
+          ),
+
+          // Langkah 2
+          Expanded(
+            child: InkWell(
+              onTap: _currentStep == 1 ? _goToStep2 : null,
+              borderRadius: BorderRadius.circular(10),
+              child: Row(
+                children: [
+                  Container(
+                    width: 26,
+                    height: 26,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _currentStep == 2
+                          ? AppColors.primary
+                          : const Color(0xFFE2E8F0),
+                    ),
+                    child: Center(
+                      child: Text(
+                        '2',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w800,
+                          color: _currentStep == 2 ? Colors.white : const Color(0xFF64748B),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'LANGKAH 2',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w800,
+                            color: _currentStep == 2 ? AppColors.primary : AppColors.textMuted,
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                        Text(
+                          'Rincian & DP',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11.5,
+                            fontWeight: _currentStep == 2 ? FontWeight.w700 : FontWeight.w600,
+                            color: _currentStep == 2 ? AppColors.textDark : AppColors.textMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── KONTEN LANGKAH 1 (GAMBAR 2: FORMULIR LAYANAN & JADWAL) ──
+  Widget _buildStep1Content() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildStepIndicator(),
+
+        // 1. Identitas Pasien & Cabang
+        _buildPatientHeaderCard(),
+        const SizedBox(height: 18),
+
+        // 2. Pilih Layanan & Paket Treatment
+        _buildTreatmentSelectionSection(),
+        const SizedBox(height: 16),
+
+        // 3. Pilihan Alur Kunjungan Pasien (Sama seperti Web)
+        _buildConsultationFlowSection(),
+
+        // 4. Pilih Tanggal & Sesi Dokter & Jam Spesifik
+        _buildDateAndScheduleSection(),
+        const SizedBox(height: 20),
+
+        // 5. Catatan Keluhan Pasien (Opsional)
+        _buildNotesSection(),
+        const SizedBox(height: 24),
+
+        // 6. Tombol Selanjutnya (Menuju Langkah 2)
+        _buildNextStepButton(),
+        const SizedBox(height: 32),
+      ],
+    );
+  }
+
+  // ── KONTEN LANGKAH 2 (GAMBAR 1: RINCIAN RESERVASI & PEMBAYARAN DP) ──
+  Widget _buildStep2Content() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildStepIndicator(),
+
+        // Banner pintasan kembali ubah jadwal/layanan
+        InkWell(
+          onTap: _goToStep1,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.edit_calendar_rounded, size: 16, color: AppColors.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Ingin mengubah layanan atau jadwal dokter?',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primaryDarkest,
+                    ),
+                  ),
+                ),
+                Text(
+                  'Ubah ➔',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // Panel Rincian Reservasi & DP (Persis Gambar Pertama)
+        _buildReservationAndDpPanel(),
+        const SizedBox(height: 22),
+
+        // Tombol Submit Reservasi
+        _buildSubmitButton(),
+        const SizedBox(height: 12),
+
+        // Tombol Kembali
+        Center(
+          child: TextButton.icon(
+            onPressed: _goToStep1,
+            icon: const Icon(Icons.arrow_back_rounded, size: 16, color: AppColors.textMuted),
+            label: Text(
+              'Kembali ke Pemilihan Layanan & Jadwal',
               style: GoogleFonts.plusJakartaSans(
-                fontSize: 11,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
                 color: AppColors.textMuted,
               ),
             ),
-          ],
+          ),
         ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── LANGKAH 1: IDENTITAS PASIEN & CABANG ──
-            _buildPatientHeaderCard(),
-            const SizedBox(height: 20),
+        const SizedBox(height: 28),
+      ],
+    );
+  }
 
-            // ── LANGKAH 2: PILIH LAYANAN & PAKET TREATMENT ──
-            _buildTreatmentSelectionSection(),
-            const SizedBox(height: 20),
+  // ── TOMBOL SELANJUTNYA DARI LANGKAH 1 ──
+  Widget _buildNextStepButton() {
+    final bool canProceed = _selectedItems.isNotEmpty &&
+        _selectedSlot != null &&
+        _selectedJamBooking != null &&
+        _selectedJamBooking!.isNotEmpty;
 
-            // ── LANGKAH 3: PILIH TANGGAL & SESI JADWAL ──
-            _buildDateAndScheduleSection(),
-            const SizedBox(height: 20),
-
-            // ── LANGKAH 4: KELUHAN / CATATAN KHUSUS ──
-            _buildNotesSection(),
-            const SizedBox(height: 22),
-
-            // ── LANGKAH 5: PANEL RINCIAN RESERVASI & DP (KETENTUAN SAMA SEPERTI WEB) ──
-            _buildReservationAndDpPanel(),
-            const SizedBox(height: 24),
-
-            // ── TOMBOL SUBMIT RESERVASI ──
-            _buildSubmitButton(),
-            const SizedBox(height: 28),
-          ],
+    return Column(
+      children: [
+        InkWell(
+          onTap: _goToStep2,
+          borderRadius: BorderRadius.circular(999),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: double.infinity,
+            height: 52,
+            decoration: BoxDecoration(
+              gradient: canProceed ? AppColors.primaryGradient : null,
+              color: canProceed ? null : const Color(0xFFCBD5E1),
+              borderRadius: BorderRadius.circular(999),
+              boxShadow: canProceed
+                  ? [
+                      BoxShadow(
+                        color: AppColors.primary.withValues(alpha: 0.35),
+                        blurRadius: 16,
+                        offset: const Offset(0, 5),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'Selanjutnya',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w700,
+                    color: canProceed ? Colors.white : const Color(0xFF64748B),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  Icons.arrow_forward_rounded,
+                  color: canProceed ? Colors.white : const Color(0xFF64748B),
+                  size: 19,
+                ),
+              ],
+            ),
+          ),
         ),
-      ),
+        const SizedBox(height: 8),
+        Text(
+          !canProceed
+              ? (_selectedItems.isEmpty
+                  ? '* Silakan pilih minimal 1 treatment untuk lanjut'
+                  : _selectedSlot == null
+                      ? '* Silakan pilih sesi dokter untuk lanjut'
+                      : '* Silakan pilih jam kedatangan spesifik untuk lanjut')
+              : 'Periksa rincian biaya & konfirmasi uang muka (DP) di langkah berikutnya',
+          textAlign: TextAlign.center,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 11,
+            color: canProceed ? AppColors.primaryDark : AppColors.textMuted,
+            fontWeight: canProceed ? FontWeight.w600 : FontWeight.w500,
+          ),
+        ),
+      ],
     );
   }
 
@@ -718,7 +1132,7 @@ class _BookingScreenState extends State<BookingScreen> {
     final nama = _currentUser?['nama'] ?? 'Pelanggan Klinik';
     final noRm = _currentUser?['no_rm'] ?? 'RM-BARU';
     final noHp = _currentUser?['no_hp'] ?? '-';
-    final cabang = _currentUser?['nama_cabang'] ?? 'Cabang Utama';
+    final cabang = _activeCabang?['nama_cabang'] ?? _currentUser?['nama_cabang'] ?? 'Klinik Cabang Utama';
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -807,25 +1221,28 @@ class _BookingScreenState extends State<BookingScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '1. Pilih Layanan Treatment',
-                  style: GoogleFonts.playfairDisplay(
-                    fontSize: 16.5,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primaryDarkest,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '1. Pilih Layanan Treatment',
+                    style: GoogleFonts.playfairDisplay(
+                      fontSize: 16.5,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primaryDarkest,
+                    ),
                   ),
-                ),
-                Text(
-                  'Multi-select treatment dalam ruangan yang sama',
-                  style: GoogleFonts.plusJakartaSans(fontSize: 11.5, color: AppColors.textMuted),
-                ),
-              ],
+                  Text(
+                    'Multi-select treatment dalam ruangan yang sama',
+                    style: GoogleFonts.plusJakartaSans(fontSize: 11.5, color: AppColors.textMuted),
+                  ),
+                ],
+              ),
             ),
             if (_selectedItems.isNotEmpty)
               Container(
+                margin: const EdgeInsets.only(left: 8),
                 padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3.5),
                 decoration: BoxDecoration(
                   color: AppColors.primary.withValues(alpha: 0.12),
@@ -918,7 +1335,7 @@ class _BookingScreenState extends State<BookingScreen> {
               final kode = item['kode_layanan'];
               final isSelected = _selectedItems.any((it) => it['kode_layanan'] == kode);
               final imageUrl = ApiConstants.getImageUrl(item['gambar'] ?? item['foto']);
-              final wajibKonsul = (item['wajib_konsultasi'] ?? '').toString().toLowerCase();
+              final consultType = _getItemConsultType(item);
               final isInclude = item['is_include_konsultasi'] == 1 || item['is_include_konsultasi'] == true;
 
               return InkWell(
@@ -992,7 +1409,7 @@ class _BookingScreenState extends State<BookingScreen> {
                             ),
                             const SizedBox(height: 6),
 
-                            // Badges: Durasi, Kategori, Konsultasi
+                            // Badges: Ruangan, Konsultasi, Include, Durasi
                             Wrap(
                               spacing: 5,
                               runSpacing: 4,
@@ -1001,13 +1418,16 @@ class _BookingScreenState extends State<BookingScreen> {
                                 if (item['nama_ruangan'] != null)
                                   _buildBadge(item['nama_ruangan'], const Color(0xFF6B7280), const Color(0xFFF3F4F6)),
 
-                                // Badge Konsultasi
-                                if (wajibKonsul == 'wajib')
+                                // Badge Konsultasi (Sesuai dengan Web)
+                                if (consultType['isWajib'] == true)
                                   _buildBadge('Wajib Konsul', const Color(0xFFDC2626), const Color(0xFFFEE2E2))
-                                else if (isInclude)
-                                  _buildBadge('Include Konsul', const Color(0xFF0D9488), const Color(0xFFCCFBF1))
+                                else if (consultType['isOpsional'] == true)
+                                  _buildBadge('Opsional Konsul', const Color(0xFF2563EB), const Color(0xFFDBEAFE))
                                 else
                                   _buildBadge('Tanpa Konsul', const Color(0xFF059669), const Color(0xFFD1FAE5)),
+
+                                if (isInclude)
+                                  _buildBadge('Include', const Color(0xFF0D9488), const Color(0xFFCCFBF1)),
 
                                 // Badge Durasi
                                 _buildBadge('${item['durasi_menit'] ?? 30} mnt', AppColors.primaryDark, AppColors.bgMintLight),
@@ -1060,6 +1480,244 @@ class _BookingScreenState extends State<BookingScreen> {
         ),
       ),
     );
+  }
+
+  // 2.5 PILIHAN ALUR KUNJUNGAN PASIEN (PERSIS SEPERTI DI WEB)
+  Widget _buildConsultationFlowSection() {
+    if (_selectedItems.isEmpty) return const SizedBox.shrink();
+
+    if (_hasWajibKonsul) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 20),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFEF2F2),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFFECACA)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEE2E2),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.medical_services_outlined, color: Color(0xFFDC2626), size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          'Wajib Konsultasi Dokter Terlebih Dahulu',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF991B1B),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      _buildBadge('Wajib Konsul', const Color(0xFFDC2626), const Color(0xFFFEE2E2)),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Salah satu tindakan yang Anda pilih berstatus tindakan medis (Medical Treatment). '
+                    'Pasien otomatis diarahkan ke Ruang Konsultasi Dokter saat check-in di klinik sebelum tindakan.',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      color: const Color(0xFFB91C1C),
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_hasOpsionalKonsul) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 20),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.help_outline_rounded, color: Color(0xFF6366F1), size: 18),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Pilihan Alur Kunjungan Pasien',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textDark,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _buildBadge('Opsional Konsul', const Color(0xFF2563EB), const Color(0xFFDBEAFE)),
+              ],
+            ),
+            const SizedBox(height: 5),
+            Text(
+              'Tindakan yang dipilih menyertakan opsi konsultasi dokter pra-tindakan. Tentukan alur kunjungan saat pasien tiba / check-in di klinik:',
+              style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textMuted, height: 1.35),
+            ),
+            const SizedBox(height: 12),
+
+            // 2 Opsi Card: Konsultasi Dokter Dulu vs Langsung Tindakan (Sama Persis seperti di Web)
+            Row(
+              children: [
+                // Opsi 1: Konsultasi Dokter Dulu
+                Expanded(
+                  child: InkWell(
+                    onTap: () => setState(() => _pilihanKonsul = true),
+                    borderRadius: BorderRadius.circular(12),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.all(11),
+                      decoration: BoxDecoration(
+                        color: _pilihanKonsul ? const Color(0xFFEEF2FF) : Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: _pilihanKonsul ? const Color(0xFF6366F1) : const Color(0xFFE2E8F0),
+                          width: _pilihanKonsul ? 1.8 : 1,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: _pilihanKonsul ? const Color(0xFF6366F1) : const Color(0xFFE2E8F0),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                  Icons.person_search_rounded,
+                                  color: _pilihanKonsul ? Colors.white : const Color(0xFF64748B),
+                                  size: 16,
+                                ),
+                              ),
+                              if (_pilihanKonsul)
+                                const Icon(Icons.check_circle_rounded, color: Color(0xFF6366F1), size: 18),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Konsultasi Dokter Dulu',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: _pilihanKonsul ? const Color(0xFF4338CA) : AppColors.textDark,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            'Pasien antre di Ruang Konsultasi Dokter sebelum treatment.',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 10,
+                              color: const Color(0xFF64748B),
+                              height: 1.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+
+                // Opsi 2: Langsung Tindakan
+                Expanded(
+                  child: InkWell(
+                    onTap: () => setState(() => _pilihanKonsul = false),
+                    borderRadius: BorderRadius.circular(12),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.all(11),
+                      decoration: BoxDecoration(
+                        color: !_pilihanKonsul ? const Color(0xFFECFDF5) : Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: !_pilihanKonsul ? const Color(0xFF10B981) : const Color(0xFFE2E8F0),
+                          width: !_pilihanKonsul ? 1.8 : 1,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: !_pilihanKonsul ? const Color(0xFF10B981) : const Color(0xFFE2E8F0),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                  Icons.bolt_rounded,
+                                  color: !_pilihanKonsul ? Colors.white : const Color(0xFF64748B),
+                                  size: 16,
+                                ),
+                              ),
+                              if (!_pilihanKonsul)
+                                const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 18),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Langsung Tindakan',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: !_pilihanKonsul ? const Color(0xFF065F46) : AppColors.textDark,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            'Pasien langsung dilayani di ruang tindakan tanpa antre dokter.',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 10,
+                              color: const Color(0xFF64748B),
+                              height: 1.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    return const SizedBox.shrink();
   }
 
   // 3. PILIH TANGGAL, SESI DOKTER & JAM KEDATANGAN SPESIFIK
@@ -1433,9 +2091,15 @@ class _BookingScreenState extends State<BookingScreen> {
                 _summaryRow('Jadwal:', _selectedSlot != null ? '$dokterNama ($jamStr)' : 'Belum dipilih'),
                 _summaryRow(
                   'Alur Kunjungan:',
-                  _hasWajibKonsul ? 'Wajib Konsul Dokter' : 'Langsung Tindakan',
-                  badgeColor: _hasWajibKonsul ? Colors.amber.shade100 : const Color(0xFFD1FAE5),
-                  badgeTextColor: _hasWajibKonsul ? Colors.amber.shade900 : const Color(0xFF059669),
+                  _hasWajibKonsul
+                      ? 'Wajib Konsul Dokter'
+                      : (_pilihanKonsul ? 'Konsultasi Dokter Dulu' : 'Langsung Tindakan'),
+                  badgeColor: _hasWajibKonsul
+                      ? const Color(0xFFFEE2E2)
+                      : (_pilihanKonsul ? const Color(0xFFEEF2FF) : const Color(0xFFD1FAE5)),
+                  badgeTextColor: _hasWajibKonsul
+                      ? const Color(0xFFDC2626)
+                      : (_pilihanKonsul ? const Color(0xFF4338CA) : const Color(0xFF059669)),
                 ),
 
                 const Divider(height: 14),

@@ -32,6 +32,11 @@ class _HomeScreenState extends State<HomeScreen> {
   List<dynamic> _layananList = [];
   bool _loading = true;
 
+  // Pemilihan Cabang Klinik untuk Booking Layanan
+  List<Map<String, dynamic>> _cabangList = [];
+  Map<String, dynamic>? _selectedCabangBooking;
+  bool _loadingLayananCabang = false;
+
   @override
   void initState() {
     super.initState();
@@ -60,14 +65,137 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadData() async {
     setState(() => _loading = true);
     final bookings = await BookingService.getBookingHistory();
-    final layanan = await BookingService.getLayananList();
+    final cabangList = await AuthService.getCabangList();
+
+    List<dynamic> layanan = [];
+    if (_selectedCabangBooking != null) {
+      layanan = await BookingService.getLayananList(
+        kodeCabang: _selectedCabangBooking!['kode_cabang'],
+      );
+    } else {
+      layanan = await BookingService.getLayananList();
+    }
 
     if (!mounted) return;
     setState(() {
       _myBookings = bookings;
+      _cabangList = cabangList;
       _layananList = layanan;
       _loading = false;
     });
+  }
+
+  Future<void> _selectCabangAndLoadLayanan(Map<String, dynamic> cabang) async {
+    setState(() {
+      _selectedCabangBooking = cabang;
+      _loadingLayananCabang = true;
+    });
+    final list = await BookingService.getLayananList(
+      kodeCabang: cabang['kode_cabang'],
+    );
+    if (!mounted) return;
+    setState(() {
+      _layananList = list;
+      _loadingLayananCabang = false;
+      _searchController.clear();
+      _searchKeyword = '';
+      _selectedCategory = 'Semua';
+    });
+  }
+
+  Future<Map<String, dynamic>?> _showCabangPickerDialog() async {
+    if (_cabangList.isEmpty) {
+      _cabangList = await AuthService.getCabangList();
+    }
+    if (!mounted) return null;
+
+    return showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Pilih Cabang Klinik',
+                  style: GoogleFonts.playfairDisplay(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.primaryDarkest,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Tentukan cabang klinik untuk reservasi Anda:',
+                  style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textMuted),
+                ),
+                const SizedBox(height: 14),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: _cabangList.length,
+                    separatorBuilder: (context, index) => const SizedBox(height: 10),
+                    itemBuilder: (context, idx) {
+                      final c = _cabangList[idx];
+                      return ListTile(
+                        onTap: () => Navigator.pop(ctx, c),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          side: BorderSide(color: AppColors.inputBorder),
+                        ),
+                        tileColor: const Color(0xFFFAFAFA),
+                        leading: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.storefront_rounded, color: AppColors.primary, size: 22),
+                        ),
+                        title: Text(
+                          c['nama_cabang'] ?? c['kode_cabang'] ?? 'Klinik',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textDark,
+                          ),
+                        ),
+                        subtitle: Text(
+                          c['alamat'] ?? '-',
+                          style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textMuted),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.primary),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   /// BOOKING GATE INTERCEPTOR:
@@ -89,12 +217,23 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
 
+    // Pastikan cabang klinik sudah ditentukan
+    Map<String, dynamic>? targetCabang = _selectedCabangBooking;
+    if (targetCabang == null) {
+      targetCabang = await _showCabangPickerDialog();
+      if (targetCabang == null) return;
+      await _selectCabangAndLoadLayanan(targetCabang);
+    }
+
     if (!mounted) return;
 
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => BookingScreen(initialLayanan: item),
+        builder: (_) => BookingScreen(
+          initialLayanan: item,
+          selectedCabang: targetCabang,
+        ),
       ),
     );
 
@@ -1612,15 +1751,210 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ─────────────────────────────────────────────────────────────
-  // 2. TAB BOOKING (KATALOG LENGKAP PERAWATAN KECANTIKAN)
+  // 2A. VIEW PEMILIHAN CABANG KLINIK SEBELUM BOOKING LAYANAN
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildPilihCabangBookingView() {
+    return RefreshIndicator(
+      onRefresh: () async {
+        await _loadData();
+      },
+      color: AppColors.primary,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header Pilih Cabang
+            Text(
+              'Pilih Cabang Klinik',
+              style: GoogleFonts.playfairDisplay(
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+                color: AppColors.primaryDarkest,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Silakan pilih cabang klinik terdekat untuk melihat katalog layanan dan jadwal dokter spesialis yang tersedia.',
+              style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textMuted, height: 1.4),
+            ),
+            const SizedBox(height: 18),
+
+            if (_loading)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(40),
+                  child: CircularProgressIndicator(color: AppColors.primary),
+                ),
+              )
+            else if (_cabangList.isEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(28),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.inputBorder),
+                ),
+                child: Center(
+                  child: Column(
+                    children: [
+                      const Icon(Icons.store_mall_directory_outlined, size: 44, color: Colors.grey),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Tidak ada cabang klinik aktif.',
+                        style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textMuted),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _cabangList.length,
+                separatorBuilder: (context, index) => const SizedBox(height: 12),
+                itemBuilder: (context, index) {
+                  final cabang = _cabangList[index];
+                  final namaCabang = cabang['nama_cabang'] ?? cabang['kode_cabang'] ?? 'Klinik Cabang';
+                  final alamat = cabang['alamat'] ?? 'Kantor Cabang Resmi Klinik';
+                  final telp = cabang['telp'] ?? cabang['no_telp'];
+
+                  return InkWell(
+                    onTap: () => _selectCabangAndLoadLayanan(cabang),
+                    borderRadius: BorderRadius.circular(18),
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: AppColors.inputBorder),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.03),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 52,
+                            height: 52,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  AppColors.primary.withValues(alpha: 0.15),
+                                  AppColors.primary.withValues(alpha: 0.05),
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+                            ),
+                            child: const Icon(Icons.storefront_rounded, color: AppColors.primary, size: 26),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  namaCabang,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 14.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.textDark,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Padding(
+                                      padding: EdgeInsets.only(top: 2),
+                                      child: Icon(Icons.location_on_outlined, size: 13, color: AppColors.textMuted),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Expanded(
+                                      child: Text(
+                                        alamat,
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 11.5,
+                                          color: AppColors.textMuted,
+                                          height: 1.3,
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                if (telp != null && telp.toString().isNotEmpty) ...[
+                                  const SizedBox(height: 5),
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.phone_outlined, size: 12, color: AppColors.primary),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        telp.toString(),
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.primaryDark,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: const BoxDecoration(
+                              color: AppColors.bgMintLight,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.primary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            const SizedBox(height: 40),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // 2B. TAB BOOKING (KATALOG LENGKAP PERAWATAN KECANTIKAN)
   // ─────────────────────────────────────────────────────────────
   Widget _buildBookingTab() {
+    // Jika belum memilih cabang, tampilkan layar pemilihan cabang terlebih dahulu
+    if (_selectedCabangBooking == null) {
+      return _buildPilihCabangBookingView();
+    }
+
     final categories = _categories;
     final filteredLayanan = _filteredLayananList;
 
     return RefreshIndicator(
       onRefresh: () async {
-        await _loadData();
+        if (_selectedCabangBooking != null) {
+          await _selectCabangAndLoadLayanan(_selectedCabangBooking!);
+        } else {
+          await _loadData();
+        }
       },
       color: AppColors.primary,
       child: SingleChildScrollView(
@@ -1643,7 +1977,99 @@ class _HomeScreenState extends State<HomeScreen> {
               'Pilih treatment dan dokter ahli untuk merawat kecantikan kulit Anda.',
               style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textMuted),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+
+            // Bar Cabang Aktif + Tombol Ganti Cabang
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.storefront_rounded, color: Colors.white, size: 16),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Cabang Terpilih:',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 10.5,
+                            color: AppColors.textMuted,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Text(
+                          _selectedCabangBooking!['nama_cabang'] ?? _selectedCabangBooking!['kode_cabang'] ?? 'Klinik Cabang',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.primaryDarkest,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  InkWell(
+                    onTap: () {
+                      setState(() {
+                        _selectedCabangBooking = null;
+                        _searchController.clear();
+                        _searchKeyword = '';
+                        _selectedCategory = 'Semua';
+                      });
+                    },
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.4)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.swap_horiz_rounded, size: 14, color: AppColors.primary),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Ganti Cabang',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            if (_loadingLayananCabang)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(40),
+                  child: CircularProgressIndicator(color: AppColors.primary),
+                ),
+              )
+            else ...[
               // Search Bar
               Container(
                 decoration: BoxDecoration(
@@ -1896,6 +2322,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   },
                 ),
               const SizedBox(height: 80), // Ruang untuk FloatingActionButton
+            ],
           ],
         ),
       ),
@@ -2217,8 +2644,8 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(width: 6),
         ],
       ),
-      // Floating Action Button aktif di Tab Booking
-      floatingActionButton: _currentIndex == 1
+      // Floating Action Button aktif di Tab Booking jika cabang telah dipilih
+      floatingActionButton: (_currentIndex == 1 && _selectedCabangBooking != null)
           ? FloatingActionButton.extended(
               onPressed: () => _openBookingScreen(),
               backgroundColor: AppColors.primary,

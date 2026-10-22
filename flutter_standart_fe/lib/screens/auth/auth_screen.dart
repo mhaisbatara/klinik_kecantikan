@@ -29,25 +29,11 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   final _regConfirmPassCtrl = TextEditingController();
   bool _regShowPass = false;
   bool _regLoading = false;
-  List<Map<String, dynamic>> _cabangList = [];
-  String? _selectedCabang;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _fetchCabang();
-  }
-
-  Future<void> _fetchCabang() async {
-    final list = await AuthService.getCabangList();
-    if (!mounted) return;
-    setState(() {
-      _cabangList = list;
-      if (list.isNotEmpty && _selectedCabang == null) {
-        _selectedCabang = list.first['kode_cabang'];
-      }
-    });
   }
 
   @override
@@ -189,7 +175,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       noHp: phone,
       email: email,
       password: pass,
-      kodeCabang: _selectedCabang ?? 'CBG-001',
+      kodeCabang: 'CBG-001',
     );
 
     if (!mounted) return;
@@ -605,63 +591,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
             ],
           ),
         ),
-        const SizedBox(height: 18),
-
-        // Pilih Cabang Klinik
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Pilih Cabang Klinik',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textDark,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(
-                color: AppColors.inputBg,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.inputBorder, width: 1.5),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: _selectedCabang,
-                  isExpanded: true,
-                  icon: const Icon(Icons.storefront_outlined, color: AppColors.primary, size: 20),
-                  items: _cabangList.map((cabang) {
-                    return DropdownMenuItem<String>(
-                      value: cabang['kode_cabang']?.toString(),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.location_on_outlined, size: 16, color: AppColors.primary),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              cabang['nama_cabang'] ?? cabang['kode_cabang'] ?? '',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 13,
-                                color: AppColors.textDark,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                  onChanged: (val) {
-                    if (val != null) setState(() => _selectedCabang = val);
-                  },
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 20),
 
         // Nama Lengkap
         _buildInputField(

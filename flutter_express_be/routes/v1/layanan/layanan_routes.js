@@ -28,7 +28,7 @@ router.get("/kategori", async (req, res) => {
  */
 router.get("/", async (req, res) => {
   try {
-    const { search, kategori, page = 1, limit = 50 } = req.query;
+    const { search, kategori, kode_cabang, page = 1, limit = 50 } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
 
     const query = DB("mst_layanan as l")
@@ -44,6 +44,9 @@ router.get("/", async (req, res) => {
         }
         if (kategori) {
           qb.where("l.kode_kategori_layanan", kategori);
+        }
+        if (kode_cabang) {
+          qb.where("l.kode_cabang", kode_cabang);
         }
       });
 

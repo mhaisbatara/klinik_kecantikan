@@ -159,6 +159,7 @@ router.post("/create", authenticateMobile, upload.single("bukti_dp"), async (req
     metode_pembayaran_dp: Joi.string().allow("", null).default("transfer").label("Metode DP"),
     kode_cabang: Joi.string().allow("", null).default("CBG-001"),
     bukti_dp: Joi.string().allow("", null).optional().label("Bukti DP"),
+    butuh_konsul: Joi.any().optional().label("Butuh Konsul"),
   });
 
   const { error, value } = schema.validate(body);
@@ -249,6 +250,7 @@ router.post("/create", authenticateMobile, upload.single("bukti_dp"), async (req
       );
       const dpNominal = Math.round(totalNominal * 0.2); // DP 20%
 
+      const isButuhKonsul = (value.butuh_konsul === true || value.butuh_konsul === 1 || value.butuh_konsul === "1" || value.butuh_konsul === "true") ? 1 : 0;
       const firstItem = bookingItems[0] || {};
       const bookingRecord = {
         kode_cabang: value.kode_cabang || user.kode_cabang || "CBG-001",
@@ -261,6 +263,7 @@ router.post("/create", authenticateMobile, upload.single("bukti_dp"), async (req
         tanggal_booking: value.tanggal_booking,
         jam_booking: value.jam_booking,
         total_biaya: totalNominal,
+        butuh_konsul: isButuhKonsul,
         status: "dikonfirmasi", // langsung muncul di web Daftar Booking sebagai Dikonfirmasi
         dp_nominal: dpNominal,
         dp_status: "belum_bayar",
@@ -325,6 +328,8 @@ router.post("/create", authenticateMobile, upload.single("bukti_dp"), async (req
         dp_status: "belum_bayar",
         metode_pembayaran_dp: value.metode_pembayaran_dp || "transfer",
         bukti_dp: buktiDpUrl,
+        butuh_konsul: isButuhKonsul,
+        kode_cabang: bookingRecord.kode_cabang,
         items: bookingItems,
       };
     });

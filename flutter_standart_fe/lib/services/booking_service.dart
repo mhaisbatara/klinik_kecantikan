@@ -7,10 +7,13 @@ import 'auth_service.dart';
 
 class BookingService {
   // 1. Ambil Katalog Layanan
-  static Future<List<dynamic>> getLayananList() async {
+  static Future<List<dynamic>> getLayananList({String? kodeCabang}) async {
     try {
+      final uri = Uri.parse(
+        '${ApiConstants.layanan}${kodeCabang != null && kodeCabang.isNotEmpty ? '?kode_cabang=$kodeCabang' : ''}',
+      );
       final response = await http.get(
-        Uri.parse(ApiConstants.layanan),
+        uri,
         headers: {'Accept': 'application/json'},
       ).timeout(const Duration(seconds: 10));
 
@@ -68,6 +71,8 @@ class BookingService {
     String? catatan,
     String? metodeDp,
     XFile? buktiDpFile,
+    String? kodeCabang,
+    bool? butuhKonsul,
   }) async {
     try {
       final token = await AuthService.getToken();
@@ -80,6 +85,12 @@ class BookingService {
         request.fields['kode_jadwal'] = kodeJadwal;
         request.fields['tanggal_booking'] = tanggalBooking;
         request.fields['jam_booking'] = jamBooking;
+        if (kodeCabang != null && kodeCabang.isNotEmpty) {
+          request.fields['kode_cabang'] = kodeCabang;
+        }
+        if (butuhKonsul != null) {
+          request.fields['butuh_konsul'] = butuhKonsul ? '1' : '0';
+        }
         if (kodeLayanan != null) {
           request.fields['kode_layanan'] = kodeLayanan;
         } else if (items?.isNotEmpty == true) {
@@ -141,6 +152,8 @@ class BookingService {
           if (items != null && items.isNotEmpty) 'items': items,
           'catatan_pasien': catatan,
           'metode_pembayaran_dp': metodeDp ?? 'transfer',
+          if (kodeCabang != null && kodeCabang.isNotEmpty) 'kode_cabang': kodeCabang,
+          if (butuhKonsul != null) 'butuh_konsul': butuhKonsul ? 1 : 0,
         }),
       ).timeout(const Duration(seconds: 15));
 
