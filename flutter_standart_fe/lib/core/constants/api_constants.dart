@@ -37,6 +37,9 @@ class ApiConstants {
   static String get booking => '$baseUrl/booking';
   static String get antrean => '$baseUrl/antrean';
   static String get cabang => '$baseUrl/cabang';
+  static String get kunjungan => '$baseUrl/kunjungan';
+  static String get chatbotMessage => '$baseUrl/chatbot/message';
+  static String get chatbotChat => '$baseUrl/chatbot/chat';
 
   // Base URL untuk static assets (uploads gambar)
   static String get assetBaseUrl => 'http://$host:8008';

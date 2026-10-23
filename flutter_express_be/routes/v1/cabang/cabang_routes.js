@@ -4,6 +4,18 @@ import { sendSuccess, sendError } from "../../../utils/response.js";
 
 const router = express.Router();
 
+const cleanNamaCabang = (name) => {
+  if (!name) return "Cabang Utama";
+  let s = String(name).trim();
+  if (s.toLowerCase().startsWith("klinik ")) {
+    s = s.slice(7).trim();
+  }
+  if (!s.toLowerCase().startsWith("cabang ")) {
+    s = `Cabang ${s}`;
+  }
+  return s;
+};
+
 /**
  * GET /api/v1/cabang
  * Daftar Cabang Klinik Kecantikan
@@ -15,7 +27,7 @@ router.get("/", async (req, res) => {
       return sendSuccess(res, "Daftar cabang", [
         {
           kode_cabang: "CBG-001",
-          nama_cabang: "Klinik Cabang Utama",
+          nama_cabang: "Cabang Utama",
           alamat: "Kantor Pusat Klinik Kecantikan",
           telp: "081234567890",
         },
@@ -31,10 +43,17 @@ router.get("/", async (req, res) => {
         "nama_cabang",
         "alamat",
         "no_telp as telp",
+        "email",
+        "pj_manager",
         "status"
       );
 
-    return sendSuccess(res, "Daftar cabang berhasil dimuat", cabang);
+    const formattedCabang = cabang.map((c) => ({
+      ...c,
+      nama_cabang: cleanNamaCabang(c.nama_cabang),
+    }));
+
+    return sendSuccess(res, "Daftar cabang berhasil dimuat", formattedCabang);
   } catch (err) {
     return sendError(res, err.message, 500);
   }

@@ -4,15 +4,22 @@ import path from "path";
 import fs from "fs";
 import morgan from "morgan";
 import { fileURLToPath } from "url";
-import "dotenv/config";
+import dotenv from "dotenv";
+
+dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const envLocalPath = path.join(__dirname, ".env.local");
+if (fs.existsSync(envLocalPath)) {
+  dotenv.config({ path: envLocalPath, override: true });
+}
 
 import apiV1Router from "./routes/v1/index.js";
 import { mobileHeaderMiddleware } from "./middleware/mobile_header_middleware.js";
 import { errorHandler } from "./middleware/error_middleware.js";
 import { formatDateSystem } from "./utils/date_tools.js";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 process.env.TZ = process.env.APP_TZ || "Asia/Jakarta";
 
