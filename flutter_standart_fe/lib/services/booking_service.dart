@@ -74,6 +74,7 @@ class BookingService {
     List<Map<String, dynamic>>? items,
     String? catatan,
     String? metodeDp,
+    String? kodeMetodePembayaran,
     XFile? buktiDpFile,
     String? kodeCabang,
     bool isClaimPacket = false,
@@ -114,7 +115,10 @@ class BookingService {
         if (catatan != null && catatan.isNotEmpty) {
           request.fields['catatan_pasien'] = catatan;
         }
-        request.fields['metode_pembayaran_dp'] = isClaimPacket ? 'klaim_paket' : (metodeDp ?? 'transfer');
+        request.fields['metode_pembayaran_dp'] = metodeDp ?? 'transfer';
+        if (kodeMetodePembayaran != null && kodeMetodePembayaran.isNotEmpty) {
+          request.fields['kode_metode_pembayaran'] = kodeMetodePembayaran;
+        }
 
         final bytes = await buktiDpFile.readAsBytes();
         final rawExt = buktiDpFile.name.contains('.') ? buktiDpFile.name.split('.').last.toLowerCase() : 'jpg';
@@ -168,7 +172,11 @@ class BookingService {
           'kode_layanan': kodeLayanan ?? (items?.isNotEmpty == true ? items!.first['kode_layanan'] : null),
           if (items != null && items.isNotEmpty) 'items': items,
           'catatan_pasien': catatan,
-          'metode_pembayaran_dp': isClaimPacket ? 'klaim_paket' : (metodeDp ?? 'transfer'),
+          'metode_pembayaran_dp': metodeDp ?? 'transfer',
+          if (kodeMetodePembayaran != null && kodeMetodePembayaran.isNotEmpty)
+            'kode_metode_pembayaran': kodeMetodePembayaran,
+          if (kodeCabang != null && kodeCabang.isNotEmpty) 'kode_cabang': kodeCabang,
+          if (butuhKonsul != null) 'butuh_konsul': butuhKonsul ? 1 : 0,
         }),
       ).timeout(const Duration(seconds: 15));
 
@@ -343,6 +351,39 @@ class BookingService {
       return [];
     } catch (_) {
       return [];
+    }
+  }
+
+  // 7. Ambil Master Metode Pembayaran Aktif (Rekening Bank & QRIS)
+  static Future<Map<String, dynamic>> getMetodePembayaran({String? kodeCabang}) async {
+    try {
+      final token = await AuthService.getToken();
+      final uri = Uri.parse('${ApiConstants.baseUrl}/metode-pembayaran').replace(
+        queryParameters: {
+          if (kodeCabang != null && kodeCabang.isNotEmpty) 'kode_cabang': kodeCabang,
+        },
+      );
+      final response = await http.get(
+        uri,
+        headers: {
+          'Accept': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+      if (data['status'] == '00' || data['status'] == true || data['success'] == true) {
+        final payload = data['data'] is Map ? Map<String, dynamic>.from(data['data']) : <String, dynamic>{};
+        return {
+          'success': true,
+          'data': payload,
+          'grouped': payload['grouped'] ?? {'rekening': [], 'qris': []},
+          'all': payload['metode_pembayaran'] ?? [],
+        };
+      }
+      return {'success': false, 'grouped': {'rekening': [], 'qris': []}, 'all': []};
+    } catch (_) {
+      return {'success': false, 'grouped': {'rekening': [], 'qris': []}, 'all': []};
     }
   }
 }

@@ -255,8 +255,8 @@ router.post("/", async (req, res) => {
       }
       // Untuk tglStr > todayYmd (masa depan), isOverdue tetap false
 
-      // Flag apakah bisa dibatalkan (tanggal belum terlewat, belum overdue, dan status dikonfirmasi)
-      const canCancel = tglStr >= todayYmd && row.status === "dikonfirmasi" && !isOverdue;
+      // Flag apakah bisa dibatalkan (tanggal belum terlewat, belum overdue, dan status dikonfirmasi atau menunggu)
+      const canCancel = tglStr >= todayYmd && (row.status === "dikonfirmasi" || row.status === "menunggu") && !isOverdue;
 
       const canMarkTidakHadir = row.status === "dikonfirmasi" && isOverdue;
 

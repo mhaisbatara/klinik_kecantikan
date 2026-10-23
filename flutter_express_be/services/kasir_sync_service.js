@@ -21,6 +21,7 @@ export const syncBookingToKasirDraft = async (trx, {
   kodeCabang = "CBG-001",
   dpNominal = 0,
   metodePembayaranDp = null,
+  kodeMetodePembayaran = null,
   username = "mobile_app",
   tz = "Asia/Jakarta",
 }) => {
@@ -72,6 +73,10 @@ export const syncBookingToKasirDraft = async (trx, {
   if (draftTrx) {
     // Draf sudah ada — hanya update DP & sisa_bayar
     createdTransaksiKode = draftTrx.kode_transaksi;
+    await trx("trx_transaksi").where("id", draftTrx.id).update({
+      kode_metode_pembayaran: kodeMetodePembayaran || bookingRow.kode_metode_pembayaran || draftTrx.kode_metode_pembayaran,
+      updated_at: formatDateSystem(),
+    });
   } else {
     // Buat draf baru
     const lastTrx = await trx("trx_transaksi")
@@ -122,6 +127,7 @@ export const syncBookingToKasirDraft = async (trx, {
       total_bayar: resolvedDp,
       dp_nominal: 0,
       metode_pembayaran_dp: metodePembayaranDp || bookingRow.metode_pembayaran_dp || null,
+      kode_metode_pembayaran: kodeMetodePembayaran || bookingRow.kode_metode_pembayaran || null,
       sisa_bayar: resolvedDp,
       metode_bayar: resolvedMetodeBayar,
       status: "draft",

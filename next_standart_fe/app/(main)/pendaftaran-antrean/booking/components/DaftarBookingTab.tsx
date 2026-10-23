@@ -60,7 +60,7 @@ interface BookingRow {
   tanggal_booking: string;
   jam_booking: string;
   catatan_pasien?: string;
-  status: 'dikonfirmasi' | 'dibatalkan' | 'selesai' | 'tidak_hadir';
+  status: 'menunggu' | 'dikonfirmasi' | 'dibatalkan' | 'selesai' | 'tidak_hadir';
   dp_nominal: number;
   dp_status: 'belum_bayar' | 'sudah_bayar' | 'hangus' | 'dipotong_treatment';
   dp_dibayar_at?: string;
@@ -340,6 +340,7 @@ export const DaftarBookingTab: React.FC<Props> = ({ toast, onNavigateToCreate, r
 
   const statusOptions = [
     { label: 'Semua Status', value: '' },
+    { label: 'Menunggu Kasir', value: 'menunggu' },
     { label: 'Dikonfirmasi', value: 'dikonfirmasi' },
     { label: 'Selesai (Check-in)', value: 'selesai' },
     { label: 'Dibatalkan', value: 'dibatalkan' },
@@ -427,6 +428,17 @@ export const DaftarBookingTab: React.FC<Props> = ({ toast, onNavigateToCreate, r
       <KeteranganStatus
         className="mb-2"
         items={[
+          {
+            label: 'Menunggu Kasir',
+            color: '#f59e0b',
+            active: filterStatus === 'menunggu',
+            onClick: () => {
+              setFilterStatus(filterStatus === 'menunggu' ? '' : 'menunggu');
+              setPage(1);
+              setFirst(0);
+            },
+            title: 'Klik untuk filter Menunggu Kasir',
+          },
           {
             label: 'Dikonfirmasi',
             color: '#3b82f6',
@@ -765,9 +777,10 @@ export const DaftarBookingTab: React.FC<Props> = ({ toast, onNavigateToCreate, r
               style={{ width: '45px', textAlign: 'center', verticalAlign: 'middle', padding: '0.85rem 0.25rem' }}
               body={(rowData: BookingRow) => {
                 const statusColorMap: Record<string, { color: string; label: string }> = {
+                  menunggu: { color: '#f59e0b', label: 'Menunggu Kasir' },
                   dikonfirmasi: { color: '#3b82f6', label: 'Dikonfirmasi' },
                   selesai: { color: '#22c55e', label: 'Selesai Check-in' },
-                  tidak_hadir: { color: '#f59e0b', label: 'Tidak Hadir' },
+                  tidak_hadir: { color: '#f97316', label: 'Tidak Hadir' },
                   dibatalkan: { color: '#ef4444', label: 'Dibatalkan' },
                 };
                 const st = statusColorMap[rowData.status] || { color: '#94a3b8', label: rowData.status };
