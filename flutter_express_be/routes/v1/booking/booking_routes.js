@@ -157,6 +157,7 @@ router.post("/create", authenticateMobile, upload.single("bukti_dp"), async (req
       .optional(),
     catatan_pasien: Joi.string().allow("", null).label("Keluhan / Catatan"),
     metode_pembayaran_dp: Joi.string().allow("", null).default("transfer").label("Metode DP"),
+    kode_metode_pembayaran: Joi.string().allow("", null).optional().label("Kode Metode Pembayaran"),
     kode_cabang: Joi.string().allow("", null).default("CBG-001"),
     bukti_dp: Joi.string().allow("", null).optional().label("Bukti DP"),
     butuh_konsul: Joi.any().optional().label("Butuh Konsul"),
@@ -264,10 +265,11 @@ router.post("/create", authenticateMobile, upload.single("bukti_dp"), async (req
         jam_booking: value.jam_booking,
         total_biaya: totalNominal,
         butuh_konsul: isButuhKonsul,
-        status: "dikonfirmasi", // langsung muncul di web Daftar Booking sebagai Dikonfirmasi
+        status: dpNominal > 0 ? "menunggu" : "dikonfirmasi", // Jika ada DP, statusnya menunggu konfirmasi kasir. Jika bebas DP, dikonfirmasi
         dp_nominal: dpNominal,
-        dp_status: "belum_bayar",
+        dp_status: dpNominal > 0 ? "belum_bayar" : "bebas_dp",
         metode_pembayaran_dp: value.metode_pembayaran_dp || "transfer",
+        kode_metode_pembayaran: value.kode_metode_pembayaran || null,
         bukti_dp: buktiDpUrl,
         catatan_pasien: value.catatan_pasien || null,
         sumber: "mobile",
@@ -306,6 +308,7 @@ router.post("/create", authenticateMobile, upload.single("bukti_dp"), async (req
             kodeCabang: bookingRecord.kode_cabang,
             dpNominal: dpNominal,
             metodePembayaranDp: bookingRecord.metode_pembayaran_dp,
+            kodeMetodePembayaran: bookingRecord.kode_metode_pembayaran,
             username: user.username || "mobile_app",
             tz: process.env.APP_TZ || "Asia/Jakarta",
           });
@@ -324,9 +327,10 @@ router.post("/create", authenticateMobile, upload.single("bukti_dp"), async (req
         nama_ruangan: jadwal.nama_ruangan,
         total_estimasi: totalNominal,
         dp_nominal: dpNominal,
-        status: "dikonfirmasi",
-        dp_status: "belum_bayar",
+        status: dpNominal > 0 ? "menunggu" : "dikonfirmasi",
+        dp_status: dpNominal > 0 ? "belum_bayar" : "bebas_dp",
         metode_pembayaran_dp: value.metode_pembayaran_dp || "transfer",
+        kode_metode_pembayaran: value.kode_metode_pembayaran || null,
         bukti_dp: buktiDpUrl,
         butuh_konsul: isButuhKonsul,
         kode_cabang: bookingRecord.kode_cabang,
@@ -336,7 +340,9 @@ router.post("/create", authenticateMobile, upload.single("bukti_dp"), async (req
 
     return sendSuccess(
       res,
-      "Reservasi booking berhasil dibuat! Silakan lakukan konfirmasi DP.",
+      dpNominal > 0
+        ? "Reservasi booking berhasil dibuat! Silakan menunggu konfirmasi pembayaran DP oleh kasir."
+        : "Reservasi booking berhasil dibuat dan terkonfirmasi!",
       createdBooking,
       201
     );

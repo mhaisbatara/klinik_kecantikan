@@ -45,6 +45,12 @@ class ApiConstants {
   static String? getImageUrl(String? path) {
     if (path == null || path.trim().isEmpty) return null;
     final p = path.trim();
+    if (p.startsWith('http://127.0.0.1:8008')) {
+      return p.replaceFirst('http://127.0.0.1:8008', assetBaseUrl);
+    }
+    if (p.startsWith('http://localhost:8008')) {
+      return p.replaceFirst('http://localhost:8008', assetBaseUrl);
+    }
     if (p.startsWith('http://') || p.startsWith('https://')) return p;
     final cleanPath = p.startsWith('/') ? p : '/$p';
     return '$assetBaseUrl$cleanPath';

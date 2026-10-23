@@ -197,9 +197,10 @@ router.post("/", async (req, res) => {
       });
     }
 
-    // 3b. Update status DP booking menjadi sudah_bayar jika ini transaksi pembayaran DP booking
+    // 3b. Update status DP booking menjadi sudah_bayar & status booking menjadi dikonfirmasi jika ini transaksi pembayaran DP booking
     if (existing.kode_booking && !existing.kode_kunjungan) {
       await trx("trx_booking").where("kode_booking", existing.kode_booking).update({
+        status: "dikonfirmasi",
         dp_status: "sudah_bayar",
         dp_dibayar_at: DB.fn.now(),
         metode_pembayaran_dp: metode_bayar,

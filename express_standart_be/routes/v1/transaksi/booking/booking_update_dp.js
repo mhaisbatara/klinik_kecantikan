@@ -67,6 +67,7 @@ router.post("/", async (req, res) => {
     await DB("trx_booking")
       .where("kode_booking", kodeBooking)
       .update({
+        status: "dikonfirmasi",
         dp_status: "sudah_bayar",
         dp_dibayar_at: nowFormatted,
         updated_by: username,
