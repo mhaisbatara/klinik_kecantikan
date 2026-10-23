@@ -1,24 +1,53 @@
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 class ApiConstants {
-  /// Gunakan 127.0.0.1 dengan `adb reverse tcp:8008 tcp:8008` agar lancar di HP Android fisik
-  static const String manualHost = '127.0.0.1';
+  /// Daftar kandidat IP host backend:
+  /// 1. 127.0.0.1 (Koneksi via adb reverse atau Android Emulator)
+  /// 2. 192.168.137.1 (IP Windows Mobile Hotspot ke HP fisik)
+  /// 3. 192.168.1.13 (IP Wi-Fi LAN lokal)
+  static const List<String> candidateHosts = [
+    '127.0.0.1',
+    '192.168.137.1',
+    '192.168.1.13',
+  ];
 
-  static String get host {
-    if (manualHost.isNotEmpty) return manualHost;
-    if (kIsWeb) return '127.0.0.1';
-    switch (defaultTargetPlatform) {
-      case TargetPlatform.android:
-        // Android Emulator menggunakan 10.0.2.2 untuk mengakses localhost host PC
-        return '10.0.2.2';
-      case TargetPlatform.iOS:
-      case TargetPlatform.macOS:
-      case TargetPlatform.windows:
-      case TargetPlatform.linux:
-      default:
-        // 127.0.0.1 mencegah ECONNREFUSED karena resolusi IPv6 (::1) di Windows
-        return '127.0.0.1';
+  static String _activeHost = '127.0.0.1';
+
+  static String get host => _activeHost;
+
+  static void setHost(String newHost) {
+    _activeHost = newHost;
+  }
+
+  /// Otomatis mendeteksi host mana yang aktif dan merespons cepat di port 8008
+  static Future<String> resolveActiveHost() async {
+    if (kIsWeb) {
+      _activeHost = '127.0.0.1';
+      return _activeHost;
     }
+
+    // 1. Coba host aktif terlebih dahulu
+    try {
+      final s = await Socket.connect(_activeHost, 8008, timeout: const Duration(milliseconds: 300));
+      s.destroy();
+      return _activeHost;
+    } catch (_) {}
+
+    // 2. Jika host saat ini tidak merespons, cari dari daftar kandidat lain
+    for (final candidate in candidateHosts) {
+      if (candidate == _activeHost) continue;
+      try {
+        final socket = await Socket.connect(candidate, 8008, timeout: const Duration(milliseconds: 500));
+        socket.destroy();
+        _activeHost = candidate;
+        debugPrint('[ApiConstants] Auto-switched backend host to: $_activeHost:8008');
+        return candidate;
+      } catch (_) {
+        continue;
+      }
+    }
+    return _activeHost;
   }
 
   static String get baseUrl => 'http://$host:8008/api/v1';

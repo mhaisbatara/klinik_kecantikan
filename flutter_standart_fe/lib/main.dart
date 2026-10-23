@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'core/constants/api_constants.dart';
 import 'core/constants/colors.dart';
 import 'screens/auth/auth_screen.dart';
 import 'screens/home/home_screen.dart';
@@ -7,6 +8,7 @@ import 'services/auth_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await ApiConstants.resolveActiveHost();
   final loggedIn = await AuthService.isLoggedIn();
   final user = loggedIn ? await AuthService.getUser() : null;
 

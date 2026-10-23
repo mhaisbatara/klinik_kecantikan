@@ -465,11 +465,10 @@ async function callGeminiAPI(apiKey, systemInstruction, history, userMessage) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(12000), // Maksimal 12 detik per percobaan
+        signal: AbortSignal.timeout(4000), // Maksimal 4 detik per percobaan agar tidak lemot
       });
 
       if (!res.ok) {
-        const errText = await res.text();
         continue;
       }
 
@@ -487,14 +486,13 @@ async function callGeminiAPI(apiKey, systemInstruction, history, userMessage) {
 }
 
 /**
- * Panggil Groq Cloud API (Model: openai/gpt-oss-20b / qwen/qwen3.8-27b / fallback)
+ * Panggil Groq Cloud API (Ultra Fast LPU Inference: qwen/qwen3.8-27b / gpt-oss-20b)
  */
 async function callGroqAPI(apiKey, systemInstruction, history, userMessage) {
   const models = [
-    "openai/gpt-oss-20b",
     "qwen/qwen3.8-27b",
+    "openai/gpt-oss-20b",
     "openai/gpt-oss-120b",
-    "llama-3.3-70b-versatile",
   ];
 
   const messages = [{ role: "system", content: systemInstruction }];
@@ -523,7 +521,7 @@ async function callGroqAPI(apiKey, systemInstruction, history, userMessage) {
         model,
         messages,
         temperature: 0.7,
-        max_tokens: 1500,
+        max_tokens: 1200,
       };
 
       const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -533,7 +531,7 @@ async function callGroqAPI(apiKey, systemInstruction, history, userMessage) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(12000),
+        signal: AbortSignal.timeout(4000),
       });
 
       if (!res.ok) {
@@ -760,23 +758,23 @@ const handleChatRequest = async (req, res) => {
     let rawReply = null;
     let providerUsed = "local_intent";
 
-    // ── 1. Coba Provider 1: Google Gemini API (gemini-2.5-flash) ──────────
-    if (geminiKey.length > 10) {
+    // ── 1. Coba Provider 1: Groq Cloud LPU (Respon secepat kilat ~1 detik) ──────
+    if (groqKey.length > 10) {
+      try {
+        rawReply = await callGroqAPI(groqKey, systemInstruction, history, message);
+        providerUsed = "groq_qwen";
+      } catch (err) {
+        console.warn("⚠️ Groq API Gagal:", err.message);
+      }
+    }
+
+    // ── 2. Coba Provider 2: Google Gemini API (gemini-flash) ──────────
+    if (!rawReply && geminiKey.length > 10) {
       try {
         rawReply = await callGeminiAPI(geminiKey, systemInstruction, history, message);
         providerUsed = "google_gemini";
       } catch (err) {
         console.warn("⚠️ Gemini API Gagal:", err.message);
-      }
-    }
-
-    // ── 2. Coba Provider 2: Groq Cloud API (llama-3.3-70b-versatile) ──────
-    if (!rawReply && groqKey.length > 10) {
-      try {
-        rawReply = await callGroqAPI(groqKey, systemInstruction, history, message);
-        providerUsed = "groq_llama";
-      } catch (err) {
-        console.warn("⚠️ Groq API Gagal:", err.message);
       }
     }
 

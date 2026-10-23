@@ -11,12 +11,20 @@ class BookingScreen extends StatefulWidget {
   final Map<String, dynamic>? initialLayanan;
   final Map<String, dynamic>? selectedCabang;
   final Map<String, dynamic>? klaimPaketData;
+  final String? initialKodeCabang;
+  final String? initialNamaCabang;
+  final bool isClaim;
+  final String? kodeDetailKepemilikan;
 
   const BookingScreen({
     super.key,
     this.initialLayanan,
     this.selectedCabang,
     this.klaimPaketData,
+    this.initialKodeCabang,
+    this.initialNamaCabang,
+    this.isClaim = false,
+    this.kodeDetailKepemilikan,
   });
 
   @override
@@ -2795,16 +2803,21 @@ class _BookingScreenState extends State<BookingScreen> {
                   border: Border.all(
                     color: _persetujuanDp ? AppColors.primary : AppColors.inputBorder,
                   ),
-                  Expanded(
-                    child: Text(
-                      _dpNominal == 0
-                          ? 'Saya mengonfirmasi reservasi klaim sesi paket ini dengan jaminan jadwal kedatangan di klinik.'
-                          : 'Saya menyetujui ketentuan pembayaran DP 20% sebesar ${_formatRupiah(_dpNominal)} untuk mengonfirmasi jadwal reservasi.',
-                      style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textDark),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Checkbox(
+                      value: _persetujuanDp,
+                      activeColor: AppColors.primary,
+                      visualDensity: VisualDensity.compact,
+                      onChanged: (v) => setState(() => _persetujuanDp = v ?? false),
                     ),
                     Expanded(
                       child: Text(
-                        'Saya menyetujui ketentuan pembayaran DP 20% sebesar ${_formatRupiah(_dpNominal)} untuk mengonfirmasi jadwal reservasi.',
+                        _dpNominal == 0
+                            ? 'Saya mengonfirmasi reservasi klaim sesi paket ini dengan jaminan jadwal kedatangan di klinik.'
+                            : 'Saya menyetujui ketentuan pembayaran DP 20% sebesar ${_formatRupiah(_dpNominal)} untuk mengonfirmasi jadwal reservasi.',
                         style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textDark),
                       ),
                     ),
@@ -2812,7 +2825,6 @@ class _BookingScreenState extends State<BookingScreen> {
                 ),
               ),
             ),
-          ],
           const SizedBox(height: 14),
 
           // Box Ringkasan & Kebijakan Booking Klinik (Sama seperti Web)
