@@ -1270,8 +1270,366 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ─── KARTU MEMBER / PAKET PERAWATAN MULTI-SESI (IDENTIK DENGAN WEB) ───
+  // ─── KARTU RINGKASAN PAKET PERAWATAN (COMPACT CARD) ───
   Widget _buildPackageCard(Map<String, dynamic> pkg) {
+    final status = (pkg['status'] ?? 'aktif').toString().toLowerCase();
+    final isAktif = status == 'aktif';
+    final isExpired = status == 'expired';
+    final sisaSesi = int.tryParse(pkg['sisa_sesi']?.toString() ?? '0') ?? 0;
+    final totalSesi = int.tryParse(pkg['total_sesi']?.toString() ?? '0') ?? 0;
+    final details = (pkg['details'] is List) ? (pkg['details'] as List) : [];
+
+    int calcTotal = totalSesi;
+    int calcTerpakai = 0;
+    if (calcTotal == 0 && details.isNotEmpty) {
+      for (final d in details) {
+        calcTotal += int.tryParse(d['sesi_total']?.toString() ?? '0') ?? 0;
+        calcTerpakai += int.tryParse(d['sesi_terpakai']?.toString() ?? '0') ?? 0;
+      }
+    } else {
+      calcTerpakai = calcTotal - sisaSesi;
+    }
+    if (calcTotal == 0) calcTotal = sisaSesi > 0 ? sisaSesi : 1;
+    final progress = (calcTerpakai / calcTotal).clamp(0.0, 1.0);
+
+    Color statusColor;
+    Color statusBg;
+    String statusText;
+    if (isAktif) {
+      statusColor = const Color(0xFF059669);
+      statusBg = const Color(0xFFECFDF5);
+      statusText = 'AKTIF';
+    } else if (isExpired) {
+      statusColor = const Color(0xFFDC2626);
+      statusBg = const Color(0xFFFEF2F2);
+      statusText = 'KEDALUWARSA';
+    } else {
+      statusColor = const Color(0xFF64748B);
+      statusBg = const Color(0xFFF1F5F9);
+      statusText = 'HABIS';
+    }
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x08000000),
+            blurRadius: 10,
+            offset: Offset(0, 3),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _showPackageDetailModal(pkg),
+          child: Padding(
+            padding: const EdgeInsets.all(15),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Baris Atas: Icon + Nama Paket + Status Badge
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF059669), Color(0xFF047857)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x26059669),
+                            blurRadius: 6,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(Icons.spa_rounded, color: Colors.white, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            pkg['nama_paket'] ?? 'Paket Layanan Estetika',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF0F172A),
+                              height: 1.25,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            pkg['kode_kepemilikan_paket_layanan'] ?? pkg['kode_paket_layanan'] ?? '-',
+                            style: GoogleFonts.jetBrainsMono(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: statusBg,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: statusColor.withValues(alpha: 0.25)),
+                      ),
+                      child: Text(
+                        statusText,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: statusColor,
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 12),
+
+                // Baris Tengah: Sisa Sesi & Progress
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFF1F5F9)),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.confirmation_number_outlined, size: 14, color: Color(0xFF64748B)),
+                              const SizedBox(width: 5),
+                              Text(
+                                'Sisa $sisaSesi dari $calcTotal Sesi',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF334155),
+                                ),
+                              ),
+                            ],
+                          ),
+                          Text(
+                            pkg['tanggal_expired'] != null
+                                ? 's.d. ${_formatDateDash(pkg['tanggal_expired'])}'
+                                : 'Tanpa Expired',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 7),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(999),
+                        child: LinearProgressIndicator(
+                          value: progress,
+                          backgroundColor: const Color(0xFFE2E8F0),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            isAktif ? const Color(0xFF10B981) : const Color(0xFF94A3B8),
+                          ),
+                          minHeight: 5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                // Baris Bawah: Tombol "Lihat Kartu & Detail" dan "Booking"
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 9),
+                          side: const BorderSide(color: Color(0xFFCBD5E1)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          backgroundColor: Colors.white,
+                        ),
+                        icon: const Icon(Icons.badge_outlined, size: 16, color: Color(0xFF334155)),
+                        label: Text(
+                          'Lihat Kartu & Detail',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF334155),
+                          ),
+                        ),
+                        onPressed: () => _showPackageDetailModal(pkg),
+                      ),
+                    ),
+                    if (isAktif && sisaSesi > 0) ...[
+                      const SizedBox(width: 8),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        icon: const Icon(Icons.calendar_month_rounded, size: 15),
+                        label: Text(
+                          'Booking',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        onPressed: () {
+                          Map<String, dynamic>? initialLayanan;
+                          if (details.isNotEmpty) {
+                            final firstDet = details.first as Map<String, dynamic>;
+                            initialLayanan = {
+                              'kode_layanan': firstDet['kode_layanan'],
+                              'nama_layanan': firstDet['nama_layanan'],
+                              'nama': firstDet['nama_layanan'],
+                              'is_paket': true,
+                              'kode_kepemilikan_paket_layanan': pkg['kode_kepemilikan_paket_layanan'],
+                            };
+                          }
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => BookingScreen(initialLayanan: initialLayanan),
+                            ),
+                          ).then((_) => _refreshProfile());
+                        },
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ─── POPUP MODAL KARTU LENGKAP & DETAIL SESI ───
+  void _showPackageDetailModal(Map<String, dynamic> pkg) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (modalCtx) {
+        return Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(modalCtx).size.height * 0.92,
+          ),
+          decoration: const BoxDecoration(
+            color: Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Drag indicator bar
+              const SizedBox(height: 12),
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4.5,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFCBD5E1),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ),
+
+              // Header Modal
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 10, 10, 10),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.badge_rounded, color: Color(0xFF059669), size: 20),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Kartu Paket Perawatan',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  color: const Color(0xFF0F172A),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            pkg['nama_paket'] ?? 'Detail Layanan & Stempel Multi-Sesi',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11.5,
+                              color: const Color(0xFF64748B),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, color: Color(0xFF64748B), size: 22),
+                      onPressed: () => Navigator.pop(modalCtx),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1, color: Color(0xFFE2E8F0)),
+
+              // Konten Detail Kartu Lengkap
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: _buildFullPackageCard(pkg, modalCtx),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // ─── KARTU MEMBER LENGKAP / DETAIL MULTI-SESI (DIDALAM POPUP MODAL) ───
+  Widget _buildFullPackageCard(Map<String, dynamic> pkg, BuildContext modalCtx) {
     final status = (pkg['status'] ?? 'aktif').toString().toLowerCase();
     final isAktif = status == 'aktif';
     final isExpired = status == 'expired';
@@ -1549,6 +1907,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
               onPressed: () {
+                Navigator.pop(modalCtx);
                 Map<String, dynamic>? initialLayanan;
                 if (details.isNotEmpty) {
                   final firstDet = details.first as Map<String, dynamic>;

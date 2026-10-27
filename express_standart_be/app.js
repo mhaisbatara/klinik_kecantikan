@@ -25,6 +25,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 import APIV1 from "./routes/v1/index.js";
+import CabangProfil from "./routes/v1/setup/cabang_profil.js";
+import { validateAccessToken, contextMiddleware } from "./middleware/validate_header.js";
 
 import { formatDateSystem } from "./routes/v1/components/tools/date_tools.js";
 import { validateTimestamp } from "./middleware/validate_header.js";
@@ -113,6 +115,19 @@ app.get("/api/v1/init-db", async (req, res) => {
 });
 
 // useragentMiddleware,
+// Direct /api/cabang mount
+app.use(
+  "/api/cabang",
+  (req, res, next) => {
+    if (!req.headers["x-timestamp"]) {
+      req.headers["x-timestamp"] = new Date().toISOString();
+    }
+    next();
+  },
+  [validateAccessToken, contextMiddleware],
+  CabangProfil
+);
+
 // Middleware global untuk semua api
 app.use(
   "/api/v1",

@@ -6,6 +6,7 @@ import { showError, showSuccess } from "@/lib/tools/generalTools";
 import { useFormik } from "formik";
 import { initValue, NavState, State } from "./components/interfaces";
 import { FilterMatchMode } from "primereact/api";
+import { ConfirmDialog } from "primereact/confirmdialog";
 import Form from "./components/display/form";
 import { useSession } from "next-auth/react";
 
@@ -99,6 +100,7 @@ const Page = () => {
     return <>
         <div className="">
             <Toast ref={toast} position="top-right" />
+            <ConfirmDialog />
             <Form formik={formik} state={state} setState={setState} toast={toast} getData={getData} />
         </div>
     </>

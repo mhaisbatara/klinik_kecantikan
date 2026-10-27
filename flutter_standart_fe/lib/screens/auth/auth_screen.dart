@@ -72,15 +72,12 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
         duration: const Duration(seconds: 3),
         content: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
-            border: Border(
-              left: BorderSide(color: borderColor, width: 5),
-              top: BorderSide(color: borderColor.withValues(alpha: 0.3)),
-              right: BorderSide(color: borderColor.withValues(alpha: 0.3)),
-              bottom: BorderSide(color: borderColor.withValues(alpha: 0.3)),
+            border: Border.all(
+              color: borderColor.withValues(alpha: 0.3),
+              width: 1.5,
             ),
             boxShadow: [
               BoxShadow(
@@ -90,21 +87,37 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
               ),
             ],
           ),
-          child: Row(
-            children: [
-              Icon(iconData, color: iconColor, size: 24),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  message,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textDark,
+          clipBehavior: Clip.antiAlias,
+          child: IntrinsicHeight(
+            child: Row(
+              children: [
+                Container(
+                  width: 5,
+                  color: borderColor,
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    child: Row(
+                      children: [
+                        Icon(iconData, color: iconColor, size: 24),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            message,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textDark,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

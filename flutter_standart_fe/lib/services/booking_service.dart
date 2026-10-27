@@ -9,8 +9,12 @@ class BookingService {
   // 1. Ambil Katalog Layanan
   static Future<List<dynamic>> getLayananList({String? kodeCabang}) async {
     try {
+      final hasCabang = kodeCabang != null &&
+          kodeCabang.isNotEmpty &&
+          kodeCabang.toLowerCase() != 'semua' &&
+          kodeCabang.toLowerCase() != 'all';
       final uri = Uri.parse(
-        '${ApiConstants.layanan}${kodeCabang != null && kodeCabang.isNotEmpty ? '?kode_cabang=$kodeCabang' : ''}',
+        '${ApiConstants.layanan}${hasCabang ? '?kode_cabang=$kodeCabang' : ''}',
       );
       final response = await http.get(
         uri,
@@ -68,7 +72,7 @@ class BookingService {
         '${ApiConstants.booking}/slots?tanggal_booking=$tanggal'
         '${kodeRuangan != null ? '&kode_ruangan=$kodeRuangan' : ''}'
         '${kodeLayanan != null ? '&kode_layanan=$kodeLayanan' : ''}'
-        '${kodeCabang != null ? '&kode_cabang=$kodeCabang' : ''}',
+        '${kodeCabang != null && kodeCabang.isNotEmpty && kodeCabang.toLowerCase() != 'semua' ? '&kode_cabang=$kodeCabang' : ''}',
       );
 
       final response = await http.get(
@@ -99,6 +103,8 @@ class BookingService {
     String? kodeMetodePembayaran,
     XFile? buktiDpFile,
     String? kodeCabang,
+    bool isClaimPacket = false,
+    String? kodeDetailKepemilikan,
     bool? butuhKonsul,
   }) async {
     try {
@@ -114,6 +120,12 @@ class BookingService {
         request.fields['jam_booking'] = jamBooking;
         if (jenisLayanan != null && jenisLayanan.isNotEmpty) {
           request.fields['jenis_layanan'] = jenisLayanan;
+        }
+        if (isClaimPacket) {
+          request.fields['is_claim_packet'] = 'true';
+        }
+        if (kodeDetailKepemilikan != null && kodeDetailKepemilikan.isNotEmpty) {
+          request.fields['kode_detail_kepemilikan_paket_layanan'] = kodeDetailKepemilikan;
         }
         if (kodeCabang != null && kodeCabang.isNotEmpty) {
           request.fields['kode_cabang'] = kodeCabang;
@@ -182,6 +194,9 @@ class BookingService {
           'tanggal_booking': tanggalBooking,
           'jam_booking': jamBooking,
           if (jenisLayanan != null && jenisLayanan.isNotEmpty) 'jenis_layanan': jenisLayanan,
+          'is_claim_packet': isClaimPacket,
+          if (kodeDetailKepemilikan != null && kodeDetailKepemilikan.isNotEmpty)
+            'kode_detail_kepemilikan_paket_layanan': kodeDetailKepemilikan,
           'kode_layanan': kodeLayanan ?? (items?.isNotEmpty == true ? items!.first['kode_layanan'] : null),
           if (items != null && items.isNotEmpty) 'items': items,
           'catatan_pasien': catatan,
@@ -211,12 +226,33 @@ class BookingService {
     }
   }
 
-  // 4. Ambil Riwayat Booking Pelanggan
-  static Future<List<dynamic>> getBookingHistory() async {
+  // 4. Ambil Riwayat Booking Pelanggan (List Sederhana untuk Kompatibilitas)
+  static Future<List<dynamic>> getBookingHistory({String? statusFilter, int page = 1, int limit = 15}) async {
+    try {
+      final res = await getBookingHistoryPaged(statusFilter: statusFilter, page: page, limit: limit);
+      return res['items'] as List<dynamic>? ?? [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  // 4b. Ambil Riwayat Booking Pelanggan dengan Metadata Paginasi
+  static Future<Map<String, dynamic>> getBookingHistoryPaged({
+    String? statusFilter,
+    int page = 1,
+    int limit = 15,
+  }) async {
     try {
       final token = await AuthService.getToken();
+      final uri = Uri.parse('${ApiConstants.booking}/history').replace(queryParameters: {
+        'page': page.toString(),
+        'limit': limit.toString(),
+        if (statusFilter != null && statusFilter.isNotEmpty && statusFilter != 'semua')
+          'status_filter': statusFilter,
+      });
+
       final response = await http.get(
-        Uri.parse('${ApiConstants.booking}/history'),
+        uri,
         headers: {
           'Accept': 'application/json',
           if (token != null) 'Authorization': 'Bearer $token',
@@ -225,11 +261,78 @@ class BookingService {
 
       final data = jsonDecode(response.body);
       if (data['status'] == '00') {
-        return data['data'] ?? [];
+        final payload = data['data'];
+        if (payload is Map<String, dynamic>) {
+          return {
+            'items': payload['items'] ?? [],
+            'total': payload['total'] ?? 0,
+            'page': payload['page'] ?? page,
+            'limit': payload['limit'] ?? limit,
+            'hasMore': payload['hasMore'] ?? false,
+          };
+        } else if (payload is List) {
+          return {
+            'items': payload,
+            'total': payload.length,
+            'page': page,
+            'limit': limit,
+            'hasMore': false,
+          };
+        }
       }
-      return [];
-    } catch (_) {
-      return [];
+      return {'items': [], 'total': 0, 'page': page, 'limit': limit, 'hasMore': false};
+    } catch (e) {
+      return {'items': [], 'total': 0, 'page': page, 'limit': limit, 'hasMore': false, 'error': e.toString()};
+    }
+  }
+
+  // 4c. Ambil Riwayat Kehadiran Kunjungan Fisik Pasien (Datang Langsung / Booking)
+  static Future<Map<String, dynamic>> getKunjunganHistoryPaged({
+    String? statusFilter,
+    int page = 1,
+    int limit = 15,
+  }) async {
+    try {
+      final token = await AuthService.getToken();
+      final uri = Uri.parse('${ApiConstants.kunjungan}/history').replace(queryParameters: {
+        'page': page.toString(),
+        'limit': limit.toString(),
+        if (statusFilter != null && statusFilter.isNotEmpty && statusFilter != 'semua')
+          'status_filter': statusFilter,
+      });
+
+      final response = await http.get(
+        uri,
+        headers: {
+          'Accept': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+      if (data['status'] == '00') {
+        final payload = data['data'];
+        if (payload is Map<String, dynamic>) {
+          return {
+            'items': payload['items'] ?? [],
+            'total': payload['total'] ?? 0,
+            'page': payload['page'] ?? page,
+            'limit': payload['limit'] ?? limit,
+            'hasMore': payload['hasMore'] ?? false,
+          };
+        } else if (payload is List) {
+          return {
+            'items': payload,
+            'total': payload.length,
+            'page': page,
+            'limit': limit,
+            'hasMore': false,
+          };
+        }
+      }
+      return {'items': [], 'total': 0, 'page': page, 'limit': limit, 'hasMore': false};
+    } catch (e) {
+      return {'items': [], 'total': 0, 'page': page, 'limit': limit, 'hasMore': false, 'error': e.toString()};
     }
   }
 

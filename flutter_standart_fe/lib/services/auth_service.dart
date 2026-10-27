@@ -49,6 +49,12 @@ class AuthService {
         };
       }
     } catch (e) {
+      // Auto-fallback host jika koneksi terputus (misal wireless ADB disconnect)
+      final oldHost = ApiConstants.host;
+      final newHost = await ApiConstants.resolveActiveHost();
+      if (newHost != oldHost) {
+        return login(username: username, password: password, rememberMe: rememberMe);
+      }
       return {
         'success': false,
         'message': 'Gagal terhubung ke server ($e). Pastikan server backend berjalan.',
@@ -76,6 +82,11 @@ class AuthService {
         {'kode_cabang': 'CBG-002', 'nama_cabang': 'Klinik Cabang Surabaya'},
       ];
     } catch (_) {
+      final oldHost = ApiConstants.host;
+      final newHost = await ApiConstants.resolveActiveHost();
+      if (newHost != oldHost) {
+        return getCabangList();
+      }
       return [
         {'kode_cabang': 'CBG-001', 'nama_cabang': 'Klinik Cabang Utama'},
         {'kode_cabang': 'CBG-002', 'nama_cabang': 'Klinik Cabang Surabaya'},

@@ -12,6 +12,10 @@ class BookingScreen extends StatefulWidget {
   final Map<String, dynamic>? selectedCabang;
   final Map<String, dynamic>? klaimPaketData;
   final Map<String, dynamic>? pendingBooking;
+  final String? initialKodeCabang;
+  final String? initialNamaCabang;
+  final bool isClaim;
+  final String? kodeDetailKepemilikan;
 
   const BookingScreen({
     super.key,
@@ -19,6 +23,10 @@ class BookingScreen extends StatefulWidget {
     this.selectedCabang,
     this.klaimPaketData,
     this.pendingBooking,
+    this.initialKodeCabang,
+    this.initialNamaCabang,
+    this.isClaim = false,
+    this.kodeDetailKepemilikan,
   });
 
   @override
@@ -26,6 +34,11 @@ class BookingScreen extends StatefulWidget {
 }
 
 class _BookingScreenState extends State<BookingScreen> {
+  // Mode Klaim Sisa Sesi Paket
+  bool _isClaim = false;
+  String? _kodeDetailKepemilikan;
+  String? _namaPaketKlaim;
+
   // Multi-step Booking Flow:
   // 1: Pengisian Layanan, Alur Kunjungan, Jadwal & Catatan
   // 2: Rincian Reservasi & Pilihan Pembayaran DP (Gambar 1)
@@ -45,6 +58,11 @@ class _BookingScreenState extends State<BookingScreen> {
   // Pilihan Alur Konsultasi Pasien (Persis seperti di Web)
   // false: Langsung Tindakan, true: Konsultasi Dokter Dulu
   bool _pilihanKonsul = false;
+
+  // Cabang Terpilih & Daftar Cabang
+  List<Map<String, dynamic>> _cabangList = [];
+  String? _selectedKodeCabang;
+  String? _selectedNamaCabang;
 
   // Katalog Layanan, Paket Perawatan & Ruangan
   List<dynamic> _allLayanan = [];
@@ -120,8 +138,12 @@ class _BookingScreenState extends State<BookingScreen> {
   @override
   void initState() {
     super.initState();
-    _activeCabang = widget.selectedCabang;
+    _isClaim = widget.isClaim || (widget.initialLayanan?['is_claim_packet'] == true);
+    _kodeDetailKepemilikan = widget.kodeDetailKepemilikan ??
+        widget.initialLayanan?['kode_detail_kepemilikan_paket_layanan']?.toString();
+    _namaPaketKlaim = widget.initialLayanan?['nama_paket']?.toString();
 
+    _activeCabang = widget.selectedCabang;
     if (widget.pendingBooking != null) {
       _createdBooking = Map<String, dynamic>.from(widget.pendingBooking!);
       _isPendingLocked = true;
@@ -143,7 +165,11 @@ class _BookingScreenState extends State<BookingScreen> {
       }
     }
 
+    _selectedKodeCabang = widget.initialKodeCabang ?? widget.selectedCabang?['kode_cabang'] ?? widget.initialLayanan?['kode_cabang'];
+    final rawInitNama = widget.initialNamaCabang ?? widget.selectedCabang?['nama_cabang'] ?? widget.initialLayanan?['nama_cabang'];
+    _selectedNamaCabang = rawInitNama != null ? _formatBranchName(rawInitNama) : null;
     _loadUser();
+    _fetchCabangList();
     _fetchLayanan();
     _fetchPaymentMethods();
   }
@@ -308,6 +334,19 @@ class _BookingScreenState extends State<BookingScreen> {
     );
   }
 
+  /// Format nama cabang agar bersih dari kata 'Klinik' dan menyisakan 'Cabang [Nama]'
+  String _formatBranchName(String? name) {
+    if (name == null || name.trim().isEmpty) return 'Cabang Utama';
+    var s = name.trim();
+    if (s.toLowerCase().startsWith('klinik ')) {
+      s = s.substring(7).trim();
+    }
+    if (!s.toLowerCase().startsWith('cabang ')) {
+      s = 'Cabang $s';
+    }
+    return s;
+  }
+
   @override
   void dispose() {
     _catatanCtrl.dispose();
@@ -418,24 +457,59 @@ class _BookingScreenState extends State<BookingScreen> {
     if (mounted) {
       setState(() {
         _currentUser = user;
+        _selectedKodeCabang ??= user?['kode_cabang'] ?? 'CBG-001';
+        _selectedNamaCabang ??= _formatBranchName(user?['nama_cabang']);
         if (_activeCabang == null && user != null) {
           _activeCabang = {
-            'kode_cabang': user['kode_cabang'] ?? 'CBG-001',
-            'nama_cabang': user['nama_cabang'] ?? 'Klinik Cabang Utama',
+            'kode_cabang': _selectedKodeCabang ?? user['kode_cabang'] ?? 'CBG-001',
+            'nama_cabang': _selectedNamaCabang ?? user['nama_cabang'] ?? 'Klinik Cabang Utama',
           };
         }
       });
     }
   }
 
+  Future<void> _fetchCabangList() async {
+    try {
+      final list = await AuthService.getCabangList();
+      if (mounted && list.isNotEmpty) {
+        setState(() {
+          _cabangList = list;
+          if (_selectedKodeCabang != null && (_selectedNamaCabang == null || _selectedNamaCabang!.isEmpty)) {
+            final found = list.firstWhere(
+              (c) => c['kode_cabang'] == _selectedKodeCabang,
+              orElse: () => list.first,
+            );
+            _selectedNamaCabang = _formatBranchName(found['nama_cabang']?.toString());
+          }
+        });
+      }
+    } catch (_) {}
+  }
+
+  void _changeCabang(String newKode, String newNama) {
+    if (_selectedKodeCabang == newKode) return;
+    setState(() {
+      _selectedKodeCabang = newKode;
+      _selectedNamaCabang = _formatBranchName(newNama);
+      _selectedItems.clear();
+      _activeKodeRuangan = null;
+      _activeNamaRuangan = null;
+      _selectedSlot = null;
+      _selectedJamBooking = null;
+    });
+    _fetchLayanan();
+  }
+
   Future<void> _fetchLayanan() async {
     setState(() => _loadingLayanan = true);
+    final branchCode = _selectedKodeCabang ?? _activeCabang?['kode_cabang'];
     final results = await Future.wait([
       BookingService.getLayananList(
-        kodeCabang: _activeCabang?['kode_cabang'],
+        kodeCabang: branchCode,
       ),
       BookingService.getPaketList(
-        kodeCabang: _activeCabang?['kode_cabang'],
+        kodeCabang: branchCode,
       ),
     ]);
     if (!mounted) return;
@@ -462,6 +536,7 @@ class _BookingScreenState extends State<BookingScreen> {
       _allLayanan = list;
       _allPaket = paketList;
       _roomList = uniqueRooms.toList();
+      _selectedRoom = 'Semua';
       _loadingLayanan = false;
 
       // Inisialisasi dari klaim paket atau initialLayanan
@@ -668,7 +743,7 @@ class _BookingScreenState extends State<BookingScreen> {
       tanggal: dateStr,
       kodeRuangan: _activeKodeRuangan,
       kodeLayanan: _selectedItems.isNotEmpty ? _selectedItems.first['kode_layanan'] : null,
-      kodeCabang: _activeCabang?['kode_cabang'],
+      kodeCabang: _selectedKodeCabang ?? _activeCabang?['kode_cabang'],
     );
 
     if (!mounted) return;
@@ -724,6 +799,7 @@ class _BookingScreenState extends State<BookingScreen> {
   }
 
   num get _totalBiaya {
+    if (_isClaim) return 0;
     if (_createdBooking?['total_biaya'] != null) {
       return _toNum(_createdBooking!['total_biaya']);
     }
@@ -732,19 +808,21 @@ class _BookingScreenState extends State<BookingScreen> {
     }
     num total = 0;
     for (final it in _selectedItems) {
+      if (it['is_claim_packet'] == true) continue;
       total += _toNum(it['harga']);
     }
     return total;
   }
 
   num get _dpNominal {
+    if (_isClaim) return 0;
     if (_createdBooking?['dp_nominal'] != null) {
       return _toNum(_createdBooking!['dp_nominal']);
     }
     return (_totalBiaya * 0.2).round();
   }
 
-  num get _sisaPelunasan => _totalBiaya - _dpNominal;
+  num get _sisaPelunasan => _isClaim ? 0 : (_totalBiaya - _dpNominal);
 
   Map<String, bool> _getItemConsultType(Map<String, dynamic> item) {
     final wk = (item['wajib_konsultasi'] ?? '').toString().trim().toLowerCase();
@@ -867,10 +945,11 @@ class _BookingScreenState extends State<BookingScreen> {
       _showToast('Pilih jam kedatangan janji temu yang tersedia', isError: true);
       return;
     }
-
     // Jika bebas DP (misal klaim sesi paket 100%), langsung konfirmasi
     if (_dpNominal == 0) {
       await _handleSubmitBookingBebasDp();
+      return;
+    }
       return;
     }
 
@@ -1072,10 +1151,11 @@ class _BookingScreenState extends State<BookingScreen> {
     setState(() => _submitting = true);
 
     final formattedItems = _selectedItems.map((it) {
+      final isItemClaim = _isClaim || it['is_claim_packet'] == true;
       return {
         'kode_layanan': it['kode_layanan'],
         'nama_layanan': it['nama_layanan'] ?? it['nama'],
-        'harga': _toNum(it['harga']),
+        'harga': isItemClaim ? 0 : _toNum(it['harga']),
         'durasi_menit': _toNum(it['durasi_menit']).toInt(),
         if (it['is_klaim'] == true) ...{
           'is_klaim': true,
@@ -1310,18 +1390,27 @@ class _BookingScreenState extends State<BookingScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
                 decoration: BoxDecoration(
-                  color: Colors.amber.shade50,
+                  color: _isClaim ? const Color(0xFFECFDF5) : Colors.amber.shade50,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.amber.shade300),
+                  border: Border.all(color: _isClaim ? const Color(0xFFA7F3D0) : Colors.amber.shade300),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.info_outline_rounded, size: 16, color: Colors.amber.shade800),
+                    Icon(
+                      _isClaim ? Icons.check_circle_outline_rounded : Icons.info_outline_rounded,
+                      size: 16,
+                      color: _isClaim ? const Color(0xFF059669) : Colors.amber.shade800,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Bukti pembayaran DP telah berhasil diunggah dan akan diverifikasi oleh kasir sebelum menyelesaikan pesanan Anda.',
-                        style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.amber.shade900),
+                        _isClaim
+                            ? 'Reservasi berhasil dikonfirmasi menggunakan sisa kuota sesi paket aktif Anda. Tidak memerlukan pembayaran DP baru.'
+                            : 'Bukti pembayaran DP telah berhasil diunggah dan akan diverifikasi oleh kasir sebelum menyelesaikan pesanan Anda.',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11,
+                          color: _isClaim ? const Color(0xFF065F46) : Colors.amber.shade900,
+                        ),
                       ),
                     ),
                   ],
@@ -1871,12 +1960,12 @@ class _BookingScreenState extends State<BookingScreen> {
     );
   }
 
-  // 1. KARTU INFORMASI PASIEN
+  // 1. KARTU INFORMASI PASIEN & PILIHAN CABANG
   Widget _buildPatientHeaderCard() {
     final nama = _currentUser?['nama'] ?? 'Pelanggan Klinik';
     final noRm = _currentUser?['no_rm'] ?? 'RM-BARU';
     final noHp = _currentUser?['no_hp'] ?? '-';
-    final cabang = _activeCabang?['nama_cabang'] ?? _currentUser?['nama_cabang'] ?? 'Klinik Cabang Utama';
+    final cabang = _formatBranchName(_selectedNamaCabang ?? _activeCabang?['nama_cabang'] ?? _currentUser?['nama_cabang']);
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -1892,68 +1981,257 @@ class _BookingScreenState extends State<BookingScreen> {
           ),
         ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.person_pin_rounded, color: AppColors.primary, size: 26),
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.person_pin_rounded, color: AppColors.primary, size: 26),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            nama,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textDark,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0EA5E9).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            noRm,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF0284C7),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text('No. HP: $noHp', style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textMuted)),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
-          Expanded(
+          const SizedBox(height: 12),
+          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+          const SizedBox(height: 10),
+          // Baris Pemilihan / Indikator Cabang Klinik
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppColors.bgMintSoft,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.location_on_rounded, size: 16, color: AppColors.primaryDark),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Cabang Reservasi:',
+                      style: GoogleFonts.plusJakartaSans(fontSize: 10, color: AppColors.textLight, fontWeight: FontWeight.w500),
+                    ),
+                    Text(
+                      cabang,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12.5,
+                        color: AppColors.primaryDark,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (_cabangList.length > 1)
+                InkWell(
+                  onTap: _showBranchSelectModal,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFCBD5E1), width: 0.8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Ganti Cabang',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.primaryDark,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.swap_horiz_rounded, size: 14, color: AppColors.primaryDark),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          if (_isClaim) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8.5),
+              decoration: BoxDecoration(
+                color: const Color(0xFFECFDF5),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFA7F3D0), width: 0.9),
+              ),
+              child: Row(
+                children: [
+                  const Text('🎫', style: TextStyle(fontSize: 16)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Reservasi Klaim Sisa Sesi Paket',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF065F46),
+                          ),
+                        ),
+                        Text(
+                          _namaPaketKlaim != null
+                              ? 'Paket: $_namaPaketKlaim • Bebas DP (Rp0)'
+                              : 'Bebas Uang Muka (DP Rp0) via Kuota Paket Aktif',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 10.5,
+                            color: const Color(0xFF047857),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _showBranchSelectModal() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Flexible(
-                      child: Text(
-                        nama,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textDark,
-                        ),
+                    Text(
+                      'Pilih Cabang',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textDark,
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0EA5E9).withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        noRm,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w800,
-                          color: const Color(0xFF0284C7),
-                        ),
-                      ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, size: 20),
+                      onPressed: () => Navigator.pop(ctx),
                     ),
                   ],
                 ),
-                const SizedBox(height: 3),
-                Row(
-                  children: [
-                    Text('No. HP: $noHp', style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textMuted)),
-                    const SizedBox(width: 8),
-                    Text('·', style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textLight)),
-                    const SizedBox(width: 8),
-                    Text(cabang, style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.primaryDark, fontWeight: FontWeight.w600)),
-                  ],
-                ),
+                const SizedBox(height: 8),
+                ..._cabangList.map((c) {
+                  final cKode = c['kode_cabang'] ?? '';
+                  final cNama = _formatBranchName(c['nama_cabang']?.toString());
+                  final isCurrent = _selectedKodeCabang == cKode;
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    decoration: BoxDecoration(
+                      color: isCurrent ? AppColors.bgMintSoft : Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isCurrent ? AppColors.primary : const Color(0xFFE2E8F0),
+                        width: isCurrent ? 1.5 : 1,
+                      ),
+                    ),
+                    child: ListTile(
+                      leading: Icon(
+                        Icons.storefront_outlined,
+                        color: isCurrent ? AppColors.primaryDark : AppColors.textMuted,
+                      ),
+                      title: Text(
+                        cNama,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13.5,
+                          fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w600,
+                          color: isCurrent ? AppColors.primaryDark : AppColors.textDark,
+                        ),
+                      ),
+                      subtitle: c['alamat'] != null
+                          ? Text(
+                              c['alamat'],
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.textMuted),
+                            )
+                          : null,
+                      trailing: isCurrent
+                          ? const Icon(Icons.check_circle_rounded, color: AppColors.primaryDark)
+                          : null,
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _changeCabang(cKode, cNama);
+                      },
+                    ),
+                  );
+                }),
               ],
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -3220,8 +3498,12 @@ class _BookingScreenState extends State<BookingScreen> {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            _formatRupiah(it['harga']),
-                            style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w700, color: AppColors.textDark),
+                            _isClaim ? 'Rp 0 (Klaim Sesi)' : _formatRupiah(it['harga']),
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              color: _isClaim ? const Color(0xFF059669) : AppColors.textDark,
+                            ),
                           ),
                         ],
                       ),
@@ -3239,8 +3521,12 @@ class _BookingScreenState extends State<BookingScreen> {
                       style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.textDark),
                     ),
                     Text(
-                      _formatRupiah(_totalBiaya),
-                      style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.primary),
+                      _isClaim ? 'Rp 0 (Klaim Paket)' : _formatRupiah(_totalBiaya),
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: _isClaim ? const Color(0xFF059669) : AppColors.primary,
+                      ),
                     ),
                   ],
                 ),
@@ -3367,6 +3653,7 @@ class _BookingScreenState extends State<BookingScreen> {
             // Pilihan Rekening / QRIS Tujuan Transfer Sesuai Web (Gambar 1)
             _buildPaymentAccountSection(),
           ],
+
         ],
       ),
     );
@@ -4283,6 +4570,7 @@ class _BookingScreenState extends State<BookingScreen> {
       ),
     );
   }
+
 }
 
 extension StringSlice on String {

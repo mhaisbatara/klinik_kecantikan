@@ -28,12 +28,13 @@ router.get("/kategori", async (req, res) => {
  */
 router.get("/", async (req, res) => {
   try {
-    const { search, kategori, kode_cabang, page = 1, limit = 50 } = req.query;
+    const { search, kategori, kode_cabang, cabang, page = 1, limit = 50 } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
 
     const query = DB("mst_layanan as l")
       .leftJoin("mst_kategori_layanan as k", "l.kode_kategori_layanan", "k.kode_kategori_layanan")
       .leftJoin("mst_ruangan as r", "l.kode_ruangan", "r.kode_ruangan")
+      .leftJoin("mst_cabang as c", DB.raw("l.kode_cabang = c.kode_cabang COLLATE utf8mb4_0900_ai_ci"))
       .where(function () {
         this.where("l.status", "aktif").orWhere("l.status", "1");
       })
@@ -45,8 +46,9 @@ router.get("/", async (req, res) => {
         if (kategori) {
           qb.where("l.kode_kategori_layanan", kategori);
         }
-        if (kode_cabang) {
-          qb.where("l.kode_cabang", kode_cabang);
+        const branchFilter = kode_cabang || cabang;
+        if (branchFilter && branchFilter.toLowerCase() !== "semua" && branchFilter.toLowerCase() !== "all") {
+          qb.where("l.kode_cabang", branchFilter);
         }
       });
 
@@ -69,11 +71,24 @@ router.get("/", async (req, res) => {
         "l.wajib_konsultasi",
         "l.is_include_konsultasi",
         "l.tipe",
-        "l.kode_cabang"
+        "l.kode_cabang",
+        "c.nama_cabang"
       )
       .orderBy("l.nama", "asc")
       .limit(Number(limit))
       .offset(offset);
+
+    const cleanNamaCabang = (name) => {
+      if (!name) return "Cabang Utama";
+      let s = String(name).trim();
+      if (s.toLowerCase().startsWith("klinik ")) {
+        s = s.slice(7).trim();
+      }
+      if (!s.toLowerCase().startsWith("cabang ")) {
+        s = `Cabang ${s}`;
+      }
+      return s;
+    };
 
     const formattedData = data.map((item) => {
       let fotoUrl = null;
@@ -84,6 +99,7 @@ router.get("/", async (req, res) => {
       }
       return {
         ...item,
+        nama_cabang: cleanNamaCabang(item.nama_cabang),
         harga: Number(item.harga) || 0,
         durasi_menit: Number(item.durasi_menit) || 30,
         foto: fotoUrl,

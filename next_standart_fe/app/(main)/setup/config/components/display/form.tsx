@@ -13,6 +13,7 @@ import { Divider } from "primereact/divider";
 import { IconField } from "primereact/iconfield";
 import { InputIcon } from "primereact/inputicon";
 import { Message } from "primereact/message";
+import InformasiCabangSection from "./InformasiCabangSection";
 
 const Form = ({
     state,
@@ -527,6 +528,9 @@ const Form = ({
                                 </div>
                             </div>
                         </div>
+
+                        {/* SECTION 4: INFORMASI CABANG (TAMPIL DI APLIKASI PASIEN) */}
+                        <InformasiCabangSection session={state.session} toast={toast} />
 
                     </div>
 
