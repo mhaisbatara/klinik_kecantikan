@@ -111,8 +111,11 @@ router.post("/", async (req, res) => {
       ? (kode_metode_pembayaran || existing.kode_metode_pembayaran || null)
       : null;
 
+    const finalKodeCabang = existing.kode_cabang || activeShift?.kode_cabang || trxBranch || "CBG-001";
+
     // 2. Update status transaksi menjadi lunas
     await trx("trx_transaksi").where("kode_transaksi", kode_transaksi).update({
+      kode_cabang: finalKodeCabang,
       metode_bayar,
       kode_metode_pembayaran: resolvedKodeMetode,
       sisa_bayar: tagihanPelunasan,
@@ -216,6 +219,13 @@ router.post("/", async (req, res) => {
         .first();
     }
 
+    let cabangDetail = null;
+    if (finalKodeCabang) {
+      cabangDetail = await trx("mst_cabang")
+        .where("kode_cabang", finalKodeCabang)
+        .first();
+    }
+
     await trx.commit();
 
     const isBookingDp = !existing.kode_kunjungan && Boolean(existing.kode_booking);
@@ -226,6 +236,10 @@ router.post("/", async (req, res) => {
       datetime: formatDateSystem(),
       data: {
         kode_transaksi,
+        kode_cabang: finalKodeCabang,
+        nama_cabang: cabangDetail?.nama_cabang || null,
+        alamat_cabang: cabangDetail?.alamat || null,
+        no_telp_cabang: cabangDetail?.no_telp || null,
         kode_kunjungan: existing.kode_kunjungan || null,
         kode_booking: existing.kode_booking || null,
         metode_bayar,

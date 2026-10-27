@@ -65,6 +65,10 @@ export interface TransaksiListItem {
 
 export interface BayarResult {
   kode_transaksi: string;
+  kode_cabang?: string | null;
+  nama_cabang?: string | null;
+  alamat_cabang?: string | null;
+  no_telp_cabang?: string | null;
   kode_kunjungan?: string | null;
   kode_booking?: string | null;
   is_dp_booking?: boolean;
@@ -118,6 +122,10 @@ export default function KasirPage() {
   // Pending bayar payload (from POS panel)
   const [pendingBayarPayload, setPendingBayarPayload] = useState<{
     kode_transaksi: string;
+    kode_cabang?: string | null;
+    nama_cabang?: string | null;
+    alamat_cabang?: string | null;
+    no_telp_cabang?: string | null;
     kode_kunjungan?: string | null;
     kode_booking?: string | null;
     is_dp_booking?: boolean;
@@ -192,6 +200,10 @@ export default function KasirPage() {
       if (['00', '0000'].includes(res?.data?.status)) {
         const result: BayarResult = {
           ...res.data.data,
+          kode_cabang: res.data.data?.kode_cabang || pendingBayarPayload.kode_cabang || null,
+          nama_cabang: res.data.data?.nama_cabang || pendingBayarPayload.nama_cabang || null,
+          alamat_cabang: res.data.data?.alamat_cabang || pendingBayarPayload.alamat_cabang || null,
+          no_telp_cabang: res.data.data?.no_telp_cabang || pendingBayarPayload.no_telp_cabang || null,
           kode_metode_pembayaran: res.data.data?.kode_metode_pembayaran || ((metode === 'qris' || metode === 'transfer') ? (kodeMetode || null) : null),
           nama_bank: res.data.data?.nama_bank || null,
           no_rekening: res.data.data?.no_rekening || null,

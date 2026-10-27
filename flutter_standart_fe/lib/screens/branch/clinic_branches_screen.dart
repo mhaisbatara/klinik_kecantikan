@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/colors.dart';
@@ -28,9 +29,8 @@ class _ClinicBranchesScreenState extends State<ClinicBranchesScreen> {
     super.initState();
     if (widget.initialBranches != null && widget.initialBranches!.isNotEmpty) {
       _branches = widget.initialBranches!;
-    } else {
-      _fetchBranches();
     }
+    _fetchBranches();
   }
 
   Future<void> _fetchBranches() async {
@@ -219,6 +219,98 @@ class _ClinicBranchesScreenState extends State<ClinicBranchesScreen> {
     );
   }
 
+  static String _formatHariOperasional(String? hariOperasional) {
+    if (hariOperasional == null || hariOperasional.trim().isEmpty) {
+      return 'Senin – Minggu';
+    }
+    const dayNames = {
+      1: 'Senin',
+      2: 'Selasa',
+      3: 'Rabu',
+      4: 'Kamis',
+      5: 'Jumat',
+      6: 'Sabtu',
+      7: 'Minggu',
+    };
+    final rawList = hariOperasional
+        .split(',')
+        .map((d) => int.tryParse(d.trim()))
+        .where((d) => d != null && d >= 1 && d <= 7)
+        .map((d) => d!)
+        .toSet()
+        .toList()
+      ..sort();
+
+    if (rawList.isEmpty || rawList.length == 7) {
+      return 'Senin – Minggu';
+    }
+
+    bool isContiguous = true;
+    for (int i = 0; i < rawList.length - 1; i++) {
+      if (rawList[i + 1] != rawList[i] + 1) {
+        isContiguous = false;
+        break;
+      }
+    }
+
+    if (isContiguous && rawList.length >= 3) {
+      return '${dayNames[rawList.first]} – ${dayNames[rawList.last]}';
+    }
+
+    return rawList.map((d) => dayNames[d]!).join(', ');
+  }
+
+  static String _formatJamOperasional(Map<String, dynamic> c) {
+    if (c['jam_operasional_formatted'] != null &&
+        c['jam_operasional_formatted'].toString().trim().isNotEmpty) {
+      return c['jam_operasional_formatted'].toString();
+    }
+    final rawBuka = c['jam_buka']?.toString() ?? '09:00:00';
+    final rawTutup = c['jam_tutup']?.toString() ?? '20:00:00';
+    final jamBuka = rawBuka.length >= 5 ? rawBuka.substring(0, 5) : rawBuka;
+    final jamTutup = rawTutup.length >= 5 ? rawTutup.substring(0, 5) : rawTutup;
+
+    final tz = c['tz']?.toString() ?? 'Asia/Jakarta';
+    final tzLower = tz.toLowerCase();
+    String tzLabel = 'WIB';
+    if (tzLower.contains('makassar') || tzLower.contains('bali') || tzLower.contains('ujung_pandang') || tzLower.contains('wita')) {
+      tzLabel = 'WITA';
+    } else if (tzLower.contains('jayapura') || tzLower.contains('wit')) {
+      tzLabel = 'WIT';
+    }
+
+    final hariText = _formatHariOperasional(c['hari_operasional']?.toString());
+    return '$jamBuka – $jamTutup $tzLabel ($hariText)';
+  }
+
+  static bool _checkIsOpen(Map<String, dynamic> c) {
+    if (c['is_open'] != null) {
+      return c['is_open'] == true || c['is_open'] == 1 || c['is_open'] == '1';
+    }
+
+    final rawBuka = c['jam_buka']?.toString() ?? '09:00:00';
+    final rawTutup = c['jam_tutup']?.toString() ?? '20:00:00';
+    final jamBuka = rawBuka.length >= 5 ? rawBuka.substring(0, 5) : rawBuka;
+    final jamTutup = rawTutup.length >= 5 ? rawTutup.substring(0, 5) : rawTutup;
+
+    final now = DateTime.now();
+    final currentDay = now.weekday; // 1 = Monday ... 7 = Sunday
+    final currentHhMm = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+
+    final daysStr = c['hari_operasional']?.toString() ?? '1,2,3,4,5,6,7';
+    final openDays = daysStr
+        .split(',')
+        .map((d) => int.tryParse(d.trim()))
+        .where((d) => d != null)
+        .map((d) => d!)
+        .toList();
+
+    final isOpenDay = openDays.contains(currentDay);
+    final isOpenTime = currentHhMm.compareTo(jamBuka) >= 0 && currentHhMm.compareTo(jamTutup) < 0;
+
+    return isOpenDay && isOpenTime;
+  }
+
   Widget _buildBranchCard(Map<String, dynamic> c) {
     final namaCabang = c['nama_cabang'] ?? 'Cabang Klinik';
     final kodeCabang = c['kode_cabang'] ?? '-';
@@ -226,6 +318,20 @@ class _ClinicBranchesScreenState extends State<ClinicBranchesScreen> {
     final telp = c['telp'] ?? c['no_telp'] ?? '-';
     final email = c['email'] ?? '-';
     final pjManager = c['pj_manager'] ?? '-';
+
+    final isOpen = _checkIsOpen(c);
+    final statusBukaText = (c['status_buka']?.toString()) ?? (isOpen ? 'BUKA HARI INI' : 'TUTUP');
+    final jamOperasionalText = _formatJamOperasional(c);
+
+    List<dynamic> fasilitasList = [];
+    if (c['fasilitas'] is List) {
+      fasilitasList = c['fasilitas'];
+    } else if (c['fasilitas'] is String && c['fasilitas'].toString().trim().isNotEmpty) {
+      try {
+        final decoded = jsonDecode(c['fasilitas']);
+        if (decoded is List) fasilitasList = decoded;
+      } catch (_) {}
+    }
 
     return Container(
       width: double.infinity,
@@ -295,7 +401,7 @@ class _ClinicBranchesScreenState extends State<ClinicBranchesScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF10B981),
+                    color: isOpen ? const Color(0xFF10B981) : const Color(0xFF64748B),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(
@@ -311,7 +417,7 @@ class _ClinicBranchesScreenState extends State<ClinicBranchesScreen> {
                       ),
                       const SizedBox(width: 5),
                       Text(
-                        'BUKA HARI INI',
+                        statusBukaText,
                         style: GoogleFonts.plusJakartaSans(
                           color: Colors.white,
                           fontSize: 9.5,
@@ -357,37 +463,35 @@ class _ClinicBranchesScreenState extends State<ClinicBranchesScreen> {
                 const SizedBox(height: 12),
 
                 // Informasi Operasional & Kontak
-                _branchDetailItem(Icons.schedule_rounded, 'Jam Operasional', '09:00 - 20:00 WIB (Senin - Minggu)'),
+                _branchDetailItem(Icons.schedule_rounded, 'Jam Operasional', jamOperasionalText),
                 if (telp != '-') _branchDetailItem(Icons.phone_in_talk_rounded, 'Telepon / WhatsApp', telp),
                 if (email != '-') _branchDetailItem(Icons.email_outlined, 'Email Resmi', email),
                 if (pjManager != '-') _branchDetailItem(Icons.person_pin_rounded, 'Penanggung Jawab', pjManager),
 
-                const SizedBox(height: 14),
-                const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                const SizedBox(height: 12),
-
-                // Fasilitas Cabang
-                Text(
-                  'Fasilitas Cabang:',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    color: const Color(0xFF0F172A),
+                // Fasilitas Cabang (Hanya tampil jika ada data fasilitas)
+                if (fasilitasList.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Fasilitas Cabang:',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF0F172A),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  children: [
-                    _facilityChip('🏥 Konsultasi Dokter'),
-                    _facilityChip('💆‍♀️ Ruang Facial Steril'),
-                    _facilityChip('🔬 Tindakan Laser'),
-                    _facilityChip('💊 Apotek BPOM'),
-                    _facilityChip('🚗 Parkir Luas'),
-                    _facilityChip('📶 Free Wi-Fi'),
-                  ],
-                ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: fasilitasList.map<Widget>((f) {
+                      final icon = (f is Map ? f['icon'] : null)?.toString() ?? '✨';
+                      final nama = (f is Map ? f['nama'] : f.toString())?.toString() ?? '';
+                      return _facilityChip('$icon $nama'.trim());
+                    }).toList(),
+                  ),
+                ],
 
                 const SizedBox(height: 16),
 

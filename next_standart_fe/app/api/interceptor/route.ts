@@ -2,23 +2,13 @@
  * @copyright (c) 2026 PT Marstech Global (info@marstech.co.id)
  * @project Standard
  * @file page.tsx
- * @description File untuk route API untuk interceptor route global (post)
- * 
- * @author Fadil <risqullah.s.fadhilah@gmail.com>
- * @created 2026-07-14
- * 
- * @contributors
- * - Fadil <risqullah.s.fadhilah@gmail.com>
- * 
- * @lastModified Fadil (2026-08-03)
- * @version 1.0.1
+ * @description File untuk route API untuk interceptor route global (get, post, put)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { clearSessionCookies } from '@/lib/tools/serverTools';
 import axios from 'axios';
 import { formatDateISO, formatDateSystem } from '@/lib/tools/dateTools';
-import { SignJWT } from 'jose';
 import { auth } from '@/lib/tools/authTools';
 import { getBackendApiUrl } from '@/lib/tools/apiConfig';
 
@@ -27,9 +17,10 @@ interface CustomHeaders {
     'x-custom-header'?: string;
     'x-level'?: string;
     'x-credential'?: string;
+    'x-kode-cabang'?: string;
 }
 
-export const POST = async (request: NextRequest) => {
+const handleRequest = async (request: NextRequest, method: 'GET' | 'POST' | 'PUT') => {
     try {
         const session = await auth();
 
@@ -41,7 +32,7 @@ export const POST = async (request: NextRequest) => {
             );
         }
 
-        return await postCRUD(request, session.access_token);
+        return await proxyCRUD(request, session.access_token, method);
 
     } catch (error: any) {
         console.error("BFF Interceptor Error:", error);
@@ -59,8 +50,14 @@ export const POST = async (request: NextRequest) => {
     }
 };
 
-async function postCRUD(request: NextRequest, accessToken: string) {
-    const endpoint = request.headers.get('x-endpoint');
+export const GET = async (request: NextRequest) => handleRequest(request, 'GET');
+export const POST = async (request: NextRequest) => handleRequest(request, 'POST');
+export const PUT = async (request: NextRequest) => handleRequest(request, 'PUT');
+
+async function proxyCRUD(request: NextRequest, accessToken: string, method: 'GET' | 'POST' | 'PUT') {
+    const url = new URL(request.url);
+    const endpoint = request.headers.get('x-endpoint') || url.searchParams.get('endpoint');
+
     try {
         const headers: CustomHeaders = {};
 
@@ -77,7 +74,10 @@ async function postCRUD(request: NextRequest, accessToken: string) {
             );
         }
 
-        const body = await request.json().catch(() => ({}));
+        let body: any = {};
+        if (method !== 'GET') {
+            body = await request.json().catch(() => ({}));
+        }
 
         let customHeader: Record<string, any> = {};
         if (headers['x-custom-header']) {
@@ -95,18 +95,27 @@ async function postCRUD(request: NextRequest, accessToken: string) {
             ...customHeader,
         };
 
+        if (headers['x-kode-cabang']) {
+            requestHeaders['X-Kode-Cabang'] = headers['x-kode-cabang'];
+        }
+
         delete requestHeaders['X-Level'];
         const apiUrl = getBackendApiUrl();
-        const result = await axios.post(
-            `${apiUrl}${endpoint}`,
-            body,
-            { headers: requestHeaders }
-        );
+        const targetUrl = `${apiUrl}${endpoint}`;
+
+        let result;
+        if (method === 'GET') {
+            result = await axios.get(targetUrl, { headers: requestHeaders });
+        } else if (method === 'PUT') {
+            result = await axios.put(targetUrl, body, { headers: requestHeaders });
+        } else {
+            result = await axios.post(targetUrl, body, { headers: requestHeaders });
+        }
 
         return NextResponse.json(result.data);
 
     } catch (err: any) {
-        console.error(`BFF Interceptor postCRUD error [${endpoint}]:`, err?.response?.status, err?.response?.data || err?.message);
+        console.error(`BFF Interceptor proxyCRUD error [${method} ${endpoint}]:`, err?.response?.status, err?.response?.data || err?.message);
         if (err?.response?.status === 401) {
             await clearSessionCookies();
             return NextResponse.json(
