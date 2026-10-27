@@ -21,6 +21,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _user;
   List<dynamic> _packages = [];
+  Map<String, dynamic>? _pendingBooking;
   bool _loading = false;
   bool _loadingPackages = false;
 
@@ -45,10 +46,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
       pkgs = await BookingService.getMyPackages();
     }
 
+    final pendingData = await BookingService.getPendingBooking();
+
     if (!mounted) return;
     setState(() {
       if (updated != null) _user = updated;
       _packages = pkgs;
+      _pendingBooking = pendingData;
       _loading = false;
       _loadingPackages = false;
     });
@@ -248,7 +252,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               else
                 _buildUnverifiedPatientCard(),
 
-              // ── 3. Section Paket Perawatan Saya (Kartu Stempel Multi-Sesi) ──
+              // ── 3. Menu / Section PENDING (Upload Bukti Pembayaran DP) ──
+              const SizedBox(height: 20),
+              _buildPendingBookingSection(),
+
+              // ── 4. Section Paket Perawatan Saya (Kartu Stempel Multi-Sesi) ──
               if (isPatient) ...[
                 const SizedBox(height: 24),
                 _buildMyPackagesSection(),
@@ -256,7 +264,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
               const SizedBox(height: 28),
 
-              // ── 4. Tombol Logout ──
+              // ── 5. Tombol Logout ──
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
@@ -312,6 +320,424 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ),
     );
+  }
+
+  // ─── HELPER FORMAT RUPIAH ─────────────────────────────────────
+  static String _formatRupiah(dynamic val) {
+    if (val == null) return 'Rp 0';
+    num n = 0;
+    if (val is num) {
+      n = val;
+    } else {
+      n = num.tryParse(val.toString()) ?? 0;
+    }
+    final s = n.toStringAsFixed(0);
+    final reg = RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))');
+    final formatted = s.replaceAllMapped(reg, (Match m) => '${m[1]}.');
+    return 'Rp $formatted';
+  }
+
+  // ─── SECTION / MENU PENDING (UPLOAD BUKTI DP) ─────────────────
+  Widget _buildPendingBookingSection() {
+    final pending = _pendingBooking;
+    final hasPending = pending != null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header Menu Section
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: hasPending ? const Color(0xFFFEF3C7) : const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                Icons.pending_actions_rounded,
+                color: hasPending ? const Color(0xFFD97706) : const Color(0xFF64748B),
+                size: 18,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        'Transaksi Pending',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textDark,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: hasPending ? const Color(0xFFFDE68A) : const Color(0xFFE2E8F0),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          hasPending ? 'PENDING' : 'KOSONG',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w800,
+                            color: hasPending ? const Color(0xFF92400E) : const Color(0xFF64748B),
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    hasPending
+                        ? 'Ada booking yang belum selesai transaksinya (upload bukti DP)'
+                        : 'Tidak ada booking yang menunggu upload pembayaran DP',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        if (hasPending) ...[
+          // Kartu Pending Aktif (Sesuai Permintaan User & Desain Web)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFFCD34D), width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFD97706).withValues(alpha: 0.08),
+                  blurRadius: 14,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Top Row: Kode Booking & Tanggal
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF3C7),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        pending['kode_booking'] ?? '-',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF92400E),
+                        ),
+                      ),
+                    ),
+                    Text(
+                      "${_formatDateIndo(pending['tanggal_booking'])} • ${pending['jam_booking'] ?? '-'} WIB",
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // Detail Booking: Dokter & Ruangan
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.medical_services_outlined, size: 16, color: AppColors.primary),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            pending['nama_dokter'] ?? 'Dokter Klinik',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textDark,
+                            ),
+                          ),
+                          Text(
+                            "${pending['nama_ruangan'] ?? 'Ruang Treatment'} • ${pending['nama_cabang'] ?? 'Klinik Cabang Utama'}",
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11,
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+
+                // Item Layanan
+                if (pending['items'] is List && (pending['items'] as List).isNotEmpty) ...[
+                  ...((pending['items'] as List).take(2).map((it) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 3),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              "• ${it['nama_layanan'] ?? '-'}",
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.plusJakartaSans(fontSize: 11.5, color: const Color(0xFF334155)),
+                            ),
+                          ),
+                          Text(
+                            _formatRupiah(it['harga']),
+                            style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600, color: const Color(0xFF334155)),
+                          ),
+                        ],
+                      ),
+                    );
+                  })),
+                  if ((pending['items'] as List).length > 2)
+                    Text(
+                      "+ ${(pending['items'] as List).length - 2} layanan lainnya...",
+                      style: GoogleFonts.plusJakartaSans(fontSize: 10.5, fontStyle: FontStyle.italic, color: AppColors.textMuted),
+                    ),
+                  const SizedBox(height: 8),
+                ],
+
+                const Divider(height: 16),
+
+                // Nominal DP Wajib 20%
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFFBEB),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFFDE68A)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Uang Muka (DP 20%):',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF92400E),
+                            ),
+                          ),
+                          Text(
+                            "Metode: ${(pending['metode_pembayaran_dp'] ?? 'Transfer').toString().toUpperCase()}",
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 10,
+                              color: const Color(0xFFB45309),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Text(
+                        _formatRupiah(pending['dp_nominal']),
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFFB45309),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // Tombol Aksi: Lanjutkan Upload Bukti DP & Batal
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 6,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 11),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        icon: const Icon(Icons.cloud_upload_outlined, size: 17),
+                        label: Text(
+                          'Upload Bukti DP',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        onPressed: () async {
+                          final res = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => BookingScreen(pendingBooking: pending),
+                            ),
+                          );
+                          if (res == true) {
+                            _refreshProfile();
+                          }
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      flex: 4,
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.error,
+                          side: const BorderSide(color: Color(0xFFFCA5A5)),
+                          backgroundColor: const Color(0xFFFEF2F2),
+                          padding: const EdgeInsets.symmetric(vertical: 11),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        onPressed: () => _handleCancelPendingBooking(pending['kode_booking']),
+                        child: Text(
+                          'Batalkan',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ] else ...[
+          // Kartu Jika Tidak Ada Transaksi Pending
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFF1F5F9),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.check_circle_outline_rounded, color: Color(0xFF64748B), size: 20),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Belum Ada Transaksi Pending',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textDark,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Bila Anda membuat janji temu dan belum mengunggah bukti DP, Anda dapat melanjutkannya di sini.',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11,
+                          color: AppColors.textLight,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  // ─── HANDLER BATALKAN TRANSAKSI PENDING DARI PROFIL ───────────
+  Future<void> _handleCancelPendingBooking(String? kodeBooking) async {
+    if (kodeBooking == null) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Batalkan Reservasi?',
+          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          'Transaksi $kodeBooking akan dibatalkan dan kuota jadwal dokter akan dilepas. Anda dapat membuat booking baru setelah pembatalan ini.',
+          style: GoogleFonts.plusJakartaSans(fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Kembali'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Ya, Batalkan', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      final res = await BookingService.cancelBooking(kodeBooking, 'Dibatalkan oleh pasien via menu profil');
+      if (res['success'] == true) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Transaksi $kodeBooking berhasil dibatalkan', style: GoogleFonts.plusJakartaSans(fontSize: 13)),
+              backgroundColor: AppColors.primaryDark,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        _refreshProfile();
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(res['message'] ?? 'Gagal membatalkan booking', style: GoogleFonts.plusJakartaSans(fontSize: 13)),
+              backgroundColor: AppColors.error,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    }
   }
 
   // ─── KARTU PASIEN TERVERIFIKASI ───────────────────────────────

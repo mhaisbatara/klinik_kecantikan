@@ -37,6 +37,13 @@ router.get("/slots", async (req, res) => {
         .first();
       if (layanan && layanan.kode_ruangan) {
         targetRuangan = layanan.kode_ruangan;
+      } else {
+        const paket = await DB("mst_paket_layanan")
+          .where("kode_paket_layanan", kode_layanan)
+          .first();
+        if (paket && paket.kode_ruangan) {
+          targetRuangan = paket.kode_ruangan;
+        }
       }
     }
 
@@ -75,7 +82,7 @@ router.get("/slots", async (req, res) => {
       const bookedRows = await DB("trx_booking")
         .where("kode_jadwal", j.kode_jadwal)
         .where("tanggal_booking", cleanDateStr)
-        .whereNotIn("status", ["batal", "tidak_hadir"])
+        .whereNotIn("status", ["batal", "dibatalkan", "tidak_hadir"])
         .select("jam_booking");
 
       const totalBooked = bookedRows.length;
@@ -174,6 +181,27 @@ router.post("/create", authenticateMobile, upload.single("bukti_dp"), async (req
       return sendError(res, "Tanggal booking tidak boleh di masa lalu", 422);
     }
 
+    // 0. Cek apakah pasien masih memiliki transaksi booking pending (menunggu upload bukti DP)
+    const activePending = await DB("trx_booking")
+      .where("no_rm", noRm)
+      .where("status", "menunggu")
+      .where("dp_nominal", ">", 0)
+      .where((qb) => {
+        qb.whereNull("bukti_dp").orWhere("bukti_dp", "");
+      })
+      .where("tanggal_booking", ">=", todayYmd)
+      .orderBy("id", "desc")
+      .first();
+
+    if (activePending) {
+      return sendError(
+        res,
+        `Anda masih memiliki transaksi booking pending (${activePending.kode_booking}) yang belum menyelesaikan upload bukti DP. Silakan selesaikan transaksi tersebut atau batalkan terlebih dahulu.`,
+        400,
+        activePending
+      );
+    }
+
     // 1. Verifikasi Pasien
     const pasien = await DB("mst_pasien").where("no_rm", noRm).first();
     if (!pasien) {
@@ -196,7 +224,7 @@ router.post("/create", authenticateMobile, upload.single("bukti_dp"), async (req
     const bookedCount = await DB("trx_booking")
       .where("kode_jadwal", value.kode_jadwal)
       .where("tanggal_booking", value.tanggal_booking)
-      .whereNotIn("status", ["batal", "tidak_hadir"])
+      .whereNotIn("status", ["batal", "dibatalkan", "tidak_hadir"])
       .count("id as total")
       .first();
 
@@ -222,7 +250,22 @@ router.post("/create", authenticateMobile, upload.single("bukti_dp"), async (req
           nama_layanan: lay.nama || lay.nama_layanan,
           harga: lay.harga,
           durasi_menit: lay.durasi_menit || 30,
+          jenis: "layanan",
         });
+      } else {
+        const pkt = await DB("mst_paket_layanan")
+          .where("kode_paket_layanan", value.kode_layanan)
+          .first();
+        if (pkt) {
+          bookingItems.push({
+            kode_layanan: pkt.kode_paket_layanan,
+            nama_layanan: pkt.nama,
+            harga: pkt.harga_paket,
+            durasi_menit: 60,
+            jenis: "paket",
+            is_paket: true,
+          });
+        }
       }
     }
 
@@ -246,20 +289,23 @@ router.post("/create", authenticateMobile, upload.single("bukti_dp"), async (req
       const cKodeBooking = `BKG-${datePart}-${String(nextNum).padStart(4, "0")}`;
 
       const totalNominal = bookingItems.reduce(
-        (sum, item) => sum + (Number(item.harga) || 0),
+        (sum, item) => sum + (Number(item.harga ?? item.harga_paket) || 0),
         0
       );
       const dpNominal = Math.round(totalNominal * 0.2); // DP 20%
 
       const isButuhKonsul = (value.butuh_konsul === true || value.butuh_konsul === 1 || value.butuh_konsul === "1" || value.butuh_konsul === "true") ? 1 : 0;
       const firstItem = bookingItems[0] || {};
+      const isPaket = value.jenis_layanan === "paket" ||
+        bookingItems.some((it) => it.jenis === "paket" || it.is_paket === true || it.is_paket_layanan === true);
+
       const bookingRecord = {
         kode_cabang: value.kode_cabang || user.kode_cabang || "CBG-001",
         kode_booking: cKodeBooking,
         no_rm: noRm,
         kode_ruangan: jadwal.kode_ruangan || null,
-        kode_layanan: firstItem.kode_layanan || value.kode_layanan || null,
-        jenis_layanan: "layanan",
+        kode_layanan: firstItem.kode_layanan || firstItem.kode_paket_layanan || value.kode_layanan || null,
+        jenis_layanan: isPaket ? "paket" : (value.jenis_layanan || "layanan"),
         kode_jadwal: value.kode_jadwal,
         tanggal_booking: value.tanggal_booking,
         jam_booking: value.jam_booking,
@@ -283,19 +329,22 @@ router.post("/create", authenticateMobile, upload.single("bukti_dp"), async (req
       // Insert detail booking items jika tabel ada
       const hasDetailTable = await trx.schema.hasTable("trx_detail_booking");
       if (hasDetailTable && bookingItems.length > 0) {
-        const detailsToInsert = bookingItems.map((item, idx) => ({
-          kode_detail_booking: `DBKG-${datePart}-${String(nextNum).padStart(4, "0")}-${String(idx + 1).padStart(2, "0")}`,
-          kode_booking: cKodeBooking,
-          jenis_layanan: "layanan",
-          jenis_item: "layanan_baru",
-          kode_layanan: item.kode_layanan,
-          nama_layanan: item.nama_layanan,
-          harga: item.harga || 0,
-          durasi_menit: item.durasi_menit || 30,
-          tz: process.env.APP_TZ || "Asia/Jakarta",
-          created_by: user.username || "mobile_app",
-          created_at: formatDateSystem(),
-        }));
+        const detailsToInsert = bookingItems.map((item, idx) => {
+          const itemIsPaket = item.jenis === "paket" || item.is_paket === true || item.is_paket_layanan === true;
+          return {
+            kode_detail_booking: `DBKG-${datePart}-${String(nextNum).padStart(4, "0")}-${String(idx + 1).padStart(2, "0")}`,
+            kode_booking: cKodeBooking,
+            jenis_layanan: itemIsPaket ? "paket" : (item.jenis_layanan || "layanan"),
+            jenis_item: itemIsPaket ? "paket" : (item.jenis_item || "layanan_baru"),
+            kode_layanan: item.kode_layanan || item.kode_paket_layanan,
+            nama_layanan: item.nama_layanan || item.nama || item.nama_paket,
+            harga: item.harga ?? item.harga_paket ?? 0,
+            durasi_menit: item.durasi_menit || 60,
+            tz: process.env.APP_TZ || "Asia/Jakarta",
+            created_by: user.username || "mobile_app",
+            created_at: formatDateSystem(),
+          };
+        });
         await trx("trx_detail_booking").insert(detailsToInsert);
       }
 
@@ -384,12 +433,16 @@ router.get("/history", authenticateMobile, async (req, res) => {
     const bookings = await query.select(
       "b.id",
       "b.kode_booking",
+      "b.jenis_layanan",
+      "b.kode_layanan",
       "b.tanggal_booking",
       "b.jam_booking",
+      "b.total_biaya",
       "b.status",
       "b.dp_status",
       "b.dp_nominal",
       "b.metode_pembayaran_dp",
+      "b.kode_metode_pembayaran",
       "b.bukti_dp",
       "b.catatan_pasien",
       "b.sumber",
@@ -401,16 +454,105 @@ router.get("/history", authenticateMobile, async (req, res) => {
 
     // Ambil detail items untuk setiap booking
     const hasDetail = await DB.schema.hasTable("trx_detail_booking");
-    if (hasDetail) {
-      for (const b of bookings) {
+    for (const b of bookings) {
+      if (hasDetail) {
         b.items = await DB("trx_detail_booking")
           .where("kode_booking", b.kode_booking)
           .select("kode_layanan", "nama_layanan", "harga", "durasi_menit");
+      } else {
+        b.items = [];
+      }
+
+      // Fallback jika detail booking belum ada
+      if ((!b.items || b.items.length === 0) && b.kode_layanan) {
+        if (b.jenis_layanan === "paket") {
+          const pkt = await DB("mst_paket_layanan")
+            .where("kode_paket_layanan", b.kode_layanan)
+            .first();
+          if (pkt) {
+            b.items = [
+              {
+                kode_layanan: pkt.kode_paket_layanan,
+                nama_layanan: pkt.nama,
+                harga: pkt.harga_paket,
+                durasi_menit: 60,
+              },
+            ];
+          }
+        } else {
+          const lay = await DB("mst_layanan")
+            .where("kode_layanan", b.kode_layanan)
+            .first();
+          if (lay) {
+            b.items = [
+              {
+                kode_layanan: lay.kode_layanan,
+                nama_layanan: lay.nama || lay.nama_layanan,
+                harga: lay.harga,
+                durasi_menit: lay.durasi_menit || 30,
+              },
+            ];
+          }
+        }
       }
     }
 
     return sendSuccess(res, "Riwayat booking berhasil dimuat", bookings);
   } catch (err) {
+    return sendError(res, err.message, 500);
+  }
+});
+
+/**
+ * GET /api/v1/booking/pending
+ * Cek apakah pasien yang sedang login memiliki booking pending (menunggu upload bukti DP)
+ */
+router.get("/pending", authenticateMobile, async (req, res) => {
+  const user = req.auth;
+  const noRm = user.no_rm;
+
+  if (!noRm) {
+    return sendSuccess(res, "Tidak ada data rekam medis", null);
+  }
+
+  try {
+    const todayYmd = formatDateSystem(new Date(), "yyyy-MM-dd");
+
+    const pendingBooking = await DB("trx_booking as b")
+      .leftJoin("mst_jadwal_karyawan as j", "b.kode_jadwal", "j.kode_jadwal")
+      .leftJoin("mst_karyawan as k", "j.no_sip", "k.no_sip")
+      .leftJoin("mst_ruangan as r", "j.kode_ruangan", "r.kode_ruangan")
+      .leftJoin("mst_cabang as c", DB.raw("b.kode_cabang = c.kode_cabang COLLATE utf8mb4_0900_ai_ci"))
+      .where("b.no_rm", noRm)
+      .where("b.status", "menunggu")
+      .where("b.dp_nominal", ">", 0)
+      .where((qb) => {
+        qb.whereNull("b.bukti_dp").orWhere("b.bukti_dp", "");
+      })
+      .where("b.tanggal_booking", ">=", todayYmd)
+      .orderBy("b.id", "desc")
+      .select(
+        "b.*",
+        "k.nama as nama_dokter",
+        "r.nama_ruangan",
+        "c.nama_cabang"
+      )
+      .first();
+
+    if (!pendingBooking) {
+      return sendSuccess(res, "Tidak ada transaksi booking pending", null);
+    }
+
+    const hasDetail = await DB.schema.hasTable("trx_detail_booking");
+    pendingBooking.items = hasDetail
+      ? await DB("trx_detail_booking")
+          .where("kode_booking", pendingBooking.kode_booking)
+          .select("kode_layanan", "nama_layanan", "harga", "durasi_menit")
+      : [];
+
+    return sendSuccess(res, "Transaksi booking pending ditemukan", pendingBooking);
+  } catch (err) {
+    console.error("Pending Booking Error:", err);
     return sendError(res, err.message, 500);
   }
 });
@@ -460,11 +602,92 @@ router.get("/:kode", authenticateMobile, async (req, res) => {
 });
 
 /**
+ * POST /api/v1/booking/:kode/upload-bukti-dp
+ * Upload Bukti Pembayaran DP untuk Transaksi Pending (Langkah 3)
+ */
+router.post("/:kode/upload-bukti-dp", authenticateMobile, upload.single("bukti_dp"), async (req, res) => {
+  const { kode } = req.params;
+  const user = req.auth;
+  const noRm = user.no_rm;
+  const { metode_pembayaran_dp, kode_metode_pembayaran } = req.body || {};
+
+  try {
+    const booking = await DB("trx_booking")
+      .where("kode_booking", kode)
+      .first();
+
+    if (!booking) {
+      return sendError(res, "Data booking tidak ditemukan", 404);
+    }
+
+    if (noRm && booking.no_rm !== noRm) {
+      return sendError(res, "Anda tidak berhak mengakses transaksi ini", 403);
+    }
+
+    if (["batal", "dibatalkan", "selesai"].includes(booking.status)) {
+      return sendError(res, `Booking tidak dapat diproses karena status: ${booking.status}`, 400);
+    }
+
+    let buktiDpUrl = booking.bukti_dp;
+    if (req.file) {
+      buktiDpUrl = `/uploads/${req.file.filename}`;
+    }
+
+    if (!buktiDpUrl) {
+      return sendError(res, "File foto/screenshot bukti pembayaran DP wajib diunggah", 422);
+    }
+
+    const updatePayload = {
+      bukti_dp: buktiDpUrl,
+      updated_at: formatDateSystem(),
+      updated_by: user.username || "mobile_app",
+    };
+
+    if (metode_pembayaran_dp) {
+      updatePayload.metode_pembayaran_dp = metode_pembayaran_dp;
+    }
+    if (kode_metode_pembayaran) {
+      updatePayload.kode_metode_pembayaran = kode_metode_pembayaran;
+    }
+
+    await DB("trx_booking")
+      .where("kode_booking", kode)
+      .update(updatePayload);
+
+    // Sync juga ke draf transaksi kasir jika ada
+    try {
+      await syncBookingToKasirDraft(DB, {
+        kodeBooking: booking.kode_booking,
+        noRm: booking.no_rm,
+        kodeCabang: booking.kode_cabang,
+        dpNominal: Number(booking.dp_nominal) || 0,
+        metodePembayaranDp: updatePayload.metode_pembayaran_dp || booking.metode_pembayaran_dp,
+        kodeMetodePembayaran: updatePayload.kode_metode_pembayaran || booking.kode_metode_pembayaran,
+        username: user.username || "mobile_app",
+        tz: process.env.APP_TZ || "Asia/Jakarta",
+      });
+    } catch (syncErr) {
+      console.warn(`[UPLOAD_BUKTI_DP] Gagal sinkronisasi draf kasir:`, syncErr.message);
+    }
+
+    return sendSuccess(res, "Bukti pembayaran DP berhasil diunggah! Mohon menunggu konfirmasi kasir.", {
+      kode_booking: kode,
+      bukti_dp: buktiDpUrl,
+      status: booking.status,
+    });
+  } catch (err) {
+    console.error("Upload Bukti DP Error:", err);
+    return sendError(res, err.message, 500);
+  }
+});
+
+/**
  * POST /api/v1/booking/:kode/cancel
  * Pasien Membatalkan Janji Temu Booking
  */
 router.post("/:kode/cancel", authenticateMobile, async (req, res) => {
   const { kode } = req.params;
+  const user = req.auth;
   const { alasan_batal } = req.body || {};
 
   try {
@@ -476,7 +699,7 @@ router.post("/:kode/cancel", authenticateMobile, async (req, res) => {
       return sendError(res, "Data booking tidak ditemukan", 404);
     }
 
-    if (["selesai", "batal"].includes(booking.status)) {
+    if (["selesai", "batal", "dibatalkan"].includes(booking.status)) {
       return sendError(
         res,
         `Booking tidak dapat dibatalkan karena status saat ini: ${booking.status}`,
@@ -487,7 +710,7 @@ router.post("/:kode/cancel", authenticateMobile, async (req, res) => {
     await DB("trx_booking")
       .where("kode_booking", kode)
       .update({
-        status: "batal",
+        status: "dibatalkan",
         catatan_pasien: alasan_batal
           ? `${booking.catatan_pasien || ""}\nAlasan Batal: ${alasan_batal}`.trim()
           : booking.catatan_pasien,
@@ -496,7 +719,7 @@ router.post("/:kode/cancel", authenticateMobile, async (req, res) => {
 
     // Batalkan juga draf kasir jika ada
     try {
-      await cancelKasirDraftByBooking(DB, kode, user.username || "mobile_app");
+      await cancelKasirDraftByBooking(DB, kode, user?.username || "mobile_app");
     } catch (cancelErr) {
       console.warn(`[BOOKING_MOBILE] Gagal membatalkan draf kasir untuk ${kode}:`, cancelErr.message);
     }
