@@ -877,6 +877,67 @@ router.post("/reset-claim-rate-limit", authenticateMobile, (req, res) => {
 });
 
 /**
+ * POST /api/v1/profile/unlink-patient
+ * Melepaskan tautan rekam medis dari akun user saat ini
+ */
+router.post("/unlink-patient", authenticateMobile, async (req, res) => {
+  const user = req.auth;
+  try {
+    await DB("user_credential")
+      .where("user_code", user.user_code)
+      .update({
+        no_rm: null,
+        updated_at: formatDateSystem(),
+      });
+
+    resetClaimRateLimit(user.user_code);
+
+    const cred = await DB("user_credential as u")
+      .leftJoin("mst_cabang as c", "u.kode_cabang", "c.kode_cabang")
+      .where("u.user_code", user.user_code)
+      .select("u.*", "c.nama_cabang")
+      .first();
+
+    const branchCode = cred?.kode_cabang || "CBG-001";
+    const namaCabang = cred?.nama_cabang || "Klinik Utama";
+
+    const tokenPayload = {
+      user_code: cred.user_code,
+      username: cred.username,
+      role: cred.role || "pasien",
+      fullname: cred.fullname,
+      nama: cred.fullname,
+      no_rm: null,
+      kode_cabang: branchCode,
+      nama_cabang: namaCabang,
+    };
+
+    const tokens = await generateMobileTokens(tokenPayload, true);
+
+    return sendSuccess(res, "Tautan Rekam Medis berhasil dilepaskan dari akun Anda.", {
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      user_info: {
+        user_code: cred.user_code,
+        username: cred.username,
+        fullname: cred.fullname,
+        role: cred.role || "pasien",
+        telp: cred.telp,
+        no_rm: null,
+        is_patient: false,
+        foto: null,
+        kode_cabang: branchCode,
+        nama_cabang: namaCabang,
+        pasien_profile: null,
+      },
+    });
+  } catch (err) {
+    return sendError(res, err.message, 500);
+  }
+});
+
+
+/**
  * POST /api/v1/profile/claim-patient
  * Opsi B: Klaim / Sinkronisasi Pasien Lama (Direct Strict Matching)
  * Wajib NIK KTP (16 Digit) + Nomor HP Terdaftar + Tanggal Lahir (AND Condition).

@@ -436,6 +436,47 @@ class AuthService {
     }
   }
 
+  // 4b-2. Melepaskan Tautan Rekam Medis (Unlink)
+  static Future<Map<String, dynamic>> unlinkPatient() async {
+    try {
+      final token = await getToken();
+      final response = await http.post(
+        Uri.parse(ApiConstants.unlinkPatient),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['status'] == '00') {
+        final newToken = data['data']['access_token'];
+        final refreshToken = data['data']['refresh_token'];
+        final userInfo = data['data']['user_info'];
+
+        await saveSession(
+          token: newToken,
+          refreshToken: refreshToken,
+          user: userInfo,
+        );
+
+        return {'success': true, 'message': data['message'], 'data': userInfo};
+      } else {
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Gagal melepaskan tautan rekam medis',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Gagal terhubung ke server ($e)',
+      };
+    }
+  }
+
   // 4c. Klaim Pasien Lama (Direct Strict Matching Fallback)
   static Future<Map<String, dynamic>> claimPatient({
     String? noRm,

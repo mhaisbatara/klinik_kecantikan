@@ -84,6 +84,7 @@ class ApiConstants {
   static String get checkClaimPatient => '$baseUrl/profile/check-claim-patient';
   static String get requestClaimOtp => '$baseUrl/profile/request-claim-otp';
   static String get verifyClaimOtp => '$baseUrl/profile/verify-claim-otp';
+  static String get unlinkPatient => '$baseUrl/profile/unlink-patient';
   static String get myPackages => '$profile/packages';
   static String get homeDashboard => '$baseUrl/dashboard/home';
   static String get layanan => '$baseUrl/layanan';

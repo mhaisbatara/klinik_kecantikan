@@ -39,7 +39,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
 
     final updated = await AuthService.fetchProfile();
-    final noRm = updated?['no_rm'] ?? _user?['no_rm'];
+    final noRm = updated != null ? updated['no_rm'] : _user?['no_rm'];
 
     List<dynamic> pkgs = [];
     if (noRm != null && noRm.toString().trim().isNotEmpty) {
@@ -846,9 +846,94 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _detailRow(Icons.home_outlined, 'Alamat Domisili', alamat),
           const SizedBox(height: 10),
           _detailRow(Icons.warning_amber_rounded, 'Riwayat Alergi', alergi, isAlergi: true),
+          const SizedBox(height: 14),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.red.shade600,
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              ),
+              icon: const Icon(Icons.link_off_rounded, size: 15),
+              label: Text(
+                'Lepas Tautan RM',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+              onPressed: () => _handleUnlinkPatient(noRm),
+            ),
+          ),
         ],
       ),
     );
+  }
+
+  // ─── HANDLER LEPAS TAUTAN REKAM MEDIS ─────────────────────────
+  Future<void> _handleUnlinkPatient(String noRm) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 24),
+            const SizedBox(width: 8),
+            Text(
+              'Lepas Tautan RM?',
+              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 16),
+            ),
+          ],
+        ),
+        content: Text(
+          'Rekam Medis $noRm akan dilepaskan dari akun ini. Anda dapat menghubungkannya kembali kapan saja melalui menu sinkronisasi.',
+          style: GoogleFonts.plusJakartaSans(fontSize: 13, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              elevation: 0,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Ya, Lepaskan', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      final res = await AuthService.unlinkPatient();
+      if (res['success'] == true) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Tautan Rekam Medis $noRm berhasil dilepaskan.', style: GoogleFonts.plusJakartaSans(fontSize: 12.5)),
+              backgroundColor: AppColors.primaryDark,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        _refreshProfile();
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(res['message'] ?? 'Gagal melepaskan rekam medis', style: GoogleFonts.plusJakartaSans(fontSize: 12.5)),
+              backgroundColor: AppColors.error,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    }
   }
 
   // ─── KARTU BELUM TERHUBUNG REKAM MEDIS ────────────────────────
