@@ -101,7 +101,7 @@ router.get("/home", optionalAuth, async (req, res) => {
         .leftJoin("mst_karyawan as k", "j.no_sip", "k.no_sip")
         .leftJoin("mst_ruangan as r", "j.kode_ruangan", "r.kode_ruangan")
         .where("b.no_rm", user.no_rm)
-        .whereIn("b.status", ["menunggu", "terkonfirmasi"])
+        .whereIn("b.status", ["menunggu", "dikonfirmasi", "terkonfirmasi"])
         .andWhere("b.tanggal_booking", ">=", today)
         .orderBy("b.tanggal_booking", "asc")
         .orderBy("b.jam_booking", "asc")
