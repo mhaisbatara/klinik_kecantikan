@@ -81,7 +81,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final bookings = await BookingService.getBookingHistory();
     final visits = await BookingService.getKunjunganHistoryPaged();
     final cabangList = await AuthService.getCabangList();
-    final packages = await BookingService.getMyPackages();
     final pending = await BookingService.getPendingBooking();
 
     List<dynamic> layanan = [];
@@ -98,7 +97,6 @@ class _HomeScreenState extends State<HomeScreen> {
       _myBookings = bookings;
       _myVisits = visits['items'] as List<dynamic>? ?? [];
       _layananList = layanan;
-      _myPackages = packages;
       _pendingBooking = pending;
       _cabangList = cabangList;
       _loading = false;
@@ -406,157 +404,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  /// KLAIM SESI HANDLER:
-  /// Membuka form reservasi langsung dengan item paket terisi, harga Rp 0, dan bebas biaya DP.
-  Future<void> _handleKlaimSesi(Map<String, dynamic> pkg) async {
-    final noRm = _currentUser?['no_rm'];
-    if (noRm == null || noRm.toString().trim().isEmpty) {
-      final synced = await PatientSyncSheet.show(
-        context,
-        currentUser: _currentUser,
-        initialStep: PatientSyncStep.choose,
-      );
-      if (synced == true) {
-        await _refreshUserData();
-      } else {
-        return;
-      }
-    }
-
-    // Interceptor: Cegah klaim jika ada booking pending
-    final isLocked = await _checkAndHandlePendingBooking();
-    if (isLocked) return;
-
-    final details = List<dynamic>.from(pkg['details'] ?? []);
-    final availableDetails = details.where((d) => (d['sisa_sesi'] ?? 0) > 0).toList();
-
-    if (!mounted) return;
-    if (availableDetails.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Semua sesi layanan pada paket ini telah habis digunakan.',
-            style: GoogleFonts.plusJakartaSans(color: Colors.white),
-          ),
-          backgroundColor: AppColors.error,
-        ),
-      );
-      return;
-    }
-
-    // Jika memiliki beberapa jenis layanan dalam paket, tampilkan pilihan treatment
-    Map<String, dynamic> chosenDetail = Map<String, dynamic>.from(availableDetails.first);
-    if (!mounted) return;
-    if (availableDetails.length > 1) {
-      final picked = await showModalBottomSheet<Map<String, dynamic>>(
-        context: context,
-        backgroundColor: Colors.white,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        builder: (ctx) => SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 36,
-                    height: 4,
-                    decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  'Pilih Layanan Sesi yang Mau Diklaim',
-                  style: GoogleFonts.playfairDisplay(fontSize: 16, fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Pilih salah satu layanan dalam ${pkg['nama_paket']} untuk reservasi:',
-                  style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textMuted),
-                ),
-                const SizedBox(height: 12),
-                Flexible(
-                  child: ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: availableDetails.length,
-                    separatorBuilder: (context, index) => const SizedBox(height: 8),
-                    itemBuilder: (_, idx) {
-                      final d = availableDetails[idx];
-                      return ListTile(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(color: AppColors.inputBorder),
-                        ),
-                        tileColor: const Color(0xFFF9FAFB),
-                        leading: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: const BoxDecoration(
-                            color: AppColors.bgMintLight,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(Icons.spa_rounded, color: AppColors.primary, size: 20),
-                        ),
-                        title: Text(
-                          d['nama_layanan'] ?? 'Treatment',
-                          style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w700),
-                        ),
-                        subtitle: Text(
-                          'Sisa: ${d['sisa_sesi']} sesi (Terpakai: ${d['sesi_terpakai']}/${d['sesi_total']})',
-                          style: GoogleFonts.plusJakartaSans(fontSize: 11, color: AppColors.primaryDark),
-                        ),
-                        trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.primary),
-                        onTap: () => Navigator.pop(ctx, Map<String, dynamic>.from(d)),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-      if (picked == null) return;
-      chosenDetail = picked;
-    }
-
-    // Gunakan cabang yang terikat ke paket atau cabang aktif pengguna
-    Map<String, dynamic> targetCabang = {
-      'kode_cabang': pkg['kode_cabang'] ?? _currentUser?['kode_cabang'] ?? 'CBG-001',
-      'nama_cabang': pkg['nama_cabang'] ?? 'Klinik Cabang Utama',
-    };
-
-    if (!mounted) return;
-
-    final res = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => BookingScreen(
-          selectedCabang: targetCabang,
-          klaimPaketData: {
-            'kode_kepemilikan_paket_layanan': pkg['kode_kepemilikan_paket_layanan'],
-            'kode_detail_kepemilikan_paket_layanan': chosenDetail['kode_detail_kepemilikan_paket_layanan'],
-            'kode_layanan': chosenDetail['kode_layanan'],
-            'nama_layanan': chosenDetail['nama_layanan'],
-            'nama_paket': pkg['nama_paket'],
-            'kode_cabang': targetCabang['kode_cabang'],
-            'nama_cabang': targetCabang['nama_cabang'],
-            'durasi_menit': chosenDetail['durasi_menit'] ?? 45,
-            'kode_ruangan': chosenDetail['kode_ruangan'] ?? 'R-001',
-            'nama_ruangan': chosenDetail['nama_ruangan'] ?? 'Ruang Treatment',
-          },
-        ),
-      ),
-    );
-
-    if (res == true || mounted) {
-      _loadMyPackages();
-      _loadData();
-    }
-  }
 
   void _openChatbotScreen() {
     Navigator.push(

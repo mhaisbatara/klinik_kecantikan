@@ -950,8 +950,6 @@ class _BookingScreenState extends State<BookingScreen> {
       await _handleSubmitBookingBebasDp();
       return;
     }
-      return;
-    }
 
     // Jika belum ada booking pending yang tersimpan di server untuk sesi ini, simpan sekarang
     if (_createdBooking == null) {
@@ -1007,6 +1005,8 @@ class _BookingScreenState extends State<BookingScreen> {
         buktiDpFile: null, // Belum upload bukti transfer (status pending kunci transaksi)
         kodeCabang: _activeCabang?['kode_cabang'] ?? _currentUser?['kode_cabang'] ?? 'CBG-001',
         butuhKonsul: effectiveButuhKonsul,
+        isClaimPacket: _isClaim,
+        kodeDetailKepemilikan: _kodeDetailKepemilikan,
       );
 
       if (!mounted) return;
@@ -1181,6 +1181,8 @@ class _BookingScreenState extends State<BookingScreen> {
       buktiDpFile: null,
       kodeCabang: _activeCabang?['kode_cabang'] ?? _currentUser?['kode_cabang'] ?? 'CBG-001',
       butuhKonsul: effectiveButuhKonsul,
+      isClaimPacket: _isClaim,
+      kodeDetailKepemilikan: _kodeDetailKepemilikan,
     );
 
     if (!mounted) return;

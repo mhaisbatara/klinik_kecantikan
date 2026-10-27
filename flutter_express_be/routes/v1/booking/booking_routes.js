@@ -773,7 +773,6 @@ router.post("/:kode/cancel", authenticateMobile, async (req, res) => {
   const { kode } = req.params;
   const user = req.auth;
   const { alasan_batal } = req.body || {};
-  const user = req.auth;
   const isSuperAdmin = (user.role || "").toLowerCase() === "superadmin";
 
   try {
