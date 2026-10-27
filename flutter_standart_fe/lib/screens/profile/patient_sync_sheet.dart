@@ -535,10 +535,10 @@ class _PatientSyncSheetState extends State<PatientSyncSheet> with TickerProvider
     setState(() => _isLoading = false);
 
     if (res['success'] == true) {
-      final userInfo = (res['data']?['user_info'] as Map<String, dynamic>?) ?? {};
-      final noRm = userInfo['no_rm'] ?? res['data']?['no_rm'] ?? '';
+      final Map<String, dynamic> resData = (res['data'] as Map<String, dynamic>?) ?? {};
+      final userInfo = (resData['user_info'] as Map<String, dynamic>?) ?? resData;
+      final noRm = userInfo['no_rm'] ?? resData['no_rm'] ?? '';
       HapticFeedback.mediumImpact();
-      _successAnimController?.forward(from: 0.0);
       setState(() {
         _successPatientData = {
           'no_rm': noRm,
@@ -549,6 +549,7 @@ class _PatientSyncSheetState extends State<PatientSyncSheet> with TickerProvider
         };
         _currentStep = PatientSyncStep.success;
       });
+      _successAnimController?.forward(from: 0.0);
       widget.onSuccess?.call();
     } else {
       _showToast(res['message'] ?? 'Pendaftaran pasien baru gagal', isSuccess: false);
@@ -694,10 +695,10 @@ class _PatientSyncSheetState extends State<PatientSyncSheet> with TickerProvider
     if (res['success'] == true) {
       _errorMessage = null;
       _otpTimer?.cancel();
-      final userInfo = (res['data']?['user_info'] as Map<String, dynamic>?) ?? {};
-      final rmFound = userInfo['no_rm'] ?? res['data']?['no_rm'] ?? _foundPatientData?['no_rm'] ?? '';
+      final Map<String, dynamic> resData = (res['data'] as Map<String, dynamic>?) ?? {};
+      final userInfo = (resData['user_info'] as Map<String, dynamic>?) ?? resData;
+      final rmFound = userInfo['no_rm'] ?? resData['no_rm'] ?? _foundPatientData?['no_rm'] ?? '';
       HapticFeedback.mediumImpact();
-      _successAnimController?.forward(from: 0.0);
       setState(() {
         _successPatientData = {
           'no_rm': rmFound,
@@ -708,6 +709,7 @@ class _PatientSyncSheetState extends State<PatientSyncSheet> with TickerProvider
         };
         _currentStep = PatientSyncStep.success;
       });
+      _successAnimController?.forward(from: 0.0);
       widget.onSuccess?.call();
     } else {
       final msg = res['message'] ?? 'Verifikasi kode OTP gagal';
