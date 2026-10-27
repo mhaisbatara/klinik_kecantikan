@@ -38,3 +38,6 @@ run_dev.sh
 .env.local
 **/.env.local
 *.local
+baileys_auth_info/
+**/baileys_auth_info/
+

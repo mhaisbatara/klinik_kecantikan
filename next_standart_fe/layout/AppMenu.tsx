@@ -52,6 +52,7 @@ const LAPORAN_MENU_ITEMS = [
 ];
 
 const DEFAULT_MASTER_DATA_ITEMS: AppMenuItem[] = [
+    { label: 'Master Nomer Klinik', icon: 'pi pi-fw pi-whatsapp', to: '/master-data/nomer-klinik' },
     { label: 'Kategori Layanan', icon: 'pi pi-fw pi-tags', to: '/master-data/kategori-layanan' },
     { label: 'Data Layanan', icon: 'pi pi-fw pi-briefcase', to: '/master-data/layanan' },
     { label: 'Paket Layanan', icon: 'pi pi-fw pi-box', to: '/master-data/paket-layanan' },
@@ -74,6 +75,7 @@ const DEFAULT_PENDAFTARAN_ITEMS: AppMenuItem[] = [
 ];
 
 const DEFAULT_PENGATURAN_ITEMS: AppMenuItem[] = [
+    { label: 'Master Nomer Klinik', icon: 'pi pi-fw pi-whatsapp', to: '/master-data/nomer-klinik' },
     { label: 'Pengaturan Klinik', icon: 'pi pi-fw pi-sliders-h', to: '/setup/config' },
     { label: 'Data Pasien', icon: 'pi pi-fw pi-user', to: '/master-data-user/data-pasien' },
     { label: 'Manajemen User', icon: 'pi pi-fw pi-users', to: '/setup/users' },
@@ -82,6 +84,7 @@ const DEFAULT_PENGATURAN_ITEMS: AppMenuItem[] = [
 
 const SUPERADMIN_MASTER_DATA_ITEMS: AppMenuItem[] = [
     { label: 'Manajemen Cabang', icon: 'pi pi-fw pi-building', to: '/setup/cabang' },
+    { label: 'Master Nomer Klinik', icon: 'pi pi-fw pi-whatsapp', to: '/master-data/nomer-klinik' },
     { label: 'Metode Pembayaran', icon: 'pi pi-fw pi-wallet', to: '/setup/metode-pembayaran' },
     { label: 'Manajemen User', icon: 'pi pi-fw pi-users', to: '/setup/users' },
     { label: 'Manajemen Role', icon: 'pi pi-fw pi-shield', to: '/setup/navigation' },
