@@ -158,12 +158,22 @@ router.post("/create", authenticateMobile, upload.single("bukti_dp"), async (req
       .items(
         Joi.object({
           kode_layanan: Joi.string().required(),
-          nama_layanan: Joi.string().optional(),
-          harga: Joi.number().optional(),
-          durasi_menit: Joi.number().optional(),
+          nama_layanan: Joi.string().allow("", null).optional(),
+          nama: Joi.string().allow("", null).optional(),
+          harga: Joi.number().allow(null).optional(),
+          harga_paket: Joi.number().allow(null).optional(),
+          durasi_menit: Joi.number().allow(null).optional(),
           is_claim_packet: Joi.boolean().optional(),
+          is_klaim: Joi.boolean().optional(),
+          is_klaim_paket: Joi.boolean().optional(),
+          is_paket: Joi.boolean().optional(),
+          jenis: Joi.string().allow("", null).optional(),
+          jenis_layanan: Joi.string().allow("", null).optional(),
+          jenis_item: Joi.string().allow("", null).optional(),
+          kode_kepemilikan_paket_layanan: Joi.string().allow("", null).optional(),
           kode_detail_kepemilikan_paket_layanan: Joi.string().allow("", null).optional(),
-        })
+          kode_paket_layanan: Joi.string().allow("", null).optional(),
+        }).unknown(true)
       )
       .optional(),
     catatan_pasien: Joi.string().allow("", null).label("Keluhan / Catatan"),
@@ -172,7 +182,8 @@ router.post("/create", authenticateMobile, upload.single("bukti_dp"), async (req
     kode_cabang: Joi.string().allow("", null).default("CBG-001"),
     bukti_dp: Joi.string().allow("", null).optional().label("Bukti DP"),
     butuh_konsul: Joi.any().optional().label("Butuh Konsul"),
-  });
+    jenis_layanan: Joi.string().allow("", null).optional(),
+  }).unknown(true);
 
   const { error, value } = schema.validate(body);
   if (error) {
@@ -294,24 +305,43 @@ router.post("/create", authenticateMobile, upload.single("bukti_dp"), async (req
       }
       const cKodeBooking = `BKG-${datePart}-${String(nextNum).padStart(4, "0")}`;
 
-      const isClaim = Boolean(
-        value.is_claim_packet ||
-        bookingItems.some((it) => it.is_claim_packet || it.kode_detail_kepemilikan_paket_layanan)
+      const isClaimItem = (it) => Boolean(
+        it.is_claim_packet ||
+        it.kode_detail_kepemilikan_paket_layanan ||
+        it.is_klaim ||
+        it.is_klaim_paket ||
+        it.jenis === "klaim_paket" ||
+        it.jenis_layanan === "klaim_paket" ||
+        it.jenis_item === "klaim_paket"
       );
 
-      const totalNominal = isClaim
-        ? 0
-        : bookingItems.reduce(
-            (sum, item) => sum + (Number(item.harga ?? item.harga_paket) || 0),
-            0
-          );
-      const dpNominal = isClaim ? 0 : Math.round(totalNominal * 0.2); // Klaim paket bebas DP (DP Rp0)
-      const dpStatus = isClaim ? "lunas" : (dpNominal === 0 ? "lunas" : "belum_bayar");
+      const hasClaim = bookingItems.some(isClaimItem) || Boolean(value.is_claim_packet || value.kode_detail_kepemilikan_paket_layanan);
+      const hasBaru = bookingItems.some((it) => !isClaimItem(it));
+
+      // Hitung total nominal hanya untuk item berbayar (item klaim paket berbiaya Rp 0)
+      const totalNominal = bookingItems.reduce((sum, item) => {
+        if (isClaimItem(item)) return sum;
+        return sum + (Number(item.harga ?? item.harga_paket) || 0);
+      }, 0);
+
+      const dpNominal = Math.round(totalNominal * 0.2);
+      const isBebasDp = dpNominal === 0;
 
       const isButuhKonsul = (value.butuh_konsul === true || value.butuh_konsul === 1 || value.butuh_konsul === "1" || value.butuh_konsul === "true") ? 1 : 0;
       const firstItem = bookingItems[0] || {};
       const isPaket = value.jenis_layanan === "paket" ||
         bookingItems.some((it) => it.jenis === "paket" || it.is_paket === true || it.is_paket_layanan === true);
+
+      let headerJenisLayanan = "layanan";
+      if (hasClaim && hasBaru) {
+        headerJenisLayanan = "campuran";
+      } else if (hasClaim) {
+        headerJenisLayanan = "klaim_paket";
+      } else if (isPaket) {
+        headerJenisLayanan = "paket";
+      } else {
+        headerJenisLayanan = value.jenis_layanan || "layanan";
+      }
 
       const bookingRecord = {
         kode_cabang: value.kode_cabang || user.kode_cabang || "CBG-001",
@@ -319,17 +349,17 @@ router.post("/create", authenticateMobile, upload.single("bukti_dp"), async (req
         no_rm: noRm,
         kode_ruangan: jadwal.kode_ruangan || null,
         kode_layanan: firstItem.kode_layanan || firstItem.kode_paket_layanan || value.kode_layanan || null,
-        jenis_layanan: isClaim ? "klaim_paket" : (isPaket ? "paket" : (value.jenis_layanan || "layanan")),
+        jenis_layanan: headerJenisLayanan,
         kode_jadwal: value.kode_jadwal,
         tanggal_booking: value.tanggal_booking,
         jam_booking: value.jam_booking,
         total_biaya: totalNominal,
         butuh_konsul: isButuhKonsul,
-        status: dpNominal > 0 ? "menunggu" : "dikonfirmasi", // Jika ada DP, statusnya menunggu konfirmasi kasir. Jika bebas DP, dikonfirmasi
+        status: isBebasDp ? "dikonfirmasi" : "menunggu",
         dp_nominal: dpNominal,
-        dp_status: dpNominal > 0 ? "belum_bayar" : "bebas_dp",
-        metode_pembayaran_dp: value.metode_pembayaran_dp || "transfer",
-        kode_metode_pembayaran: value.kode_metode_pembayaran || null,
+        dp_status: isBebasDp ? "bebas_dp" : "belum_bayar",
+        metode_pembayaran_dp: value.metode_pembayaran_dp || (isBebasDp ? "paket" : "transfer"),
+        kode_metode_pembayaran: value.kode_metode_pembayaran || (isBebasDp ? "MP-PAKET" : null),
         bukti_dp: buktiDpUrl,
         catatan_pasien: value.catatan_pasien || null,
         sumber: "mobile",
@@ -338,8 +368,8 @@ router.post("/create", authenticateMobile, upload.single("bukti_dp"), async (req
         created_at: formatDateSystem(),
       };
 
-      if (isClaim) {
-        bookingRecord.alasan_bebas_dp = "Klaim Paket (Kepemilikan Aktif)";
+      if (hasClaim) {
+        bookingRecord.alasan_bebas_dp = hasBaru ? "Klaim Paket Campuran Tindakan Baru" : "Klaim Paket (Kepemilikan Aktif)";
       }
 
       await trx("trx_booking").insert(bookingRecord);
@@ -348,21 +378,23 @@ router.post("/create", authenticateMobile, upload.single("bukti_dp"), async (req
       const hasDetailTable = await trx.schema.hasTable("trx_detail_booking");
       if (hasDetailTable && bookingItems.length > 0) {
         const detailsToInsert = bookingItems.map((item, idx) => {
-          const itemIsPaket = item.jenis === "paket" || item.is_paket === true || item.is_paket_layanan === true;
-          const isItemClaim = isClaim || Boolean(item.is_claim_packet || item.kode_detail_kepemilikan_paket_layanan);
+          const itemIsClaim = isClaimItem(item);
+          const itemIsPaket = !itemIsClaim && (item.jenis === "paket" || item.is_paket === true || item.is_paket_layanan === true);
           return {
             kode_detail_booking: `DBKG-${datePart}-${String(nextNum).padStart(4, "0")}-${String(idx + 1).padStart(2, "0")}`,
             kode_booking: cKodeBooking,
-            jenis_layanan: isItemClaim ? "klaim_paket" : (itemIsPaket ? "paket" : (item.jenis_layanan || "layanan")),
-            jenis_item: isItemClaim ? "klaim_paket" : (itemIsPaket ? "paket" : (item.jenis_item || "layanan_baru")),
+            jenis_layanan: itemIsClaim ? "klaim_paket" : (itemIsPaket ? "paket" : (item.jenis_layanan || "layanan")),
+            jenis_item: itemIsClaim ? "klaim_paket" : (itemIsPaket ? "paket_baru" : (item.jenis_item || "layanan_baru")),
             kode_layanan: item.kode_layanan || item.kode_paket_layanan,
             nama_layanan: item.nama_layanan || item.nama || item.nama_paket,
-            harga: isItemClaim ? 0 : (item.harga ?? item.harga_paket ?? 0),
+            harga: itemIsClaim ? 0 : (item.harga ?? item.harga_paket ?? 0),
             durasi_menit: item.durasi_menit || (itemIsPaket ? 60 : 30),
-            kode_detail_kepemilikan_paket_layanan:
-              item.kode_detail_kepemilikan_paket_layanan ||
-              value.kode_detail_kepemilikan_paket_layanan ||
-              null,
+            kode_kepemilikan_paket_layanan: itemIsClaim
+              ? (item.kode_kepemilikan_paket_layanan || value.kode_kepemilikan_paket_layanan || null)
+              : null,
+            kode_detail_kepemilikan_paket_layanan: itemIsClaim
+              ? (item.kode_detail_kepemilikan_paket_layanan || value.kode_detail_kepemilikan_paket_layanan || null)
+              : null,
             tz: process.env.APP_TZ || "Asia/Jakarta",
             created_by: user.username || "mobile_app",
             created_at: formatDateSystem(),

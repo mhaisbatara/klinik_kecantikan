@@ -72,6 +72,9 @@ class _BookingScreenState extends State<BookingScreen> {
   String _selectedRoom = 'Semua';
   bool _loadingLayanan = true;
 
+  // Paket Perawatan Dimiliki Pasien (Multi-Sesi Klaim)
+  List<Map<String, dynamic>> _claimableItems = [];
+
   // Selected Treatments (Multi-select dalam 1 ruangan)
   final List<Map<String, dynamic>> _selectedItems = [];
   String? _activeKodeRuangan;
@@ -511,13 +514,62 @@ class _BookingScreenState extends State<BookingScreen> {
       BookingService.getPaketList(
         kodeCabang: branchCode,
       ),
+      BookingService.getMyPackages(),
     ]);
     if (!mounted) return;
 
     final list = results[0];
     final paketList = results[1];
+    final myPkgs = results[2];
 
-    // Kumpulkan nama ruangan unik dari kedua daftar
+    final List<Map<String, dynamic>> claimable = [];
+    {
+      for (final pkg in myPkgs) {
+        if (pkg is Map) {
+          final pkgStatus = (pkg['status'] ?? '').toString().toLowerCase();
+          if (pkgStatus != 'aktif' && pkgStatus != '1') continue;
+          final details = pkg['details'];
+          if (details is List) {
+            for (final d in details) {
+              if (d is Map) {
+                final sisa = _toNum(d['sesi_tersedia'] ?? d['sisa_sesi']).toInt();
+                if (sisa > 0) {
+                  final kRuangan = d['kode_ruangan']?.toString() ?? pkg['kode_ruangan_paket']?.toString() ?? 'RNG-002';
+                  final nRuangan = d['nama_ruangan']?.toString() ?? pkg['nama_ruangan_paket']?.toString() ?? 'Ruang Treatment';
+                  claimable.add({
+                    'kode_detail_kepemilikan_paket_layanan': d['kode_detail_kepemilikan_paket_layanan'],
+                    'kode_kepemilikan_paket_layanan': pkg['kode_kepemilikan_paket_layanan'],
+                    'kode_layanan': d['kode_layanan'],
+                    'nama_layanan': d['nama_layanan'] ?? 'Layanan Paket',
+                    'nama_paket': pkg['nama_paket'] ?? 'Paket Perawatan',
+                    'foto_layanan': d['foto_layanan'] ?? pkg['foto_paket'],
+                    'gambar': d['foto_layanan'] ?? pkg['foto_paket'],
+                    'foto': d['foto_layanan'] ?? pkg['foto_paket'],
+                    'kode_ruangan': kRuangan,
+                    'nama_ruangan': nRuangan,
+                    'durasi_menit': _toNum(d['durasi_menit']).toInt() > 0 ? _toNum(d['durasi_menit']).toInt() : 30,
+                    'wajib_konsultasi': d['wajib_konsultasi'] ?? 'tidak',
+                    'is_include_konsultasi': d['is_include_konsultasi'] ?? 0,
+                    'harga': 0,
+                    'sesi_total': _toNum(d['sesi_total']).toInt(),
+                    'sesi_terpakai': _toNum(d['sesi_terpakai']).toInt(),
+                    'sisa_sesi': sisa,
+                    'is_claim_packet': true,
+                    'is_klaim': true,
+                    'is_klaim_paket': true,
+                    'jenis': 'klaim_paket',
+                    'jenis_layanan': 'klaim_paket',
+                    'jenis_item': 'klaim_paket',
+                  });
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Kumpulkan nama ruangan unik dari semua daftar
     final Set<String> uniqueRooms = {'Semua'};
     for (final it in list) {
       final rName = (it['nama_ruangan'] ?? '').toString().trim();
@@ -531,10 +583,17 @@ class _BookingScreenState extends State<BookingScreen> {
         uniqueRooms.add(rName);
       }
     }
+    for (final it in claimable) {
+      final rName = (it['nama_ruangan'] ?? '').toString().trim();
+      if (rName.isNotEmpty) {
+        uniqueRooms.add(rName);
+      }
+    }
 
     setState(() {
       _allLayanan = list;
       _allPaket = paketList;
+      _claimableItems = claimable;
       _roomList = uniqueRooms.toList();
       _selectedRoom = 'Semua';
       _loadingLayanan = false;
@@ -580,30 +639,95 @@ class _BookingScreenState extends State<BookingScreen> {
     return _allPaket.where((it) => it['nama_ruangan'] == _selectedRoom).toList();
   }
 
+  List<Map<String, dynamic>> get _filteredClaimable {
+    if (_selectedRoom == 'Semua' || _selectedRoom == 'dimiliki') return _claimableItems;
+    return _claimableItems.where((it) => it['nama_ruangan'] == _selectedRoom).toList();
+  }
+
+  void _toggleClaimItem(Map<String, dynamic> item) {
+    final kodeDkpl = item['kode_detail_kepemilikan_paket_layanan'];
+    final itemRoom = item['kode_ruangan'];
+    final itemRoomName = item['nama_ruangan'] ?? 'Ruang Treatment';
+
+    final isSelected = _selectedItems.any((it) =>
+      it['kode_detail_kepemilikan_paket_layanan'] != null &&
+      it['kode_detail_kepemilikan_paket_layanan'] == kodeDkpl
+    );
+
+    if (isSelected) {
+      setState(() {
+        _selectedItems.removeWhere((it) =>
+          it['kode_detail_kepemilikan_paket_layanan'] == kodeDkpl
+        );
+        if (_selectedItems.isEmpty) {
+          _activeKodeRuangan = null;
+          _activeNamaRuangan = null;
+          _selectedSlot = null;
+          _selectedJamBooking = null;
+          _isClaim = false;
+        } else {
+          _isClaim = _selectedItems.any((it) => it['is_klaim'] == true || it['is_claim_packet'] == true);
+        }
+      });
+      _fetchSlots();
+      return;
+    }
+
+    // Periksa konflik ruangan jika ada item lain yang sudah dipilih sebelumnya
+    if (_selectedItems.isNotEmpty && _activeKodeRuangan != null && itemRoom != null && itemRoom != _activeKodeRuangan) {
+      _showRoomConflictDialog(item, itemRoom, itemRoomName, isClaimItem: true);
+      return;
+    }
+
+    setState(() {
+      _selectedItems.add(item);
+      _activeKodeRuangan = itemRoom;
+      _activeNamaRuangan = itemRoomName;
+      _isClaim = true;
+      _selectedJamBooking = null;
+      _selectedRoom = itemRoomName; // Otomatis arahkan tab ruangan ke ruangan tindakan paket
+    });
+
+    _fetchSlots();
+  }
+
   void _toggleItem(Map<String, dynamic> item) {
-    // Jika sebelumnya memilih paket, reset paket terlebih dahulu
-    if (_selectedItems.any((it) => it['is_paket'] == true)) {
+    // Jika sebelumnya memilih paket baru (bukan klaim), reset jika ingin beralih
+    if (_selectedItems.any((it) => it['is_paket'] == true && it['is_klaim'] != true)) {
       _selectedItems.clear();
       _activeKodeRuangan = null;
       _activeNamaRuangan = null;
       _selectedSlot = null;
       _selectedJamBooking = null;
+      _isClaim = false;
     }
 
     final kode = item['kode_layanan'];
     final itemRoom = item['kode_ruangan'];
     final itemRoomName = item['nama_ruangan'] ?? 'Ruang Treatment';
 
-    final exists = _selectedItems.any((it) => it['kode_layanan'] == kode);
+    // Cek apakah layanan ini sudah dipilih melalui klaim kuota paket aktif
+    final isAlreadyClaimed = _selectedItems.any((it) =>
+      it['kode_layanan'] == kode && (it['is_klaim'] == true || it['is_claim_packet'] == true)
+    );
+    if (isAlreadyClaimed) {
+      _showToast('Layanan ini sudah Anda pilih via klaim paket aktif (Rp 0).', isError: false);
+      return;
+    }
+
+    final exists = _selectedItems.any((it) => it['kode_layanan'] == kode && it['is_klaim'] != true);
 
     if (exists) {
       setState(() {
-        _selectedItems.removeWhere((it) => it['kode_layanan'] == kode);
+        _selectedItems.removeWhere((it) => it['kode_layanan'] == kode && it['is_klaim'] != true);
         if (_selectedItems.isEmpty) {
           _activeKodeRuangan = null;
           _activeNamaRuangan = null;
           _selectedSlot = null;
           _selectedJamBooking = null;
+          _isClaim = false;
+        } else {
+          _isClaim = _selectedItems.any((it) => it['is_klaim'] == true || it['is_claim_packet'] == true);
         }
       });
       _fetchSlots();
@@ -631,25 +755,32 @@ class _BookingScreenState extends State<BookingScreen> {
     final itemRoom = paket['kode_ruangan'];
     final itemRoomName = paket['nama_ruangan'] ?? 'Ruang Treatment';
 
-    final isSelected = _selectedItems.any((it) => it['kode_layanan'] == kodePaket);
+    final isSelected = _selectedItems.any((it) => it['kode_layanan'] == kodePaket && it['is_klaim'] != true);
 
     if (isSelected) {
       setState(() {
-        _selectedItems.removeWhere((it) => it['kode_layanan'] == kodePaket);
+        _selectedItems.removeWhere((it) => it['kode_layanan'] == kodePaket && it['is_klaim'] != true);
         if (_selectedItems.isEmpty) {
           _activeKodeRuangan = null;
           _activeNamaRuangan = null;
           _selectedSlot = null;
           _selectedJamBooking = null;
+          _isClaim = false;
+        } else {
+          _isClaim = _selectedItems.any((it) => it['is_klaim'] == true || it['is_claim_packet'] == true);
         }
       });
       _fetchSlots();
       return;
     }
 
-    // Paket layanan merupakan 1 paket lengkap yang mengunci ruangan
+    // Periksa konflik ruangan
+    if (_selectedItems.isNotEmpty && _activeKodeRuangan != null && itemRoom != null && itemRoom != _activeKodeRuangan) {
+      _showRoomConflictDialog(paket, itemRoom, itemRoomName);
+      return;
+    }
+
     setState(() {
-      _selectedItems.clear();
       _selectedItems.add({
         'kode_layanan': kodePaket,
         'kode_paket_layanan': kodePaket,
@@ -679,7 +810,7 @@ class _BookingScreenState extends State<BookingScreen> {
     _fetchSlots();
   }
 
-  void _showRoomConflictDialog(Map<String, dynamic> newItem, String newRoom, String newRoomName) {
+  void _showRoomConflictDialog(Map<String, dynamic> newItem, String newRoom, String newRoomName, {bool isClaimItem = false}) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -719,6 +850,8 @@ class _BookingScreenState extends State<BookingScreen> {
                 _activeNamaRuangan = newRoomName;
                 _selectedSlot = null;
                 _selectedJamBooking = null;
+                _isClaim = isClaimItem || (newItem['is_klaim'] == true || newItem['is_claim_packet'] == true);
+                _selectedRoom = newRoomName;
               });
               _fetchSlots();
             },
@@ -798,8 +931,15 @@ class _BookingScreenState extends State<BookingScreen> {
     return total > 0 ? total : 30;
   }
 
+  bool get _hasClaimItem {
+    return _selectedItems.any((it) => it['is_klaim'] == true || it['is_claim_packet'] == true || it['jenis'] == 'klaim_paket') || _isClaim;
+  }
+
+  bool get _hasPaidItem {
+    return _selectedItems.any((it) => it['is_klaim'] != true && it['is_claim_packet'] != true && it['jenis'] != 'klaim_paket');
+  }
+
   num get _totalBiaya {
-    if (_isClaim) return 0;
     if (_createdBooking?['total_biaya'] != null) {
       return _toNum(_createdBooking!['total_biaya']);
     }
@@ -808,21 +948,22 @@ class _BookingScreenState extends State<BookingScreen> {
     }
     num total = 0;
     for (final it in _selectedItems) {
-      if (it['is_claim_packet'] == true) continue;
-      total += _toNum(it['harga']);
+      final isItemClaim = it['is_claim_packet'] == true || it['is_klaim'] == true || it['jenis'] == 'klaim_paket';
+      if (isItemClaim) continue;
+      total += _toNum(it['harga'] ?? it['harga_paket']);
     }
     return total;
   }
 
   num get _dpNominal {
-    if (_isClaim) return 0;
     if (_createdBooking?['dp_nominal'] != null) {
       return _toNum(_createdBooking!['dp_nominal']);
     }
+    if (_totalBiaya <= 0) return 0;
     return (_totalBiaya * 0.2).round();
   }
 
-  num get _sisaPelunasan => _isClaim ? 0 : (_totalBiaya - _dpNominal);
+  num get _sisaPelunasan => _totalBiaya <= 0 ? 0 : (_totalBiaya - _dpNominal);
 
   Map<String, bool> _getItemConsultType(Map<String, dynamic> item) {
     final wk = (item['wajib_konsultasi'] ?? '').toString().trim().toLowerCase();
@@ -958,24 +1099,34 @@ class _BookingScreenState extends State<BookingScreen> {
 
       setState(() => _creatingPending = true);
 
-      final hasPaket = _selectedItems.any((it) => it['is_paket'] == true || it['jenis'] == 'paket');
-      final jenisLayanan = hasPaket ? 'paket' : (_selectedItems.any((it) => it['is_klaim'] == true) ? 'klaim_paket' : 'layanan');
+      final hasClaim = _hasClaimItem;
+      final hasPaid = _hasPaidItem;
+      String jenisLayanan = 'layanan';
+      if (hasClaim && hasPaid) {
+        jenisLayanan = 'campuran';
+      } else if (hasClaim) {
+        jenisLayanan = 'klaim_paket';
+      } else if (_selectedItems.any((it) => it['is_paket'] == true || it['jenis'] == 'paket')) {
+        jenisLayanan = 'paket';
+      }
 
       final formattedItems = _selectedItems.map((it) {
         final isPkt = it['is_paket'] == true || it['jenis'] == 'paket';
+        final isItemClaim = it['is_klaim'] == true || it['is_claim_packet'] == true || it['jenis'] == 'klaim_paket';
         return {
-          'kode_layanan': it['kode_layanan'],
+          'kode_layanan': it['kode_layanan'] ?? it['kode_paket_layanan'],
           'nama_layanan': it['nama_layanan'] ?? it['nama'],
-          'harga': _toNum(it['harga']),
+          'harga': isItemClaim ? 0 : _toNum(it['harga'] ?? it['harga_paket']),
           'durasi_menit': _toNum(it['durasi_menit']).toInt(),
           if (isPkt) ...{
             'is_paket': true,
             'jenis': 'paket',
             'jenis_layanan': 'paket',
           },
-          if (it['is_klaim'] == true) ...{
+          if (isItemClaim) ...{
             'is_klaim': true,
             'is_klaim_paket': true,
+            'is_claim_packet': true,
             'jenis': 'klaim_paket',
             'kode_kepemilikan_paket_layanan': it['kode_kepemilikan_paket_layanan'],
             'kode_detail_kepemilikan_paket_layanan': it['kode_detail_kepemilikan_paket_layanan'],
@@ -1005,7 +1156,7 @@ class _BookingScreenState extends State<BookingScreen> {
         buktiDpFile: null, // Belum upload bukti transfer (status pending kunci transaksi)
         kodeCabang: _activeCabang?['kode_cabang'] ?? _currentUser?['kode_cabang'] ?? 'CBG-001',
         butuhKonsul: effectiveButuhKonsul,
-        isClaimPacket: _isClaim,
+        isClaimPacket: hasClaim && !hasPaid,
         kodeDetailKepemilikan: _kodeDetailKepemilikan,
       );
 
@@ -1151,15 +1302,16 @@ class _BookingScreenState extends State<BookingScreen> {
     setState(() => _submitting = true);
 
     final formattedItems = _selectedItems.map((it) {
-      final isItemClaim = _isClaim || it['is_claim_packet'] == true;
+      final isItemClaim = it['is_klaim'] == true || it['is_claim_packet'] == true || it['jenis'] == 'klaim_paket' || _isClaim;
       return {
-        'kode_layanan': it['kode_layanan'],
+        'kode_layanan': it['kode_layanan'] ?? it['kode_paket_layanan'],
         'nama_layanan': it['nama_layanan'] ?? it['nama'],
-        'harga': isItemClaim ? 0 : _toNum(it['harga']),
+        'harga': isItemClaim ? 0 : _toNum(it['harga'] ?? it['harga_paket']),
         'durasi_menit': _toNum(it['durasi_menit']).toInt(),
-        if (it['is_klaim'] == true) ...{
+        if (isItemClaim) ...{
           'is_klaim': true,
           'is_klaim_paket': true,
+          'is_claim_packet': true,
           'jenis': 'klaim_paket',
           'kode_kepemilikan_paket_layanan': it['kode_kepemilikan_paket_layanan'],
           'kode_detail_kepemilikan_paket_layanan': it['kode_detail_kepemilikan_paket_layanan'],
@@ -2240,6 +2392,8 @@ class _BookingScreenState extends State<BookingScreen> {
   // 2. PILIHAN LAYANAN / PAKET DENGAN TAB FILTER RUANGAN & MULTI-SELECT
   Widget _buildTreatmentSelectionSection() {
     final isLayananTab = _activeCategoryTab == 'layanan';
+    final isPaketTab = _activeCategoryTab == 'paket';
+    final isDimilikiTab = _activeCategoryTab == 'dimiliki';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2260,9 +2414,11 @@ class _BookingScreenState extends State<BookingScreen> {
                     ),
                   ),
                   Text(
-                    isLayananTab
-                        ? 'Multi-select treatment dalam ruangan yang sama'
-                        : 'Pilih paket perawatan hemat klinik',
+                    isDimilikiTab
+                        ? 'Klaim jatah sesi paket perawatan aktif Anda (Rp 0)'
+                        : (isLayananTab
+                            ? 'Multi-select treatment dalam ruangan yang sama'
+                            : 'Pilih paket perawatan hemat klinik'),
                     style: GoogleFonts.plusJakartaSans(fontSize: 11.5, color: AppColors.textMuted),
                   ),
                 ],
@@ -2289,7 +2445,7 @@ class _BookingScreenState extends State<BookingScreen> {
         ),
         const SizedBox(height: 10),
 
-        // ── CATEGORY TAB TOGGLE: LAYANAN SATUAN vs PAKET PERAWATAN ──
+        // ── CATEGORY TAB TOGGLE: LAYANAN SATUAN vs PAKET HEMAT vs PAKET DIMILIKI ──
         Container(
           padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
@@ -2299,6 +2455,7 @@ class _BookingScreenState extends State<BookingScreen> {
           ),
           child: Row(
             children: [
+              // Tab Layanan
               Expanded(
                 child: InkWell(
                   onTap: () => setState(() => _activeCategoryTab = 'layanan'),
@@ -2325,16 +2482,19 @@ class _BookingScreenState extends State<BookingScreen> {
                         children: [
                           Icon(
                             Icons.spa_rounded,
-                            size: 16,
+                            size: 15,
                             color: isLayananTab ? AppColors.primaryDark : AppColors.textMuted,
                           ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Layanan (${_filteredLayanan.length})',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 12,
-                              fontWeight: isLayananTab ? FontWeight.w800 : FontWeight.w600,
-                              color: isLayananTab ? AppColors.primaryDark : AppColors.textMuted,
+                          const SizedBox(width: 5),
+                          Flexible(
+                            child: Text(
+                              'Layanan (${_filteredLayanan.length})',
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 11.5,
+                                fontWeight: isLayananTab ? FontWeight.w800 : FontWeight.w600,
+                                color: isLayananTab ? AppColors.primaryDark : AppColors.textMuted,
+                              ),
                             ),
                           ),
                         ],
@@ -2344,6 +2504,8 @@ class _BookingScreenState extends State<BookingScreen> {
                 ),
               ),
               const SizedBox(width: 4),
+
+              // Tab Paket Hemat
               Expanded(
                 child: InkWell(
                   onTap: () => setState(() => _activeCategoryTab = 'paket'),
@@ -2352,9 +2514,9 @@ class _BookingScreenState extends State<BookingScreen> {
                     duration: const Duration(milliseconds: 180),
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     decoration: BoxDecoration(
-                      color: !isLayananTab ? Colors.white : Colors.transparent,
+                      color: isPaketTab ? Colors.white : Colors.transparent,
                       borderRadius: BorderRadius.circular(10),
-                      boxShadow: !isLayananTab
+                      boxShadow: isPaketTab
                           ? [
                               BoxShadow(
                                 color: Colors.black.withValues(alpha: 0.06),
@@ -2370,16 +2532,19 @@ class _BookingScreenState extends State<BookingScreen> {
                         children: [
                           Icon(
                             Icons.card_giftcard_rounded,
-                            size: 16,
-                            color: !isLayananTab ? const Color(0xFFD97706) : AppColors.textMuted,
+                            size: 15,
+                            color: isPaketTab ? const Color(0xFFD97706) : AppColors.textMuted,
                           ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Paket Hemat (${_filteredPaket.length})',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 12,
-                              fontWeight: !isLayananTab ? FontWeight.w800 : FontWeight.w600,
-                              color: !isLayananTab ? const Color(0xFFD97706) : AppColors.textMuted,
+                          const SizedBox(width: 5),
+                          Flexible(
+                            child: Text(
+                              'Paket (${_filteredPaket.length})',
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 11.5,
+                                fontWeight: isPaketTab ? FontWeight.w800 : FontWeight.w600,
+                                color: isPaketTab ? const Color(0xFFD97706) : AppColors.textMuted,
+                              ),
                             ),
                           ),
                         ],
@@ -2388,52 +2553,203 @@ class _BookingScreenState extends State<BookingScreen> {
                   ),
                 ),
               ),
+
+              // Tab Paket Dimiliki (Jika Pasien Memiliki Paket Aktif)
+              if (_claimableItems.isNotEmpty) ...[
+                const SizedBox(width: 4),
+                Expanded(
+                  child: InkWell(
+                    onTap: () => setState(() => _activeCategoryTab = 'dimiliki'),
+                    borderRadius: BorderRadius.circular(10),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isDimilikiTab ? Colors.white : Colors.transparent,
+                        borderRadius: BorderRadius.circular(10),
+                        boxShadow: isDimilikiTab
+                            ? [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.06),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ]
+                            : null,
+                      ),
+                      child: Center(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text('🎁', style: TextStyle(fontSize: 13)),
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                'Dimiliki (${_claimableItems.length})',
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11.5,
+                                  fontWeight: isDimilikiTab ? FontWeight.w800 : FontWeight.w600,
+                                  color: isDimilikiTab ? const Color(0xFF059669) : AppColors.textMuted,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
         const SizedBox(height: 10),
 
-        // Tabs Filter Ruangan
-        if (_roomList.length > 1)
+        // ── TABS FILTER RUANGAN (PERSIS GAMBAR 2 & 3 DI WEB) ──
+        if (_roomList.length > 1 || _claimableItems.isNotEmpty)
           SizedBox(
-            height: 36,
-            child: ListView.separated(
+            height: 38,
+            child: ListView(
               scrollDirection: Axis.horizontal,
-              itemCount: _roomList.length,
-              separatorBuilder: (context, index) => const SizedBox(width: 8),
-              itemBuilder: (context, index) {
-                final room = _roomList[index];
-                final isSelected = _selectedRoom == room;
-                return InkWell(
-                  onTap: () => setState(() => _selectedRoom = room),
+              children: [
+                // Chip Paket Dimiliki Pasien di depan (Sesuai Web Gambar 2 & 3)
+                if (_claimableItems.isNotEmpty) ...[
+                  InkWell(
+                    onTap: () {
+                      setState(() {
+                        _activeCategoryTab = 'dimiliki';
+                        _selectedRoom = 'dimiliki';
+                      });
+                    },
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      margin: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: isDimilikiTab ? const Color(0xFFECFDF5) : Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: isDimilikiTab ? const Color(0xFF10B981) : AppColors.inputBorder,
+                          width: isDimilikiTab ? 1.6 : 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('🎁', style: TextStyle(fontSize: 13)),
+                          const SizedBox(width: 5),
+                          Text(
+                            'Paket Dimiliki Pasien (${_claimableItems.length})',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11.5,
+                              fontWeight: isDimilikiTab ? FontWeight.w800 : FontWeight.w600,
+                              color: isDimilikiTab ? const Color(0xFF065F46) : AppColors.textDark,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+
+                // Chip Semua Ruangan
+                InkWell(
+                  onTap: () {
+                    setState(() {
+                      if (isDimilikiTab) _activeCategoryTab = 'layanan';
+                      _selectedRoom = 'Semua';
+                    });
+                  },
                   borderRadius: BorderRadius.circular(20),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    margin: const EdgeInsets.only(right: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                     decoration: BoxDecoration(
-                      color: isSelected ? AppColors.primary : Colors.white,
+                      color: (!isDimilikiTab && _selectedRoom == 'Semua') ? AppColors.primary : Colors.white,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: isSelected ? AppColors.primary : AppColors.inputBorder,
+                        color: (!isDimilikiTab && _selectedRoom == 'Semua') ? AppColors.primary : AppColors.inputBorder,
                       ),
                     ),
                     child: Center(
                       child: Text(
-                        room,
+                        'Semua',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 11.5,
-                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                          color: isSelected ? Colors.white : AppColors.textDark,
+                          fontWeight: (!isDimilikiTab && _selectedRoom == 'Semua') ? FontWeight.w700 : FontWeight.w500,
+                          color: (!isDimilikiTab && _selectedRoom == 'Semua') ? Colors.white : AppColors.textDark,
                         ),
                       ),
                     ),
                   ),
-                );
-              },
+                ),
+
+                // Daftar Chip Ruangan Dinamis
+                ..._roomList.where((r) => r != 'Semua').map((room) {
+                  final isRoomSelected = !isDimilikiTab && _selectedRoom == room;
+                  final isRoomActive = _activeNamaRuangan != null && _activeNamaRuangan == room;
+                  final isConflict = _activeNamaRuangan != null && !isRoomActive;
+
+                  return InkWell(
+                    onTap: () {
+                      setState(() {
+                        if (isDimilikiTab) _activeCategoryTab = 'layanan';
+                        _selectedRoom = room;
+                      });
+                    },
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      margin: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: isRoomSelected
+                            ? (isRoomActive ? const Color(0xFFECFDF5) : AppColors.primary)
+                            : (isConflict ? const Color(0xFFFEF2F2) : Colors.white),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: isRoomSelected
+                              ? (isRoomActive ? const Color(0xFF10B981) : AppColors.primary)
+                              : (isConflict ? const Color(0xFFFCA5A5) : AppColors.inputBorder),
+                          width: (isRoomSelected || isRoomActive) ? 1.6 : 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (isRoomActive) ...[
+                            const Icon(Icons.check_circle_rounded, size: 14, color: Color(0xFF10B981)),
+                            const SizedBox(width: 4),
+                          ] else if (isConflict) ...[
+                            const Text('🚫', style: TextStyle(fontSize: 11)),
+                            const SizedBox(width: 4),
+                          ] else ...[
+                            Icon(Icons.meeting_room_outlined, size: 14, color: isRoomSelected ? Colors.white : AppColors.textMuted),
+                            const SizedBox(width: 4),
+                          ],
+                          Text(
+                            room,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11.5,
+                              fontWeight: (isRoomSelected || isRoomActive) ? FontWeight.w800 : FontWeight.w500,
+                              color: isRoomSelected
+                                  ? (isRoomActive ? const Color(0xFF065F46) : Colors.white)
+                                  : (isRoomActive
+                                      ? const Color(0xFF059669)
+                                      : (isConflict ? const Color(0xFFDC2626) : AppColors.textDark)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+              ],
             ),
           ),
         const SizedBox(height: 12),
 
-        // ── DAFTAR LAYANAN ATAU DAFTAR PAKET ──
+        // ── KONTEN DAFTAR: PAKET DIMILIKI vs LAYANAN SATUAN vs PAKET HEMAT ──
         if (_loadingLayanan)
           const Center(
             child: Padding(
@@ -2441,9 +2757,35 @@ class _BookingScreenState extends State<BookingScreen> {
               child: CircularProgressIndicator(color: AppColors.primary),
             ),
           )
-        else if (isLayananTab) ...[
-          // LIST LAYANAN SATUAN
-          if (_filteredLayanan.isEmpty)
+        else if (isDimilikiTab) ...[
+          // ── DAFTAR PAKET DIMILIKI PASIEN (KLAIM SESI LANJUTAN - PERSIS GAMBAR 2) ──
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEFF6FF),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFBFDBFE)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline_rounded, color: Color(0xFF2563EB), size: 18),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Pasien memiliki paket aktif! Pilih sesi treatment di bawah ini untuk mengklaim sesi lanjutan (Rp 0).',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF1E40AF),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          if (_filteredClaimable.isEmpty)
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -2453,7 +2795,7 @@ class _BookingScreenState extends State<BookingScreen> {
               ),
               child: Center(
                 child: Text(
-                  'Tidak ada layanan pada kategori ruangan ini.',
+                  'Tidak ada jatah sesi paket yang dapat diklaim pada ruangan ini.',
                   style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textMuted),
                 ),
               ),
@@ -2462,27 +2804,30 @@ class _BookingScreenState extends State<BookingScreen> {
             ListView.separated(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: _filteredLayanan.length,
+              itemCount: _filteredClaimable.length,
               separatorBuilder: (context, index) => const SizedBox(height: 10),
               itemBuilder: (context, index) {
-                final item = _filteredLayanan[index];
-                final kode = item['kode_layanan'];
-                final isSelected = _selectedItems.any((it) => it['kode_layanan'] == kode);
-                final imageUrl = ApiConstants.getImageUrl(item['gambar'] ?? item['foto']);
+                final item = _filteredClaimable[index];
+                final kodeDkpl = item['kode_detail_kepemilikan_paket_layanan'];
+                final isSelected = _selectedItems.any((it) =>
+                  it['kode_detail_kepemilikan_paket_layanan'] != null &&
+                  it['kode_detail_kepemilikan_paket_layanan'] == kodeDkpl
+                );
+                final imageUrl = ApiConstants.getImageUrl(item['foto_layanan'] ?? item['foto'] ?? item['gambar']);
                 final consultType = _getItemConsultType(item);
                 final isInclude = item['is_include_konsultasi'] == 1 || item['is_include_konsultasi'] == true;
 
                 return InkWell(
-                  onTap: () => _toggleItem(item),
+                  onTap: () => _toggleClaimItem(item),
                   borderRadius: BorderRadius.circular(16),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 180),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: isSelected ? AppColors.bgMintLight : Colors.white,
+                      color: isSelected ? const Color(0xFFECFDF5) : Colors.white,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: isSelected ? AppColors.primary : AppColors.inputBorder,
+                        color: isSelected ? const Color(0xFF10B981) : AppColors.inputBorder,
                         width: isSelected ? 1.8 : 1,
                       ),
                       boxShadow: [
@@ -2496,13 +2841,13 @@ class _BookingScreenState extends State<BookingScreen> {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Thumbnail Foto
+                        // Foto Treatment / Icon
                         Container(
                           width: 58,
                           height: 58,
                           clipBehavior: Clip.antiAlias,
                           decoration: BoxDecoration(
-                            color: AppColors.primary.withValues(alpha: 0.08),
+                            color: const Color(0xFFDCFCE7),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: (imageUrl != null && imageUrl.isNotEmpty)
@@ -2511,19 +2856,27 @@ class _BookingScreenState extends State<BookingScreen> {
                                   width: 58,
                                   height: 58,
                                   fit: BoxFit.cover,
-                                  errorBuilder: (ctx, error, stackTrace) => const Icon(Icons.spa_rounded, color: AppColors.primary, size: 26),
+                                  errorBuilder: (ctx, error, stackTrace) => const Icon(
+                                    Icons.auto_awesome_rounded,
+                                    color: Color(0xFF059669),
+                                    size: 26,
+                                  ),
                                 )
-                              : const Icon(Icons.spa_rounded, color: AppColors.primary, size: 26),
+                              : const Icon(
+                                  Icons.auto_awesome_rounded,
+                                  color: Color(0xFF059669),
+                                  size: 26,
+                                ),
                         ),
                         const SizedBox(width: 12),
 
-                        // Detail Treatment
+                        // Detail Treatment Klaim
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                item['nama_layanan'] ?? item['nama'] ?? '-',
+                                item['nama_layanan'] ?? 'Layanan Paket',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: GoogleFonts.plusJakartaSans(
@@ -2532,22 +2885,57 @@ class _BookingScreenState extends State<BookingScreen> {
                                   color: AppColors.textDark,
                                 ),
                               ),
-                              const SizedBox(height: 3),
+                              const SizedBox(height: 2),
                               Text(
-                                _formatRupiah(item['harga']),
+                                'Paket: ${item['nama_paket'] ?? 'Paket Perawatan'}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.primaryDark,
+                                  fontSize: 11,
+                                  color: AppColors.textMuted,
                                 ),
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Text(
+                                    'Rp 0',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: const Color(0xFF059669),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 5.5, vertical: 1.5),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFDCFCE7),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      'Klaim Kuota',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 9.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: const Color(0xFF166534),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                               const SizedBox(height: 6),
 
-                              // Badges: Ruangan, Konsultasi, Include, Durasi
+                              // Badges: Sisa Sesi, Ruangan, Konsul, Durasi
                               Wrap(
                                 spacing: 5,
                                 runSpacing: 4,
                                 children: [
+                                  _buildBadge(
+                                    'Klaim (${item['sisa_sesi']} Sesi)',
+                                    const Color(0xFFB45309),
+                                    const Color(0xFFFEF3C7),
+                                  ),
                                   if (item['nama_ruangan'] != null)
                                     _buildBadge(item['nama_ruangan'], const Color(0xFF6B7280), const Color(0xFFF3F4F6)),
                                   if (consultType['isWajib'] == true)
@@ -2557,7 +2945,7 @@ class _BookingScreenState extends State<BookingScreen> {
                                   else
                                     _buildBadge('Tanpa Konsul', const Color(0xFF059669), const Color(0xFFD1FAE5)),
                                   if (isInclude)
-                                    _buildBadge('Include', const Color(0xFF0D9488), const Color(0xFFCCFBF1)),
+                                    _buildBadge('Include Konsul', const Color(0xFF059669), const Color(0xFFDCFCE7)),
                                   _buildBadge('${item['durasi_menit'] ?? 30} mnt', AppColors.primaryDark, AppColors.bgMintLight),
                                 ],
                               ),
@@ -2566,15 +2954,15 @@ class _BookingScreenState extends State<BookingScreen> {
                         ),
                         const SizedBox(width: 8),
 
-                        // Checkbox Selection
+                        // Checkbox Selection Bulat
                         Container(
                           width: 24,
                           height: 24,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: isSelected ? AppColors.primary : Colors.white,
+                            color: isSelected ? const Color(0xFF10B981) : Colors.white,
                             border: Border.all(
-                              color: isSelected ? AppColors.primary : AppColors.inputBorder,
+                              color: isSelected ? const Color(0xFF10B981) : AppColors.inputBorder,
                               width: 1.5,
                             ),
                           ),
@@ -2588,8 +2976,368 @@ class _BookingScreenState extends State<BookingScreen> {
                 );
               },
             ),
+        ] else if (isLayananTab) ...[
+          // ── LIST LAYANAN SATUAN (DENGAN TAMPILAN ITEM TERKLAIM DI RUANGAN INI - PERSIS GAMBAR 3) ──
+          Builder(builder: (context) {
+            // Cek apakah ada item klaim yang berada di ruangan yang sedang aktif/dilihat
+            final claimedInThisRoom = _selectedItems.where((it) =>
+              (it['is_klaim'] == true || it['is_claim_packet'] == true) &&
+              (_selectedRoom == 'Semua' || it['nama_ruangan'] == _selectedRoom)
+            ).toList();
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Render Kartu Item Terklaim di Ruangan yang Sama (Persis Gambar 3 di Web)
+                if (claimedInThisRoom.isNotEmpty) ...[
+                  ...claimedInThisRoom.map((claimItem) {
+                    final imageUrl = ApiConstants.getImageUrl(claimItem['foto_layanan'] ?? claimItem['foto'] ?? claimItem['gambar']);
+                    final consultType = _getItemConsultType(claimItem);
+                    final isInclude = claimItem['is_include_konsultasi'] == 1 || claimItem['is_include_konsultasi'] == true;
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFECFDF5),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: const Color(0xFF10B981),
+                          width: 1.8,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.03),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Thumbnail Foto
+                              Container(
+                                width: 58,
+                                height: 58,
+                                clipBehavior: Clip.antiAlias,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFDCFCE7),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: (imageUrl != null && imageUrl.isNotEmpty)
+                                    ? Image.network(
+                                        imageUrl,
+                                        width: 58,
+                                        height: 58,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (ctx, error, stackTrace) => const Icon(
+                                          Icons.spa_rounded,
+                                          color: Color(0xFF059669),
+                                          size: 26,
+                                        ),
+                                      )
+                                    : const Icon(
+                                        Icons.spa_rounded,
+                                        color: Color(0xFF059669),
+                                        size: 26,
+                                      ),
+                              ),
+                              const SizedBox(width: 12),
+
+                              // Info Treatment Terklaim
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFD1FAE5),
+                                            borderRadius: BorderRadius.circular(5),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Text('🎁', style: TextStyle(fontSize: 10)),
+                                              const SizedBox(width: 3),
+                                              Text(
+                                                'Sudah Diklaim',
+                                                style: GoogleFonts.plusJakartaSans(
+                                                  fontSize: 9.5,
+                                                  fontWeight: FontWeight.w800,
+                                                  color: const Color(0xFF065F46),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      claimItem['nama_layanan'] ?? claimItem['nama'] ?? '-',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.textDark,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Rp 0 (Klaim Sesi Selesai)',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w800,
+                                        color: const Color(0xFF059669),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+
+                                    // Badges
+                                    Wrap(
+                                      spacing: 5,
+                                      runSpacing: 4,
+                                      children: [
+                                        if (claimItem['nama_ruangan'] != null)
+                                          _buildBadge(claimItem['nama_ruangan'], const Color(0xFF6B7280), const Color(0xFFF3F4F6)),
+                                        if (consultType['isWajib'] == true)
+                                          _buildBadge('Wajib Konsul', const Color(0xFFDC2626), const Color(0xFFFEE2E2))
+                                        else if (consultType['isOpsional'] == true)
+                                          _buildBadge('Opsional Konsul', const Color(0xFF2563EB), const Color(0xFFDBEAFE))
+                                        else
+                                          _buildBadge('Tanpa Konsul', const Color(0xFF059669), const Color(0xFFD1FAE5)),
+                                        if (isInclude)
+                                          _buildBadge('Include', const Color(0xFF0D9488), const Color(0xFFCCFBF1)),
+                                        _buildBadge('${claimItem['durasi_menit'] ?? 30} mnt', AppColors.primaryDark, AppColors.bgMintLight),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+
+                              // Checkbox checked
+                              Container(
+                                width: 24,
+                                height: 24,
+                                decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Color(0xFF10B981),
+                                ),
+                                child: const Icon(Icons.check, color: Colors.white, size: 16),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          // Tombol Status Terklaim (Persis Gambar 3)
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 6.5),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: const Color(0xFFCBD5E1), width: 0.8),
+                            ),
+                            child: Center(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.check_rounded, size: 14, color: Color(0xFF475569)),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    'Sudah dipilih via Klaim',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: const Color(0xFF475569),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+
+                // Daftar Layanan Reguler dalam Ruangan
+                if (_filteredLayanan.isEmpty && claimedInThisRoom.isEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppColors.inputBorder),
+                    ),
+                    child: Center(
+                      child: Text(
+                        'Tidak ada layanan pada kategori ruangan ini.',
+                        style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textMuted),
+                      ),
+                    ),
+                  )
+                else
+                  ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _filteredLayanan.length,
+                    separatorBuilder: (context, index) => const SizedBox(height: 10),
+                    itemBuilder: (context, index) {
+                      final item = _filteredLayanan[index];
+                      final kode = item['kode_layanan'];
+                      // Cek apakah item ini sama dengan yang sudah diklaim
+                      final isClaimedItem = _selectedItems.any((it) =>
+                        it['kode_layanan'] == kode && (it['is_klaim'] == true || it['is_claim_packet'] == true)
+                      );
+                      if (isClaimedItem) {
+                        return const SizedBox.shrink(); // Sudah ditampilkan di blok klaim di atas
+                      }
+
+                      final isSelected = _selectedItems.any((it) => it['kode_layanan'] == kode && it['is_klaim'] != true);
+                      final imageUrl = ApiConstants.getImageUrl(item['gambar'] ?? item['foto']);
+                      final consultType = _getItemConsultType(item);
+                      final isInclude = item['is_include_konsultasi'] == 1 || item['is_include_konsultasi'] == true;
+                      final isConflictRoom = _activeKodeRuangan != null && item['kode_ruangan'] != null && item['kode_ruangan'] != _activeKodeRuangan;
+
+                      return InkWell(
+                        onTap: () => _toggleItem(item),
+                        borderRadius: BorderRadius.circular(16),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: isSelected ? AppColors.bgMintLight : Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: isSelected
+                                  ? AppColors.primary
+                                  : (isConflictRoom ? const Color(0xFFFECACA) : AppColors.inputBorder),
+                              width: isSelected ? 1.8 : 1,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.03),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Thumbnail Foto
+                              Container(
+                                width: 58,
+                                height: 58,
+                                clipBehavior: Clip.antiAlias,
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withValues(alpha: 0.08),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: (imageUrl != null && imageUrl.isNotEmpty)
+                                    ? Image.network(
+                                        imageUrl,
+                                        width: 58,
+                                        height: 58,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (ctx, error, stackTrace) => const Icon(
+                                          Icons.spa_rounded,
+                                          color: AppColors.primary,
+                                          size: 26,
+                                        ),
+                                      )
+                                    : const Icon(Icons.spa_rounded, color: AppColors.primary, size: 26),
+                              ),
+                              const SizedBox(width: 12),
+
+                              // Detail Treatment
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      item['nama_layanan'] ?? item['nama'] ?? '-',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.textDark,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      _formatRupiah(item['harga']),
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w800,
+                                        color: AppColors.primaryDark,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+
+                                    // Badges: Ruangan, Konsultasi, Include, Durasi
+                                    Wrap(
+                                      spacing: 5,
+                                      runSpacing: 4,
+                                      children: [
+                                        if (item['nama_ruangan'] != null)
+                                          _buildBadge(item['nama_ruangan'], const Color(0xFF6B7280), const Color(0xFFF3F4F6)),
+                                        if (consultType['isWajib'] == true)
+                                          _buildBadge('Wajib Konsul', const Color(0xFFDC2626), const Color(0xFFFEE2E2))
+                                        else if (consultType['isOpsional'] == true)
+                                          _buildBadge('Opsional Konsul', const Color(0xFF2563EB), const Color(0xFFDBEAFE))
+                                        else
+                                          _buildBadge('Tanpa Konsul', const Color(0xFF059669), const Color(0xFFD1FAE5)),
+                                        if (isInclude)
+                                          _buildBadge('Include', const Color(0xFF0D9488), const Color(0xFFCCFBF1)),
+                                        _buildBadge('${item['durasi_menit'] ?? 30} mnt', AppColors.primaryDark, AppColors.bgMintLight),
+                                        if (isConflictRoom)
+                                          _buildBadge('Beda Ruangan', const Color(0xFFDC2626), const Color(0xFFFEE2E2)),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+
+                              // Checkbox Selection
+                              Container(
+                                width: 24,
+                                height: 24,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: isSelected ? AppColors.primary : Colors.white,
+                                  border: Border.all(
+                                    color: isSelected ? AppColors.primary : AppColors.inputBorder,
+                                    width: 1.5,
+                                  ),
+                                ),
+                                child: isSelected
+                                    ? const Icon(Icons.check, color: Colors.white, size: 16)
+                                    : null,
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+              ],
+            );
+          }),
         ] else ...[
-          // LIST PAKET PERAWATAN
+          // ── LIST PAKET PERAWATAN ──
           if (_filteredPaket.isEmpty)
             Container(
               padding: const EdgeInsets.all(16),
@@ -2614,10 +3362,11 @@ class _BookingScreenState extends State<BookingScreen> {
               itemBuilder: (context, index) {
                 final pkt = _filteredPaket[index];
                 final kode = pkt['kode_paket_layanan'] ?? pkt['kode_layanan'];
-                final isSelected = _selectedItems.any((it) => it['kode_layanan'] == kode);
+                final isSelected = _selectedItems.any((it) => it['kode_layanan'] == kode && it['is_klaim'] != true);
                 final imageUrl = ApiConstants.getImageUrl(pkt['foto'] ?? pkt['gambar']);
                 final details = (pkt['details'] is List) ? (pkt['details'] as List) : [];
                 final totalSesi = pkt['total_sesi'] ?? details.length;
+                final isConflictRoom = _activeKodeRuangan != null && pkt['kode_ruangan'] != null && pkt['kode_ruangan'] != _activeKodeRuangan;
 
                 return InkWell(
                   onTap: () => _togglePaket(pkt),
@@ -2629,7 +3378,9 @@ class _BookingScreenState extends State<BookingScreen> {
                       color: isSelected ? const Color(0xFFFFFBEB) : Colors.white,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: isSelected ? const Color(0xFFD97706) : AppColors.inputBorder,
+                        color: isSelected
+                            ? const Color(0xFFD97706)
+                            : (isConflictRoom ? const Color(0xFFFECACA) : AppColors.inputBorder),
                         width: isSelected ? 1.8 : 1,
                       ),
                       boxShadow: [
@@ -3466,7 +4217,24 @@ class _BookingScreenState extends State<BookingScreen> {
                           Expanded(
                             child: Row(
                               children: [
-                                if (isPkt) ...[
+                                if (it['is_klaim'] == true || it['is_claim_packet'] == true || it['jenis'] == 'klaim_paket') ...[
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFD1FAE5),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      'KLAIM PAKET',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w800,
+                                        color: const Color(0xFF065F46),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                ] else if (isPkt) ...[
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                                     decoration: BoxDecoration(
@@ -3500,11 +4268,15 @@ class _BookingScreenState extends State<BookingScreen> {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            _isClaim ? 'Rp 0 (Klaim Sesi)' : _formatRupiah(it['harga']),
+                            (it['is_klaim'] == true || it['is_claim_packet'] == true || it['jenis'] == 'klaim_paket')
+                                ? 'Rp 0 (Klaim Sesi)'
+                                : _formatRupiah(it['harga']),
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 11.5,
                               fontWeight: FontWeight.w700,
-                              color: _isClaim ? const Color(0xFF059669) : AppColors.textDark,
+                              color: (it['is_klaim'] == true || it['is_claim_packet'] == true || it['jenis'] == 'klaim_paket')
+                                  ? const Color(0xFF059669)
+                                  : AppColors.textDark,
                             ),
                           ),
                         ],
@@ -3523,11 +4295,11 @@ class _BookingScreenState extends State<BookingScreen> {
                       style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.textDark),
                     ),
                     Text(
-                      _isClaim ? 'Rp 0 (Klaim Paket)' : _formatRupiah(_totalBiaya),
+                      _totalBiaya == 0 ? 'Rp 0 (Klaim Paket)' : _formatRupiah(_totalBiaya),
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 14,
                         fontWeight: FontWeight.w800,
-                        color: _isClaim ? const Color(0xFF059669) : AppColors.primary,
+                        color: _totalBiaya == 0 ? const Color(0xFF059669) : AppColors.primary,
                       ),
                     ),
                   ],

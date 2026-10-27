@@ -529,6 +529,13 @@ router.get("/packages", authenticateMobile, async (req, res) => {
           )
         );
       })
+      .leftJoin("mst_ruangan as rpkt", function () {
+        this.on(
+          DB.raw(
+            "p.kode_ruangan COLLATE utf8mb4_unicode_ci = rpkt.kode_ruangan COLLATE utf8mb4_unicode_ci"
+          )
+        );
+      })
       .leftJoin("mst_cabang as c", function () {
         this.on(
           DB.raw(
@@ -546,6 +553,9 @@ router.get("/packages", authenticateMobile, async (req, res) => {
         "p.foto as foto_paket",
         "p.tipe as tipe_paket",
         "p.harga_paket",
+        "p.kode_ruangan as kode_ruangan_paket",
+        "rpkt.nama_ruangan as nama_ruangan_paket",
+        "p.is_include_konsultasi",
         DB.raw("DATE_FORMAT(kpl.tanggal_beli, '%Y-%m-%d') as tanggal_beli"),
         DB.raw("DATE_FORMAT(kpl.tanggal_expired, '%Y-%m-%d') as tanggal_expired"),
         "kpl.status",
@@ -569,6 +579,13 @@ router.get("/packages", authenticateMobile, async (req, res) => {
           )
         );
       })
+      .leftJoin("mst_ruangan as r", function () {
+        this.on(
+          DB.raw(
+            "l.kode_ruangan COLLATE utf8mb4_unicode_ci = r.kode_ruangan COLLATE utf8mb4_unicode_ci"
+          )
+        );
+      })
       .whereIn("dkpl.kode_kepemilikan_paket_layanan", kplCodes)
       .select(
         "dkpl.id",
@@ -577,13 +594,41 @@ router.get("/packages", authenticateMobile, async (req, res) => {
         "dkpl.kode_layanan",
         "l.nama as nama_layanan",
         "l.foto as foto_layanan",
+        "l.kode_ruangan",
+        "r.nama_ruangan",
+        "l.durasi_menit",
+        "l.wajib_konsultasi",
+        "l.is_include_konsultasi as is_include_konsultasi_layanan",
+        "l.harga",
         "dkpl.sesi_total",
         "dkpl.sesi_terpakai"
       );
 
     const detailCodes = details.map((d) => d.kode_detail_kepemilikan_paket_layanan);
 
-    // 3. Ambil riwayat pemakaian per sesi dari trx_pemakaian_paket_layanan
+    // 3. Ambil booking aktif untuk menghitung sisa sesi tersedia real-time
+    const activeBookingsMap = {};
+    if (detailCodes.length > 0) {
+      try {
+        const hasDetailTable = await DB.schema.hasTable("trx_detail_booking");
+        if (hasDetailTable) {
+          const activeRows = await DB("trx_detail_booking as db")
+            .join("trx_booking as b", "db.kode_booking", "b.kode_booking")
+            .whereIn("db.kode_detail_kepemilikan_paket_layanan", detailCodes)
+            .whereIn("b.status", ["dikonfirmasi", "menunggu", "menunggu_pembayaran"])
+            .groupBy("db.kode_detail_kepemilikan_paket_layanan")
+            .select("db.kode_detail_kepemilikan_paket_layanan", DB.raw("COUNT(db.id) as total_booked"));
+
+          activeRows.forEach((ar) => {
+            activeBookingsMap[ar.kode_detail_kepemilikan_paket_layanan] = parseInt(ar.total_booked || 0, 10);
+          });
+        }
+      } catch (err) {
+        console.error("Error fetching active bookings for packages:", err);
+      }
+    }
+
+    // 4. Ambil riwayat pemakaian per sesi dari trx_pemakaian_paket_layanan
     let riwayatList = [];
     if (detailCodes.length > 0) {
       riwayatList = await DB("trx_pemakaian_paket_layanan as ppl")
@@ -603,7 +648,7 @@ router.get("/packages", authenticateMobile, async (req, res) => {
         .orderBy("ppl.sesi_ke", "asc");
     }
 
-    // 4. Susun struktur kartu paket & stempel
+    // 5. Susun struktur kartu paket & stempel
     const result = packages.map((pkg) => {
       const pkgDetails = details.filter(
         (d) => d.kode_kepemilikan_paket_layanan === pkg.kode_kepemilikan_paket_layanan
@@ -616,6 +661,11 @@ router.get("/packages", authenticateMobile, async (req, res) => {
         const sesiTotal = parseInt(d.sesi_total || 0, 10);
         const sesiTerpakai = parseInt(d.sesi_terpakai || 0, 10);
         const sisaSesi = Math.max(0, sesiTotal - sesiTerpakai);
+        const sesiTerbooking = activeBookingsMap[d.kode_detail_kepemilikan_paket_layanan] || 0;
+        const sesiTersedia = Math.max(0, sisaSesi - sesiTerbooking);
+        const kodeRuangan = d.kode_ruangan || pkg.kode_ruangan_paket || "RNG-002";
+        const namaRuangan = d.nama_ruangan || pkg.nama_ruangan_paket || "Ruangan Treatment";
+
         totalSesiAll += sesiTotal;
         totalSesiTerpakaiAll += sesiTerpakai;
 
@@ -659,12 +709,22 @@ router.get("/packages", authenticateMobile, async (req, res) => {
 
         return {
           kode_detail_kepemilikan_paket_layanan: d.kode_detail_kepemilikan_paket_layanan,
+          kode_kepemilikan_paket_layanan: d.kode_kepemilikan_paket_layanan,
           kode_layanan: d.kode_layanan,
           nama_layanan: d.nama_layanan || "Layanan Paket",
-          foto_layanan: d.foto_layanan,
+          nama_paket: pkg.nama_paket,
+          foto_layanan: d.foto_layanan || pkg.foto_paket,
+          kode_ruangan: kodeRuangan,
+          nama_ruangan: namaRuangan,
+          durasi_menit: d.durasi_menit || 30,
+          wajib_konsultasi: d.wajib_konsultasi || "tidak",
+          is_include_konsultasi: d.is_include_konsultasi_layanan ?? pkg.is_include_konsultasi ?? 0,
+          harga: 0,
           sesi_total: sesiTotal,
           sesi_terpakai: sesiTerpakai,
+          sesi_terbooking: sesiTerbooking,
           sisa_sesi: sisaSesi,
+          sesi_tersedia: sesiTersedia,
           stamps,
           riwayat_pemakaian: usageLogs,
         };
