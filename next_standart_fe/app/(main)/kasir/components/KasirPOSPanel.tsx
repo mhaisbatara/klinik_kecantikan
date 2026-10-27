@@ -109,6 +109,10 @@ interface KasirPOSPanelProps {
   onDraftSaved: (kode: string) => void;
   onOpenBayar: (payload: {
     kode_transaksi: string;
+    kode_cabang?: string | null;
+    nama_cabang?: string | null;
+    alamat_cabang?: string | null;
+    no_telp_cabang?: string | null;
     kode_kunjungan?: string | null;
     kode_booking?: string | null;
     is_dp_booking?: boolean;
@@ -160,6 +164,12 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
   }, [kunjunganList]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [editingKodeTrx, setEditingKodeTrx] = useState<string | null>(null);
+  const [trxCabangInfo, setTrxCabangInfo] = useState<{
+    kode_cabang?: string | null;
+    nama_cabang?: string | null;
+    alamat_cabang?: string | null;
+    no_telp_cabang?: string | null;
+  } | null>(null);
   const [trxStatus, setTrxStatus] = useState<'draft' | 'lunas' | 'batal' | null>(null);
   const [trxMetodeBayar, setTrxMetodeBayar] = useState<string>('tunai');
   const [selectedPromos, setSelectedPromos] = useState<PromoOption[]>([]);
@@ -194,6 +204,7 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
     setSelectedKunjungan(null);
     setCart([]);
     setEditingKodeTrx(null);
+    setTrxCabangInfo(null);
     setTrxStatus(null);
     setTrxMetodeBayar('tunai');
     setSelectedPromos([]);
@@ -283,6 +294,12 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
       if (['00', '0000'].includes(res?.data?.status)) {
         const trx = res.data.data;
         setEditingKodeTrx(trx.kode_transaksi);
+        setTrxCabangInfo({
+          kode_cabang: trx.kode_cabang || null,
+          nama_cabang: trx.nama_cabang || null,
+          alamat_cabang: trx.alamat_cabang || null,
+          no_telp_cabang: trx.no_telp_cabang || null,
+        });
         setTrxStatus(trx.status);
         setTrxMetodeBayar(trx.metode_bayar || 'tunai');
         setDpNominal(parseFloat(String(trx.dp_nominal || 0)));
@@ -1003,10 +1020,15 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
       const res = await postData('/master/kasir-save', payload);
       if (['00', '0000'].includes(res?.data?.status)) {
         const kodeTrx = res.data.data.kode_transaksi;
+        const savedCabang = res.data.data.kode_cabang || trxCabangInfo?.kode_cabang || null;
         setEditingKodeTrx(kodeTrx);
         const isDpBooking = Boolean(currentKunjungan.kode_booking && !currentKunjungan.kode_kunjungan);
         onOpenBayar({
           kode_transaksi: kodeTrx,
+          kode_cabang: savedCabang,
+          nama_cabang: trxCabangInfo?.nama_cabang || null,
+          alamat_cabang: trxCabangInfo?.alamat_cabang || null,
+          no_telp_cabang: trxCabangInfo?.no_telp_cabang || null,
           kode_kunjungan: currentKunjungan.kode_kunjungan || null,
           kode_booking: currentKunjungan.kode_booking || null,
           is_dp_booking: isDpBooking,
@@ -1531,6 +1553,10 @@ export const KasirPOSPanel: React.FC<KasirPOSPanelProps> = ({
                     const isDpBooking = Boolean(selectedKunjungan?.kode_booking && !selectedKunjungan?.kode_kunjungan);
                     onOpenStruk({
                       kode_transaksi: editingKodeTrx || '',
+                      kode_cabang: trxCabangInfo?.kode_cabang || null,
+                      nama_cabang: trxCabangInfo?.nama_cabang || null,
+                      alamat_cabang: trxCabangInfo?.alamat_cabang || null,
+                      no_telp_cabang: trxCabangInfo?.no_telp_cabang || null,
                       kode_kunjungan: selectedKunjungan?.kode_kunjungan || null,
                       kode_booking: selectedKunjungan?.kode_booking || null,
                       is_dp_booking: isDpBooking,

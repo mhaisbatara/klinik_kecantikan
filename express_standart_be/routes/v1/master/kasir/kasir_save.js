@@ -246,7 +246,7 @@ router.post("/", async (req, res) => {
 
     let sisa_bayar = Math.max(0, total_bayar - dp_nominal);
 
-    let currentTrxCabang = getBranchScope(req, body.kode_cabang) || "CBG-001";
+    let currentTrxCabang = activeShift?.kode_cabang || getBranchScope(req, body.kode_cabang) || req?.auth?.kode_cabang || "CBG-001";
 
     const hasNamaPromoTrx = await trx.schema.hasColumn("trx_transaksi", "nama_promo");
     const hasDiscountCols = await trx.schema.hasColumn("trx_detail_transaksi", "kode_promo");
@@ -409,6 +409,7 @@ router.post("/", async (req, res) => {
       datetime: formatDateSystem(),
       data: {
         kode_transaksi: kode_trx,
+        kode_cabang: currentTrxCabang,
         total_harga,
         total_diskon,
         total_bayar,

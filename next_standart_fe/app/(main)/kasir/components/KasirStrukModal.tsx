@@ -33,11 +33,25 @@ export const KasirStrukModal: React.FC<KasirStrukModalProps> = ({ visible, resul
   const { config } = useConfig();
   const [logoError, setLogoError] = useState(false);
 
-  // Profil klinik diambil secara dinamis dari database sistem (config)
+  // Header struk: Mengikuti format kop institusi (Nama Induk -> Nama Unit/Cabang -> Alamat -> No. Telepon)
   const clinicName = config?.msNamaPerusahaan?.trim() || 'Klinik Kecantikan';
-  const clinicAddress = config?.msAlamatPerusahaan?.trim() || '';
-  const clinicPhone = config?.msTeleponPerusahaan?.trim() || '';
+  const branchName = (result?.nama_cabang && result.nama_cabang.trim() !== '' && result.nama_cabang !== 'null' && result.nama_cabang !== 'undefined')
+    ? result.nama_cabang.trim()
+    : '';
+  const clinicAddress = (result?.alamat_cabang && result.alamat_cabang.trim() !== '' && result.alamat_cabang !== 'null' && result.alamat_cabang !== 'undefined')
+    ? result.alamat_cabang.trim()
+    : (config?.msAlamatPerusahaan?.trim() || printerSettings.headerAddress?.trim() || '');
+  const rawBranchPhone = (result?.no_telp_cabang && result.no_telp_cabang.trim() !== '' && result.no_telp_cabang !== 'null' && result.no_telp_cabang !== 'undefined')
+    ? result.no_telp_cabang.trim()
+    : (config?.msTeleponPerusahaan?.trim() || '');
+  const clinicPhone = rawBranchPhone;
   const logoUrl = config?.msLogoPerusahaan?.trim() || '';
+
+  const hasDistinctBranch = Boolean(
+    branchName &&
+    branchName.trim() !== '' &&
+    branchName.trim().toLowerCase() !== clinicName.trim().toLowerCase()
+  );
 
   const isExplicitDpItem = (result?.items || []).some((item) =>
     item.jenis_diskon === 'dp_booking' ||
@@ -126,15 +140,62 @@ export const KasirStrukModal: React.FC<KasirStrukModalProps> = ({ visible, resul
               padding: 0 4px !important;
               max-width: 100% !important;
             }
-            .receipt-clinic-name {
-              font-size: 18px !important;
-              font-weight: 700 !important;
-              line-height: 1.3 !important;
+            .receipt-header-brand {
+              font-family: 'Times New Roman', Times, Georgia, serif !important;
+              text-align: center !important;
+              margin-bottom: 10px !important;
             }
-            .receipt-clinic-meta {
-              font-size: 12px !important;
+            .receipt-clinic-parent {
+              font-family: 'Times New Roman', Times, Georgia, serif !important;
+              font-size: 13px !important;
+              font-weight: 700 !important;
+              line-height: 1.25 !important;
+              text-transform: uppercase !important;
+              letter-spacing: 0.5px !important;
+              color: #000000 !important;
+            }
+            .receipt-clinic-name {
+              font-family: 'Times New Roman', Times, Georgia, serif !important;
+              font-size: 19px !important;
+              font-weight: 900 !important;
+              line-height: 1.2 !important;
+              text-transform: uppercase !important;
+              letter-spacing: 0.5px !important;
+              margin-top: 2px !important;
+              color: #000000 !important;
+            }
+            .receipt-branch-name {
+              font-family: 'Times New Roman', Times, Georgia, serif !important;
+              font-size: 19px !important;
+              font-weight: 900 !important;
+              line-height: 1.2 !important;
+              text-transform: uppercase !important;
+              letter-spacing: 0.5px !important;
+              margin-top: 2px !important;
+              color: #000000 !important;
+            }
+            .receipt-clinic-address {
+              font-family: 'Times New Roman', Times, Georgia, serif !important;
+              font-size: 11.5px !important;
               font-weight: 400 !important;
               line-height: 1.3 !important;
+              margin-top: 4px !important;
+              color: #000000 !important;
+            }
+            .receipt-clinic-phone {
+              font-family: 'Times New Roman', Times, Georgia, serif !important;
+              font-size: 12px !important;
+              font-weight: 700 !important;
+              line-height: 1.3 !important;
+              margin-top: 2px !important;
+              color: #000000 !important;
+            }
+            .receipt-clinic-meta {
+              font-family: 'Times New Roman', Times, Georgia, serif !important;
+              font-size: 11.5px !important;
+              font-weight: 400 !important;
+              line-height: 1.3 !important;
+              color: #000000 !important;
             }
             .receipt-title {
               font-size: 13px !important;
@@ -388,8 +449,8 @@ export const KasirStrukModal: React.FC<KasirStrukModalProps> = ({ visible, resul
           }}
           className="bg-white border-round-xl border-1 surface-border shadow-2 text-slate-800 font-mono"
         >
-          {/* Receipt Brand Header */}
-          <div className="text-center mb-3">
+          {/* Receipt Brand Header / Kop Institusi */}
+          <div className="receipt-header-brand text-center mb-3" style={{ fontFamily: "'Times New Roman', Times, Georgia, serif" }}>
             {logoUrl && !logoError && (
               <div className="flex justify-content-center mb-2">
                 <img
@@ -405,20 +466,76 @@ export const KasirStrukModal: React.FC<KasirStrukModalProps> = ({ visible, resul
                 />
               </div>
             )}
-            <div className="receipt-clinic-name font-bold text-slate-900 tracking-tight" style={{ fontSize: '18px', lineHeight: '1.3' }}>
-              {clinicName}
-            </div>
+
+            {hasDistinctBranch ? (
+              <>
+                <div
+                  className="receipt-clinic-parent font-bold text-slate-900 uppercase tracking-wide"
+                  style={{
+                    fontFamily: "'Times New Roman', Times, Georgia, serif",
+                    fontSize: '13px',
+                    lineHeight: '1.25',
+                    letterSpacing: '0.5px',
+                  }}
+                >
+                  {clinicName}
+                </div>
+                <div
+                  className="receipt-clinic-name font-black text-slate-950 uppercase tracking-wide mt-0.5"
+                  style={{
+                    fontFamily: "'Times New Roman', Times, Georgia, serif",
+                    fontSize: '19px',
+                    fontWeight: 900,
+                    lineHeight: '1.2',
+                    letterSpacing: '0.5px',
+                  }}
+                >
+                  {branchName}
+                </div>
+              </>
+            ) : (
+              <div
+                className="receipt-clinic-name font-black text-slate-950 uppercase tracking-wide"
+                style={{
+                  fontFamily: "'Times New Roman', Times, Georgia, serif",
+                  fontSize: '19px',
+                  fontWeight: 900,
+                  lineHeight: '1.2',
+                  letterSpacing: '0.5px',
+                }}
+              >
+                {clinicName}
+              </div>
+            )}
+
             {clinicAddress && (
-              <div className="receipt-clinic-meta text-slate-500 font-normal leading-tight mt-1" style={{ fontSize: '12px', lineHeight: '1.3' }}>
+              <div
+                className="receipt-clinic-address text-slate-800 font-normal leading-tight mt-1"
+                style={{
+                  fontFamily: "'Times New Roman', Times, Georgia, serif",
+                  fontSize: '11.5px',
+                  lineHeight: '1.3',
+                }}
+              >
                 {clinicAddress}
               </div>
             )}
+
             {clinicPhone && (
-              <div className="receipt-clinic-meta text-slate-500 font-normal leading-tight mt-0.5" style={{ fontSize: '12px', lineHeight: '1.3' }}>
-                Telp: {clinicPhone}
+              <div
+                className="receipt-clinic-phone text-slate-950 font-bold leading-tight mt-0.5"
+                style={{
+                  fontFamily: "'Times New Roman', Times, Georgia, serif",
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  lineHeight: '1.3',
+                }}
+              >
+                {clinicPhone}
               </div>
             )}
-            <div className="receipt-title text-slate-600 font-bold uppercase tracking-wider mt-2.5" style={{ fontSize: '13px', lineHeight: '1.4' }}>
+
+            <div className="receipt-title text-slate-700 font-bold uppercase tracking-wider mt-2.5" style={{ fontSize: '13px', lineHeight: '1.4' }}>
               {isDpTransaction ? 'BUKTI PEMBAYARAN UANG MUKA (DP)' : (isKlaimTransaction && (result.total_bayar || 0) === 0 ? 'STRUK TRANSAKSI (KLAIM SESI)' : 'STRUK TRANSAKSI')}
             </div>
           </div>

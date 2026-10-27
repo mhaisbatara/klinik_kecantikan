@@ -119,11 +119,21 @@ export const handleDetail = async (req, res) => {
         this.on("b.kode_booking", DB.raw("COALESCE(k.kode_booking, t.kode_booking)"));
       })
       .leftJoin("mst_promo as pr", "t.kode_promo", "pr.kode_promo")
+      .leftJoin("mst_cabang as c", function () {
+        this.on(
+          DB.raw("c.kode_cabang COLLATE utf8mb4_unicode_ci"),
+          "=",
+          DB.raw("COALESCE(t.kode_cabang, k.kode_cabang) COLLATE utf8mb4_unicode_ci")
+        );
+      })
       .where("t.kode_transaksi", kode_transaksi)
       .select(
         "t.*",
         "p.nama as nama_pasien",
         "p.no_hp",
+        "c.nama_cabang",
+        "c.alamat as alamat_cabang",
+        "c.no_telp as no_telp_cabang",
         DB.raw("COALESCE(t.kode_booking, k.kode_booking) as kode_booking"),
         "b.dp_nominal as booking_dp_nominal",
         "b.dp_status as booking_dp_status",

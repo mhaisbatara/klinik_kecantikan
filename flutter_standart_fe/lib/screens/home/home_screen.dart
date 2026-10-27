@@ -265,6 +265,18 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  void _openChatbotScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChatbotScreen(currentUser: _currentUser),
+      ),
+    ).then((_) {
+      _refreshUserData();
+      _loadData();
+    });
+  }
+
   void _handleCancelBooking(dynamic bookingData) async {
     final Map<String, dynamic> b = (bookingData is Map<String, dynamic>)
         ? bookingData
@@ -273,10 +285,13 @@ class _HomeScreenState extends State<HomeScreen> {
             orElse: () => {'kode_booking': bookingData.toString()},
           );
 
-    final kodeBooking = b['kode_booking'] ?? '';
+    final kodeBooking = b['kode_booking']?.toString() ?? '';
     final dpNominal = int.tryParse(b['dp_nominal']?.toString() ?? '0') ?? 0;
-    final isClaim = b['alasan_bebas_dp'] != null || dpNominal == 0;
-    final TextEditingController alasanController = TextEditingController();
+    final isClaim = b['alasan_bebas_dp'] != null ||
+        dpNominal == 0 ||
+        b['is_claim_packet'] == true ||
+        (b['layanan'] as List?)?.any((l) => l is Map && l['is_claim'] == true) == true;
+    final alasanController = TextEditingController();
 
     final confirm = await showDialog<bool>(
       context: context,

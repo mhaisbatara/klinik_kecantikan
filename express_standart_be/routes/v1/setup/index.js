@@ -31,6 +31,7 @@ import navRoleSave from "./navigation/role_navigation_save.js";
 
 import configCreate from './config/config_create.js'
 import configData from './config/config_data.js'
+import cabangProfil from './cabang_profil.js'
 
 // master
 // user
@@ -41,6 +42,7 @@ router.use("/user-login/user-delete", userDelete);
 //config
 router.use("/config-data", configData);
 router.use("/config-create", configCreate);
+router.use("/cabang-profil", cabangProfil);
 //navigation
 router.use("/nav/base-data", navBase);
 router.use("/nav/user-data", navUser);

@@ -24,6 +24,7 @@ import Function from "./components/index.js";
 import Master from "./master/index.js";
 import Transaksi from "./transaksi/index.js";
 import Dashboard from "./master/dashboard/dashboard_routes.js";
+import CabangProfil from "./setup/cabang_profil.js";
 
 import {
   contextMiddleware,
@@ -36,6 +37,13 @@ router.use("/auth/refresh-token", [], RefreshToken);
 router.use("/auth/login", [], Login);
 
 // Modul
+// Cabang Profil
+router.use(
+  "/cabang",
+  [validateAccessToken, contextMiddleware],
+  CabangProfil
+);
+
 // Setup
 router.use(
   "/setup",

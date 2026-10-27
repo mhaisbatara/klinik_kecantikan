@@ -2805,14 +2805,13 @@ class _BookingScreenState extends State<BookingScreen> {
                   ),
                 ),
                 child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Checkbox(
-                      value: _persetujuanDp,
-                      activeColor: AppColors.primary,
-                      visualDensity: VisualDensity.compact,
-                      onChanged: (v) => setState(() => _persetujuanDp = v ?? false),
+                    Icon(
+                      _persetujuanDp ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
+                      color: _persetujuanDp ? AppColors.primary : AppColors.textMuted,
+                      size: 20,
                     ),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         _dpNominal == 0

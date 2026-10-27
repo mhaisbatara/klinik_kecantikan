@@ -2,7 +2,7 @@
  * @copyright (c) 2026 PT Marstech Global (info@marstech.co.id)
  * @project Standard
  * @file page.tsx
- * @description File untuk melakukan post data ke server menggunakan axios
+ * @description File untuk melakukan post/put/get data ke server menggunakan axios
  * 
  * @author Fadil <risqullah.s.fadhilah@gmail.com>
  * @created 2026-07-14
@@ -36,7 +36,7 @@ Axios.interceptors.response.use(
     }
 );
 
-async function postData(endpoint: string, data = {}, customHeader = {}) {
+export async function postData(endpoint: string, data = {}, customHeader = {}) {
     try {
         const header = {
             'X-ENDPOINT': endpoint,
@@ -47,6 +47,52 @@ async function postData(endpoint: string, data = {}, customHeader = {}) {
         };
 
         const response = await Axios.post('', data, {
+            headers: header,
+        });
+        return response;
+    } catch (error: any) {
+        console.log(error);
+        if (error?.response?.status == 401) {
+            logout(null, true);
+        }
+        throw error;
+    }
+}
+
+export async function putData(endpoint: string, data = {}, customHeader = {}) {
+    try {
+        const header = {
+            'X-ENDPOINT': endpoint,
+            'X-Custom-Header': JSON.stringify({
+                'X-Level': "1",
+                ...customHeader
+            }),
+        };
+
+        const response = await Axios.put('', data, {
+            headers: header,
+        });
+        return response;
+    } catch (error: any) {
+        console.log(error);
+        if (error?.response?.status == 401) {
+            logout(null, true);
+        }
+        throw error;
+    }
+}
+
+export async function getData(endpoint: string, customHeader = {}) {
+    try {
+        const header = {
+            'X-ENDPOINT': endpoint,
+            'X-Custom-Header': JSON.stringify({
+                'X-Level': "1",
+                ...customHeader
+            }),
+        };
+
+        const response = await Axios.get('', {
             headers: header,
         });
         return response;
