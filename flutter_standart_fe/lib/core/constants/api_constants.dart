@@ -1,14 +1,21 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiConstants {
+  static const String _prefKeyHost = 'backend_active_host';
+
   /// Daftar kandidat IP host backend:
-  /// 1. 127.0.0.1 (Koneksi via adb reverse atau Android Emulator)
+  /// 1. 127.0.0.1 (Koneksi via adb reverse)
   /// 2. 192.168.137.1 (IP Windows Mobile Hotspot ke HP fisik)
-  /// 3. 192.168.1.13 (IP Wi-Fi LAN lokal)
+  /// 3. 192.168.1.20 (IP Wi-Fi LAN lokal saat ini)
+  /// 4. 10.0.2.2 (Android Emulator)
+  /// 5. 192.168.1.13 (Cadangan IP Wi-Fi sebelumnya)
   static const List<String> candidateHosts = [
     '127.0.0.1',
     '192.168.137.1',
+    '192.168.1.20',
+    '10.0.2.2',
     '192.168.1.13',
   ];
 
@@ -18,6 +25,9 @@ class ApiConstants {
 
   static void setHost(String newHost) {
     _activeHost = newHost;
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setString(_prefKeyHost, newHost);
+    }).catchError((_) {});
   }
 
   /// Otomatis mendeteksi host mana yang aktif dan merespons cepat di port 8008
@@ -27,7 +37,15 @@ class ApiConstants {
       return _activeHost;
     }
 
-    // 1. Coba host aktif terlebih dahulu
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedHost = prefs.getString(_prefKeyHost);
+      if (savedHost != null && savedHost.trim().isNotEmpty) {
+        _activeHost = savedHost.trim();
+      }
+    } catch (_) {}
+
+    // 1. Coba host aktif / tersimpan terlebih dahulu
     try {
       final s = await Socket.connect(_activeHost, 8008, timeout: const Duration(milliseconds: 300));
       s.destroy();
@@ -42,6 +60,10 @@ class ApiConstants {
         socket.destroy();
         _activeHost = candidate;
         debugPrint('[ApiConstants] Auto-switched backend host to: $_activeHost:8008');
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(_prefKeyHost, candidate);
+        } catch (_) {}
         return candidate;
       } catch (_) {
         continue;
@@ -59,6 +81,9 @@ class ApiConstants {
   static String get profile => '$baseUrl/profile';
   static String get registerPatient => '$baseUrl/profile/register-patient';
   static String get claimPatient => '$baseUrl/profile/claim-patient';
+  static String get checkClaimPatient => '$baseUrl/profile/check-claim-patient';
+  static String get requestClaimOtp => '$baseUrl/profile/request-claim-otp';
+  static String get verifyClaimOtp => '$baseUrl/profile/verify-claim-otp';
   static String get myPackages => '$profile/packages';
   static String get homeDashboard => '$baseUrl/dashboard/home';
   static String get layanan => '$baseUrl/layanan';
@@ -69,6 +94,10 @@ class ApiConstants {
   static String get kunjungan => '$baseUrl/kunjungan';
   static String get chatbotMessage => '$baseUrl/chatbot/message';
   static String get chatbotChat => '$baseUrl/chatbot/chat';
+  static String get wilayahProvinsi => '$baseUrl/wilayah/provinsi';
+  static String get wilayahKota => '$baseUrl/wilayah/kota';
+  static String get wilayahKecamatan => '$baseUrl/wilayah/kecamatan';
+  static String get wilayahKelurahan => '$baseUrl/wilayah/kelurahan';
 
   // Base URL untuk static assets (uploads gambar)
   static String get assetBaseUrl => 'http://$host:8008';

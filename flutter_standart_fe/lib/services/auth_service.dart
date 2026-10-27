@@ -149,17 +149,58 @@ class AuthService {
 
   // 3. Register Pasien Baru (Opsi A: Menerbitkan Rekam Medis Baru)
   static Future<Map<String, dynamic>> registerPatient({
+    required String nama,
     required String nik,
-    required String tempatLahir,
+    String? tempatLahir,
     required String tanggalLahir,
     required String jenisKelamin,
-    required String alamat,
+    String? golonganDarah,
+    String? agama,
+    String? statusPerkawinan,
+    String? kewarganegaraan,
+    String? pekerjaan,
+    required String provinsi,
+    String? kotaKabupaten,
+    String? kecamatan,
+    String? kelurahanDesa,
+    String? kodePos,
+    String? patokan,
+    String? alamat,
+    required String noHp,
+    String? email,
+    String? namaKontakDarurat,
+    String? noHpKontakDarurat,
+    String? hubunganKontakDarurat,
     String? alergi,
-    String? nama,
-    String? noHp,
   }) async {
     try {
       final token = await getToken();
+      final body = <String, dynamic>{
+        'nama': nama.trim(),
+        'nik': nik.trim(),
+        if (tempatLahir != null && tempatLahir.trim().isNotEmpty) 'tempat_lahir': tempatLahir.trim(),
+        'tanggal_lahir': tanggalLahir.trim(),
+        'jenis_kelamin': jenisKelamin,
+        if (golonganDarah != null && golonganDarah.trim().isNotEmpty) 'golongan_darah': golonganDarah.trim(),
+        if (agama != null && agama.trim().isNotEmpty) 'agama': agama.trim(),
+        if (statusPerkawinan != null && statusPerkawinan.trim().isNotEmpty) 'status_perkawinan': statusPerkawinan.trim(),
+        if (kewarganegaraan != null && kewarganegaraan.trim().isNotEmpty) 'kewarganegaraan': kewarganegaraan.trim(),
+        if (pekerjaan != null && pekerjaan.trim().isNotEmpty) 'pekerjaan': pekerjaan.trim(),
+        'provinsi': provinsi.trim(),
+        if (kotaKabupaten != null && kotaKabupaten.trim().isNotEmpty) 'kota_kabupaten': kotaKabupaten.trim(),
+        if (kecamatan != null && kecamatan.trim().isNotEmpty) 'kecamatan': kecamatan.trim(),
+        if (kelurahanDesa != null && kelurahanDesa.trim().isNotEmpty) 'kelurahan_desa': kelurahanDesa.trim(),
+        if (kodePos != null && kodePos.trim().isNotEmpty) 'kode_pos': kodePos.trim(),
+        if (patokan != null && patokan.trim().isNotEmpty) 'patokan': patokan.trim(),
+        if (alamat != null && alamat.trim().isNotEmpty) 'alamat': alamat.trim(),
+        'no_hp': noHp.trim(),
+        if (email != null && email.trim().isNotEmpty) 'email': email.trim(),
+        if (namaKontakDarurat != null && namaKontakDarurat.trim().isNotEmpty) 'nama_kontak_darurat': namaKontakDarurat.trim(),
+        if (noHpKontakDarurat != null && noHpKontakDarurat.trim().isNotEmpty) 'no_hp_kontak_darurat': noHpKontakDarurat.trim(),
+        if (hubunganKontakDarurat != null && hubunganKontakDarurat.trim().isNotEmpty) 'hubungan_kontak_darurat': hubunganKontakDarurat.trim(),
+        if (alergi != null && alergi.trim().isNotEmpty) 'alergi': alergi.trim(),
+      };
+
       final response = await http.post(
         Uri.parse(ApiConstants.registerPatient),
         headers: {
@@ -167,16 +208,7 @@ class AuthService {
           'Accept': 'application/json',
           'Authorization': 'Bearer $token',
         },
-        body: jsonEncode({
-          'nik': nik.trim(),
-          'tempat_lahir': tempatLahir.trim(),
-          'tanggal_lahir': tanggalLahir.trim(),
-          'jenis_kelamin': jenisKelamin,
-          'alamat': alamat.trim(),
-          'alergi': alergi?.trim(),
-          if (nama != null && nama.trim().isNotEmpty) 'nama': nama.trim(),
-          if (noHp != null && noHp.trim().isNotEmpty) 'no_hp': noHp.trim(),
-        }),
+        body: jsonEncode(body),
       ).timeout(const Duration(seconds: 15));
 
       final data = jsonDecode(response.body);
@@ -207,12 +239,210 @@ class AuthService {
     }
   }
 
-  // 4. Klaim Pasien Lama (Opsi B: Sinkronisasi Rekam Medis)
+  // Wilayah Indonesia Helpers
+  static Future<List<Map<String, dynamic>>> getWilayahProvinsi() async {
+    try {
+      final res = await http.get(Uri.parse(ApiConstants.wilayahProvinsi)).timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) {
+        final json = jsonDecode(res.body);
+        if (json['data'] is List) {
+          return List<Map<String, dynamic>>.from(json['data']);
+        }
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  static Future<List<Map<String, dynamic>>> getWilayahKota(String kodeProvinsi) async {
+    try {
+      final url = '${ApiConstants.wilayahKota}?kode_provinsi=$kodeProvinsi';
+      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) {
+        final json = jsonDecode(res.body);
+        if (json['data'] is List) {
+          return List<Map<String, dynamic>>.from(json['data']);
+        }
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  static Future<List<Map<String, dynamic>>> getWilayahKecamatan(String kodeKota) async {
+    try {
+      final url = '${ApiConstants.wilayahKecamatan}?kode_kota=$kodeKota';
+      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) {
+        final json = jsonDecode(res.body);
+        if (json['data'] is List) {
+          return List<Map<String, dynamic>>.from(json['data']);
+        }
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  static Future<List<Map<String, dynamic>>> getWilayahKelurahan(String kodeKecamatan) async {
+    try {
+      final url = '${ApiConstants.wilayahKelurahan}?kode_kecamatan=$kodeKecamatan';
+      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) {
+        final json = jsonDecode(res.body);
+        if (json['data'] is List) {
+          return List<Map<String, dynamic>>.from(json['data']);
+        }
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  // 4-pre. Cek & Pra-Validasi Data Pasien Sebelum Kirim OTP
+  static Future<Map<String, dynamic>> checkClaimPatient({
+    String? noRm,
+    required String tanggalLahir,
+    required String noHp,
+    String? nik,
+  }) async {
+    try {
+      final token = await getToken();
+      final response = await http.post(
+        Uri.parse(ApiConstants.checkClaimPatient),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          if (noRm != null && noRm.trim().isNotEmpty) 'no_rm': noRm.trim(),
+          'tanggal_lahir': tanggalLahir.trim(),
+          'no_hp': noHp.trim(),
+          if (nik != null && nik.trim().isNotEmpty) 'nik': nik.trim(),
+        }),
+      ).timeout(const Duration(seconds: 15));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['status'] == '00') {
+        return {
+          'success': true,
+          'message': data['message'],
+          'data': data['data'],
+        };
+      } else {
+        return {
+          'success': false,
+          'statusCode': response.statusCode,
+          'message': data['message'] ?? 'Data pasien tidak ditemukan atau tidak sesuai',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Gagal terhubung ke server ($e)',
+      };
+    }
+  }
+
+  // 4a. Request OTP Sinkronisasi Rekam Medis (Kirim ke Nomor HP / WhatsApp Pasien)
+  static Future<Map<String, dynamic>> requestClaimOtp({
+    String? noRm,
+    required String tanggalLahir,
+    required String noHp,
+    String? nik,
+  }) async {
+    try {
+      final token = await getToken();
+      final response = await http.post(
+        Uri.parse(ApiConstants.requestClaimOtp),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          if (noRm != null && noRm.trim().isNotEmpty) 'no_rm': noRm.trim(),
+          'tanggal_lahir': tanggalLahir.trim(),
+          'no_hp': noHp.trim(),
+          if (nik != null && nik.trim().isNotEmpty) 'nik': nik.trim(),
+        }),
+      ).timeout(const Duration(seconds: 15));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['status'] == '00') {
+        return {
+          'success': true,
+          'message': data['message'],
+          'data': data['data'],
+        };
+      } else {
+        return {
+          'success': false,
+          'statusCode': response.statusCode,
+          'message': data['message'] ?? 'Permintaan kode OTP gagal',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Gagal terhubung ke server ($e)',
+      };
+    }
+  }
+
+  // 4b. Verifikasi 6 Digit Kode OTP untuk Menyelesaikan Penautan Rekam Medis
+  static Future<Map<String, dynamic>> verifyClaimOtp({
+    required String otpCode,
+  }) async {
+    try {
+      final token = await getToken();
+      final response = await http.post(
+        Uri.parse(ApiConstants.verifyClaimOtp),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'otp_code': otpCode.trim(),
+        }),
+      ).timeout(const Duration(seconds: 15));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['status'] == '00') {
+        final newToken = data['data']['access_token'];
+        final refreshToken = data['data']['refresh_token'];
+        final userInfo = data['data']['user_info'];
+
+        await saveSession(
+          token: newToken,
+          refreshToken: refreshToken,
+          user: userInfo,
+        );
+
+        return {'success': true, 'message': data['message'], 'data': userInfo};
+      } else {
+        return {
+          'success': false,
+          'statusCode': response.statusCode,
+          'message': data['message'] ?? 'Verifikasi kode OTP gagal',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Gagal terhubung ke server ($e)',
+      };
+    }
+  }
+
+  // 4c. Klaim Pasien Lama (Direct Strict Matching Fallback)
   static Future<Map<String, dynamic>> claimPatient({
-    required String noRm,
+    String? noRm,
     required String tanggalLahir,
     String? noHp,
     String? nik,
+    String? nama,
   }) async {
     try {
       final token = await getToken();
@@ -224,10 +454,11 @@ class AuthService {
           'Authorization': 'Bearer $token',
         },
         body: jsonEncode({
-          'no_rm': noRm.trim(),
+          if (noRm != null && noRm.trim().isNotEmpty) 'no_rm': noRm.trim(),
           'tanggal_lahir': tanggalLahir.trim(),
           if (noHp != null && noHp.trim().isNotEmpty) 'no_hp': noHp.trim(),
           if (nik != null && nik.trim().isNotEmpty) 'nik': nik.trim(),
+          if (nama != null && nama.trim().isNotEmpty) 'nama': nama.trim(),
         }),
       ).timeout(const Duration(seconds: 15));
 
