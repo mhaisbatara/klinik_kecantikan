@@ -360,6 +360,31 @@ class _ChatbotScreenState extends State<ChatbotScreen>
         final refreshed = await AuthService.fetchProfile();
         if (mounted && refreshed != null) {
           setState(() => _user = refreshed);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      '🎉 Sinkronisasi Berhasil! Rekam Medis aktif, silakan lanjutkan konsultasi & booking.',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: const Color(0xFF059669),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              margin: const EdgeInsets.all(16),
+              duration: const Duration(seconds: 4),
+            ),
+          );
         }
       } else {
         return;

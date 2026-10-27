@@ -369,6 +369,33 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (synced == true) {
         await _refreshUserData();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      '🎉 Sinkronisasi Berhasil! Rekam Medis aktif, silakan lanjutkan reservasi.',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: const Color(0xFF059669),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              margin: const EdgeInsets.all(16),
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
       } else {
         return; // User membatalkan dialog, tahan navigasi
       }
@@ -1894,7 +1921,36 @@ class _HomeScreenState extends State<HomeScreen> {
                             InkWell(
                               onTap: () async {
                                 final res = await PatientSyncSheet.show(context, currentUser: _currentUser);
-                                if (res == true) _refreshUserData();
+                                if (res == true) {
+                                  _refreshUserData();
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Row(
+                                          children: [
+                                            const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                                            const SizedBox(width: 10),
+                                            Expanded(
+                                              child: Text(
+                                                '🎉 Rekam Medis berhasil disinkronkan! Akun Anda kini aktif.',
+                                                style: GoogleFonts.plusJakartaSans(
+                                                  fontSize: 12.5,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        backgroundColor: const Color(0xFF059669),
+                                        behavior: SnackBarBehavior.floating,
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                        margin: const EdgeInsets.all(16),
+                                        duration: const Duration(seconds: 4),
+                                      ),
+                                    );
+                                  }
+                                }
                               },
                               borderRadius: BorderRadius.circular(10),
                               child: Container(

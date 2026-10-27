@@ -5,7 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/colors.dart';
 import '../../services/auth_service.dart';
 
-enum PatientSyncStep { choose, formRegister, formClaim, formClaimOtp }
+enum PatientSyncStep { choose, formRegister, formClaim, formClaimOtp, success }
 
 class PatientSyncSheet extends StatefulWidget {
   final Map<String, dynamic>? currentUser;
@@ -39,9 +39,16 @@ class PatientSyncSheet extends StatefulWidget {
   State<PatientSyncSheet> createState() => _PatientSyncSheetState();
 }
 
-class _PatientSyncSheetState extends State<PatientSyncSheet> {
+class _PatientSyncSheetState extends State<PatientSyncSheet> with TickerProviderStateMixin {
   late PatientSyncStep _currentStep;
   bool _isLoading = false;
+
+  // ─── ANIMASI & DATA SUKSES SINKRONISASI ───
+  AnimationController? _successAnimController;
+  Animation<double>? _successScaleAnim;
+  Animation<double>? _successCardFadeAnim;
+  Animation<Offset>? _successCardSlideAnim;
+  Map<String, dynamic>? _successPatientData;
 
   // ─── STATE & CONTROLLERS OPSI A (FORMULIR PASIEN BARU) ───
   int _activeTabA = 0; // 0: Data Diri, 1: Alamat, 2: Kontak & Darurat, 3: Alergi
@@ -118,6 +125,32 @@ class _PatientSyncSheetState extends State<PatientSyncSheet> {
   void initState() {
     super.initState();
     _currentStep = widget.initialStep;
+
+    _successAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+    _successScaleAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _successAnimController!,
+        curve: const Interval(0.0, 0.65, curve: Curves.elasticOut),
+      ),
+    );
+    _successCardFadeAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _successAnimController!,
+        curve: const Interval(0.35, 0.85, curve: Curves.easeOut),
+      ),
+    );
+    _successCardSlideAnim = Tween<Offset>(
+      begin: const Offset(0, 0.15),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(
+        parent: _successAnimController!,
+        curve: const Interval(0.35, 0.85, curve: Curves.easeOutCubic),
+      ),
+    );
 
     // Listeners agar saat user mengetik, border merah langsung hilang real-time
     _namaCtrl.addListener(_onFieldChanged);
@@ -197,6 +230,7 @@ class _PatientSyncSheetState extends State<PatientSyncSheet> {
     _verifNikCtrl.dispose();
     _verifNamaCtrl.dispose();
     _otpCtrl.dispose();
+    _successAnimController?.dispose();
     super.dispose();
   }
 
@@ -501,9 +535,21 @@ class _PatientSyncSheetState extends State<PatientSyncSheet> {
     setState(() => _isLoading = false);
 
     if (res['success'] == true) {
-      _showToast('Selamat! Rekam Medis Anda berhasil diterbitkan.');
+      final userInfo = (res['data']?['user_info'] as Map<String, dynamic>?) ?? {};
+      final noRm = userInfo['no_rm'] ?? res['data']?['no_rm'] ?? '';
+      HapticFeedback.mediumImpact();
+      _successAnimController?.forward(from: 0.0);
+      setState(() {
+        _successPatientData = {
+          'no_rm': noRm,
+          'nama': userInfo['fullname'] ?? userInfo['nama'] ?? nama,
+          'nik': userInfo['nik'] ?? nik,
+          'telp': userInfo['telp'] ?? noHp,
+          'is_new_patient': true,
+        };
+        _currentStep = PatientSyncStep.success;
+      });
       widget.onSuccess?.call();
-      Navigator.pop(context, true);
     } else {
       _showToast(res['message'] ?? 'Pendaftaran pasien baru gagal', isSuccess: false);
     }
@@ -648,10 +694,21 @@ class _PatientSyncSheetState extends State<PatientSyncSheet> {
     if (res['success'] == true) {
       _errorMessage = null;
       _otpTimer?.cancel();
-      final rmFound = res['data']?['no_rm'] ?? '';
-      _showToast(res['message'] ?? 'Berhasil terhubung! Nomor Rekam Medis Anda adalah $rmFound');
+      final userInfo = (res['data']?['user_info'] as Map<String, dynamic>?) ?? {};
+      final rmFound = userInfo['no_rm'] ?? res['data']?['no_rm'] ?? _foundPatientData?['no_rm'] ?? '';
+      HapticFeedback.mediumImpact();
+      _successAnimController?.forward(from: 0.0);
+      setState(() {
+        _successPatientData = {
+          'no_rm': rmFound,
+          'nama': userInfo['fullname'] ?? userInfo['nama'] ?? _foundPatientData?['nama'] ?? _foundPatientData?['nama_lengkap'] ?? 'Pasien',
+          'nik': userInfo['nik'] ?? _foundPatientData?['nik'] ?? _verifNikCtrl.text.trim(),
+          'telp': userInfo['telp'] ?? _foundPatientData?['no_hp'] ?? _verifHpCtrl.text.trim(),
+          'is_new_patient': false,
+        };
+        _currentStep = PatientSyncStep.success;
+      });
       widget.onSuccess?.call();
-      Navigator.pop(context, true);
     } else {
       final msg = res['message'] ?? 'Verifikasi kode OTP gagal';
       setState(() => _errorMessage = msg);
@@ -751,7 +808,7 @@ class _PatientSyncSheetState extends State<PatientSyncSheet> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              if (_currentStep != PatientSyncStep.choose)
+              if (_currentStep != PatientSyncStep.choose && _currentStep != PatientSyncStep.success)
                 IconButton(
                   visualDensity: VisualDensity.compact,
                   icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textDark),
@@ -769,10 +826,14 @@ class _PatientSyncSheetState extends State<PatientSyncSheet> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: AppColors.bgMintLight,
+                    color: _currentStep == PatientSyncStep.success ? const Color(0xFFECFDF5) : AppColors.bgMintLight,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.medical_information_rounded, color: AppColors.primary, size: 20),
+                  child: Icon(
+                    _currentStep == PatientSyncStep.success ? Icons.verified_rounded : Icons.medical_information_rounded,
+                    color: AppColors.primary,
+                    size: 20,
+                  ),
                 ),
               const SizedBox(width: 8),
               Expanded(
@@ -796,6 +857,17 @@ class _PatientSyncSheetState extends State<PatientSyncSheet> {
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
+                      )
+                    else if (_currentStep == PatientSyncStep.success)
+                      Text(
+                        'Rekam medis Anda resmi terhubung & aktif.',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11,
+                          color: const Color(0xFF059669),
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                   ],
                 ),
@@ -803,7 +875,7 @@ class _PatientSyncSheetState extends State<PatientSyncSheet> {
               IconButton(
                 visualDensity: VisualDensity.compact,
                 icon: const Icon(Icons.close_rounded, color: Colors.grey),
-                onPressed: () => Navigator.pop(context, false),
+                onPressed: () => Navigator.pop(context, _currentStep == PatientSyncStep.success),
               ),
             ],
           ),
@@ -831,6 +903,8 @@ class _PatientSyncSheetState extends State<PatientSyncSheet> {
         return 'Sinkronisasi Pasien Lama';
       case PatientSyncStep.formClaimOtp:
         return 'Verifikasi OTP WhatsApp';
+      case PatientSyncStep.success:
+        return 'Sinkronisasi Berhasil';
     }
   }
 
@@ -844,6 +918,8 @@ class _PatientSyncSheetState extends State<PatientSyncSheet> {
         return _buildFormClaimStep();
       case PatientSyncStep.formClaimOtp:
         return _buildFormClaimOtpStep();
+      case PatientSyncStep.success:
+        return _buildSuccessStep();
     }
   }
 
@@ -2960,4 +3036,403 @@ class _PatientSyncSheetState extends State<PatientSyncSheet> {
       ),
     );
   }
+
+  Widget _buildSuccessStep() {
+    final isNew = _successPatientData?['is_new_patient'] == true;
+    final noRm = _successPatientData?['no_rm']?.toString() ?? 'RM-000000';
+    final nama = _successPatientData?['nama']?.toString() ?? 'Pasien Klinik';
+    final nik = _successPatientData?['nik']?.toString() ?? '-';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+      child: Column(
+        children: [
+          const SizedBox(height: 10),
+
+          // 1. ANIMATED CELEBRATORY BADGE (TRIPLE RING PULSE)
+          ScaleTransition(
+            scale: _successScaleAnim ?? const AlwaysStoppedAnimation(1.0),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // Outer Ripple Ring
+                Container(
+                  width: 108,
+                  height: 108,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                  ),
+                ),
+                // Middle Ring
+                Container(
+                  width: 86,
+                  height: 86,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFF10B981).withValues(alpha: 0.24),
+                  ),
+                ),
+                // Core Icon Badge
+                Container(
+                  width: 66,
+                  height: 66,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: [Color(0xFF10B981), Color(0xFF047857)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Color(0x55059669),
+                        blurRadius: 18,
+                        offset: Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.check_rounded,
+                    color: Colors.white,
+                    size: 38,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+
+          // 2. CELEBRATORY HEADLINE & SUBTITLE
+          FadeTransition(
+            opacity: _successCardFadeAnim ?? const AlwaysStoppedAnimation(1.0),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text('🎉', style: TextStyle(fontSize: 18)),
+                    const SizedBox(width: 8),
+                    Text(
+                      isNew ? 'Rekam Medis Diterbitkan!' : 'Sinkronisasi Berhasil!',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 19,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text('✨', style: TextStyle(fontSize: 18)),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    isNew
+                        ? 'Data pasien baru Anda telah tersimpan secara resmi di sistem klinik.'
+                        : 'Akun mobile Anda telah terhubung sempurna dengan data rekam medis klinik.',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12.5,
+                      color: AppColors.textMuted,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // 3. KARTU IDENTITAS REKAM MEDIS DIGITAL
+          SlideTransition(
+            position: _successCardSlideAnim ?? const AlwaysStoppedAnimation(Offset.zero),
+            child: FadeTransition(
+              opacity: _successCardFadeAnim ?? const AlwaysStoppedAnimation(1.0),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF065F46), Color(0xFF047857)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFF34D399), width: 1.5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF065F46).withValues(alpha: 0.28),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Card Top Bar
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(
+                                Icons.spa_rounded,
+                                color: Color(0xFF6EE7B7),
+                                size: 16,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'KLINIK KECANTIKAN',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFFA7F3D0),
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF10B981).withValues(alpha: 0.25),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: const Color(0xFF6EE7B7), width: 1),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.verified_rounded, color: Color(0xFF6EE7B7), size: 12),
+                              const SizedBox(width: 4),
+                              Text(
+                                'TERVERIFIKASI',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // No RM Section
+                    Text(
+                      'NOMOR REKAM MEDIS',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFFA7F3D0),
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Text(
+                          noRm,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                            letterSpacing: 1.5,
+                          ),
+                        ),
+                        const Spacer(),
+                        InkWell(
+                          onTap: () {
+                            Clipboard.setData(ClipboardData(text: noRm));
+                            _showToast('No. RM berhasil disalin ke clipboard');
+                          },
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.copy_rounded, color: Colors.white, size: 13),
+                                const SizedBox(width: 5),
+                                Text(
+                                  'Salin',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Divider(color: Colors.white.withValues(alpha: 0.2), height: 1),
+                    const SizedBox(height: 12),
+
+                    // Pasien details grid
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'NAMA PASIEN',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFFA7F3D0),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                nama,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'NIK KTP',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFFA7F3D0),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                _maskNik(nik),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white.withValues(alpha: 0.9),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // 4. BENEFIT CALLOUT
+          FadeTransition(
+            opacity: _successCardFadeAnim ?? const AlwaysStoppedAnimation(1.0),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFECFDF5),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFA7F3D0), width: 1.2),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.auto_awesome_rounded,
+                      color: Color(0xFF059669),
+                      size: 18,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Akun aktif! Anda kini dapat melakukan reservasi dokter, klaim paket perawatan, dan melihat riwayat medis.',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11.5,
+                        color: const Color(0xFF065F46),
+                        height: 1.35,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 22),
+
+          // 5. PRIMARY ACTION BUTTON
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              icon: const Icon(Icons.check_circle_outline_rounded, size: 20),
+              label: Text(
+                'Selesai & Lanjutkan',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              onPressed: () {
+                Navigator.pop(context, true);
+              },
+            ),
+          ),
+          const SizedBox(height: 10),
+        ],
+      ),
+    );
+  }
+
+  static String _maskNik(String? nik) {
+    if (nik == null || nik.isEmpty || nik == '-') return '-';
+    if (nik.length < 8) return nik;
+    return "${nik.substring(0, 4)}********${nik.substring(nik.length - 4)}";
+  }
 }
+
