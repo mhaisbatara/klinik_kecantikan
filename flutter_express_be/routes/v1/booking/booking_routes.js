@@ -359,7 +359,6 @@ router.post("/create", authenticateMobile, upload.single("bukti_dp"), async (req
         dp_nominal: dpNominal,
         dp_status: isBebasDp ? "bebas_dp" : "belum_bayar",
         metode_pembayaran_dp: value.metode_pembayaran_dp || (isBebasDp ? "paket" : "transfer"),
-        kode_metode_pembayaran: value.kode_metode_pembayaran || (isBebasDp ? "MP-PAKET" : null),
         bukti_dp: buktiDpUrl,
         catatan_pasien: value.catatan_pasien || null,
         sumber: "mobile",
@@ -367,6 +366,11 @@ router.post("/create", authenticateMobile, upload.single("bukti_dp"), async (req
         created_by: user.username || "mobile_app",
         created_at: formatDateSystem(),
       };
+
+      const hasKodeMetodeCol = await trx.schema.hasColumn("trx_booking", "kode_metode_pembayaran");
+      if (hasKodeMetodeCol) {
+        bookingRecord.kode_metode_pembayaran = value.kode_metode_pembayaran || (isBebasDp ? "MP-PAKET" : null);
+      }
 
       if (hasClaim) {
         bookingRecord.alasan_bebas_dp = hasBaru ? "Klaim Paket Campuran Tindakan Baru" : "Klaim Paket (Kepemilikan Aktif)";
@@ -521,7 +525,8 @@ router.get("/history", authenticateMobile, async (req, res) => {
       .offset(offset)
       .limit(limit);
 
-    const bookings = await query.select(
+    const hasKodeMetodeCol = await DB.schema.hasColumn("trx_booking", "kode_metode_pembayaran");
+    const selectCols = [
       "b.id",
       "b.kode_booking",
       "b.jenis_layanan",
@@ -532,10 +537,8 @@ router.get("/history", authenticateMobile, async (req, res) => {
       "b.status",
       "b.dp_status",
       "b.dp_nominal",
-      "b.total_biaya",
       "b.alasan_bebas_dp",
       "b.metode_pembayaran_dp",
-      "b.kode_metode_pembayaran",
       "b.bukti_dp",
       "b.catatan_pasien",
       "b.sumber",
@@ -544,8 +547,13 @@ router.get("/history", authenticateMobile, async (req, res) => {
       "r.nama_ruangan",
       "c.nama_cabang",
       "b.created_at",
-      "b.updated_at"
-    );
+      "b.updated_at",
+    ];
+    if (hasKodeMetodeCol) {
+      selectCols.push("b.kode_metode_pembayaran");
+    }
+
+    const bookings = await query.select(selectCols);
 
     // Ambil detail items untuk setiap booking
     const hasDetail = await DB.schema.hasTable("trx_detail_booking");
@@ -763,7 +771,10 @@ router.post("/:kode/upload-bukti-dp", authenticateMobile, upload.single("bukti_d
       updatePayload.metode_pembayaran_dp = metode_pembayaran_dp;
     }
     if (kode_metode_pembayaran) {
-      updatePayload.kode_metode_pembayaran = kode_metode_pembayaran;
+      const hasKodeMetodeCol = await DB.schema.hasColumn("trx_booking", "kode_metode_pembayaran");
+      if (hasKodeMetodeCol) {
+        updatePayload.kode_metode_pembayaran = kode_metode_pembayaran;
+      }
     }
 
     await DB("trx_booking")
