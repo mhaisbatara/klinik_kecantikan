@@ -144,7 +144,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final nama = _user?['fullname'] ?? _user?['nama'] ?? 'Pengguna Klinik';
     final telp = _user?['telp'] ?? '-';
     final email = _user?['username'] ?? '-';
-    final cabang = _user?['nama_cabang'] ?? 'Klinik Utama';
     final fotoUrl = ApiConstants.getImageUrl(_user?['foto'] ?? pasienProfile?['foto']);
 
     return Scaffold(
@@ -250,21 +249,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                             ),
                           ],
-                          const SizedBox(height: 3),
-                          Row(
-                            children: [
-                              const Icon(Icons.location_on_outlined, size: 14, color: AppColors.primary),
-                              const SizedBox(width: 4),
-                              Text(
-                                cabang,
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 11.5,
-                                  color: AppColors.primaryDark,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
                         ],
                       ),
                     ),

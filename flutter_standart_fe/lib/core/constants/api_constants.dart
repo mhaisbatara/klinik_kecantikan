@@ -13,6 +13,7 @@ class ApiConstants {
   /// 5. 192.168.1.13 (Cadangan IP Wi-Fi sebelumnya)
   static const List<String> candidateHosts = [
     '127.0.0.1',
+    '192.168.1.15',
     '192.168.137.1',
     '192.168.1.20',
     '10.0.2.2',
