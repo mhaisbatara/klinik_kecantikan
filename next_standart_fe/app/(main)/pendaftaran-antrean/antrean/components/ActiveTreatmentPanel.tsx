@@ -1335,74 +1335,64 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
 
                     {/* SECTION INFORMASI TERDAFTAR TREATMENT ATAU PILIH REKOMENDASI (DENGAN KONTROL LANJUT JIKA MURNI KONSULTASI) */}
                     {(() => {
-                        const registeredTreatments = (rekomendasiItems || []).filter((i) => i.is_pendaftaran || i.is_locked || (i.jenis !== 'produk' && i.jenis !== 'paket_produk' && !i.nama?.toLowerCase().includes('konsul')));
-                        const hasRegisteredTreatment = registeredTreatments.length > 0 || (activePatient as any)?.wajib_konsultasi === 'wajib' || (activePatient?.nama_layanan && !activePatient.nama_layanan.toLowerCase().includes('konsul'));
-                        const registeredTreatmentNames = registeredTreatments.map((t) => t.nama).filter(Boolean).join(', ')
-                            || (activePatient?.nama_layanan && !activePatient.nama_layanan.toLowerCase().includes('konsul') ? activePatient.nama_layanan : '')
-                            || (activePatient as any)?.nama_layanan_tindakan
-                            || (activePatient as any)?.nama_layanan
-                            || 'Treatment Terdaftar';
+                        const pendaftaranTreatments = (rekomendasiItems || []).filter((i) => i.is_pendaftaran || i.is_locked);
+                        const pendaftaranTreatmentNames = pendaftaranTreatments.map((t) => t.nama).filter(Boolean).join(', ');
 
                         return (
                             <>
-                                {/* JIKA BELUM MEMILIH TINDAKAN DARI PENDAFTARAN (MURNI KONSULTASI), TAMPILKAN OPSI LANJUT TREATMENT */}
-                                {!hasRegisteredTreatment && (
-                                    <div className="p-3 surface-50 border-round-lg border-1 surface-border flex align-items-center justify-content-between">
-                                        <div>
-                                            <span className="font-bold text-sm text-900 block">Lanjut ke Treatment Sesi Ini?</span>
-                                            <span className="text-xs text-500">Jika Ya, sistem otomatis menerbitkan antrean di ruang tindakan pasien tanpa daftar ulang.</span>
+                                {/* KONTROL OPSI LANJUT TREATMENT */}
+                                <div className="p-3 surface-50 border-round-lg border-1 surface-border flex align-items-center justify-content-between">
+                                    <div>
+                                        <span className="font-bold text-sm text-900 block">Lanjut ke Treatment Sesi Ini?</span>
+                                        <span className="text-xs text-500">Jika Ya, sistem otomatis menerbitkan antrean di ruang tindakan pasien tanpa daftar ulang.</span>
+                                    </div>
+                                    <div className="flex align-items-center gap-3">
+                                        <div className="flex align-items-center gap-1">
+                                            <Checkbox
+                                                inputId="lanjut_ya_active"
+                                                checked={lanjutKeTindakan}
+                                                disabled={isFormSaved}
+                                                onChange={(e) => setLanjutKeTindakan(true)}
+                                            />
+                                            <label htmlFor="lanjut_ya_active" className="text-sm font-bold text-700 cursor-pointer">Ya (Lanjut Treatment)</label>
                                         </div>
-                                        <div className="flex align-items-center gap-3">
-                                            <div className="flex align-items-center gap-1">
-                                                <Checkbox
-                                                    inputId="lanjut_ya_active"
-                                                    checked={lanjutKeTindakan}
-                                                    disabled={isFormSaved}
-                                                    onChange={(e) => setLanjutKeTindakan(true)}
-                                                />
-                                                <label htmlFor="lanjut_ya_active" className="text-sm font-bold text-700 cursor-pointer">Ya (Lanjut Treatment)</label>
-                                            </div>
-                                            <div className="flex align-items-center gap-1">
-                                                <Checkbox
-                                                    inputId="lanjut_tidak_active"
-                                                    checked={!lanjutKeTindakan}
-                                                    disabled={isFormSaved}
-                                                    onChange={(e) => {
-                                                        setLanjutKeTindakan(false);
-                                                        setRekomendasiItems((prev) => prev.filter((i) => ['produk', 'paket_produk'].includes(i.jenis)));
-                                                    }}
-                                                />
-                                                <label htmlFor="lanjut_tidak_active" className="text-sm font-bold text-500 cursor-pointer">Tidak</label>
-                                            </div>
+                                        <div className="flex align-items-center gap-1">
+                                            <Checkbox
+                                                inputId="lanjut_tidak_active"
+                                                checked={!lanjutKeTindakan}
+                                                disabled={isFormSaved}
+                                                onChange={(e) => {
+                                                    setLanjutKeTindakan(false);
+                                                    setRekomendasiItems((prev) => prev.filter((i) => ['produk', 'paket_produk'].includes(i.jenis)));
+                                                }}
+                                            />
+                                            <label htmlFor="lanjut_tidak_active" className="text-sm font-bold text-500 cursor-pointer">Tidak</label>
                                         </div>
+                                    </div>
+                                </div>
+
+                                {/* JIKA ADA TREATMENT DARI PENDAFTARAN, TAMPILKAN BANNER INFO RINGKAS */}
+                                {pendaftaranTreatments.length > 0 && (
+                                    <div className="surface-card p-3 border-round-lg border-1 surface-border bg-teal-50/70 flex align-items-center justify-content-between">
+                                        <div className="flex align-items-center gap-2">
+                                            <i className="pi pi-info-circle text-teal-700 text-base" />
+                                            <span className="text-xs text-teal-900 font-semibold">
+                                                Pasien telah terdaftar treatment dari pendaftaran: <strong className="text-teal-950">{pendaftaranTreatmentNames}</strong>. Dokter dapat menambahkan rekomendasi treatment lanjutan atau produk di bawah ini.
+                                            </span>
+                                        </div>
+                                        <Tag value="Dari Pendaftaran" severity="info" className="text-[10px] font-bold" />
                                     </div>
                                 )}
 
-                                {/* JIKA SUDAH DAFTAR TREATMENT, TAMPILKAN BANNER INFO TREATMENT TERDAFTAR */}
-                                {hasRegisteredTreatment ? (
-                                    <div className="surface-card p-4 border-round-xl border-1 surface-border bg-teal-50/80 shadow-1 flex align-items-center justify-content-between">
-                                        <div className="flex align-items-center gap-3">
-                                            <div className="w-3rem h-3rem border-circle bg-teal-100 flex align-items-center justify-content-center text-teal-700">
-                                                <i className="pi pi-check-circle text-2xl" />
-                                            </div>
-                                            <div>
-                                                <span className="font-extrabold text-teal-900 text-sm block">PASIEN TERDAFTAR TREATMENT: {registeredTreatmentNames}</span>
-                                                <span className="text-xs text-teal-700">Setelah sesi konsultasi disimpan, sistem otomatis menerbitkan antrean ke ruang tindakan untuk perawatan ini.</span>
-                                            </div>
-                                        </div>
-                                        <Tag value="Treatment Terdaftar" severity="info" className="px-3 py-1 font-bold text-xs" />
-                                    </div>
-                                ) : (
-                                    /* JIKA MURNI KONSULTASI DAN MEMILIH YA, TAMPILKAN PANEL PEMILIHAN REKOMENDASI */
-                                    lanjutKeTindakan && (
-                                        <RekomendasiTreatmentPanel
-                                            toast={toast}
-                                            selectedItems={rekomendasiItems}
-                                            onChangeSelectedItems={setRekomendasiItems}
-                                            disabled={isFormSaved}
-                                            kodeCabang={(activePatient as any)?.kode_cabang}
-                                        />
-                                    )
+                                {/* PANEL PEMILIHAN REKOMENDASI TINDAKAN & PRODUK (DOKTER BISA MEMILIH LEBIH DARI 1 TINDAKAN) */}
+                                {lanjutKeTindakan && (
+                                    <RekomendasiTreatmentPanel
+                                        toast={toast}
+                                        selectedItems={rekomendasiItems}
+                                        onChangeSelectedItems={setRekomendasiItems}
+                                        disabled={isFormSaved}
+                                        kodeCabang={(activePatient as any)?.kode_cabang}
+                                    />
                                 )}
                             </>
                         );
@@ -1480,6 +1470,30 @@ export const ActiveTreatmentPanel: React.FC<ActiveTreatmentPanelProps> = ({
                         <div className="p-3 sm:p-4 flex flex-column gap-4 bg-white">
                             {/* SECTION PETUGAS / DOKTER PENANGGUNG JAWAB (SESUAI SIP) */}
                             {renderPetugasSelector()}
+
+                            {/* BANNER INFORMASI TREATMENT TERDAFTAR DI RUANG TINDAKAN */}
+                            {(() => {
+                                const treatmentNamesInRoom =
+                                    (activePatient as any)?.layanan_list?.map((l: any) => l.nama_layanan || l.nama).filter(Boolean).join(', ') ||
+                                    (activePatient as any)?.nama_layanan_tindakan ||
+                                    activePatient?.nama_layanan ||
+                                    'Treatment Terdaftar';
+
+                                return (
+                                    <div className="surface-card p-4 border-round-xl border-1 surface-border bg-teal-50/80 shadow-1 flex align-items-center justify-content-between">
+                                        <div className="flex align-items-center gap-3">
+                                            <div className="w-3rem h-3rem border-circle bg-teal-100 flex align-items-center justify-content-center text-teal-700">
+                                                <i className="pi pi-check-circle text-2xl" />
+                                            </div>
+                                            <div>
+                                                <span className="font-extrabold text-teal-900 text-sm block">PASIEN TERDAFTAR TREATMENT: {treatmentNamesInRoom}</span>
+                                                <span className="text-xs text-teal-700">Layanan tindakan yang sedang dijalankan pada sesi ruangan ini.</span>
+                                            </div>
+                                        </div>
+                                        <Tag value="Treatment Terdaftar" severity="info" className="px-3 py-1 font-bold text-xs" />
+                                    </div>
+                                );
+                            })()}
 
                             {/* SECTION FOTO BEFORE (SEBELUM TINDAKAN / TREATMENT) */}
                             <div className="p-3 border-round-xl border-1 surface-border bg-white">
