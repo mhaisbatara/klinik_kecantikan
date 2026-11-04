@@ -488,219 +488,280 @@ export default function ManajemenCabangPage() {
 
             {/* Modal Dialog Tambah / Edit Cabang */}
             <Dialog
-                header={isEdit ? 'Edit Data Cabang' : 'Tambah Cabang Baru'}
+                header={
+                    <div className="flex align-items-center gap-3">
+                        <div
+                            className="flex align-items-center justify-content-center border-round-xl text-white shadow-1 flex-shrink-0"
+                            style={{
+                                width: '42px',
+                                height: '42px',
+                                background: isEdit
+                                    ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)'
+                                    : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                            }}
+                        >
+                            <i className={`pi ${isEdit ? 'pi-pencil' : 'pi-building'} text-lg`} />
+                        </div>
+                        <div>
+                            <h4 className="m-0 text-lg font-bold text-900 line-height-2">
+                                {isEdit ? 'Edit Data Cabang' : 'Tambah Cabang Baru'}
+                            </h4>
+                            <p className="m-0 text-xs text-500 font-normal">
+                                {isEdit
+                                    ? 'Perbarui profil dan data penanggung jawab cabang klinik.'
+                                    : 'Lengkapi profil cabang klinik serta akun penanggung jawab (Manager).'}
+                            </p>
+                        </div>
+                    </div>
+                }
                 visible={showModal}
-                style={{ width: isEdit ? '520px' : '720px', maxWidth: '95vw' }}
+                style={{ width: isEdit ? '560px' : '780px', maxWidth: '96vw' }}
                 modal
                 onHide={() => setShowModal(false)}
                 footer={
-                    <div className="flex justify-content-end gap-2 pt-3 border-top-1 surface-border">
-                        <Button
-                            label="Batal"
-                            icon="pi pi-times"
-                            outlined
-                            severity="secondary"
-                            onClick={() => setShowModal(false)}
-                        />
-                        <Button
-                            label={isEdit ? 'Simpan Perubahan' : 'Tambah Cabang'}
-                            icon="pi pi-check"
-                            severity="success"
-                            onClick={handleSave}
-                            loading={formLoading}
-                        />
+                    <div className="flex flex-wrap align-items-center justify-content-between gap-2 pt-3 border-top-1 surface-border">
+                        <span className="text-xs text-500">
+                            <span className="text-red-500 font-bold">*</span> Wajib diisi
+                        </span>
+                        <div className="flex align-items-center gap-2">
+                            <Button
+                                label="Batal"
+                                icon="pi pi-times"
+                                outlined
+                                severity="secondary"
+                                className="border-round-lg font-medium px-3 text-sm"
+                                onClick={() => setShowModal(false)}
+                            />
+                            <Button
+                                label={isEdit ? 'Simpan Perubahan' : 'Tambah Cabang'}
+                                icon="pi pi-check"
+                                severity="success"
+                                className="border-round-lg font-semibold px-4 text-sm shadow-1"
+                                onClick={handleSave}
+                                loading={formLoading}
+                            />
+                        </div>
                     </div>
                 }
             >
-                <div className="flex flex-column gap-3 pt-2">
+                <div className="flex flex-column pt-1">
                     {/* BAGIAN 1: INFORMASI CABANG */}
-                    {isEdit && (
-                        <div>
-                            <label className="text-xs font-bold text-gray-700 block mb-1">Kode Cabang</label>
-                            <InputText
-                                value={formData.kode_cabang}
-                                disabled
-                                className="w-full text-sm bg-gray-100 font-bold"
-                            />
+                    <div className="mb-2">
+                        <div className="flex align-items-center gap-2 mb-3">
+                            <div
+                                className="flex align-items-center justify-content-center border-round-md"
+                                style={{ width: '28px', height: '28px', backgroundColor: '#ecfdf5', color: '#059669' }}
+                            >
+                                <i className="pi pi-building text-sm" />
+                            </div>
+                            <div>
+                                <span className="font-bold text-sm text-900 block line-height-2">Informasi Unit Cabang</span>
+                                <span className="text-xs text-500 font-normal">Data identitas dan kontak operasional cabang</span>
+                            </div>
                         </div>
-                    )}
-                    <div>
-                        <label className="text-xs font-bold text-gray-700 block mb-1">
-                            Nama Cabang <span className="text-red-500">*</span>
-                        </label>
-                        <InputText
-                            value={formData.nama_cabang}
-                            onChange={(e) => setFormData({ ...formData, nama_cabang: e.target.value })}
-                            placeholder="Contoh: Klinik Cabang Surabaya"
-                            className="w-full text-sm"
-                        />
-                    </div>
 
-                    {isEdit && (
-                        <div>
-                            <label className="text-xs font-bold text-gray-700 block mb-1">Penanggung Jawab / Manager</label>
-                            <InputText
-                                value={formData.pj_manager}
-                                onChange={(e) => setFormData({ ...formData, pj_manager: e.target.value })}
-                                placeholder="Nama Dokter PJ / Manager Cabang"
-                                className="w-full text-sm"
-                            />
-                        </div>
-                    )}
-
-                    <div className="grid formgrid">
-                        <div className="col-12 sm:col-6">
-                            <label className="text-xs font-bold text-gray-700 block mb-1">No. Telepon Cabang</label>
-                            <InputText
-                                value={formData.no_telp}
-                                onChange={(e) => setFormData({ ...formData, no_telp: e.target.value })}
-                                placeholder="08xxxxxxxxxx"
-                                className="w-full text-sm"
-                            />
-                        </div>
-                        <div className="col-12 sm:col-6">
-                            <label className="text-xs font-bold text-gray-700 block mb-1">Email Cabang</label>
-                            <InputText
-                                value={formData.email}
-                                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                placeholder="cabang@klinik.com"
-                                className="w-full text-sm"
-                            />
-                        </div>
-                    </div>
-
-                    <div>
-                        <label className="text-xs font-bold text-gray-700 block mb-1">Alamat Lengkap</label>
-                        <InputTextarea
-                            value={formData.alamat}
-                            onChange={(e) => setFormData({ ...formData, alamat: e.target.value })}
-                            placeholder="Jalan, Nomor, Kelurahan, Kecamatan, Kota"
-                            rows={2}
-                            className="w-full text-sm"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="text-xs font-bold text-gray-700 block mb-1">Status Operasional</label>
-                        <Dropdown
-                            value={formData.status}
-                            options={[
-                                { label: 'Aktif', value: 'aktif' },
-                                { label: 'Tidak Aktif', value: 'tidak aktif' },
-                            ]}
-                            onChange={(e) => setFormData({ ...formData, status: e.value })}
-                            className="w-full text-sm"
-                        />
-                    </div>
-
-                    {/* BAGIAN 2: DATA AKUN MANAGER CABANG BARU (Persis seperti Gambar 2) */}
-                    {!isEdit && (
-                        <>
-                            <Divider className="my-2" />
-                            <div className="border-round-xl p-3 bg-teal-50 border-1 border-teal-200">
-                                <div className="text-xs font-bold text-teal-800 uppercase tracking-wider flex align-items-center gap-2 mb-1">
-                                    <i className="pi pi-user-plus text-teal-600" />
-                                    Akun Manager Cabang Baru
+                        <div className="grid formgrid row-gap-3">
+                            {isEdit && (
+                                <div className="col-12 sm:col-4">
+                                    <label className="text-sm font-medium text-800 block mb-2">Kode Cabang</label>
+                                    <InputText
+                                        value={formData.kode_cabang}
+                                        disabled
+                                        className="w-full text-sm bg-gray-100 font-bold text-blue-700"
+                                    />
                                 </div>
-                                <span className="text-[11px] text-teal-700 block mb-3">
-                                    Akun ini otomatis ditugaskan sebagai Owner / Manager untuk mengelola cabang baru ini saat pertama kali login.
-                                </span>
+                            )}
 
-                                <div className="grid formgrid">
-                                    {/* Baris 1: Nama Lengkap & Username / Email Login */}
-                                    <div className="col-12 sm:col-6 mb-2">
-                                        <label className="text-xs font-bold text-gray-700 block mb-1">
-                                            Nama Lengkap <span className="text-red-500">*</span>
-                                        </label>
-                                        <InputText
-                                            value={managerFormData.fullname}
-                                            onChange={(e) => {
-                                                const val = e.target.value;
-                                                setManagerFormData({ ...managerFormData, fullname: val });
-                                                setFormData((prev) => ({ ...prev, pj_manager: val }));
-                                            }}
-                                            placeholder="Contoh: dr. Amanda Putri"
-                                            className="w-full text-sm bg-white"
-                                        />
-                                    </div>
-                                    <div className="col-12 sm:col-6 mb-2">
-                                        <label className="text-xs font-bold text-gray-700 block mb-1">
-                                            Username / Email Login <span className="text-red-500">*</span>
-                                        </label>
-                                        <InputText
-                                            value={managerFormData.username}
-                                            onChange={(e) => setManagerFormData({ ...managerFormData, username: e.target.value })}
-                                            placeholder="Contoh: dokter@klinik.com"
-                                            className="w-full text-sm bg-white"
-                                        />
-                                    </div>
+                            <div className={isEdit ? 'col-12 sm:col-8' : 'col-12 sm:col-8'}>
+                                <label className="text-sm font-medium text-800 block mb-2">
+                                    Nama Cabang <span className="text-red-500 font-bold">*</span>
+                                </label>
+                                <InputText
+                                    value={formData.nama_cabang}
+                                    onChange={(e) => setFormData({ ...formData, nama_cabang: e.target.value })}
+                                    placeholder="Contoh: Klinik Cabang Surabaya"
+                                    className="w-full text-sm"
+                                />
+                            </div>
 
-                                    {/* Baris 2: No. Telepon / WhatsApp & Role Operasional */}
-                                    <div className="col-12 sm:col-6 mb-2">
-                                        <label className="text-xs font-bold text-gray-700 block mb-1">
-                                            No. Telepon / WhatsApp <span className="text-red-500">*</span>
-                                        </label>
-                                        <InputText
-                                            value={managerFormData.telp}
-                                            onChange={(e) => setManagerFormData({ ...managerFormData, telp: e.target.value })}
-                                            placeholder="Contoh: 081234567890"
-                                            className="w-full text-sm bg-white"
-                                        />
-                                    </div>
-                                    <div className="col-12 sm:col-6 mb-2">
-                                        <label className="text-xs font-bold text-gray-700 block mb-1">
-                                            Role Operasional <span className="text-red-500">*</span>
-                                        </label>
-                                        <Dropdown
-                                            value={managerFormData.role}
-                                            options={[
-                                                { label: 'Owner / Manager', value: 'owner' }
-                                            ]}
-                                            disabled
-                                            className="w-full text-sm bg-gray-50"
-                                        />
-                                    </div>
+                            {!isEdit && (
+                                <div className="col-12 sm:col-4">
+                                    <label className="text-sm font-medium text-800 block mb-2">Status Operasional</label>
+                                    <Dropdown
+                                        value={formData.status}
+                                        options={[
+                                            { label: 'Aktif', value: 'aktif' },
+                                            { label: 'Tidak Aktif', value: 'tidak aktif' },
+                                        ]}
+                                        onChange={(e) => setFormData({ ...formData, status: e.value })}
+                                        className="w-full text-sm"
+                                    />
+                                </div>
+                            )}
 
-                                    {/* Baris 3: Penempatan Cabang & Status Akun */}
-                                    <div className="col-12 sm:col-6 mb-2">
-                                        <label className="text-xs font-bold text-gray-700 block mb-1">Penempatan Cabang</label>
+                            {isEdit && (
+                                <>
+                                    <div className="col-12 sm:col-6">
+                                        <label className="text-sm font-medium text-800 block mb-2">Penanggung Jawab / Manager</label>
                                         <InputText
-                                            value={formData.nama_cabang ? `Otomatis: ${formData.nama_cabang}` : 'Otomatis ke Cabang Baru Ini'}
-                                            disabled
-                                            className="w-full text-sm bg-gray-50 font-semibold text-teal-800"
-                                        />
-                                    </div>
-                                    <div className="col-12 sm:col-6 mb-2">
-                                        <label className="text-xs font-bold text-gray-700 block mb-1">Status Akun</label>
-                                        <Dropdown
-                                            value={managerFormData.status}
-                                            options={[
-                                                { label: 'Aktif', value: '1' },
-                                                { label: 'Tidak Aktif', value: '0' },
-                                            ]}
-                                            onChange={(e) => setManagerFormData({ ...managerFormData, status: e.value })}
-                                            className="w-full text-sm bg-white"
-                                        />
-                                    </div>
-
-                                    {/* Baris 4: Password Login */}
-                                    <div className="col-12 mb-1">
-                                        <label className="text-xs font-bold text-gray-700 block mb-1">
-                                            Password Login <span className="text-red-500">*</span>
-                                        </label>
-                                        <Password
-                                            value={managerFormData.password}
-                                            onChange={(e) => setManagerFormData({ ...managerFormData, password: e.target.value })}
-                                            toggleMask
-                                            feedback={false}
-                                            placeholder="Minimal 6 karakter"
+                                            value={formData.pj_manager}
+                                            onChange={(e) => setFormData({ ...formData, pj_manager: e.target.value })}
+                                            placeholder="Nama Dokter PJ / Manager"
                                             className="w-full text-sm"
-                                            inputClassName="w-full text-sm bg-white"
                                         />
                                     </div>
+                                    <div className="col-12 sm:col-6">
+                                        <label className="text-sm font-medium text-800 block mb-2">Status Operasional</label>
+                                        <Dropdown
+                                            value={formData.status}
+                                            options={[
+                                                { label: 'Aktif', value: 'aktif' },
+                                                { label: 'Tidak Aktif', value: 'tidak aktif' },
+                                            ]}
+                                            onChange={(e) => setFormData({ ...formData, status: e.value })}
+                                            className="w-full text-sm"
+                                        />
+                                    </div>
+                                </>
+                            )}
+
+                            <div className="col-12 sm:col-6">
+                                <label className="text-sm font-medium text-800 block mb-2">No. Telepon Cabang</label>
+                                <InputText
+                                    value={formData.no_telp}
+                                    onChange={(e) => setFormData({ ...formData, no_telp: e.target.value })}
+                                    placeholder="08xxxxxxxxxx"
+                                    className="w-full text-sm"
+                                />
+                            </div>
+
+                            <div className="col-12 sm:col-6">
+                                <label className="text-sm font-medium text-800 block mb-2">Email Cabang</label>
+                                <InputText
+                                    value={formData.email}
+                                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                    placeholder="cabang@klinik.com"
+                                    className="w-full text-sm"
+                                />
+                            </div>
+
+                            <div className="col-12">
+                                <label className="text-sm font-medium text-800 block mb-2">Alamat Lengkap</label>
+                                <InputTextarea
+                                    value={formData.alamat}
+                                    onChange={(e) => setFormData({ ...formData, alamat: e.target.value })}
+                                    placeholder="Jalan, Nomor, Kelurahan, Kecamatan, Kota"
+                                    rows={2}
+                                    className="w-full text-sm"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* BAGIAN 2: DATA AKUN MANAGER CABANG BARU */}
+                    {!isEdit && (
+                        <div className="mt-4 pt-4 border-top-1 surface-border">
+                            <div className="flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
+                                <div className="flex align-items-center gap-2">
+                                    <div
+                                        className="flex align-items-center justify-content-center border-round-md"
+                                        style={{ width: '28px', height: '28px', backgroundColor: '#eff6ff', color: '#2563eb' }}
+                                    >
+                                        <i className="pi pi-user-plus text-sm" />
+                                    </div>
+                                    <div>
+                                        <span className="font-bold text-sm text-900 block line-height-2">
+                                            Akun Penanggung Jawab / Manager
+                                        </span>
+                                        <span className="text-xs text-500 font-normal">
+                                            Otomatis ditugaskan sebagai pengelola operasional cabang ini
+                                        </span>
+                                    </div>
+                                </div>
+                                <span className="text-xs font-semibold px-2.5 py-1 border-round-md surface-100 text-700 border-1 surface-border">
+                                    Role: Owner / Manager
+                                </span>
+                            </div>
+
+                            <div className="grid formgrid row-gap-3">
+                                <div className="col-12 sm:col-6">
+                                    <label className="text-sm font-medium text-800 block mb-2">
+                                        Nama Lengkap Manager <span className="text-red-500 font-bold">*</span>
+                                    </label>
+                                    <InputText
+                                        value={managerFormData.fullname}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setManagerFormData({ ...managerFormData, fullname: val });
+                                            setFormData((prev) => ({ ...prev, pj_manager: val }));
+                                        }}
+                                        placeholder="Contoh: dr. Amanda Putri"
+                                        className="w-full text-sm"
+                                    />
+                                </div>
+
+                                <div className="col-12 sm:col-6">
+                                    <label className="text-sm font-medium text-800 block mb-2">
+                                        Username / Email Login <span className="text-red-500 font-bold">*</span>
+                                    </label>
+                                    <InputText
+                                        value={managerFormData.username}
+                                        onChange={(e) => setManagerFormData({ ...managerFormData, username: e.target.value })}
+                                        placeholder="Contoh: dokter@klinik.com"
+                                        className="w-full text-sm"
+                                    />
+                                </div>
+
+                                <div className="col-12 sm:col-6">
+                                    <label className="text-sm font-medium text-800 block mb-2">
+                                        No. Telepon / WhatsApp <span className="text-red-500 font-bold">*</span>
+                                    </label>
+                                    <InputText
+                                        value={managerFormData.telp}
+                                        onChange={(e) => setManagerFormData({ ...managerFormData, telp: e.target.value })}
+                                        placeholder="Contoh: 081234567890"
+                                        className="w-full text-sm"
+                                    />
+                                </div>
+
+                                <div className="col-12 sm:col-6">
+                                    <label className="text-sm font-medium text-800 block mb-2">
+                                        Password Login <span className="text-red-500 font-bold">*</span>
+                                    </label>
+                                    <Password
+                                        value={managerFormData.password}
+                                        onChange={(e) => setManagerFormData({ ...managerFormData, password: e.target.value })}
+                                        toggleMask
+                                        feedback={false}
+                                        placeholder="Minimal 6 karakter"
+                                        className="w-full"
+                                        inputClassName="w-full text-sm"
+                                    />
+                                </div>
+
+                                <div className="col-12 sm:col-6">
+                                    <label className="text-sm font-medium text-800 block mb-2">Status Akun</label>
+                                    <Dropdown
+                                        value={managerFormData.status}
+                                        options={[
+                                            { label: 'Aktif', value: '1' },
+                                            { label: 'Tidak Aktif', value: '0' },
+                                        ]}
+                                        onChange={(e) => setManagerFormData({ ...managerFormData, status: e.value })}
+                                        className="w-full text-sm"
+                                    />
+                                </div>
+
+                                <div className="col-12 sm:col-6">
+                                    <label className="text-sm font-medium text-800 block mb-2">Penempatan Cabang</label>
+                                    <InputText
+                                        value={formData.nama_cabang ? `Otomatis: ${formData.nama_cabang}` : 'Otomatis ke Cabang Baru Ini'}
+                                        disabled
+                                        className="w-full text-sm bg-gray-100 font-medium text-700"
+                                    />
                                 </div>
                             </div>
-                        </>
+                        </div>
                     )}
                 </div>
             </Dialog>
