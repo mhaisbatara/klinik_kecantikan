@@ -8,6 +8,7 @@
     "dev:fe": "cd next_standart_fe && npm run dev",
     "dev:flutter_be": "cd flutter_express_be && npm run dev",
     "dev:flutter_fe": "cd flutter_standart_fe && flutter run",
+    "reverse": "adb reverse tcp:8008 tcp:8008",
     "start": "node express_standart_be/server.js",
     "start:be": "cd express_standart_be && npm start",
     "start:fe": "cd next_standart_fe && npm run dev",

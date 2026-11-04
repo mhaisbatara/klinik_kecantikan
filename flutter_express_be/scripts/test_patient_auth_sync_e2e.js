@@ -134,16 +134,34 @@ async function runTests() {
           Authorization: `Bearer ${tokenA}`,
         },
         body: JSON.stringify({
+          nama: "Pasien Uji Coba A",
           nik: TEST_NIK_A,
           tempat_lahir: "Surabaya",
           tanggal_lahir: "1998-07-20",
           jenis_kelamin: "P",
+          golongan_darah: "O",
+          agama: "Islam",
+          status_perkawinan: "belum_menikah",
+          kewarganegaraan: "WNI",
+          pekerjaan: "Wiraswasta",
+          provinsi: "JAWA TIMUR",
+          kota_kabupaten: "KOTA SURABAYA",
+          kecamatan: "WONOKROMO",
+          kelurahan_desa: "DARMO",
+          kode_pos: "60241",
+          patokan: "Sebelah minimarket",
           alamat: "Jl. Darmo Permai No. 45, Surabaya",
+          no_hp: TEST_PHONE_A,
+          email: TEST_EMAIL_A,
+          nama_kontak_darurat: "Ibu Kandung",
+          no_hp_kontak_darurat: "081299990001",
+          hubungan_kontak_darurat: "Orang Tua",
           alergi: "Alergi Kacang & Debu",
         }),
       });
 
       const patJson = await patRes.json();
+      if (patRes.status !== 200) console.log("patJson error:", patJson);
       assert(patRes.status === 200, `Pendaftaran pasien baru harus 200 OK (got ${patRes.status})`);
       assert(patJson.status === "00", `Response status harus '00'`);
       assert(patJson.data.user_info.no_rm != null, `no_rm harus terbit dan tidak null`);
@@ -257,7 +275,7 @@ async function runTests() {
       assert(claimWrongPhone.status === 422, `Klaim nomor HP / NIK salah harus ditolak 422`);
 
       // 5. ANTI-HIJACKING TEST:
-      // User B mencoba mengklaim generatedNoRmA (milik User A) dengan data tanggal lahir & NIK yang cocok
+      // User B mencoba mengklaim generatedNoRmA (milik User A) dengan data tanggal lahir, NIK, dan No HP yang cocok
       const hijackAttempt = await fetch(`${BASE_URL}/profile/claim-patient`, {
         method: "POST",
         headers: {
@@ -267,6 +285,7 @@ async function runTests() {
         body: JSON.stringify({
           no_rm: generatedNoRmA,
           tanggal_lahir: "1998-07-20",
+          no_hp: TEST_PHONE_A,
           nik: TEST_NIK_A,
         }),
       });
@@ -280,7 +299,7 @@ async function runTests() {
         `Pesan Anti-Hijacking harus jelas melarang pembajakan rekam medis`
       );
 
-      // 6. User B mengklaim DUMMY_UNCLAIMED_RM dengan 3 Kunci yang Benar -> Berhasil!
+      // 6. User B mengklaim DUMMY_UNCLAIMED_RM dengan Seluruh Kunci yang Benar -> Berhasil!
       const validClaim = await fetch(`${BASE_URL}/profile/claim-patient`, {
         method: "POST",
         headers: {
@@ -290,6 +309,7 @@ async function runTests() {
         body: JSON.stringify({
           no_rm: DUMMY_UNCLAIMED_RM,
           tanggal_lahir: "1995-12-10",
+          no_hp: "081299990001",
           nik: TEST_NIK_B,
         }),
       });
@@ -307,22 +327,27 @@ async function runTests() {
     console.log("\n==================================================================");
     console.log(`🎉 SELURUH PENGUJIAN END-TO-END BERHASIL 100% PASS (${passedTests}/${totalTests} ASSERTS)`);
     console.log("==================================================================");
+  } catch (err) {
+    console.error("\n💥 TEST ERROR OCCURRED:\n", err);
+    throw err;
   } finally {
     // Bersihkan data uji agar database tetap rapi
     console.log("🧹 Membersihkan data pengujian...");
-    await DB("user_credential").whereIn("telp", [TEST_PHONE_A, TEST_PHONE_B]).delete();
-    await DB("user_credential").whereIn("username", [TEST_EMAIL_A, TEST_EMAIL_B]).delete();
-    await DB("mst_pasien").whereIn("nik", [TEST_NIK_A, TEST_NIK_B]).delete();
-    if (generatedNoRmA) {
-      await DB("mst_pasien").where("no_rm", generatedNoRmA).delete();
+    try {
+      await DB("user_credential").whereIn("telp", [TEST_PHONE_A, TEST_PHONE_B]).delete();
+      await DB("user_credential").whereIn("username", [TEST_EMAIL_A, TEST_EMAIL_B]).delete();
+      await DB("mst_pasien").whereIn("nik", [TEST_NIK_A, TEST_NIK_B]).delete();
+      if (generatedNoRmA) {
+        await DB("mst_pasien").where("no_rm", generatedNoRmA).delete();
+      }
+      await DB("mst_pasien").where("no_rm", DUMMY_UNCLAIMED_RM).delete();
+      console.log("✨ Pembersihan data uji selesai!");
+    } catch (cleanupErr) {
+      console.error("Cleanup error:", cleanupErr);
     }
-    await DB("mst_pasien").where("no_rm", DUMMY_UNCLAIMED_RM).delete();
-    console.log("✨ Pembersihan data uji selesai!");
-    process.exit(0);
   }
 }
 
 runTests().catch((err) => {
-  console.error("💥 TEST FAILED WITH EXCEPTION:", err);
   process.exit(1);
 });

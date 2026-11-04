@@ -14,6 +14,7 @@ import profileRoutes from "./profile/profile_routes.js";
 import chatbotRoutes from "./chatbot/chatbot_routes.js";
 import kunjunganRoutes from "./kunjungan/kunjungan_routes.js";
 import metodePembayaranRoutes from "./metode_pembayaran/metode_pembayaran_routes.js";
+import wilayahRoutes from "./wilayah/wilayah_routes.js";
 
 const router = express.Router();
 
@@ -33,5 +34,6 @@ router.use("/profile", profileRoutes);
 router.use("/metode-pembayaran", metodePembayaranRoutes);
 router.use("/chatbot", chatbotRoutes);
 router.use("/kunjungan", kunjunganRoutes);
+router.use("/wilayah", wilayahRoutes);
 
 export default router;

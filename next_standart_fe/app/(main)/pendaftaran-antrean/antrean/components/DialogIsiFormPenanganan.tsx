@@ -377,6 +377,27 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
                         </div>
                     </div>
 
+                    {/* IF RUANG TINDAKAN: BANNER INFORMASI TREATMENT TERDAFTAR */}
+                    {!isKonsultasi && (
+                        <div className="surface-card p-4 border-round-xl border-1 surface-border bg-teal-50/80 shadow-1 flex align-items-center justify-content-between mb-3">
+                            <div className="flex align-items-center gap-3">
+                                <div className="w-3rem h-3rem border-circle bg-teal-100 flex align-items-center justify-content-center text-teal-700">
+                                    <i className="pi pi-check-circle text-2xl" />
+                                </div>
+                                <div>
+                                    <span className="font-extrabold text-teal-900 text-sm block">
+                                        PASIEN TERDAFTAR TREATMENT: {(antrianData as any)?.layanan_list?.map((l: any) => l.nama_layanan || l.nama).filter(Boolean).join(', ')
+                                            || (antrianData as any)?.nama_layanan_tindakan
+                                            || antrianData?.nama_layanan
+                                            || 'Treatment Terdaftar'}
+                                    </span>
+                                    <span className="text-xs text-teal-700">Layanan tindakan yang sedang dijalankan pada sesi ruangan ini.</span>
+                                </div>
+                            </div>
+                            <Tag value="Treatment Terdaftar" severity="info" className="px-3 py-1 font-bold text-xs" />
+                        </div>
+                    )}
+
                     {/* IF RUANG TINDAKAN: DISPLAY FORM HASIL KONSULTASI & PRODUK DOKTER (READ-ONLY) */}
                     {!isKonsultasi && (antrianData?.kode_antrian_asal || (antrianData as any)?.data_konsultasi_diagnosis || (antrianData as any)?.data_konsultasi_keluhan || resepProdukDokter.length > 0) && (
                         <div className="surface-card p-3 border-round-xl border-1 surface-border shadow-1 flex flex-column gap-3">
@@ -487,38 +508,31 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
                                 </div>
                             </div>
 
-                            {/* KONTROL UI: LANJUT KE TREATMENT? (HANYA JIKA PASIEN MURNI KONSULTASI / BELUM DAFTAR TREATMENT) */}
-                            {(() => {
-                                const registeredTreatments = (rekomendasiItems || []).filter((i) => i.is_pendaftaran || i.is_locked || (i.jenis !== 'produk' && i.jenis !== 'paket_produk' && !i.nama?.toLowerCase().includes('konsul')));
-                                const hasRegisteredTreatment = registeredTreatments.length > 0 || (antrianData as any)?.wajib_konsultasi === 'wajib' || (antrianData?.nama_layanan && !antrianData.nama_layanan.toLowerCase().includes('konsul'));
-                                if (hasRegisteredTreatment) return null;
-                                return (
-                                    <div className="p-3 surface-100 border-round-lg border-1 surface-border flex align-items-center justify-content-between">
-                                        <div>
-                                            <span className="font-bold text-sm text-900 block">Lanjut ke Treatment Sesi Ini?</span>
-                                            <span className="text-xs text-500">Jika Ya, sistem otomatis menerbitkan antrean di ruang tindakan pasien tanpa daftar ulang.</span>
-                                        </div>
-                                        <div className="flex align-items-center gap-3">
-                                            <div className="flex align-items-center gap-1">
-                                                <Checkbox
-                                                    inputId="lanjut_ya"
-                                                    checked={lanjutKeTindakan}
-                                                    onChange={(e) => setLanjutKeTindakan(true)}
-                                                />
-                                                <label htmlFor="lanjut_ya" className="text-sm font-bold text-teal-800 cursor-pointer">Ya (Lanjut Treatment)</label>
-                                            </div>
-                                            <div className="flex align-items-center gap-1">
-                                                <Checkbox
-                                                    inputId="lanjut_tidak"
-                                                    checked={!lanjutKeTindakan}
-                                                    onChange={(e) => setLanjutKeTindakan(false)}
-                                                />
-                                                <label htmlFor="lanjut_tidak" className="text-sm font-bold text-500 cursor-pointer">Tidak</label>
-                                            </div>
-                                        </div>
+                            {/* KONTROL UI: LANJUT KE TREATMENT? */}
+                            <div className="p-3 surface-100 border-round-lg border-1 surface-border flex align-items-center justify-content-between">
+                                <div>
+                                    <span className="font-bold text-sm text-900 block">Lanjut ke Treatment Sesi Ini?</span>
+                                    <span className="text-xs text-500">Jika Ya, sistem otomatis menerbitkan antrean di ruang tindakan pasien tanpa daftar ulang.</span>
+                                </div>
+                                <div className="flex align-items-center gap-3">
+                                    <div className="flex align-items-center gap-1">
+                                        <Checkbox
+                                            inputId="lanjut_ya"
+                                            checked={lanjutKeTindakan}
+                                            onChange={(e) => setLanjutKeTindakan(true)}
+                                        />
+                                        <label htmlFor="lanjut_ya" className="text-sm font-bold text-teal-800 cursor-pointer">Ya (Lanjut Treatment)</label>
                                     </div>
-                                );
-                            })()}
+                                    <div className="flex align-items-center gap-1">
+                                        <Checkbox
+                                            inputId="lanjut_tidak"
+                                            checked={!lanjutKeTindakan}
+                                            onChange={(e) => setLanjutKeTindakan(false)}
+                                        />
+                                        <label htmlFor="lanjut_tidak" className="text-sm font-bold text-500 cursor-pointer">Tidak</label>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     )}
 
@@ -619,36 +633,32 @@ export const DialogIsiFormPenanganan: React.FC<DialogIsiFormPenangananProps> = (
 
                     {isKonsultasi && (
                         (() => {
-                            const registeredTreatments = (rekomendasiItems || []).filter((i) => i.is_pendaftaran || i.is_locked || (i.jenis !== 'produk' && i.jenis !== 'paket_produk' && !i.nama?.toLowerCase().includes('konsul')));
-                            const hasRegisteredTreatment = registeredTreatments.length > 0 || (antrianData as any)?.wajib_konsultasi === 'wajib' || (antrianData?.nama_layanan && !antrianData.nama_layanan.toLowerCase().includes('konsul'));
-                            const registeredTreatmentNames = registeredTreatments.map((t) => t.nama).filter(Boolean).join(', ')
-                                || (antrianData?.nama_layanan && !antrianData.nama_layanan.toLowerCase().includes('konsul') ? antrianData.nama_layanan : '')
-                                || (antrianData as any)?.nama_layanan_tindakan
-                                || (antrianData as any)?.nama_layanan
-                                || 'Treatment Terdaftar';
+                            const pendaftaranTreatments = (rekomendasiItems || []).filter((i) => i.is_pendaftaran || i.is_locked);
+                            const pendaftaranTreatmentNames = pendaftaranTreatments.map((t) => t.nama).filter(Boolean).join(', ');
 
-                            return hasRegisteredTreatment ? (
-                                <div className="surface-card p-4 border-round-xl border-1 surface-border bg-teal-50/80 shadow-1 flex align-items-center justify-content-between">
-                                    <div className="flex align-items-center gap-3">
-                                        <div className="w-3rem h-3rem border-circle bg-teal-100 flex align-items-center justify-content-center text-teal-700">
-                                            <i className="pi pi-check-circle text-2xl" />
+                            return (
+                                <>
+                                    {pendaftaranTreatments.length > 0 && (
+                                        <div className="surface-card p-3 border-round-lg border-1 surface-border bg-teal-50/70 mb-3 flex align-items-center justify-content-between">
+                                            <div className="flex align-items-center gap-2">
+                                                <i className="pi pi-info-circle text-teal-700 text-base" />
+                                                <span className="text-xs text-teal-900 font-semibold">
+                                                    Pasien telah terdaftar treatment dari pendaftaran: <strong className="text-teal-950">{pendaftaranTreatmentNames}</strong>. Dokter dapat menambahkan rekomendasi treatment lanjutan atau produk di bawah ini.
+                                                </span>
+                                            </div>
+                                            <Tag value="Dari Pendaftaran" severity="info" className="text-[10px] font-bold" />
                                         </div>
-                                        <div>
-                                            <span className="font-extrabold text-teal-900 text-sm block">PASIEN TERDAFTAR TREATMENT: {registeredTreatmentNames}</span>
-                                            <span className="text-xs text-teal-700">Setelah sesi konsultasi disimpan, sistem otomatis menerbitkan antrean ke ruang tindakan untuk perawatan ini.</span>
-                                        </div>
-                                    </div>
-                                    <Tag value="Treatment Terdaftar" severity="info" className="px-3 py-1 font-bold text-xs" />
-                                </div>
-                            ) : (
-                                lanjutKeTindakan && (
-                                    <RekomendasiTreatmentPanel
-                                        toast={toast}
-                                        selectedItems={rekomendasiItems}
-                                        onChangeSelectedItems={setRekomendasiItems}
-                                        kodeCabang={(antrianData as any)?.kode_cabang}
-                                    />
-                                )
+                                    )}
+
+                                    {lanjutKeTindakan && (
+                                        <RekomendasiTreatmentPanel
+                                            toast={toast}
+                                            selectedItems={rekomendasiItems}
+                                            onChangeSelectedItems={setRekomendasiItems}
+                                            kodeCabang={(antrianData as any)?.kode_cabang}
+                                        />
+                                    )}
+                                </>
                             );
                         })()
                     )}

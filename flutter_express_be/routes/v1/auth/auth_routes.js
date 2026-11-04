@@ -178,13 +178,15 @@ router.post("/login", async (req, res) => {
 router.post("/register", async (req, res) => {
   const body = req.body || {};
 
-  // Normalisasi payload agar mendukung field 'nama'/'fullname' dan 'no_hp'/'telp'
+  // Normalisasi payload agar mendukung field 'nama'/'fullname', 'no_hp'/'telp', serta NIK/Tanggal Lahir
   const payloadToValidate = {
     fullname: (body.fullname || body.nama || "").trim(),
     telp: (body.telp || body.no_hp || "").trim(),
     email: (body.email || "").trim(),
     password: body.password,
     kode_cabang: body.kode_cabang || "CBG-001",
+    nik: body.nik ? String(body.nik).trim() : null,
+    tanggal_lahir: body.tanggal_lahir ? String(body.tanggal_lahir).trim() : null,
   };
 
   const schema = Joi.object({
@@ -198,6 +200,8 @@ router.post("/register", async (req, res) => {
     password: Joi.string().min(6).required().label("Password"),
     email: Joi.string().email().allow("", null).optional().label("Email"),
     kode_cabang: Joi.string().allow("", null).default("CBG-001").label("Cabang"),
+    nik: Joi.string().pattern(/^[0-9]{16}$/).allow("", null).optional().label("NIK"),
+    tanggal_lahir: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).allow("", null).optional().label("Tanggal Lahir"),
   });
 
   const { error, value } = schema.validate(payloadToValidate);
@@ -253,7 +257,8 @@ router.post("/register", async (req, res) => {
     }
     const cUserCode = `USR${String(nextUserSeq).padStart(6, "0")}`;
 
-    // 4. Hash password & Insert ke user_credential (no_rm = null)
+    // 4. Strict Security: Registrasi Akun Mobile murni User Auth (no_rm = null).
+    // Setiap penyambungan rekam medis lama WAJIB melalui proses verifikasi klaim eksplisit.
     const hashedPassword = hashClinicPassword(cUserCode, value.password);
     const userRecord = {
       user_code: cUserCode,
@@ -261,7 +266,7 @@ router.post("/register", async (req, res) => {
       fullname: value.fullname,
       telp: cleanPhone,
       role: "pasien",
-      no_rm: null, // Murni User Auth, belum memiliki rekam medis
+      no_rm: null,
       password: hashedPassword,
       status: "1",
       kode_cabang: branchCode,
@@ -273,10 +278,11 @@ router.post("/register", async (req, res) => {
     await DB("user_credential").insert(userRecord);
 
     // Ambil nama cabang untuk info respons
-    const branchRow = await DB("mst_cabang").where("kode_cabang", branchCode).first();
+    const actualBranch = userRecord.kode_cabang;
+    const branchRow = await DB("mst_cabang").where("kode_cabang", actualBranch).first();
     const namaCabang = branchRow?.nama_cabang || "Klinik Utama";
 
-    // 5. Generate Mobile JWT Token (no_rm = null)
+    // 5. Generate Mobile JWT Token
     const tokenPayload = {
       user_code: cUserCode,
       username: userRecord.username,
@@ -284,15 +290,17 @@ router.post("/register", async (req, res) => {
       fullname: value.fullname,
       nama: value.fullname,
       no_rm: null,
-      kode_cabang: branchCode,
+      kode_cabang: actualBranch,
       nama_cabang: namaCabang,
     };
 
     const tokens = await generateMobileTokens(tokenPayload, true);
 
+    const message = "Akun berhasil didaftarkan! Selamat datang di aplikasi klinik.";
+
     return sendSuccess(
       res,
-      "Akun berhasil didaftarkan! Selamat datang di aplikasi klinik.",
+      message,
       {
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,
@@ -305,7 +313,7 @@ router.post("/register", async (req, res) => {
           no_rm: null,
           is_patient: false,
           foto: null,
-          kode_cabang: branchCode,
+          kode_cabang: actualBranch,
           nama_cabang: namaCabang,
           pasien_profile: null,
         },

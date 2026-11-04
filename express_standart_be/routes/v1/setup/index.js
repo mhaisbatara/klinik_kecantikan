@@ -32,6 +32,7 @@ import navRoleSave from "./navigation/role_navigation_save.js";
 import configCreate from './config/config_create.js'
 import configData from './config/config_data.js'
 import cabangProfil from './cabang_profil.js'
+import whatsapp from './whatsapp.js'
 
 // master
 // user
@@ -43,6 +44,7 @@ router.use("/user-login/user-delete", userDelete);
 router.use("/config-data", configData);
 router.use("/config-create", configCreate);
 router.use("/cabang-profil", cabangProfil);
+router.use("/whatsapp", whatsapp);
 //navigation
 router.use("/nav/base-data", navBase);
 router.use("/nav/user-data", navUser);

@@ -39,7 +39,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
 
     final updated = await AuthService.fetchProfile();
-    final noRm = updated?['no_rm'] ?? _user?['no_rm'];
+    final noRm = updated != null ? updated['no_rm'] : _user?['no_rm'];
 
     List<dynamic> pkgs = [];
     if (noRm != null && noRm.toString().trim().isNotEmpty) {
@@ -66,6 +66,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
     if (success == true) {
       _refreshProfile();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '🎉 Rekam Medis berhasil disinkronkan! Akun Anda kini aktif.',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: const Color(0xFF059669),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
     }
   }
 
@@ -117,7 +144,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final nama = _user?['fullname'] ?? _user?['nama'] ?? 'Pengguna Klinik';
     final telp = _user?['telp'] ?? '-';
     final email = _user?['username'] ?? '-';
-    final cabang = _user?['nama_cabang'] ?? 'Klinik Utama';
     final fotoUrl = ApiConstants.getImageUrl(_user?['foto'] ?? pasienProfile?['foto']);
 
     return Scaffold(
@@ -223,21 +249,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                             ),
                           ],
-                          const SizedBox(height: 3),
-                          Row(
-                            children: [
-                              const Icon(Icons.location_on_outlined, size: 14, color: AppColors.primary),
-                              const SizedBox(width: 4),
-                              Text(
-                                cabang,
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 11.5,
-                                  color: AppColors.primaryDark,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
                         ],
                       ),
                     ),
@@ -819,9 +830,94 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _detailRow(Icons.home_outlined, 'Alamat Domisili', alamat),
           const SizedBox(height: 10),
           _detailRow(Icons.warning_amber_rounded, 'Riwayat Alergi', alergi, isAlergi: true),
+          const SizedBox(height: 14),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.red.shade600,
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              ),
+              icon: const Icon(Icons.link_off_rounded, size: 15),
+              label: Text(
+                'Lepas Tautan RM',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+              onPressed: () => _handleUnlinkPatient(noRm),
+            ),
+          ),
         ],
       ),
     );
+  }
+
+  // ─── HANDLER LEPAS TAUTAN REKAM MEDIS ─────────────────────────
+  Future<void> _handleUnlinkPatient(String noRm) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 24),
+            const SizedBox(width: 8),
+            Text(
+              'Lepas Tautan RM?',
+              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 16),
+            ),
+          ],
+        ),
+        content: Text(
+          'Rekam Medis $noRm akan dilepaskan dari akun ini. Anda dapat menghubungkannya kembali kapan saja melalui menu sinkronisasi.',
+          style: GoogleFonts.plusJakartaSans(fontSize: 13, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              elevation: 0,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Ya, Lepaskan', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      final res = await AuthService.unlinkPatient();
+      if (res['success'] == true) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Tautan Rekam Medis $noRm berhasil dilepaskan.', style: GoogleFonts.plusJakartaSans(fontSize: 12.5)),
+              backgroundColor: AppColors.primaryDark,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        _refreshProfile();
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(res['message'] ?? 'Gagal melepaskan rekam medis', style: GoogleFonts.plusJakartaSans(fontSize: 12.5)),
+              backgroundColor: AppColors.error,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    }
   }
 
   // ─── KARTU BELUM TERHUBUNG REKAM MEDIS ────────────────────────
