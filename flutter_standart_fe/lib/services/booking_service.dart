@@ -363,11 +363,16 @@ class BookingService {
   }
 
   // 6. Ambil Daftar Paket Perawatan Pasien (Kartu Stempel Multi-Sesi)
-  static Future<List<dynamic>> getMyPackages() async {
+  static Future<List<dynamic>> getMyPackages({String? kodeCabang}) async {
     try {
       final token = await AuthService.getToken();
+      final uri = Uri.parse(ApiConstants.myPackages).replace(
+        queryParameters: {
+          if (kodeCabang != null && kodeCabang.isNotEmpty) 'kode_cabang': kodeCabang,
+        },
+      );
       final response = await http.get(
-        Uri.parse(ApiConstants.myPackages),
+        uri,
         headers: {
           'Accept': 'application/json',
           if (token != null) 'Authorization': 'Bearer $token',

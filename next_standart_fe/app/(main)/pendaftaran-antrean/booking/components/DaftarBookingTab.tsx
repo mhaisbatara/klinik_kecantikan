@@ -220,9 +220,8 @@ export const DaftarBookingTab: React.FC<Props> = ({ toast, onNavigateToCreate, r
   const handleMarkTidakHadir = (row: BookingRow) => {
     const isDpPaid = row.dp_status === 'sudah_bayar';
     confirmDialog({
-      message: `Tandai pasien ${row.nama_pasien} (${row.kode_booking}) sebagai TIDAK HADIR?${
-        isDpPaid ? ' Uang muka (DP) sebesar ' + formatCurrency(row.dp_nominal) + ' akan dinyatakan HANGUS.' : ''
-      }`,
+      message: `Tandai pasien ${row.nama_pasien} (${row.kode_booking}) sebagai TIDAK HADIR?${isDpPaid ? ' Uang muka (DP) sebesar ' + formatCurrency(row.dp_nominal) + ' akan dinyatakan HANGUS.' : ''
+        }`,
       header: 'Konfirmasi Pasien Tidak Hadir',
       icon: 'pi pi-user-minus',
       acceptLabel: 'Ya, Tandai Tidak Hadir',
@@ -859,15 +858,15 @@ export const DaftarBookingTab: React.FC<Props> = ({ toast, onNavigateToCreate, r
                           rowData.jenis_layanan === 'klaim_paket'
                             ? 'Klaim Paket'
                             : rowData.jenis_layanan === 'paket'
-                            ? 'Paket'
-                            : 'Layanan'
+                              ? 'Paket'
+                              : 'Layanan'
                         }
                         severity={
                           rowData.jenis_layanan === 'klaim_paket'
                             ? 'info'
                             : rowData.jenis_layanan === 'paket'
-                            ? 'warning'
-                            : 'info'
+                              ? 'warning'
+                              : 'info'
                         }
                         className="text-xs py-0 px-1 font-semibold"
                       />

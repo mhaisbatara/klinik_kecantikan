@@ -180,7 +180,7 @@ class _BookingScreenState extends State<BookingScreen> {
   Future<void> _fetchPaymentMethods() async {
     setState(() => _loadingPaymentMethods = true);
     final res = await BookingService.getMetodePembayaran(
-      kodeCabang: _activeCabang?['kode_cabang'],
+      kodeCabang: _selectedKodeCabang ?? _activeCabang?['kode_cabang'],
     );
     if (!mounted) return;
     setState(() {
@@ -495,13 +495,22 @@ class _BookingScreenState extends State<BookingScreen> {
     setState(() {
       _selectedKodeCabang = newKode;
       _selectedNamaCabang = _formatBranchName(newNama);
+      _activeCabang = {
+        'kode_cabang': newKode,
+        'nama_cabang': newNama,
+      };
       _selectedItems.clear();
       _activeKodeRuangan = null;
       _activeNamaRuangan = null;
       _selectedSlot = null;
       _selectedJamBooking = null;
+      _claimableItems = [];
+      if (_activeCategoryTab == 'dimiliki') {
+        _activeCategoryTab = 'layanan';
+      }
     });
     _fetchLayanan();
+    _fetchPaymentMethods();
   }
 
   Future<void> _fetchLayanan() async {
@@ -514,7 +523,9 @@ class _BookingScreenState extends State<BookingScreen> {
       BookingService.getPaketList(
         kodeCabang: branchCode,
       ),
-      BookingService.getMyPackages(),
+      BookingService.getMyPackages(
+        kodeCabang: branchCode,
+      ),
     ]);
     if (!mounted) return;
 
@@ -528,6 +539,17 @@ class _BookingScreenState extends State<BookingScreen> {
         if (pkg is Map) {
           final pkgStatus = (pkg['status'] ?? '').toString().toLowerCase();
           if (pkgStatus != 'aktif' && pkgStatus != '1') continue;
+
+          // Sesi paket hanya dapat diklaim di cabang tempat paket dibeli
+          final pkgCabang = pkg['kode_cabang']?.toString();
+          if (branchCode != null &&
+              branchCode.toString().isNotEmpty &&
+              pkgCabang != null &&
+              pkgCabang.isNotEmpty &&
+              pkgCabang != branchCode) {
+            continue;
+          }
+
           final details = pkg['details'];
           if (details is List) {
             for (final d in details) {
@@ -594,6 +616,9 @@ class _BookingScreenState extends State<BookingScreen> {
       _allLayanan = list;
       _allPaket = paketList;
       _claimableItems = claimable;
+      if (_claimableItems.isEmpty && _activeCategoryTab == 'dimiliki') {
+        _activeCategoryTab = 'layanan';
+      }
       _roomList = uniqueRooms.toList();
       _selectedRoom = 'Semua';
       _loadingLayanan = false;

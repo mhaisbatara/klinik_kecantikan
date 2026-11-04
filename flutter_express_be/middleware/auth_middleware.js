@@ -83,14 +83,32 @@ export const authenticateMobile = async (req, res, next) => {
     const headerCabang = req.headers["x-kode-cabang"];
     const isSuperAdmin = (payload.role || "").toLowerCase() === "superadmin";
 
+    let noRm = payload.no_rm || null;
+    let kodeCabang = isSuperAdmin && headerCabang ? headerCabang : (payload.kode_cabang || "CBG-001");
+    let fullname = payload.fullname || payload.nama || payload.username;
+
+    // Selalu sinkronkan data real-time dari database (terutama no_rm yang baru ditautkan)
+    if (payload.user_code) {
+      try {
+        const cred = await DB("user_credential")
+          .where("user_code", payload.user_code)
+          .first();
+        if (cred) {
+          if (cred.no_rm) noRm = cred.no_rm;
+          if (cred.kode_cabang && !headerCabang) kodeCabang = cred.kode_cabang;
+          if (cred.fullname) fullname = cred.fullname;
+        }
+      } catch (_) {}
+    }
+
     req.auth = {
       user_code: payload.user_code,
       username: payload.username,
       role: payload.role || "pasien",
-      no_rm: payload.no_rm || null,
-      fullname: payload.fullname || payload.nama || payload.username,
-      nama: payload.nama || payload.fullname || payload.username,
-      kode_cabang: isSuperAdmin && headerCabang ? headerCabang : (payload.kode_cabang || "CBG-001"),
+      no_rm: noRm,
+      fullname: fullname,
+      nama: fullname,
+      kode_cabang: kodeCabang,
       nama_cabang: payload.nama_cabang || null,
       is_superadmin: isSuperAdmin,
     };
