@@ -2853,54 +2853,6 @@ INSERT INTO `trx_rekam_medis_ruangan` (`id`, `kode_rekam_medis_ruangan`, `id_rek
 -- --------------------------------------------------------
 
 --
--- Table structure for table `trx_riwayat_treatment`
---
-
-CREATE TABLE `trx_riwayat_treatment` (
-  `id` int NOT NULL,
-  `kode_riwayat_treatment` varchar(20) NOT NULL,
-  `no_rm` varchar(20) NOT NULL,
-  `kode_layanan` varchar(20) NOT NULL,
-  `kode_rekam_medis` varchar(20) DEFAULT NULL,
-  `tanggal_treatment` date NOT NULL,
-  `hasil` text,
-  `tz` varchar(50) NOT NULL DEFAULT 'UTC',
-  `created_by` varchar(100) DEFAULT NULL,
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_by` varchar(100) DEFAULT NULL,
-  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `trx_skin_analysis`
---
-
-CREATE TABLE `trx_skin_analysis` (
-  `id` int NOT NULL,
-  `kode_skin_analysis` varchar(30) NOT NULL,
-  `id_rekam_medis` int NOT NULL COMMENT 'FK ke trx_rekam_medis.id',
-  `kode_kunjungan` varchar(20) NOT NULL,
-  `skin_type` enum('normal','oily','dry','combination','sensitive') DEFAULT NULL,
-  `hydration` tinyint UNSIGNED DEFAULT NULL COMMENT 'skala 0-100',
-  `oil_level` tinyint UNSIGNED DEFAULT NULL COMMENT 'skala 0-100',
-  `acne` tinyint UNSIGNED DEFAULT NULL COMMENT 'skala 0-100',
-  `pigmentation` tinyint UNSIGNED DEFAULT NULL COMMENT 'skala 0-100',
-  `pore` tinyint UNSIGNED DEFAULT NULL COMMENT 'skala 0-100',
-  `sensitivity` tinyint UNSIGNED DEFAULT NULL COMMENT 'skala 0-100',
-  `skin_score` tinyint UNSIGNED DEFAULT NULL COMMENT 'skor akhir 0-100, mis. 62/100',
-  `catatan` text,
-  `tz` varchar(50) NOT NULL DEFAULT 'Asia/Jakarta',
-  `created_by` varchar(100) DEFAULT NULL,
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_by` varchar(100) DEFAULT NULL,
-  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
--- --------------------------------------------------------
-
---
 -- Table structure for table `trx_stok_movement`
 --
 
@@ -3434,25 +3386,6 @@ ALTER TABLE `trx_rekam_medis_ruangan`
   ADD KEY `idx_kode_ruangan` (`kode_ruangan`);
 
 --
--- Indexes for table `trx_riwayat_treatment`
---
-ALTER TABLE `trx_riwayat_treatment`
-  ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `kode_riwayat_treatment` (`kode_riwayat_treatment`),
-  ADD KEY `fk_riwayattrt_pasien` (`no_rm`),
-  ADD KEY `fk_riwayattrt_layanan` (`kode_layanan`),
-  ADD KEY `fk_riwayattrt_rekammedis` (`kode_rekam_medis`);
-
---
--- Indexes for table `trx_skin_analysis`
---
-ALTER TABLE `trx_skin_analysis`
-  ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `uq_kode_skin_analysis` (`kode_skin_analysis`),
-  ADD KEY `idx_id_rekam_medis` (`id_rekam_medis`),
-  ADD KEY `idx_kode_kunjungan` (`kode_kunjungan`);
-
---
 -- Indexes for table `trx_stok_movement`
 --
 ALTER TABLE `trx_stok_movement`
@@ -3746,18 +3679,6 @@ ALTER TABLE `trx_rekam_medis_foto`
 --
 ALTER TABLE `trx_rekam_medis_ruangan`
   MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=57;
-
---
--- AUTO_INCREMENT for table `trx_riwayat_treatment`
---
-ALTER TABLE `trx_riwayat_treatment`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `trx_skin_analysis`
---
-ALTER TABLE `trx_skin_analysis`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `trx_stok_movement`
