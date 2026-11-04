@@ -634,7 +634,13 @@ router.get("/pending", authenticateMobile, async (req, res) => {
       .leftJoin("mst_jadwal_karyawan as j", "b.kode_jadwal", "j.kode_jadwal")
       .leftJoin("mst_karyawan as k", "j.no_sip", "k.no_sip")
       .leftJoin("mst_ruangan as r", "j.kode_ruangan", "r.kode_ruangan")
-      .leftJoin("mst_cabang as c", DB.raw("b.kode_cabang = c.kode_cabang COLLATE utf8mb4_0900_ai_ci"))
+      .leftJoin("mst_cabang as c", function () {
+        this.on(
+          DB.raw(
+            "b.kode_cabang COLLATE utf8mb4_unicode_ci = c.kode_cabang COLLATE utf8mb4_unicode_ci"
+          )
+        );
+      })
       .where("b.no_rm", noRm)
       .where("b.status", "menunggu")
       .where("b.dp_nominal", ">", 0)
@@ -684,7 +690,13 @@ router.get("/:kode", authenticateMobile, async (req, res) => {
       .leftJoin("mst_jadwal_karyawan as j", "b.kode_jadwal", "j.kode_jadwal")
       .leftJoin("mst_karyawan as k", "j.no_sip", "k.no_sip")
       .leftJoin("mst_ruangan as r", "j.kode_ruangan", "r.kode_ruangan")
-      .leftJoin("mst_cabang as c", DB.raw("b.kode_cabang = c.kode_cabang COLLATE utf8mb4_0900_ai_ci"))
+      .leftJoin("mst_cabang as c", function () {
+        this.on(
+          DB.raw(
+            "b.kode_cabang COLLATE utf8mb4_unicode_ci = c.kode_cabang COLLATE utf8mb4_unicode_ci"
+          )
+        );
+      })
       .where(function () {
         this.where("b.kode_booking", kode).orWhere("b.id", kode);
       });

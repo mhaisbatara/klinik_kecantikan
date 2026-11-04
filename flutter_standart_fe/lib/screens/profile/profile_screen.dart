@@ -1612,12 +1612,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               'nama': firstDet['nama_layanan'],
                               'is_paket': true,
                               'kode_kepemilikan_paket_layanan': pkg['kode_kepemilikan_paket_layanan'],
+                              'kode_cabang': pkg['kode_cabang'],
+                              'nama_cabang': pkg['nama_cabang'],
                             };
                           }
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => BookingScreen(initialLayanan: initialLayanan),
+                              builder: (_) => BookingScreen(
+                                initialLayanan: initialLayanan,
+                                initialKodeCabang: pkg['kode_cabang']?.toString(),
+                                initialNamaCabang: pkg['nama_cabang']?.toString(),
+                              ),
                             ),
                           ).then((_) => _refreshProfile());
                         },
@@ -2013,12 +2019,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     'nama': firstDet['nama_layanan'],
                     'is_paket': true,
                     'kode_kepemilikan_paket_layanan': pkg['kode_kepemilikan_paket_layanan'],
+                    'kode_cabang': pkg['kode_cabang'],
+                    'nama_cabang': pkg['nama_cabang'],
                   };
                 }
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => BookingScreen(initialLayanan: initialLayanan),
+                    builder: (_) => BookingScreen(
+                      initialLayanan: initialLayanan,
+                      initialKodeCabang: pkg['kode_cabang']?.toString(),
+                      initialNamaCabang: pkg['nama_cabang']?.toString(),
+                    ),
                   ),
                 ).then((_) => _refreshProfile());
               },

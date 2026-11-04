@@ -1237,6 +1237,7 @@ router.post(
  */
 router.get("/packages", authenticateMobile, async (req, res) => {
   const user = req.auth;
+  const { kode_cabang } = req.query;
 
   try {
     const cred = await DB("user_credential").where("user_code", user.user_code).first();
@@ -1247,7 +1248,7 @@ router.get("/packages", authenticateMobile, async (req, res) => {
     }
 
     // 1. Ambil kepemilikan paket
-    const packages = await DB("trx_kepemilikan_paket_layanan as kpl")
+    let query = DB("trx_kepemilikan_paket_layanan as kpl")
       .leftJoin("mst_paket_layanan as p", function () {
         this.on(
           DB.raw(
@@ -1269,7 +1270,17 @@ router.get("/packages", authenticateMobile, async (req, res) => {
           )
         );
       })
-      .where(DB.raw("kpl.no_rm COLLATE utf8mb4_unicode_ci"), "=", noRm)
+      .where(DB.raw("kpl.no_rm COLLATE utf8mb4_unicode_ci"), "=", noRm);
+
+    if (kode_cabang) {
+      query = query.where(
+        DB.raw("kpl.kode_cabang COLLATE utf8mb4_unicode_ci"),
+        "=",
+        kode_cabang
+      );
+    }
+
+    const packages = await query
       .select(
         "kpl.id",
         "kpl.kode_kepemilikan_paket_layanan",
