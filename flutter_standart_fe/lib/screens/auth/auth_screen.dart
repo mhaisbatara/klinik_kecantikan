@@ -195,13 +195,21 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     setState(() => _regLoading = false);
 
     if (result['success'] == true) {
-      _showCustomToast('Pendaftaran Akun Berhasil! Selamat datang di klinik kami.');
-      await Future.delayed(const Duration(milliseconds: 600));
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => HomeScreen(user: result['data'])),
-      );
+      _showCustomToast('Pendaftaran Berhasil! Silakan masuk dengan akun Anda.');
+
+      // Bersihkan formulir registrasi
+      _regNamaCtrl.clear();
+      _regPhoneCtrl.clear();
+      _regEmailCtrl.clear();
+      _regPassCtrl.clear();
+      _regConfirmPassCtrl.clear();
+
+      // Isi kolom login dengan No HP / Email yang didaftarkan
+      _loginUserCtrl.text = phone.isNotEmpty ? phone : email;
+      _loginPassCtrl.clear();
+
+      // Pindahkan tampilan ke halaman/tab login (Tab index 0)
+      _tabController.animateTo(0);
     } else {
       _showCustomToast(result['message'] ?? 'Registrasi gagal', isSuccess: false);
     }

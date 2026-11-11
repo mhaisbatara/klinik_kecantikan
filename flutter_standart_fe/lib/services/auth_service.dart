@@ -122,15 +122,10 @@ class AuthService {
 
       if ((response.statusCode == 200 || response.statusCode == 201) &&
           data['status'] == '00') {
-        final token = data['data']['access_token'];
-        final refreshToken = data['data']['refresh_token'];
-        final userInfo = data['data']['user_info'];
+        final userInfo = data['data'] != null ? data['data']['user_info'] : null;
 
-        await saveSession(
-          token: token,
-          refreshToken: refreshToken,
-          user: userInfo,
-        );
+        // Jangan simpan sesi secara otomatis saat registrasi,
+        // agar pengguna diarahkan untuk masuk/login manual terlebih dahulu.
 
         return {'success': true, 'message': data['message'], 'data': userInfo};
       } else {
