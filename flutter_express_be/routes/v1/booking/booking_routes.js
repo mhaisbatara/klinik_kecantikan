@@ -197,6 +197,7 @@ router.post("/create", authenticateMobile, upload.single("bukti_dp"), async (req
     }
 
     // 0. Cek apakah pasien masih memiliki transaksi booking pending (menunggu upload bukti DP)
+    // Jika ada transaksi pending lama yang belum diunggah bukti DP, batalkan otomatis agar reservasi baru dapat diproses langsung tanpa memblokir pasien
     const activePending = await DB("trx_booking")
       .where("no_rm", noRm)
       .where("status", "menunggu")
@@ -204,17 +205,30 @@ router.post("/create", authenticateMobile, upload.single("bukti_dp"), async (req
       .where((qb) => {
         qb.whereNull("bukti_dp").orWhere("bukti_dp", "");
       })
-      .where("tanggal_booking", ">=", todayYmd)
       .orderBy("id", "desc")
       .first();
 
     if (activePending) {
-      return sendError(
-        res,
-        `Anda masih memiliki transaksi booking pending (${activePending.kode_booking}) yang belum menyelesaikan upload bukti DP. Silakan selesaikan transaksi tersebut atau batalkan terlebih dahulu.`,
-        400,
-        activePending
-      );
+      const isExpired = activePending.created_at && ((Date.now() - new Date(activePending.created_at).getTime()) / (1000 * 60) > 30);
+      const pembatalanMsg = isExpired
+        ? `[DIBATALKAN SISTEM OTOMATIS ${formatDateSystem()}] Batas waktu upload bukti DP (30 menit) telah kedaluwarsa`
+        : `[DIBATALKAN SISTEM OTOMATIS ${formatDateSystem()}] Digantikan oleh pembuatan reservasi baru pasien`;
+
+      await DB("trx_booking")
+        .where("kode_booking", activePending.kode_booking)
+        .update({
+          status: "dibatalkan",
+          catatan_pasien: [
+            activePending.catatan_pasien,
+            pembatalanMsg,
+          ].filter(Boolean).join("\n"),
+          updated_at: formatDateSystem(),
+          updated_by: user.username || "mobile_app",
+        });
+
+      try {
+        await cancelKasirDraftByBooking(DB, activePending.kode_booking, user.username || "mobile_app");
+      } catch (_) {}
     }
 
     // 1. Verifikasi Pasien
@@ -661,6 +675,30 @@ router.get("/pending", authenticateMobile, async (req, res) => {
       return sendSuccess(res, "Tidak ada transaksi booking pending", null);
     }
 
+    // Periksa batas waktu pembayaran 30 menit
+    if (pendingBooking.created_at) {
+      const createdAtTime = new Date(pendingBooking.created_at).getTime();
+      const diffMinutes = (Date.now() - createdAtTime) / (1000 * 60);
+      if (diffMinutes > 30) {
+        // Otomatis batalkan karena sudah melebihi 30 menit
+        await DB("trx_booking")
+          .where("kode_booking", pendingBooking.kode_booking)
+          .update({
+            status: "dibatalkan",
+            catatan_pasien: [
+              pendingBooking.catatan_pasien,
+              `[DIBATALKAN SISTEM OTOMATIS ${formatDateSystem()}] Batas waktu upload bukti DP (30 menit) telah kedaluwarsa`,
+            ].filter(Boolean).join("\n"),
+            updated_at: formatDateSystem(),
+            updated_by: "system_cron",
+          });
+        try {
+          await cancelKasirDraftByBooking(DB, pendingBooking.kode_booking, "system_cron");
+        } catch (_) {}
+        return sendSuccess(res, "Transaksi booking pending telah melebihi batas waktu 30 menit dan otomatis dibatalkan", null);
+      }
+    }
+
     const hasDetail = await DB.schema.hasTable("trx_detail_booking");
     pendingBooking.items = hasDetail
       ? await DB("trx_detail_booking")
@@ -762,6 +800,33 @@ router.post("/:kode/upload-bukti-dp", authenticateMobile, upload.single("bukti_d
 
     if (["batal", "dibatalkan", "selesai"].includes(booking.status)) {
       return sendError(res, `Booking tidak dapat diproses karena status: ${booking.status}`, 400);
+    }
+
+    // Periksa batas waktu pembayaran DP (30 menit)
+    if (booking.created_at && (!booking.bukti_dp || booking.bukti_dp === "")) {
+      const createdAtTime = new Date(booking.created_at).getTime();
+      const diffMinutes = (Date.now() - createdAtTime) / (1000 * 60);
+      if (diffMinutes > 30) {
+        await DB("trx_booking")
+          .where("kode_booking", kode)
+          .update({
+            status: "dibatalkan",
+            catatan_pasien: [
+              booking.catatan_pasien,
+              `[DIBATALKAN SISTEM OTOMATIS ${formatDateSystem()}] Batas waktu upload bukti DP (30 menit) telah kedaluwarsa`,
+            ].filter(Boolean).join("\n"),
+            updated_at: formatDateSystem(),
+            updated_by: "system_cron",
+          });
+        try {
+          await cancelKasirDraftByBooking(DB, kode, "system_cron");
+        } catch (_) {}
+        return sendError(
+          res,
+          "Batas waktu pembayaran DP (30 menit) telah kedaluwarsa. Transaksi booking telah otomatis dibatalkan.",
+          400
+        );
+      }
     }
 
     let buktiDpUrl = booking.bukti_dp;
